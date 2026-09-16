@@ -85,6 +85,7 @@ declare var openHostWindow: (custom: boolean, mode: number) => void;
 declare var createPrivateRoom: () => void;
 declare var setSetting: (key: string, value: any) => void;
 declare var loginOrRegister: () => void;
+declare var logoutAcc: () => void;
 declare var playSelect: (volume?: number) => void;
 declare var switchChat: (element: Element | null) => void;
 declare var changeCont: (name: string, index: number, value: any) => void;

@@ -1,5 +1,5 @@
 import { kute } from "../client.js";
-import { getElement, getInput, checkCompMode } from "../utils.js";
+import { getElement, getInput, checkCompMode, waitForElement } from "../utils.js";
 
 /**
  * Stored account credentials. Username and password are obfuscated with {@link AccountManager#encode}.
@@ -12,6 +12,7 @@ import { getElement, getInput, checkCompMode } from "../utils.js";
 
 /**
  * Adds an "Accounts" button that lets the user save and switch between login credentials.
+ * The button lives in the signed-out header, the signed-in header or the comp host UI, whichever is shown.
  */
 class AccountManager {
     constructor(){
@@ -21,6 +22,19 @@ class AccountManager {
         this.button.classList.add("button", "buttonB", "bigShadowT");
         this.button.style.cssText =
             "display: block; padding-top: 7px; padding-bottom: 22px; font-size: 25px!important; padding-bottom: 22px; margin-top: 7px; height: 21px; line-height: 35px; width: 162px; font-size:20px!important; margin-left: 3px;";
+
+        // signed-in header entry, styled like krunker's own .ph-item entries
+        /** @type {HTMLDivElement} */
+        this.headerSeparator = document.createElement("div");
+        this.headerSeparator.style.cssText = "width: 4px; height: 35px; margin: 0 6px; background: rgba(255, 255, 255, 0.12); flex-shrink: 0;";
+        /** @type {HTMLDivElement} */
+        this.headerItem = document.createElement("div");
+        this.headerItem.style.cssText =
+            "display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; color: #fff; font-weight: 700; font-size: 16px; white-space: nowrap;";
+        this.headerItem.innerHTML = '<span class="material-icons" style="font-size: 20px;">switch_account</span><span>Accounts</span>';
+
+        /** @type {MutationObserver} */
+        this.headerObserver = new MutationObserver(() => this.placeButton());
 
         /** @type {HTMLDivElement} */
         this.container = document.createElement("div");
@@ -56,20 +70,43 @@ class AccountManager {
     toggle(enabled){
         if (enabled){
             window.chrome.webview.addEventListener("message", this.gameUpdateListener);
-            document.querySelector("#signedOutHeaderBar")?.append(this.button);
             this.button.addEventListener("click", this.createMenu);
+            this.headerItem.addEventListener("click", this.createMenu);
             if (checkCompMode()){
                 window.chrome.webview.removeEventListener("message", this.gameUpdateListener);
                 this.button.style.cssText =
                     "display: block; padding: 14px 24px 22px; bottom: 0; right: 0; z-index: 9; font-size: 21px !important; position: absolute;";
                 getElement("#compBtnLst").append(this.button);
             }
+            else {
+                this.placeButton();
+                // the header is re-rendered on login and logout, which drops the button
+                const header = document.querySelector("#playerHeaderEl");
+                if (header) this.headerObserver.observe(header, { childList: true, subtree: true });
+            }
         }
         else {
             window.chrome.webview.removeEventListener("message", this.gameUpdateListener);
+            this.headerObserver.disconnect();
             this.button.removeEventListener("click", this.createMenu);
+            this.headerItem.removeEventListener("click", this.createMenu);
             this.button.remove();
+            this.headerSeparator.remove();
+            this.headerItem.remove();
         }
+    }
+
+    /**
+     * Puts the button into the signed-out header bar or the signed-in header bar, whichever is rendered.
+     */
+    placeButton(){
+        const signedIn = document.querySelector("#signedInHeaderBar");
+        if (signedIn){
+            if (!signedIn.contains(this.headerItem)) signedIn.append(this.headerSeparator, this.headerItem);
+            return;
+        }
+        const signedOut = document.querySelector("#signedOutHeaderBar");
+        if (signedOut && !signedOut.contains(this.button)) signedOut.append(this.button);
     }
 
     /**
@@ -156,15 +193,20 @@ class AccountManager {
     }
 
     /**
-     * Fills Krunker's login form with the selected account and submits it.
+     * Fills Krunker's login form with the selected account and submits it. Logs the current account out first.
      *
      * @param {HTMLElement} element The clicked account entry
+     * @return {Promise<void>}
      */
-    handleAccountSelection(element){
+    async handleAccountSelection(element){
         const account = this.accounts.find((acc) => this.decode(acc.username) === element.textContent);
         if (!account) return;
 
         this.removeWindow();
+        if (document.querySelector("#signedInHeaderBar")){
+            window.logoutAcc();
+            await waitForElement("#signedOutHeaderBar");
+        }
         window.loginOrRegister();
 
         queueMicrotask(() => {
