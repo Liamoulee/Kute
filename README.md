@@ -9,6 +9,8 @@
 - [Latest Release](https://github.com/NullDev/Kute/releases/latest)
 - [All Releases](https://github.com/NullDev/Kute/releases)
 
+<hr>
+
 ## :star: Features
 
 - [x] **Proper** Raw input
@@ -44,8 +46,9 @@ Consider using the CPU Throttler in such scenario
 
 1. `git clone https://github.com/NullDev/Kute.git`
 2. `cd Kute`
-3. `bun install`
-4. `bun run build`
+3. `bun i`
+4. `bun run dev`
+5. `bun run build`
 
 <hr>
 
