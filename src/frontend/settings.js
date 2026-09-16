@@ -48,14 +48,14 @@ window.kute.settings.changeSetting = (id, rawValue, slider) => {
     if (document.querySelector(`#slid_input_${id}`) && slider){
         document.querySelector(`#slid_input_${id}`).value = value;
 
-        if (debounceTimers[id]) clearTimeout(debounceTimers[id]);
+        clearTimeout(debounceTimers.get(id));
 
-        debounceTimers[id] = setTimeout(() => {
+        debounceTimers.set(id, setTimeout(() => {
             window.kute.settings.data[id] = value;
             window.chrome.webview.postMessage(`set-config, ${id}, ${value}`);
 
             debounceTimers.delete(id);
-        }, 500);
+        }, 500));
         return;
     }
 

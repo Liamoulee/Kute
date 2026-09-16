@@ -45,11 +45,12 @@ class RealPing {
                 window.chrome.webview.postMessage("ping");
             }, 3000);
 
-            this.listener = window.chrome.webview.addEventListener("message", (event) => {
+            this.listener = (event) => {
                 if (!event.data.pingInfo) return;
                 this.ingamePing.innerText = event.data.pingInfo;
                 this.menuPing.innerText = event.data.pingInfo;
-            });
+            };
+            window.chrome.webview.addEventListener("message", this.listener);
         }
         else {
             clearInterval(this.interval);
