@@ -50,7 +50,7 @@ function semverCompare(a, b){
         while (container.firstChild) shadow.append(container.firstChild);
 
         const title = shadow.getElementById("changelogTitle");
-        if (title) title.textContent = `kute ${version}`;
+        if (title) title.textContent = `Kute ${version}`;
         const content = shadow.getElementById("changelogContent");
         if (content) content.textContent = "loading release notes...";
         const closeBtn = shadow.getElementById("closeChangelog");

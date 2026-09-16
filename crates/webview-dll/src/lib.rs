@@ -115,7 +115,7 @@ fn spawn_injected_audio_window() {
         CreateWindowExW(
             WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE,
             class_name,
-            w!("kute audio window"),
+            w!("Kute audio window"),
             WS_POPUP | WS_VISIBLE,
             -32000,
             -32000,

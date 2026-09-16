@@ -287,7 +287,7 @@ pub fn create_window(start_mode: &str, is_subwindow: bool, init_state: Option<Wi
         let hwnd: HWND = CreateWindowExW(
             WINDOW_EX_STYLE::default(),
             class_name,
-            w!("kute"),
+            w!("Kute"),
             WS_OVERLAPPEDWINDOW | WS_VISIBLE,
             x,
             y,
