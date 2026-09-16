@@ -1,6 +1,6 @@
 use windows::Win32::UI::WindowsAndMessaging::WM_USER;
 
-pub const DISCORD_CLIENT_ID: &str = "1366441319890948136";
+pub const DISCORD_CLIENT_ID: &str = "1549875633276981249";
 pub const UPDATE_URL: &str = "https://api.github.com/repos/NullDev/Kute/releases/latest";
 pub const JS_VERSION_URL: &str = "https://raw.githubusercontent.com/NullDev/Kute/master/target/bundle_version";
 pub const JS_BUNDLE_URL: &str = "https://raw.githubusercontent.com/NullDev/Kute/master/target/bundle.js";

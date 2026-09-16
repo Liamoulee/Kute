@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
-  <Package Id="kutePackage" Name="kute" Manufacturer="NullDev" Version="0.1.0" Scope="perUser" UpgradeCode="a7646727-a137-4b5b-a053-a558de8fa100">
+  <Package Id="kutePackage" Name="Kute" Manufacturer="NullDev" Version="0.1.0" Scope="perUser" UpgradeCode="a7646727-a137-4b5b-a053-a558de8fa100">
     <util:CloseApplication Target="kute.exe" CloseMessage="yes" RebootPrompt="no"/>
     <Icon Id="AppIconIco" SourceFile="resources/kute.ico"/>
     <Property Id="ARPPRODUCTICON" Value="AppIconIco" />
@@ -12,7 +12,7 @@
         <Directory Id="RESOURCESFOLDER" Name="resources"/>
       </Directory>
     </StandardDirectory>
-    <Feature Id="ProductFeature" Title="kute" Level="1">
+    <Feature Id="ProductFeature" Title="Kute" Level="1">
       <ComponentGroupRef Id="WebView2Components" />
       <ComponentGroupRef Id="KuteComponents" />
       <ComponentGroupRef Id="ResourcesComponents" />
@@ -37,8 +37,8 @@
         <File Id="kute.exe" Name="kute.exe" Source="target\x86_64-pc-windows-msvc\release\kute.exe" KeyPath="yes"/>
         <File Id="kute.pdb" Name ="kute.pdb" Source="target\x86_64-pc-windows-msvc\release\kute.pdb"/>
 				<File Id="vcruntime140_1.dll" Name="vcruntime140_1.dll" Source="target\x86_64-pc-windows-msvc\release\vcruntime140_1.dll"/>
-        <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="kute" Target="[INSTALLFOLDER]kute.exe" WorkingDirectory="INSTALLFOLDER" />
-        <Shortcut Id="ProgramMenuShortcut" Directory="ProgramMenuFolder" Name="kute" Target="[INSTALLFOLDER]kute.exe" WorkingDirectory="INSTALLFOLDER" />
+        <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="Kute" Target="[INSTALLFOLDER]kute.exe" WorkingDirectory="INSTALLFOLDER" />
+        <Shortcut Id="ProgramMenuShortcut" Directory="ProgramMenuFolder" Name="Kute" Target="[INSTALLFOLDER]kute.exe" WorkingDirectory="INSTALLFOLDER" />
         <RemoveFile Id="CleanInstallexe" Name="*.exe" On="uninstall" Directory="INSTALLFOLDER" />
         <RemoveFile Id="CleanInstalldlls" Name="*.dll" On="uninstall" Directory="INSTALLFOLDER" />
       </Component>
