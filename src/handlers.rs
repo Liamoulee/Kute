@@ -1,14 +1,18 @@
-use crate::{debug_print, modules, utils, utils::config, window};
-use discord_rich_presence::{DiscordIpc, DiscordIpcClient, activity};
-use std::{
-    process, result,
-    sync::{Arc, Mutex},
+use crate::{app, bridge, constants, debug_print, modules, utils, utils::config, window};
+use cef::{
+    rc::*,
+    wrapper::byte_read_handler::{ByteReadHandler, ByteStream},
+    wrapper::stream_resource_handler::StreamResourceHandler,
+    *,
 };
-use webview2_com::{Microsoft::Web::WebView2::Win32::*, *};
-use windows::{
-    Win32::{Foundation::*, UI::WindowsAndMessaging::*},
-    core::*,
-};
+use std::sync::{Arc, Mutex};
+
+// args handed over by a second instance while the main window was being recreated
+static PENDING_ARGS: Mutex<Option<String>> = Mutex::new(None);
+
+pub fn set_pending_args(args: String) {
+    *PENDING_ARGS.lock().unwrap() = Some(args);
+}
 
 pub fn parse_web_message_value(value: &str) -> serde_json::Value {
     if let Ok(bool_val) = value.parse::<bool>() {
@@ -22,175 +26,398 @@ pub fn parse_web_message_value(value: &str) -> serde_json::Value {
     }
 }
 
-pub fn set_permission_requested_handler(webview: &ICoreWebView2, token: &mut i64) {
-    let handler = PermissionRequestedEventHandler::create(Box::new(move |_, args: Option<ICoreWebView2PermissionRequestedEventArgs>| {
-        if let Some(args) = args {
-            unsafe {
-                args.SetState(COREWEBVIEW2_PERMISSION_STATE_ALLOW).ok();
+fn request_url(request: Option<&mut Request>) -> Option<String> {
+    let request = request?;
+    Some(utils::cef_to_string(&request.url()))
+}
+
+// the page asked about a lobby, tell the bundle (runs on the UI thread, the load hook is on IO)
+wrap_task! {
+    struct GameUpdatedTask {
+        browser_id: i32,
+    }
+
+    impl Task {
+        fn execute(&self) {
+            if let Some(browser) = window::browser_by_id(self.browser_id) {
+                bridge::post_string(&browser, "game-updated");
             }
         }
-        Ok(())
-    }));
-    unsafe {
-        webview.add_PermissionRequested(&handler, token).ok();
     }
 }
 
-pub fn set_web_resource_requested_handler(webview: &ICoreWebView2, env: &ICoreWebView2Environment, token: &mut i64) {
-    let env_clone = env.clone();
-    let swaps = if config("swapper", true) {
-        modules::swapper::load(webview)
-    } else {
-        std::collections::HashMap::new()
-    };
+// mirrors the WebResourceRequested handler: blocklist, game-updated signal and the swapper
+wrap_resource_request_handler! {
+    struct KuteResourceRequestHandler;
 
-    let handler = WebResourceRequestedEventHandler::create(Box::new(move |webview, args| {
-        let Some(args) = args else {
-            return Ok(());
-        };
-        let request: ICoreWebView2WebResourceRequest = unsafe { args.Request()? };
-        let mut uri = PWSTR::null();
-        unsafe { request.Uri(&mut uri)? };
-        let uri = take_pwstr(uri);
+    impl ResourceRequestHandler {
+        fn on_before_resource_load(
+            &self,
+            browser: Option<&mut Browser>,
+            _frame: Option<&mut Frame>,
+            request: Option<&mut Request>,
+            _callback: Option<&mut Callback>,
+        ) -> ReturnValue {
+            let Some(url) = request_url(request) else { return ReturnValue::CONTINUE };
 
-        if uri.contains("krunker.io") {
-            if uri.contains("game-info") || uri.contains("lobby-ranked") {
-                if let Some(webview) = webview {
-                    unsafe {
-                        webview.PostWebMessageAsString(w!("game-updated")).ok();
+            if url.contains("krunker.io") && (url.contains("game-info") || url.contains("lobby-ranked")) {
+                if let Some(browser) = browser {
+                    let mut task = GameUpdatedTask::new(browser.identifier());
+                    post_task(ThreadId::UI, Some(&mut task));
+                }
+                return ReturnValue::CONTINUE;
+            }
+
+            if modules::blocklist::is_blocked(&url) {
+                debug_print!("handlers: blocked {url}");
+                return ReturnValue::CANCEL;
+            }
+            ReturnValue::CONTINUE
+        }
+
+        fn resource_handler(
+            &self,
+            _browser: Option<&mut Browser>,
+            _frame: Option<&mut Frame>,
+            request: Option<&mut Request>,
+        ) -> Option<ResourceHandler> {
+            let url = request_url(request)?;
+            let bytes = modules::swapper::swap_for(&url)?;
+            debug_print!("handlers: swapping {url}");
+
+            let filename = url.split("krunker.io/").nth(1).and_then(|s| s.split('?').next()).unwrap_or("");
+            let mut read_handler = ByteReadHandler::new(Arc::new(Mutex::new(ByteStream::new(bytes.clone()))));
+            let stream = stream_reader_create_for_handler(Some(&mut read_handler))?;
+            Some(StreamResourceHandler::new_with_stream(modules::swapper::mime_for(filename).to_string(), stream))
+        }
+    }
+}
+
+wrap_request_handler! {
+    struct KuteRequestHandler;
+
+    impl RequestHandler {
+        fn resource_request_handler(
+            &self,
+            _browser: Option<&mut Browser>,
+            _frame: Option<&mut Frame>,
+            _request: Option<&mut Request>,
+            _is_navigation: ::std::os::raw::c_int,
+            _is_download: ::std::os::raw::c_int,
+            _request_initiator: Option<&CefString>,
+            _disable_default_handling: Option<&mut ::std::os::raw::c_int>,
+        ) -> Option<ResourceRequestHandler> {
+            Some(KuteResourceRequestHandler::new())
+        }
+    }
+}
+
+// requests without a browser (the service worker script, fetches made by it) come through here
+wrap_request_context_handler! {
+    pub struct KuteRequestContextHandler;
+
+    impl RequestContextHandler {
+        fn resource_request_handler(
+            &self,
+            _browser: Option<&mut Browser>,
+            _frame: Option<&mut Frame>,
+            _request: Option<&mut Request>,
+            _is_navigation: ::std::os::raw::c_int,
+            _is_download: ::std::os::raw::c_int,
+            _request_initiator: Option<&CefString>,
+            _disable_default_handling: Option<&mut ::std::os::raw::c_int>,
+        ) -> Option<ResourceRequestHandler> {
+            Some(KuteResourceRequestHandler::new())
+        }
+    }
+}
+
+// CEF reports windows virtual key codes
+const VK_F4: i32 = 0x73;
+const VK_F5: i32 = 0x74;
+const VK_F6: i32 = 0x75;
+const VK_F11: i32 = 0x7A;
+const VK_F12: i32 = 0x7B;
+
+// mirrors AcceleratorKeyPressed: the client reacts, the page still receives the key
+wrap_keyboard_handler! {
+    struct KuteKeyboardHandler;
+
+    impl KeyboardHandler {
+        fn on_pre_key_event(
+            &self,
+            browser: Option<&mut Browser>,
+            event: Option<&KeyEvent>,
+            _os_event: Option<&mut sys::MSG>,
+            _is_keyboard_shortcut: Option<&mut ::std::os::raw::c_int>,
+        ) -> ::std::os::raw::c_int {
+            let (Some(browser), Some(event)) = (browser, event) else { return 0 };
+            if event.type_ != KeyEventType::RAWKEYDOWN {
+                return 0;
+            }
+            if matches!(event.windows_key_code, VK_F4 | VK_F5 | VK_F6 | VK_F11 | VK_F12) {
+                window::handle_accelerator_key(browser, event.windows_key_code as u16);
+            }
+            0
+        }
+    }
+}
+
+// mirrors SetAreBrowserAcceleratorKeysEnabled(false): no chrome commands (reload, zoom, find, ...)
+wrap_command_handler! {
+    struct KuteCommandHandler;
+
+    impl CommandHandler {
+        fn on_chrome_command(
+            &self,
+            _browser: Option<&mut Browser>,
+            _command_id: ::std::os::raw::c_int,
+            _disposition: WindowOpenDisposition,
+        ) -> ::std::os::raw::c_int {
+            1
+        }
+    }
+}
+
+// mirrors PermissionRequested -> ALLOW (pointer lock, media, ...)
+wrap_permission_handler! {
+    struct KutePermissionHandler;
+
+    impl PermissionHandler {
+        fn on_request_media_access_permission(
+            &self,
+            _browser: Option<&mut Browser>,
+            _frame: Option<&mut Frame>,
+            _requesting_origin: Option<&CefString>,
+            requested_permissions: u32,
+            callback: Option<&mut MediaAccessCallback>,
+        ) -> ::std::os::raw::c_int {
+            let Some(callback) = callback else { return 0 };
+            callback.cont(requested_permissions);
+            1
+        }
+
+        fn on_show_permission_prompt(
+            &self,
+            _browser: Option<&mut Browser>,
+            _prompt_id: u64,
+            _requesting_origin: Option<&CefString>,
+            _requested_permissions: u32,
+            callback: Option<&mut PermissionPromptCallback>,
+        ) -> ::std::os::raw::c_int {
+            let Some(callback) = callback else { return 0 };
+            callback.cont(PermissionRequestResult::ACCEPT);
+            1
+        }
+    }
+}
+
+// mirrors SetAreDefaultContextMenusEnabled(false)
+wrap_context_menu_handler! {
+    struct KuteContextMenuHandler;
+
+    impl ContextMenuHandler {
+        fn on_before_context_menu(
+            &self,
+            _browser: Option<&mut Browser>,
+            _frame: Option<&mut Frame>,
+            _params: Option<&mut ContextMenuParams>,
+            model: Option<&mut MenuModel>,
+        ) {
+            if let Some(model) = model {
+                model.clear();
+            }
+        }
+    }
+}
+
+// downloads (settings export) go straight to the Downloads folder, the bundle shows the notification
+wrap_download_handler! {
+    struct KuteDownloadHandler;
+
+    impl DownloadHandler {
+        fn can_download(
+            &self,
+            _browser: Option<&mut Browser>,
+            _url: Option<&CefString>,
+            _request_method: Option<&CefString>,
+        ) -> ::std::os::raw::c_int {
+            1
+        }
+
+        fn on_before_download(
+            &self,
+            _browser: Option<&mut Browser>,
+            _download_item: Option<&mut DownloadItem>,
+            suggested_name: Option<&CefString>,
+            callback: Option<&mut BeforeDownloadCallback>,
+        ) -> ::std::os::raw::c_int {
+            let Some(callback) = callback else { return 0 };
+            // no path: chromium saves to its download folder under a uniquified suggested name
+            callback.cont(None, 0);
+            1
+        }
+    }
+}
+
+// mirrors SetAllowExternalDrop(false)
+wrap_drag_handler! {
+    struct KuteDragHandler;
+
+    impl DragHandler {
+        fn on_drag_enter(
+            &self,
+            _browser: Option<&mut Browser>,
+            _drag_data: Option<&mut DragData>,
+            _mask: DragOperationsMask,
+        ) -> ::std::os::raw::c_int {
+            1
+        }
+    }
+}
+
+wrap_display_handler! {
+    struct KuteDisplayHandler;
+
+    impl DisplayHandler {
+        fn on_console_message(
+            &self,
+            _browser: Option<&mut Browser>,
+            _level: LogSeverity,
+            _message: Option<&CefString>,
+            _source: Option<&CefString>,
+            _line: ::std::os::raw::c_int,
+        ) -> ::std::os::raw::c_int {
+            debug_print!("console: {} ({}:{_line})", utils::cef_str(_message), utils::cef_str(_source));
+            0
+        }
+    }
+}
+
+wrap_life_span_handler! {
+    struct KuteLifeSpanHandler;
+
+    impl LifeSpanHandler {
+        fn on_before_popup(
+            &self,
+            _browser: Option<&mut Browser>,
+            _frame: Option<&mut Frame>,
+            _popup_id: ::std::os::raw::c_int,
+            _target_url: Option<&CefString>,
+            _target_frame_name: Option<&CefString>,
+            _target_disposition: WindowOpenDisposition,
+            _user_gesture: ::std::os::raw::c_int,
+            popup_features: Option<&PopupFeatures>,
+            window_info: Option<&mut WindowInfo>,
+            client: Option<&mut Option<Client>>,
+            settings: Option<&mut BrowserSettings>,
+            _extra_info: Option<&mut Option<DictionaryValue>>,
+            _no_javascript_access: Option<&mut ::std::os::raw::c_int>,
+        ) -> ::std::os::raw::c_int {
+            debug_print!("handlers: popup requested for {}", utils::cef_str(_target_url));
+            window::create_popup_window(popup_features, window_info, client, settings);
+            0
+        }
+
+        fn on_after_created(&self, browser: Option<&mut Browser>) {
+            let Some(browser) = browser else { return };
+            window::attach_browser(browser);
+            if browser.is_popup() != 0 {
+                // a same origin popup keeps the initial window and swaps the document, so the social
+                // userscripts are registered per document (like WebView2 did) instead of per V8 context
+                if config("userscripts", true) {
+                    let scripts = modules::userscripts::load(true);
+                    if !scripts.is_empty() {
+                        let source = format!(
+                            "if (window === window.top && location.href.includes(\"krunker.io/social.html\")) {{\n{}\n}}",
+                            scripts.join("\n")
+                        );
+                        modules::devtools::add_document_script(browser, &source);
                     }
                 }
-                return Ok(());
+                return;
             }
-
-            let filename: &str = uri.split("krunker.io/").nth(1).and_then(|s| s.split('?').next()).unwrap_or("");
-
-            if let Some(stream) = swaps.get(filename) {
-                let response = unsafe { env_clone.CreateWebResourceResponse(stream, 200, w!("OK"), w!("Access-Control-Allow-Origin: *"))? };
-                unsafe { args.SetResponse(Some(&response))? };
-                return Ok(());
+            if let Some(args) = PENDING_ARGS.lock().unwrap().take() {
+                let string = serde_json::to_string(&args).unwrap_or_else(|_| String::new());
+                bridge::post_json(browser, &format!("{{\"args\":{}}}", string));
             }
         }
 
-        unsafe {
-            request.SetUri(PCWSTR::null())?;
+        fn do_close(&self, browser: Option<&mut Browser>) -> ::std::os::raw::c_int {
+            if let Some(browser) = browser {
+                window::mark_closing(browser);
+            }
+            0
         }
-        Ok(())
-    }));
 
-    unsafe {
-        webview.add_WebResourceRequested(&handler, token).ok();
+        fn on_before_close(&self, browser: Option<&mut Browser>) {
+            if let Some(browser) = browser {
+                window::detach_browser(browser);
+            }
+        }
     }
 }
 
-pub fn set_new_window_requested_handler(webview: &ICoreWebView2, env: &ICoreWebView2Environment, token: &mut i64) {
-    let env_clone = env.clone();
-    let handler = NewWindowRequestedEventHandler::create(Box::new(move |_, args| {
-        let Some(args) = args else {
-            return Ok(());
-        };
-        let features = unsafe { args.WindowFeatures()? };
-        let mut has_position: BOOL = false.into();
-        let mut has_size: BOOL = false.into();
-        unsafe {
-            _ = features.HasPosition(&mut has_position);
-            _ = features.HasSize(&mut has_size);
-        };
-        let mut window_state = None;
-        if has_position.as_bool() && has_size.as_bool() {
-            let mut left = 0;
-            let mut top = 0;
-            let mut width = 0;
-            let mut height = 0;
-            unsafe {
-                _ = features.Left(&mut left);
-                _ = features.Top(&mut top);
-                _ = features.Width(&mut width);
-                _ = features.Height(&mut height);
-            };
+wrap_client! {
+    pub struct KuteClient;
 
-            window_state = Some(window::WindowState {
-                fullscreen: false,
-                position: window::Position {
-                    left: left as i32,
-                    top: top as i32,
-                    right: left as i32 + width as i32,
-                    bottom: top as i32 + height as i32,
-                },
-            });
+    impl Client {
+        fn command_handler(&self) -> Option<CommandHandler> {
+            Some(KuteCommandHandler::new())
         }
 
-        let deferral = unsafe { args.GetDeferral()? };
-        unsafe {
-            args.SetHandled(true).unwrap();
+        fn context_menu_handler(&self) -> Option<ContextMenuHandler> {
+            Some(KuteContextMenuHandler::new())
         }
-        let (hwnd, window_state) = window::create_window("Custom", true, window_state);
-        let mut uri = PWSTR::null();
-        let _ = unsafe { args.Uri(&mut uri) };
-        let uri = take_pwstr(uri);
-        let args = utils::UnsafeSend::new(args);
-        let deferral = utils::UnsafeSend::new(deferral);
-        let env_for_creation = env_clone.clone();
-        let env_for_handler = utils::UnsafeSend::new(env_clone.clone());
-        window::create_core_webview2_controller_async(hwnd, env_for_creation, window_state, move |controller| {
-            let controller = controller.unwrap();
-            let webview = unsafe { controller.CoreWebView2().unwrap() };
-            if uri.contains("krunker.io/social.html")
-                && config("userscripts", false)
-                && let Err(e) = modules::userscripts::load(&webview, true)
-            {
-                println!("can't load userscripts on social window {}", e);
+
+        fn display_handler(&self) -> Option<DisplayHandler> {
+            Some(KuteDisplayHandler::new())
+        }
+
+        fn download_handler(&self) -> Option<DownloadHandler> {
+            Some(KuteDownloadHandler::new())
+        }
+
+        fn drag_handler(&self) -> Option<DragHandler> {
+            Some(KuteDragHandler::new())
+        }
+
+        fn permission_handler(&self) -> Option<PermissionHandler> {
+            Some(KutePermissionHandler::new())
+        }
+
+        fn keyboard_handler(&self) -> Option<KeyboardHandler> {
+            Some(KuteKeyboardHandler::new())
+        }
+
+        fn life_span_handler(&self) -> Option<LifeSpanHandler> {
+            Some(KuteLifeSpanHandler::new())
+        }
+
+        fn request_handler(&self) -> Option<RequestHandler> {
+            Some(KuteRequestHandler::new())
+        }
+
+        fn on_process_message_received(
+            &self,
+            browser: Option<&mut Browser>,
+            frame: Option<&mut Frame>,
+            _source_process: ProcessId,
+            message: Option<&mut ProcessMessage>,
+        ) -> ::std::os::raw::c_int {
+            let (Some(browser), Some(frame), Some(message)) = (browser, frame, message) else { return 0 };
+            if utils::cef_to_string(&message.name()) != constants::MSG_FROM_PAGE {
+                return 0;
             }
-
-            unsafe {
-                args.take().SetNewWindow(&webview).unwrap();
+            // WebView2 only delivered messages of the main frame of the main webview
+            if frame.is_main() == 0 || browser.is_popup() != 0 {
+                return 1;
             }
-            set_handlers(&webview, &env_for_handler);
-
-            unsafe {
-                deferral.take().Complete().ok();
-            }
-        });
-
-        Ok(())
-    }));
-
-    unsafe {
-        webview.add_NewWindowRequested(&handler, token).ok();
-    }
-}
-
-pub fn set_handlers<T: utils::EnvironmentRef>(webview: &ICoreWebView2, env_wrapper: &T) {
-    let env: &ICoreWebView2Environment = env_wrapper.env_ref();
-    let mut token = 0i64;
-
-    set_permission_requested_handler(webview, &mut token);
-
-    if config("blocklist", true) {
-        modules::blocklist::load(webview);
-    }
-
-    set_web_resource_requested_handler(webview, env, &mut token);
-    set_new_window_requested_handler(webview, env, &mut token);
-}
-
-pub fn send_info(webview: &ICoreWebView2) {
-    let version = env!("CARGO_PKG_VERSION");
-    let mut info_map = serde_json::Map::new();
-    info_map.insert("settings".to_string(), serde_json::json!(&*crate::CONFIG.lock().unwrap()));
-    info_map.insert("version".to_string(), serde_json::Value::String(version.to_string()));
-
-    let launch_args = crate::LAUNCH_ARGS.lock().unwrap();
-    if !launch_args.is_empty() {
-        info_map.insert("launchArgs".to_string(), serde_json::Value::String(launch_args.join(" ")));
-    }
-    drop(launch_args);
-
-    let info_json = serde_json::to_string_pretty(&info_map).unwrap();
-
-    let info_str = utils::create_utf_string(info_json);
-    unsafe {
-        webview.PostWebMessageAsJson(PCWSTR(info_str.as_ptr())).ok();
+            let Some(args) = message.argument_list() else { return 1 };
+            let text = utils::cef_to_string(&args.string(0));
+            handle_web_message(browser, frame, &text);
+            1
+        }
     }
 }
 
@@ -201,15 +428,10 @@ pub fn open_documents_subpath(target: &str) {
         "userscripts" => utils::settings_dir().join("scripts"),
         _ => return,
     };
-    process::Command::new("explorer.exe").arg(path_to_open).spawn().ok();
+    std::process::Command::new("explorer.exe").arg(path_to_open).spawn().ok();
 }
 
-pub fn handle_web_message(
-    webview: &ICoreWebView2,
-    main_window: &window::Window,
-    discord_client: &Arc<Mutex<Option<DiscordIpcClient>>>,
-    message_string: &str,
-) -> result::Result<(), windows::core::Error> {
+pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str) {
     let parts: Vec<&str> = message_string.split(", ").map(|s| s.trim()).collect();
     debug_print!("web message: {message_string}");
 
@@ -220,84 +442,56 @@ pub fn handle_web_message(
             if *setting == "renderFpsLimit"
                 && let Ok(fps_limit) = value.parse::<u64>()
             {
-                let ptr = crate::app::SHARED_STATS_PTR.load(std::sync::atomic::Ordering::SeqCst);
-                if ptr != 0 {
-                    unsafe {
-                        (*(ptr as *mut crate::app::SharedStats)).target_fps = fps_limit;
-                    }
-                }
+                app::set_target_fps(fps_limit);
             }
         }
         ["obs-plugin", value] => {
             let install = value.parse::<bool>().unwrap_or(false);
-            modules::obs::set_plugin_installed(webview, install);
+            modules::obs::set_plugin_installed(frame, install);
             if !install {
                 crate::CONFIG.lock().unwrap().set("obsCapturePlugin", false);
             }
         }
         ["get-info"] => {
-            send_info(webview);
+            bridge::send_info(frame);
         }
         ["drag", value] => {
-            const ENABLED: usize = 2;
-            const DISABLED: usize = 0;
+            // "drag, true" means the menu is open and the pointer is free
             let value = value.parse::<bool>().unwrap_or(false);
-            unsafe {
-                PostMessageW(main_window.widget_wnd, WM_USER, WPARAM(if value { DISABLED } else { ENABLED }), LPARAM(0)).ok();
-            }
+            modules::input::set_pointer_locked(!value);
         }
         ["throttle", status] => {
             let setting = if *status == "game" { "throttle" } else { "inMenuThrottle" };
-            utils::set_cpu_throttling(webview, config(setting, 1.0));
+            modules::devtools::set_cpu_throttling(browser, config(setting, 1.0));
         }
-        ["close"] => unsafe {
-            PostQuitMessage(0);
-        },
+        ["close"] => {
+            window::close_all();
+        }
         ["clear-cache"] => {
-            // keep dedupe cache in sync
-            utils::set_cpu_throttling(webview, 1.0);
-            unsafe {
-                webview.CallDevToolsProtocolMethod(w!("Network.clearBrowserCache"), w!("{}"), None).ok();
-                webview
-                    .CallDevToolsProtocolMethod(w!("Storage.clearDataForOrigin"), w!("{\"origin\": \"*\", \"storageTypes\": \"all\"}"), None)
-                    .ok();
-                webview.Reload().ok();
-            }
+            modules::devtools::clear_cache(browser);
         }
         ["open", target] => {
             open_documents_subpath(target);
         }
         ["rpc-update", part1, part2] => {
             let state = format!("{} on {}", part1, part2);
-            if let Some(client) = &mut *discord_client.lock().unwrap() {
-                let activity = activity::Activity::new().details("Krunker").state(&state).assets(activity::Assets::new());
-                if let Err(e) = client.set_activity(activity) {
+            if let Some(client) = &mut *app::DISCORD.lock().unwrap() {
+                let activity = discord_rich_presence::activity::Activity::new()
+                    .details("Krunker")
+                    .state(&state)
+                    .assets(discord_rich_presence::activity::Assets::new());
+                if let Err(e) = discord_rich_presence::DiscordIpc::set_activity(client, activity) {
                     eprintln!("Failed to set rpc activity: {}", e);
                 }
             }
         }
         ["toggle-rboost", value] => {
-            const ENABLED: usize = 1;
-            const DISABLED: usize = 3;
             let value = value.parse::<bool>().unwrap_or(false);
-            unsafe {
-                PostMessageW(
-                    Some(utils::find_child_window_by_class(
-                        FindWindowW(w!("kute_webview"), PCWSTR::null()).unwrap(),
-                        "Chrome_RenderWidgetHostHWND",
-                    )),
-                    WM_USER,
-                    WPARAM(if value { ENABLED } else { DISABLED }),
-                    LPARAM(0),
-                )
-                .ok();
-            }
+            modules::input::set_rampboost(value);
         }
         ["ping"] => {
-            modules::ping::ping(webview);
+            modules::ping::ping(browser.identifier());
         }
         _ => {}
     }
-
-    Ok(())
 }

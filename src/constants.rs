@@ -1,11 +1,13 @@
-use windows::Win32::UI::WindowsAndMessaging::WM_USER;
-
 pub const DISCORD_CLIENT_ID: &str = "1549875633276981249";
 pub const UPDATE_URL: &str = "https://api.github.com/repos/NullDev/Kute/releases/latest";
 pub const JS_VERSION_URL: &str = "https://raw.githubusercontent.com/NullDev/Kute/master/target/bundle_version";
 pub const JS_BUNDLE_URL: &str = "https://raw.githubusercontent.com/NullDev/Kute/master/target/bundle.js";
 pub const INSTANCE_MUTEX: &str = "Global\\9e29aac4-cd01-442b-bec2-ddd99403ca14";
-pub const WM_MINOR_UPDATE_READY: u32 = WM_USER + 5;
+pub const KRUNKER_URL: &str = "https://krunker.io";
+
+// process message names between the browser process and the renderer
+pub const MSG_TO_PAGE: &str = "kute-message";
+pub const MSG_FROM_PAGE: &str = "kute-post";
 
 pub const DEFAULT_BLOCKLIST: &str = r#"[
 	"*://*.pollfish.com/*",
