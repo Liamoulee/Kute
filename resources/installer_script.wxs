@@ -7,36 +7,22 @@
     <MediaTemplate EmbedCab="yes" />
     <MajorUpgrade AllowDowngrades="yes" Schedule="afterInstallValidate"/>
     <StandardDirectory Id="LocalAppDataFolder">
-      <Directory Id="INSTALLFOLDER" Name="kute">
-        <Directory Id="WEBVIEW2FOLDER" Name="WebView2"/>
-        <Directory Id="RESOURCESFOLDER" Name="resources"/>
-      </Directory>
+      <Directory Id="INSTALLFOLDER" Name="kute"/>
     </StandardDirectory>
     <Feature Id="ProductFeature" Title="Kute" Level="1">
-      <ComponentGroupRef Id="WebView2Components" />
+      <ComponentGroupRef Id="RuntimeComponents" />
       <ComponentGroupRef Id="KuteComponents" />
-      <ComponentGroupRef Id="ResourcesComponents" />
     </Feature>
   </Package>
   <Fragment>
-    <ComponentGroup Id="WebView2Components" Directory="WEBVIEW2FOLDER">
-      <Files Include="WebView2Runtime\**" />
-      <File Id="render.dll" Name="vk_swiftshader.dll" Source="target\x86_64-pc-windows-msvc\release\render.dll"/>
-      <File Id="webview.dll" Name="XInput1_4.dll" Source="target\x86_64-pc-windows-msvc\release\webview.dll"/>
-    </ComponentGroup>
-    <ComponentGroup Id="ResourcesComponents" Directory="RESOURCESFOLDER">
-      <Component Id="BundleVersionComponent" Guid="a6b0bdea-2f92-4c23-9b49-91c1b834c739">
-        <File Id="bundle_version" Name="bundle_version" Source="target\x86_64-pc-windows-msvc\release\resources\bundle_version" KeyPath="yes"/>
-		<File Id="bundle.js" Name="bundle.js" Source="target\x86_64-pc-windows-msvc\release\resources\bundle.js"/>
-		<File Id="obs_kute_capture_dll" Name="obs-kute-capture.dll" Source="target\x86_64-pc-windows-msvc\release\resources\obs-kute-capture.dll"/>
-        <RemoveFile Id="CleanInstallResources" Name="*" On="uninstall" Directory="RESOURCESFOLDER"/>
-      </Component>
+    <!-- the CEF runtime, render.dll, the VC runtime and resources/ staged by postbuild.js -->
+    <ComponentGroup Id="RuntimeComponents" Directory="INSTALLFOLDER">
+      <Files Include="..\target\release\dist\**" />
     </ComponentGroup>
     <ComponentGroup Id="KuteComponents" Directory="INSTALLFOLDER">
       <Component Id="MainExecutableComponent" Guid="2a88519e-2100-4593-aeeb-c134303f06d5">
-        <File Id="kute.exe" Name="kute.exe" Source="target\x86_64-pc-windows-msvc\release\kute.exe" KeyPath="yes"/>
-        <File Id="kute.pdb" Name ="kute.pdb" Source="target\x86_64-pc-windows-msvc\release\kute.pdb"/>
-				<File Id="vcruntime140_1.dll" Name="vcruntime140_1.dll" Source="target\x86_64-pc-windows-msvc\release\vcruntime140_1.dll"/>
+        <File Id="kute.exe" Name="kute.exe" Source="target\release\kute.exe" KeyPath="yes"/>
+        <File Id="kute.pdb" Name ="kute.pdb" Source="target\release\kute.pdb"/>
         <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="Kute" Target="[INSTALLFOLDER]kute.exe" WorkingDirectory="INSTALLFOLDER" />
         <Shortcut Id="ProgramMenuShortcut" Directory="ProgramMenuFolder" Name="Kute" Target="[INSTALLFOLDER]kute.exe" WorkingDirectory="INSTALLFOLDER" />
         <RemoveFile Id="CleanInstallexe" Name="*.exe" On="uninstall" Directory="INSTALLFOLDER" />
