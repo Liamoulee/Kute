@@ -1,16 +1,15 @@
-![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/NullDev/Kute/total)<br>
+![GitHub Downloads](https://img.shields.io/github/downloads/NullDev/Kute/total?label=Downloads) [![License](https://img.shields.io/github/license/NullDev/Kute?label=License&logo=Creative%20Commons)](https://github.com/NullDev/Kute/blob/master/LICENSE)
 
-Kute uses unorthodox methods in attempt of fixing the issues modern chromium poses for a browser game
+<p align="center"><img height="250" width="auto" src="/resources/icon.png" /></p>
+<p align="center"><b>A high-performance Krunker client with enhanced features - made by <code>[cute]</code></b></p>
+<hr>
 
-# Why is the client getting marked as a trojan?
+## :arrow_down: Download
 
-- **The installer is not signed:** digital signatures help verify software, but in the case of such a small open source project, paying for a license is not feasible, so antiviruses will mark it as malicious.
-  ~~- **DLL Injection:** Kute utilizes DLL injection, a technique used for running code in the context of another application's space, something that is often used for malicious purposes. I assure you that the client only uses this for the user's convenience.~~
-  THIS HAS BEEN REPLACED WITH PLAIN OLD TRICKERY (DLL hijacking) BUT IT MAY STILL GET FLAGGED
+- [Latest Release](https://github.com/NullDev/Kute/releases/latest)
+- [All Releases](https://github.com/NullDev/Kute/releases)
 
-I strongly urge you to **review the source code** if you have any doubts.
-
-## Features
+## :star: Features
 
 - [x] **Proper** Raw input
 - [x] Increased performance
@@ -26,12 +25,16 @@ I strongly urge you to **review the source code** if you have any doubts.
 - [x] Basic shortcuts (F11 - toggle fullscreen, F6 new lobby)
 - [x] and more...
 
-## Potential issues
+<hr>
+
+## :lock: Potential issues
 
 If in a GPU bottleneck, the amount of frames displayed will drop severely, but the game's render loop won't slow down, this results in the client being almost unusable. <br>
 Consider using the CPU Throttler in such scenario
 
-## Building
+<hr>
+
+## :wrench: Building
 
 - Prerequisites:
   - [Rust & Cargo](https://rustup.rs/)
@@ -44,7 +47,12 @@ Consider using the CPU Throttler in such scenario
 3. `bun install`
 4. `bun run build`
 
-## Credits
+<hr>
 
-- [client-pp](https://github.com/6ct/clientpp)
+## :octocat: Credits
+
+- [glorp](https://github.com/slavcp/glorp) - base
+- [client-pp](https://github.com/6ct/clientpp) - flags
 - [crankshaft](https://github.com/KraXen72/crankshaft) - menu timer css
+
+<hr>
