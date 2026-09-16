@@ -1,49 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
-     xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
-
-  <Package
-    Id="kutePackage"
-    Name="kute"
-    Manufacturer="NullDev"
-    Version="0.1.0"
-    Scope="perUser"
-    UpgradeCode="80b28117-cea0-4ef1-8d6f-5884f5ae7270">
-        <util:CloseApplication
-          Target="kute.exe"
-          CloseMessage="yes"
-          RebootPrompt="no"/>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
+  <Package Id="kutePackage" Name="kute" Manufacturer="NullDev" Version="0.1.0" Scope="perUser" UpgradeCode="a7646727-a137-4b5b-a053-a558de8fa100">
+    <util:CloseApplication Target="kute.exe" CloseMessage="yes" RebootPrompt="no"/>
     <Icon Id="AppIconIco" SourceFile="resources/kute.ico"/>
     <Property Id="ARPPRODUCTICON" Value="AppIconIco" />
-
     <MediaTemplate EmbedCab="yes" />
     <MajorUpgrade AllowDowngrades="yes" Schedule="afterInstallValidate"/>
-
     <StandardDirectory Id="LocalAppDataFolder">
       <Directory Id="INSTALLFOLDER" Name="kute">
         <Directory Id="WEBVIEW2FOLDER" Name="WebView2"/>
         <Directory Id="RESOURCESFOLDER" Name="resources"/>
       </Directory>
     </StandardDirectory>
-
-
     <Feature Id="ProductFeature" Title="kute" Level="1">
       <ComponentGroupRef Id="WebView2Components" />
       <ComponentGroupRef Id="KuteComponents" />
       <ComponentGroupRef Id="ResourcesComponents" />
     </Feature>
   </Package>
-
   <Fragment>
-
     <ComponentGroup Id="WebView2Components" Directory="WEBVIEW2FOLDER">
       <Files Include="WebView2Runtime\**" />
       <File Id="render.dll" Name="vk_swiftshader.dll" Source="target\x86_64-pc-windows-msvc\release\render.dll"/>
       <File Id="webview.dll" Name="XInput1_4.dll" Source="target\x86_64-pc-windows-msvc\release\webview.dll"/>
     </ComponentGroup>
-
     <ComponentGroup Id="ResourcesComponents" Directory="RESOURCESFOLDER">
-      <Component Id="BundleVersionComponent" Guid="e1f2a3b4-c5d6-4789-9012-3456789abcde">
+      <Component Id="BundleVersionComponent" Guid="a6b0bdea-2f92-4c23-9b49-91c1b834c739">
         <File Id="bundle_version" Name="bundle_version" Source="target\x86_64-pc-windows-msvc\release\resources\bundle_version" KeyPath="yes"/>
 		<File Id="bundle.js" Name="bundle.js" Source="target\x86_64-pc-windows-msvc\release\resources\bundle.js"/>
 		<File Id="obs_kute_capture_dll" Name="obs-kute-capture.dll" Source="target\x86_64-pc-windows-msvc\release\resources\obs-kute-capture.dll"/>
@@ -51,18 +33,16 @@
       </Component>
     </ComponentGroup>
     <ComponentGroup Id="KuteComponents" Directory="INSTALLFOLDER">
-      <Component Id="MainExecutableComponent" Guid="305c2cca-2e2d-4d5a-ac43-84a3be86d148">
+      <Component Id="MainExecutableComponent" Guid="2a88519e-2100-4593-aeeb-c134303f06d5">
         <File Id="kute.exe" Name="kute.exe" Source="target\x86_64-pc-windows-msvc\release\kute.exe" KeyPath="yes"/>
         <File Id="kute.pdb" Name ="kute.pdb" Source="target\x86_64-pc-windows-msvc\release\kute.pdb"/>
 				<File Id="vcruntime140_1.dll" Name="vcruntime140_1.dll" Source="target\x86_64-pc-windows-msvc\release\vcruntime140_1.dll"/>
-
         <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="kute" Target="[INSTALLFOLDER]kute.exe" WorkingDirectory="INSTALLFOLDER" />
         <Shortcut Id="ProgramMenuShortcut" Directory="ProgramMenuFolder" Name="kute" Target="[INSTALLFOLDER]kute.exe" WorkingDirectory="INSTALLFOLDER" />
         <RemoveFile Id="CleanInstallexe" Name="*.exe" On="uninstall" Directory="INSTALLFOLDER" />
         <RemoveFile Id="CleanInstalldlls" Name="*.dll" On="uninstall" Directory="INSTALLFOLDER" />
       </Component>
-
-      <Component Id="ProtocolRegistrationComponent" Guid="def3f6ef-ffff-407c-904d-b2a952fb0c2f">
+      <Component Id="ProtocolRegistrationComponent" Guid="2a7c9079-b4f8-423b-8ef0-c4c1080e8cd0">
         <RegistryKey Root="HKCU" Key="Software\Classes\kute">
             <RegistryValue Value="URL:kute Protocol" Type="string" />
             <RegistryValue Name="URL Protocol" Value="" Type="string" />
@@ -70,21 +50,14 @@
         <RegistryKey Root="HKCU" Key="Software\Classes\kute\DefaultIcon">
             <RegistryValue Value="&quot;[INSTALLFOLDER]kute.exe&quot;,0" Type="string" />
         </RegistryKey>
-
         <RegistryKey Root="HKCU" Key="Software\Classes\kute\shell\open\command">
             <RegistryValue Value="&quot;[INSTALLFOLDER]kute.exe&quot; &quot;%1&quot;" Type="string" />
         </RegistryKey>
       </Component>
     </ComponentGroup>
-
-        <CustomAction Id="ExecuteKute"
-                Impersonate="yes"
-                Return="asyncNoWait"
-                FileRef="kute.exe"
-                ExeCommand="" />
+        <CustomAction Id="ExecuteKute" Impersonate="yes" Return="asyncNoWait" FileRef="kute.exe" ExeCommand="" />
     <InstallExecuteSequence >
       <Custom Action="ExecuteKute" After="InstallFinalize" />
     </InstallExecuteSequence>
   </Fragment>
-
 </Wix>
