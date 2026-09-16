@@ -64,12 +64,14 @@ class HsSound {
             if (mutation.type !== "childList") continue;
 
             for (const newNode of mutation.addedNodes){
-                if (newNode.nodeType !== 1 || newNode.tagName !== "DIV") continue;
+                if (!(newNode instanceof HTMLElement) || newNode.tagName !== "DIV") continue;
 
                 const messageSpan = newNode.querySelector("span.chatMsg");
                 if (!messageSpan) continue;
 
-                const coloredSpans = messageSpan.querySelectorAll("span[style*='color:#'], span[style*='color: rgb']");
+                const coloredSpans = /** @type {NodeListOf<HTMLElement>} */ (
+                    messageSpan.querySelectorAll("span[style*='color:#'], span[style*='color: rgb']")
+                );
                 if (coloredSpans.length <= 0) continue;
                 const firstColoredSpan = coloredSpans[0];
                 const spanColor = firstColoredSpan.style.color.trim().toLowerCase();

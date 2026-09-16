@@ -1,0 +1,20 @@
+{
+    "compilerOptions": {
+        "target": "ESNext",
+        "module": "ESNext",
+        "moduleResolution": "Bundler",
+        "types": [
+            "node"
+        ],
+        "allowJs": true,
+        "checkJs": true,
+        "strict": true,
+        "noEmit": true,
+        "skipLibCheck": true,
+        "maxNodeModuleJsDepth": 0
+    },
+    "include": [
+        "esbuild.config.mjs",
+        "postbuild.js"
+    ]
+}

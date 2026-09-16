@@ -89,7 +89,7 @@ function semverCompare(a, b){
 
     const currentVersion = window.kute?.version;
     const lastSeenVersion = window.localStorage.getItem("kute_lastSeenVersion");
-    const isNewVersion = semverCompare(currentVersion, lastSeenVersion) > 0;
+    const isNewVersion = lastSeenVersion !== null && semverCompare(currentVersion, lastSeenVersion) > 0;
     window.localStorage.setItem("kute_lastSeenVersion", currentVersion);
     if (window.kute?.settings.data?.showChangelog && lastSeenVersion && currentVersion && isNewVersion){
         await showChangelogPopup(currentVersion);

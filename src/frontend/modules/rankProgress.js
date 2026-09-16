@@ -103,8 +103,8 @@ class RankProgress {
         this.observer = new MutationObserver(() => this.checkForMenu());
         const origRanked = window.openRankedMenu;
         window.openRankedMenu = () => {
-            origRanked.call();
-            this.observer.observe(document.querySelector(".rankedMenuModal"), { childList: true, subtree: true });
+            origRanked();
+            this.observer.observe(getElement(".rankedMenuModal"), { childList: true, subtree: true });
 
             // intervals must only clear their OWN id
             const intervalId = setInterval(() => {
@@ -125,8 +125,8 @@ class RankProgress {
      * Injects the bar and button once the rank card is rendered.
      */
     checkForMenu(){
-        const card = document.querySelector(".rank-card");
-        const container = document.querySelector(".rank-and-stats");
+        const card = /** @type {HTMLElement|null} */ (document.querySelector(".rank-card"));
+        const container = /** @type {HTMLElement|null} */ (document.querySelector(".rank-and-stats"));
 
         if (card && container){
             if (!container.querySelector("#kute-elo-tracker")) this.injectBar(container);
@@ -173,7 +173,7 @@ class RankProgress {
         const overlay = document.createElement("div");
         overlay.id = "kute-rank-overlay";
         overlay.onclick = (e) => {
-            if (e.target.id === "kute-rank-overlay") overlay.remove();
+            if (e.target === overlay) overlay.remove();
         };
 
         overlay.innerHTML = `
@@ -205,8 +205,8 @@ class RankProgress {
 
         let progress = 0;
         if (!isMax){
-            const range = nextRank.elo - currentRank.elo;
-            const gained = currentElo - currentRank.elo;
+            const range = (nextRank.elo ?? 0) - (currentRank.elo ?? 0);
+            const gained = currentElo - (currentRank.elo ?? 0);
             progress = (gained / range) * 100;
         }
         else progress = 100;

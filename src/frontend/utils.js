@@ -8,6 +8,10 @@
  */
 window.hook = (target, method, wrapper) => {
     const original = target.prototype[method];
+    /**
+     * @this {any}
+     * @param {...any} args
+     */
     target.prototype[method] = function(...args){
         const result = wrapper.call(this, args, original);
         return result === undefined ? original.apply(this, args) : result;
@@ -17,22 +21,51 @@ window.hook = (target, method, wrapper) => {
 /**
  * Resolves once an element matching the selector exists in the document.
  *
+ * @template {Element} [T=HTMLElement]
  * @param {string} selector
- * @return {Promise<Element>}
+ * @return {Promise<T>}
  */
 window.waitForElement = (selector) => {
     return new Promise((resolve) => {
-        if (document.querySelector(selector)) return resolve(document.querySelector(selector));
+        const existing = document.querySelector(selector);
+        if (existing){
+            resolve(/** @type {T} */ (existing));
+            return;
+        }
 
         const observer = new MutationObserver(() => {
-            if (document.querySelector(selector)){
-                resolve(document.querySelector(selector));
+            const element = document.querySelector(selector);
+            if (element){
+                resolve(/** @type {T} */ (element));
                 observer.disconnect();
             }
         });
         observer.observe(document.body, { childList: true, subtree: true });
     });
 };
+
+/**
+ * document.querySelector that throws instead of returning null, for elements that must exist.
+ *
+ * @template {Element} [T=HTMLElement]
+ * @param {string} selector
+ * @param {ParentNode} [root]
+ * @return {T}
+ */
+window.getElement = (selector, root = document) => {
+    const element = root.querySelector(selector);
+    if (!element) throw new Error(`element not found: ${selector}`);
+    return /** @type {T} */ (element);
+};
+
+/**
+ * getElement typed for form controls.
+ *
+ * @param {string} selector
+ * @param {ParentNode} [root]
+ * @return {HTMLInputElement}
+ */
+window.getInput = (selector, root = document) => getElement(selector, root);
 
 /**
  * Checks whether the game is currently in a comp (tournament) match.
@@ -45,3 +78,5 @@ window.checkCompMode = () => {
     }
     return false;
 };
+
+export {};

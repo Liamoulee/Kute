@@ -34,29 +34,32 @@ class RealPing {
      * @return {Promise<void>}
      */
     async toggle(enabled){
-        [this.ingamePing, this.menuPing] = await Promise.all([
-            waitForElement("#pingText"),
-            waitForElement("#menuPingText"),
-        ]);
+        const [ingamePing, menuPing] = await Promise.all([waitForElement("#pingText"), waitForElement("#menuPingText")]);
+        this.ingamePing = ingamePing;
+        this.menuPing = menuPing;
+
         if (enabled){
-            this.applyPingDisplay(this.ingamePing);
-            this.applyPingDisplay(this.menuPing);
+            this.applyPingDisplay(ingamePing);
+            this.applyPingDisplay(menuPing);
             this.interval = setInterval(() => {
                 window.chrome.webview.postMessage("ping");
             }, 3000);
 
             this.listener = (event) => {
                 if (!event.data.pingInfo) return;
-                this.ingamePing.innerText = event.data.pingInfo;
-                this.menuPing.innerText = event.data.pingInfo;
+                ingamePing.innerText = event.data.pingInfo;
+                menuPing.innerText = event.data.pingInfo;
             };
             window.chrome.webview.addEventListener("message", this.listener);
         }
         else {
-            clearInterval(this.interval);
-            window.chrome.webview.removeEventListener("message", this.listener);
-            delete this.ingamePing.textContent;
-            delete this.menuPing.textContent;
+            if (this.interval !== null) clearInterval(this.interval);
+            if (this.listener) window.chrome.webview.removeEventListener("message", this.listener);
+            this.interval = null;
+            this.listener = null;
+            // drop the instance overrides so the prototype's textContent works again
+            Reflect.deleteProperty(ingamePing, "textContent");
+            Reflect.deleteProperty(menuPing, "textContent");
         }
     }
 }

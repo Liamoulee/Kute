@@ -1,7 +1,7 @@
 /**
  * In-page toast notification. Optionally waits for a y/n keypress and resolves a promise with the answer.
  */
-class Notification {
+class KuteNotification {
     /**
      * @param {string} message
      * @param {boolean} reqUserInput
@@ -36,9 +36,9 @@ class Notification {
         const notificationHtml = await import("./components/notification.html");
         this.notificationEl.innerHTML = notificationHtml.default;
 
-        this.notificationEl.querySelector("#notification-content").textContent = this.message;
-        this.notificationEl.querySelector("#notification-timer").textContent = this.duration;
-        if (this.reqUserInput) this.notificationEl.querySelector("#notification-actions").style.display = "block";
+        getElement("#notification-content", this.notificationEl).textContent = this.message;
+        getElement("#notification-timer", this.notificationEl).textContent = String(this.duration);
+        if (this.reqUserInput) getElement("#notification-actions", this.notificationEl).style.display = "block";
 
         document.body.append(this.notificationEl);
     }
@@ -50,7 +50,7 @@ class Notification {
         /** @type {number} */
         this.countdown = setInterval(() => {
             this.duration--;
-            this.notificationEl.querySelector("#notification-timer").textContent = this.duration;
+            getElement("#notification-timer", this.notificationEl).textContent = String(this.duration);
             if (this.duration <= 0){
                 clearInterval(this.countdown);
                 if (this.resolvePromise) this.resolvePromise(false);
@@ -83,7 +83,7 @@ class Notification {
                 if (event.key === "y" || event.key === "n"){
                     const action = event.key === "y";
 
-                    this.notificationEl.querySelector(`#${event.key}`).classList.add("bounce");
+                    getElement(`#${event.key}`, this.notificationEl).classList.add("bounce");
 
                     this.resolvePromise(action);
                     this.hide();
@@ -100,11 +100,13 @@ class Notification {
  * @param {string} message
  * @param {boolean} reqUserInput
  * @param {number} seconds
- * @return {Promise<boolean>|Notification}
+ * @return {Promise<boolean>|KuteNotification}
  */
 window.kute.showNotification = (message, reqUserInput, seconds) => {
-    const notification = new Notification(message, reqUserInput, seconds);
+    const notification = new KuteNotification(message, reqUserInput, seconds);
     if (reqUserInput) return notification.promise;
 
     return notification;
 };
+
+export {};

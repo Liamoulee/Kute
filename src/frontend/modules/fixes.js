@@ -81,3 +81,5 @@ window.kute.bindShoot = () => {
     window.dispatchEvent(new KeyboardEvent("keydown", eventOptions));
     window.dispatchEvent(new KeyboardEvent("keyup", eventOptions));
 };
+
+export {};

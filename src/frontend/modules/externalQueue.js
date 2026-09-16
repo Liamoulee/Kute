@@ -17,8 +17,8 @@ const origRanked = window.openRankedMenu;
  * Wraps Krunker's openRankedMenu to add the external queue button to its footer.
  */
 window.openRankedMenu = () => {
-    origRanked.call();
-    const footer = document.querySelector(".footer-controls");
+    origRanked();
+    const footer = getElement(".footer-controls");
     const lastChild = footer.lastElementChild;
     footer.insertBefore(externalQueue, lastChild);
 };
@@ -39,8 +39,9 @@ function openExtQueue(){
         "_blank",
         `width=${windowWidth},height=${windowHeight},left=${left},top=${top}`,
     );
+    if (!queueWindow) return;
 
-    let region = document.querySelector(".region-indicator").textContent.split(": ")[1];
+    let region = (getElement(".region-indicator").textContent ?? "").split(": ")[1];
     switch (region){
         case "North America":
             region = "na";
@@ -54,7 +55,7 @@ function openExtQueue(){
         default:
             break;
     }
-    let token = localStorage.getItem("__FRVR_auth_access_token");
+    let token = localStorage.getItem("__FRVR_auth_access_token") ?? "";
     token = token.replace(/"/g, "");
     token = token.replace("/", "");
     const allRegions = localStorage.getItem("s_rankedAllRegions") === "true";
@@ -81,3 +82,5 @@ function openExtQueue(){
 }
 
 externalQueue.onclick = openExtQueue;
+
+export {};

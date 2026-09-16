@@ -23,16 +23,18 @@
 const automateCompHost = async(params) => {
     window.openHostWindow(false, 1);
     await waitForElement(".hostTb0");
-    /** @type {HTMLInputElement|null} */
-    let mapCheckbox = null;
-    mapCheckbox = document.querySelector(`#${params.mapId}`);
+    let mapCheckbox = /** @type {HTMLInputElement|null} */ (document.querySelector(`#${params.mapId}`));
 
     if (!mapCheckbox){
-        const allMapNameElements = document.querySelectorAll(".hostMap .hostMapName");
+        const allMapNameElements = /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll(".hostMap .hostMapName"));
         const targetNameElement = Array.from(allMapNameElements).find(
             (el) => el.innerText.trim().toLowerCase() === params.mapId.toLowerCase(),
         );
-        if (targetNameElement) mapCheckbox = targetNameElement.parentElement.querySelector('input[type="checkbox"]');
+        if (targetNameElement){
+            mapCheckbox = /** @type {HTMLInputElement|null} */ (
+                targetNameElement.parentElement?.querySelector('input[type="checkbox"]') ?? null
+            );
+        }
     }
 
     if (!mapCheckbox) return;
@@ -41,13 +43,17 @@ const automateCompHost = async(params) => {
 
     windows[7].switchTab(2);
 
+    /** @type {HTMLInputElement} */
     const team1Input = await waitForElement("#customSnameTeam1");
     team1Input.value = params.team1Name;
+    /** @type {HTMLInputElement} */
     const team2Input = await waitForElement("#customSnameTeam2");
     team2Input.value = params.team2Name;
 
+    /** @type {HTMLSelectElement} */
     const teamSizeSelect = await waitForElement("#customStmSize");
 
+    /** @type {Record<string, string>} */
     const teamSizeMap = {
         "1v1": "0",
         "2v2": "1",
@@ -56,21 +62,25 @@ const automateCompHost = async(params) => {
     };
 
     if (params.team1Players){
+        /** @type {HTMLInputElement} */
         const compRosterT1 = await waitForElement("#compRosterT1");
         compRosterT1.value = params.team1Players;
     }
     if (params.team2Players){
+        /** @type {HTMLInputElement} */
         const compRosterT2 = await waitForElement("#compRosterT2");
         compRosterT2.value = params.team2Players;
     }
 
     if (params.spectators){
+        /** @type {HTMLInputElement} */
         const compSpectators = await waitForElement("#compRosterSpecs");
         compSpectators.value = params.spectators;
     }
 
+    /** @type {HTMLInputElement} */
     const customSspecSlots = await waitForElement("#customSspecSlots");
-    customSspecSlots.value = 4;
+    customSspecSlots.value = "4";
 
     const gunMap = [
         "ak",
@@ -95,8 +105,9 @@ const automateCompHost = async(params) => {
         const classes = JSON.parse(params.classes);
         for (const [gunName, limit] of Object.entries(classes)){
             const id = gunMap.indexOf(gunName);
+            /** @type {HTMLInputElement} */
             const element = await waitForElement(`#customSclassLim${id}`);
-            element.value = limit;
+            element.value = String(limit);
         }
     }
 
@@ -105,6 +116,7 @@ const automateCompHost = async(params) => {
 
     if (params.webhook){
         try {
+            /** @type {HTMLInputElement} */
             const webhookInput = await waitForElement("#customSwebhook");
             webhookInput.value = decodeURIComponent(params.webhook);
         }
@@ -122,6 +134,7 @@ const automateCompHost = async(params) => {
  * @return {Promise<void>}
  */
 const changeRegion = async(region) => {
+    /** @type {Record<string, string>} */
     const regionMap = {
         FRA: "de-fra",
         SV: "us-ca-sv",
@@ -139,7 +152,7 @@ const changeRegion = async(region) => {
 
     window.showWindow(1);
 
-    const selectRoot = document.querySelector("select.inputGrey2");
+    const selectRoot = /** @type {HTMLSelectElement|null} */ (document.querySelector("select.inputGrey2"));
     if (!selectRoot){
         if (typeof window.setSetting === "function"){
             window.setSetting("defaultRegion", normalizedRegion);
@@ -149,7 +162,7 @@ const changeRegion = async(region) => {
 
     const regionValues = Object.values(regionMap);
     const regionSelect =
-        Array.from(document.querySelectorAll("select.inputGrey2")).find((select) =>
+        Array.from(/** @type {NodeListOf<HTMLSelectElement>} */ (document.querySelectorAll("select.inputGrey2"))).find((select) =>
             Array.from(select.options).some((opt) => regionValues.includes(opt.value)),
         ) || selectRoot;
 
@@ -193,7 +206,7 @@ window.kute.parseArgs = async(args) => {
     const argList = args.split(" ");
     for (const arg of argList){
         if (arg.includes("action=host-comp")){
-            const params = parseQueryString(arg);
+            const params = /** @type {CompHostParams} */ (parseQueryString(arg));
             if (params.region){
                 sessionStorage.setItem("pendingCompHost", JSON.stringify(params));
                 await changeRegion(params.region);
@@ -210,3 +223,5 @@ window.chrome.webview.addEventListener("message", async(event) => {
     if (!event.data.args) return;
     await window.kute.parseArgs(event.data.args);
 });
+
+export {};

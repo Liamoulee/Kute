@@ -41,14 +41,14 @@ class BetterChat {
      * Caches the chat elements and builds the channel tag templates.
      */
     initDom(){
-        /** @type {HTMLElement|null} */
-        this.chatHolder = document.querySelector("#chatHolder");
-        /** @type {HTMLElement|null} */
-        this.chatList = document.querySelector("#chatList");
-        /** @type {HTMLInputElement|null} */
-        this.chatInput = document.querySelector("#chatInput");
-        /** @type {HTMLElement|null} */
-        this.chatSwitch = document.querySelector("#chatSwitch");
+        /** @type {HTMLElement} */
+        this.chatHolder = getElement("#chatHolder");
+        /** @type {HTMLElement} */
+        this.chatList = getElement("#chatList");
+        /** @type {HTMLInputElement} */
+        this.chatInput = getInput("#chatInput");
+        /** @type {HTMLElement} */
+        this.chatSwitch = getElement("#chatSwitch");
         /** @type {HTMLDivElement} */
         this.channelT = document.createElement("div");
         /** @type {HTMLDivElement} */
@@ -87,7 +87,7 @@ class BetterChat {
         for (const mutation of mutations){
             for (const node of mutation.addedNodes){
                 // text nodes have no querySelector, and a throw here aborts the whole mutation batch
-                if (!(node instanceof Element)) continue;
+                if (!(node instanceof HTMLElement)) continue;
                 const chatItem = node.querySelector(".chatItem");
                 if (!chatItem) continue;
                 const chatMsg = chatItem.querySelector(".chatMsg");

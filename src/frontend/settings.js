@@ -6,9 +6,9 @@ import cSettings from "../cSettings.json";
  * @typedef {object} SettingOption
  * @property {string} id
  * @property {string} name
- * @property {"checkbox"|"slider"|"select"|"none"} type
+ * @property {string} type "checkbox", "slider", "select" or "none"
  * @property {string} category
- * @property {string|number|boolean} defaultValue
+ * @property {string|number|boolean} [defaultValue] Absent for button-only settings
  * @property {string} [description]
  * @property {boolean} [needsRestart]
  * @property {boolean} [needsRefresh]
@@ -24,6 +24,8 @@ import cSettings from "../cSettings.json";
 /** @type {Map<string, number>} */
 const debounceTimers = new Map();
 
+const settings = /** @type {Record<string, SettingOption>} */ (cSettings);
+
 /**
  * Applies a changed setting: updates the UI, runs side effects for special ids, calls the module's
  * toggle function (or imports the module) and persists the value through the host.
@@ -34,7 +36,7 @@ const debounceTimers = new Map();
  */
 window.kute.settings.changeSetting = (id, rawValue, slider) => {
     if (rawValue === "") return;
-    document.querySelector(`#${id}`).value = rawValue;
+    getInput(`#${id}`).value = String(rawValue);
     let value = rawValue;
 
     if (typeof value === "string"){
@@ -45,8 +47,9 @@ window.kute.settings.changeSetting = (id, rawValue, slider) => {
         }
     }
 
-    if (document.querySelector(`#slid_input_${id}`) && slider){
-        document.querySelector(`#slid_input_${id}`).value = value;
+    const sliderInput = /** @type {HTMLInputElement|null} */ (document.querySelector(`#slid_input_${id}`));
+    if (sliderInput && slider){
+        sliderInput.value = String(value);
 
         clearTimeout(debounceTimers.get(id));
 
@@ -68,7 +71,7 @@ window.kute.settings.changeSetting = (id, rawValue, slider) => {
                     "Install the Kute Capture plugin into OBS? OBS must be closed, and Windows may ask for administrator permission.",
                 )
             ){
-                document.querySelector("#obsCapturePlugin").checked = false;
+                getInput("#obsCapturePlugin").checked = false;
                 return;
             }
             window.chrome.webview.postMessage(`obs-plugin, ${value}`);
@@ -80,7 +83,7 @@ window.kute.settings.changeSetting = (id, rawValue, slider) => {
             else window.chrome.webview.postMessage("toggle-rboost, false");
             break;
         case "exitButton":
-            document.querySelector("#clientExit").style.display = `${value ? "flex" : "none"}`;
+            getElement("#clientExit").style.display = `${value ? "flex" : "none"}`;
             break;
         case "menuTimer":
             if (value){
@@ -125,7 +128,7 @@ window.kute.settings.changeSetting = (id, rawValue, slider) => {
             break;
     }
 
-    const toggleFunctionName = `toggle${id.charAt(0).toUpperCase() + id.slice(1)}`;
+    const toggleFunctionName = /** @type {const} */ (`toggle${id.charAt(0).toUpperCase() + id.slice(1)}`);
     if (typeof window.kute.settings[toggleFunctionName] !== "function"){
         try {
             import(`./modules/${id}.js`);
@@ -156,6 +159,10 @@ class SettingsManager {
      */
     init(){
         const origGetSettings = this.settingsWindow.getSettings;
+        /**
+         * @param {...any} args
+         * @return {string}
+         */
         this.settingsWindow.getSettings = (...args) =>
             origGetSettings.call(this.settingsWindow, ...args).replace(/^<\/div>/, "") + this.getCSettings();
 
@@ -165,7 +172,7 @@ class SettingsManager {
             if (response?.type !== "obs-plugin") return;
             if (!response.ok){
                 window.kute.settings.data.obsCapturePlugin = false;
-                const checkbox = document.querySelector("#obsCapturePlugin");
+                const checkbox = /** @type {HTMLInputElement|null} */ (document.querySelector("#obsCapturePlugin"));
                 if (checkbox) checkbox.checked = false;
             }
             window.kute.showNotification(response.message, false, 5);
@@ -208,7 +215,7 @@ class SettingsManager {
                     step="${option.step}" value="${value}" class="sliderM" oninput='window.kute.settings.changeSetting("${option.id}", this.value, true)'></div>`;
             case "select":
                 return `<select id="${option.id}" class="inputGrey2" onchange='window.kute.settings.changeSetting("${option.id}", this.value, false)'>
-                    ${option.options.map((opt) => `<option value="${opt}" ${opt === value ? "selected" : ""}>${opt}</option>`)}</select>`;
+                    ${(option.options ?? []).map((opt) => `<option value="${opt}" ${opt === value ? "selected" : ""}>${opt}</option>`)}</select>`;
             case "none":
                 return button;
             default:
@@ -232,8 +239,7 @@ class SettingsManager {
         let tempHTML = "<div class='kuteSettings'>";
         let previousCategory = null;
 
-        for (const entry of Object.keys(cSettings)){
-            const setting = cSettings[entry];
+        for (const setting of Object.values(settings)){
             setting.html = this.generateHtml(setting);
 
             if (this.settingsWindow.settingSearch && !this.searchMatches(setting)) continue;

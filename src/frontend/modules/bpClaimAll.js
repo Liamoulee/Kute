@@ -9,7 +9,7 @@ button.textContent = "Claim All";
  * @return {HTMLElement[]}
  */
 function findClaimables(){
-    return Array.from(document.querySelectorAll(".bpClaimB")).filter(
+    return Array.from(/** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll(".bpClaimB"))).filter(
         (btn) => btn.offsetParent !== null && btn.textContent.trim() === "Claim",
     );
 }
@@ -70,3 +70,5 @@ window.showWindow = (...args) => {
     if (number === 6) queueMicrotask(() => addClaimAllButton());
     return originalshowWindow.apply(this, args);
 };
+
+export {};

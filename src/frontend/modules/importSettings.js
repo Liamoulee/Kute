@@ -38,8 +38,7 @@ const originalimportSettings = window.importSettings;
 window.importSettingsPopup = () => {
     originalimportSettingsPopup();
     queueMicrotask(() => {
-        const importTxtElement = document.querySelector("#importTxt");
-        importTxtElement.parentNode.insertBefore(setHolder, importTxtElement.nextSibling);
+        getElement("#importTxt").after(setHolder);
     });
 };
 
@@ -47,7 +46,8 @@ window.importSettingsPopup = () => {
  * Wraps Krunker's importSettings to keep the current values of the groups that are toggled off.
  */
 window.importSettings = () => {
-    const importTxtElement = document.querySelector("#importTxt");
+    /** @type {HTMLTextAreaElement} */
+    const importTxtElement = getElement("#importTxt");
     const json = JSON.parse(importTxtElement.value);
 
     // settings fallback to defaults for everything besides controls
@@ -79,3 +79,5 @@ window.importSettings = () => {
     originalimportSettings();
     window.kute.bindShoot();
 };
+
+export {};

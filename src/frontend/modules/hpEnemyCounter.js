@@ -63,14 +63,18 @@ class HpEnemyCounter {
      * Compares the enemy score against the last seen value and shows the difference briefly.
      */
     processTeamScores = () => {
+        const {pointCounter} = this;
+        if (!pointCounter) return;
         for (const team of document.querySelectorAll("#tScoreC1, #tScoreC2")){
             if (team && !team.className.includes("you")){
-                const currentEnemyOBJ = Number.parseInt(team.nextElementSibling.innerText, 10);
+                const scoreElement = /** @type {HTMLElement|null} */ (team.nextElementSibling);
+                if (!scoreElement) continue;
+                const currentEnemyOBJ = Number.parseInt(scoreElement.innerText, 10);
                 if (currentEnemyOBJ > this.enemyOBJ){
-                    this.pointCounter.innerText = (currentEnemyOBJ - this.enemyOBJ) / 10;
+                    pointCounter.innerText = String((currentEnemyOBJ - this.enemyOBJ) / 10);
                     if (this.enemyTimeout) clearTimeout(this.enemyTimeout);
                     this.enemyTimeout = setTimeout(() => {
-                        this.pointCounter.innerText = "0";
+                        pointCounter.innerText = "0";
                         this.enemyTimeout = null;
                     }, 1600);
                 }
@@ -83,13 +87,13 @@ class HpEnemyCounter {
      * Appends the counter to the top right counters and starts observing the team scores.
      */
     setupDisplay(){
-        this.pointCounter = this.numberDisplay.querySelector(".pointVal");
-        document.querySelector(".topRightCounters").append(this.numberDisplay);
+        this.pointCounter = getElement(".pointVal", this.numberDisplay);
+        getElement(".topRightCounters").append(this.numberDisplay);
 
         // re-enabling must not stack a second observer
         this.observer?.disconnect();
         this.observer = new MutationObserver(this.processTeamScores);
-        this.observer.observe(document.querySelector("#teamScores"), {
+        this.observer.observe(getElement("#teamScores"), {
             childList: true,
             subtree: true,
         });

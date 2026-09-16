@@ -1,15 +1,6 @@
 import styles from "./components/base.css";
 import "./utils.js";
 
-/**
- * Info object sent by the host in reply to "get-info". Modules attach their public functions to it.
- *
- * @typedef {object} KuteInfo
- * @property {{ data: Record<string, any> } & Record<string, any>} settings Setting values by id, plus toggle<Id> and changeSetting functions
- * @property {string} version
- * @property {string} launchArgs
- */
-
 let initialLoad = true;
 window.OffCliV = true;
 /**
@@ -17,12 +8,8 @@ window.OffCliV = true;
  */
 window.closeClient = () => window.chrome.webview.postMessage("close");
 
-/**
- * Starts as a promise for the host info and is replaced by the resolved object.
- *
- * @type {Promise<KuteInfo>|KuteInfo}
- */
-window.kute = new Promise((resolve) => {
+// starts as a promise for the host info and is replaced by the resolved object (see Kute in types.d.ts)
+window.kute = /** @type {any} */ (new Promise((resolve) => {
     /**
      * Resolves the info promise on the first message that carries settings or a version.
      *
@@ -37,7 +24,7 @@ window.kute = new Promise((resolve) => {
 
     window.chrome.webview.addEventListener("message", handler);
     window.chrome.webview.postMessage("get-info");
-}).then((data) => (window.kute = data));
+}).then((data) => (window.kute = data)));
 
 document.addEventListener(
     "DOMContentLoaded",
@@ -99,36 +86,34 @@ Object.defineProperty(window, "gameLoaded", {
 
         window.chrome.webview.postMessage("game-updated");
         if (!initialLoad) return;
-        if (sessionStorage.getItem("justLaunched") === null) sessionStorage.setItem("justLaunched", true);
-        else sessionStorage.setItem("justLaunched", false);
+        if (sessionStorage.getItem("justLaunched") === null) sessionStorage.setItem("justLaunched", "true");
+        else sessionStorage.setItem("justLaunched", "false");
 
         initialLoad = false;
         // console is disabled without this
-        localStorage.setItem("logs", true);
+        localStorage.setItem("logs", "true");
 
         window.windows[0].toggleType({ checked: true });
 
         // append ranked and mod button to comp host ui
-        document.querySelector("#compBtnLst").innerHTML += `
+        getElement("#compBtnLst").innerHTML += `
 		    <div class="compMenBtnS" onmouseenter='SOUND.play("tick_0",.1)' style="background-color: #f5479b" onclick="playSelect(),showWindow(4)"> <span class="material-icons" style="color:#fff;font-size:40px;vertical-align:middle;margin-bottom:12px">color_lens</span></div>
 		    <div class="compMenBtnS" onmouseenter='SOUND.play("tick_0",.1)' style="background-color: #5ce05a" onclick="playSelect(),window.openRankedMenu()"><span class="material-icons" style="color:#fff;font-size:40px;vertical-align:middle;margin-bottom:12px">star</span></div>`;
 
         // classic social button
         /** @type {string|undefined} */
         let svelteCode;
-        for (const cl of document.querySelector("#clientExit .menuItemTitle").classList){
+        for (const cl of getElement("#clientExit .menuItemTitle").classList){
             if (cl.startsWith("svelte-")){
                 svelteCode = cl;
                 break;
             }
         }
 
-        document
-            .querySelector("#menuItemContainer")
-            .lastElementChild?.insertAdjacentHTML(
-                "beforebegin",
-                `<div onclick="window.open('./social.html')" class="menuItem ${svelteCode}"><span class="material-icons-outlined menuItemIcon ${svelteCode}">open_in_new</span><div class="menuItemTitle ${svelteCode}">Classic Social</div></div>`,
-            );
+        getElement("#menuItemContainer").lastElementChild?.insertAdjacentHTML(
+            "beforebegin",
+            `<div onclick="window.open('./social.html')" class="menuItem ${svelteCode}"><span class="material-icons-outlined menuItemIcon ${svelteCode}">open_in_new</span><div class="menuItemTitle ${svelteCode}">Classic Social</div></div>`,
+        );
         import("./notifications.js");
         import("./settings.js");
         import("./modules/changelog.js");
@@ -144,7 +129,7 @@ Object.defineProperty(window, "gameLoaded", {
         if (window.kute?.settings?.data?.accountManager) import("./modules/accountManager.js");
         if (window.kute?.settings?.data?.showPing) import("./modules/showPing.js");
         if (window.kute?.settings?.data?.realPing) import("./modules/realPing.js");
-        if (window.kute?.settings?.data?.exitButton) document.querySelector("#clientExit").style.display = "flex";
+        if (window.kute?.settings?.data?.exitButton) getElement("#clientExit").style.display = "flex";
         if (window.kute?.settings?.data?.renderStats) import("./modules/renderFps.js");
 
         if (window.kute?.settings?.data?.rampBoost && !window.checkCompMode()){
@@ -172,11 +157,11 @@ Object.defineProperty(window, "gameLoaded", {
         if (window.kute?.settings.data?.hideBundles){
             const origBundlePopup = window.bundlePopup;
             window.bundlePopup = (...args) => {
-                const windowHolder = document.querySelector("#windowHolder");
+                const windowHolder = /** @type {HTMLElement|null} */ (document.querySelector("#windowHolder"));
                 if (
                     windowHolder &&
                     windowHolder.style.display !== "none" &&
-                    document.querySelector("#windowHeader").textContent === "Store"
+                    getElement("#windowHeader").textContent === "Store"
                 ){
                     origBundlePopup(...args);
                 }

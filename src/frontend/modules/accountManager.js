@@ -41,7 +41,7 @@ class AccountManager {
                     window.chrome.webview.removeEventListener("message", this.gameUpdateListener);
                     this.button.style.cssText =
                         "display: block; padding: 14px 24px 22px; bottom: 0; right: 0; z-index: 9; font-size: 21px !important; position: absolute;";
-                    document.querySelector("#compBtnLst").append(this.button);
+                    getElement("#compBtnLst").append(this.button);
                 }
             }, 2000);
         }
@@ -59,7 +59,7 @@ class AccountManager {
                 window.chrome.webview.removeEventListener("message", this.gameUpdateListener);
                 this.button.style.cssText =
                     "display: block; padding: 14px 24px 22px; bottom: 0; right: 0; z-index: 9; font-size: 21px !important; position: absolute;";
-                document.querySelector("#compBtnLst").append(this.button);
+                getElement("#compBtnLst").append(this.button);
             }
         }
         else {
@@ -75,7 +75,7 @@ class AccountManager {
      * @param {MouseEvent} event
      */
     handleMenuClick = (event) => {
-        const clickedElement = event.target;
+        const clickedElement = /** @type {HTMLElement} */ (event.target);
         if (clickedElement.classList.contains("accountHolder")){
             this.handleAccountSelection(clickedElement);
         }
@@ -117,9 +117,9 @@ class AccountManager {
      * Stores the credentials from the creator form, unless empty or already known.
      */
     createNewAccount(){
-        let username = document.querySelector("#username").value;
-        let password = document.querySelector("#password").value;
-        const color = document.querySelector("#color-picker").value;
+        let username = getInput("#username").value;
+        let password = getInput("#password").value;
+        const color = getInput("#color-picker").value;
 
         if (username.replace(/\s/, "") === "" || password.replace(/\s/, "") === ""){
             this.switchTabs();
@@ -159,24 +159,24 @@ class AccountManager {
      */
     handleAccountSelection(element){
         const account = this.accounts.find((acc) => this.decode(acc.username) === element.textContent);
+        if (!account) return;
 
         this.removeWindow();
         window.loginOrRegister();
 
         queueMicrotask(() => {
-            if (document.querySelector(".auth-toggle-btn").textContent.includes("username")){
-                document.querySelector(".auth-toggle-btn").click();
-            }
+            const authToggle = getElement(".auth-toggle-btn");
+            if (authToggle.textContent?.includes("username")) authToggle.click();
 
             queueMicrotask(() => {
-                const nameInput = document.querySelector("#accName");
-                const passInput = document.querySelector("#accPass");
+                const nameInput = getInput("#accName");
+                const passInput = getInput("#accPass");
                 nameInput.value = this.decode(account.username);
                 passInput.value = this.decode(account.password);
                 // send input otherwise it thinks its empty
                 nameInput.dispatchEvent(new Event("input", { bubbles: true }));
                 passInput.dispatchEvent(new Event("input", { bubbles: true }));
-                document.querySelector(".io-button").click();
+                getElement(".io-button").click();
             });
         });
     }
@@ -185,26 +185,26 @@ class AccountManager {
      * Clears the creator form and picks a random color.
      */
     resetForm(){
-        document.querySelector("#color-picker").value = `#${Math.floor(Math.random() * 16777215)
+        getInput("#color-picker").value = `#${Math.floor(Math.random() * 16777215)
             .toString(16)
             .padStart(6, "0")}`;
-        document.querySelector("#username").value = "";
-        document.querySelector("#password").value = "";
+        getInput("#username").value = "";
+        getInput("#password").value = "";
     }
 
     /**
      * Toggles between the account list and the creator form.
      */
     switchTabs(){
-        document.querySelector("#accountContainerTab").classList.toggle("hidden");
-        document.querySelector("#accountCreatorTab").classList.toggle("hidden");
+        getElement("#accountContainerTab").classList.toggle("hidden");
+        getElement("#accountCreatorTab").classList.toggle("hidden");
     }
 
     /**
      * Re-renders the account list from {@link AccountManager#accounts}.
      */
     updateAccounts(){
-        const accountContainer = document.querySelector("#accountContainer");
+        const accountContainer = getElement("#accountContainer");
         while (accountContainer.children.length > 0){
             accountContainer.removeChild(accountContainer.children[0]);
         }
@@ -237,7 +237,7 @@ class AccountManager {
             this.updateAccounts();
             this.container.addEventListener("contextmenu", this.removeAccount);
             document.addEventListener("click", this.handleMenuClick);
-            document.querySelector("#color-picker").value = `#${Math.floor(Math.random() * 16777215)
+            getInput("#color-picker").value = `#${Math.floor(Math.random() * 16777215)
                 .toString(16)
                 .padStart(6, "0")}`;
         });
@@ -250,7 +250,7 @@ class AccountManager {
      */
     removeAccount = (event) => {
         event.preventDefault();
-        const clickedElement = event.target;
+        const clickedElement = /** @type {HTMLElement} */ (event.target);
         if (clickedElement.classList.contains("accountHolder")){
             const index = this.accounts.findIndex((account) => this.decode(account.username) === clickedElement.textContent);
             if (index > -1){
