@@ -190,7 +190,7 @@ Object.defineProperty(window, "gameLoaded", {
 
         if (kute?.settings.data?.textSelect){
             const textSelectCSS = document.createElement("style");
-            textSelectCSS.id = "textSelectCSS";
+            textSelectCSS.id = "kute_textSelectCSS";
             textSelectCSS.textContent = "#chatHolder * { user-select: text }";
             document.head.append(textSelectCSS);
         }

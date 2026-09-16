@@ -117,12 +117,12 @@ kute.settings.changeSetting = (id, rawValue, slider) => {
         case "textSelect": {
             if (value){
                 const textSelectCSS = document.createElement("style");
-                textSelectCSS.id = "textSelect";
+                textSelectCSS.id = "kute_textSelectCSS";
                 textSelectCSS.textContent = "#chatHolder * { user-select: text }";
                 document.head.append(textSelectCSS);
             }
             else {
-                document.querySelector("#textSelect")?.remove();
+                document.querySelector("#kute_textSelectCSS")?.remove();
             }
             break;
         }
