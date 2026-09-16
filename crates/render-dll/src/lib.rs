@@ -187,10 +187,7 @@ unsafe extern "system" fn create_swapchain_hk(
             let result = original_fn(this, pdevice, pdesc, prestricttooutput, ppswapchain);
 
             // new swapchain creation can be on the same address as a destroyed one, so purge stale wait handle
-            if result.is_ok()
-                && !ppswapchain.is_null()
-                && WAIT_HANDLE.write().unwrap().remove(&(*ppswapchain as usize)).is_some()
-            {
+            if result.is_ok() && !ppswapchain.is_null() && WAIT_HANDLE.write().unwrap().remove(&(*ppswapchain as usize)).is_some() {
                 debug_print!("render: purged stale wait handle for reused swapchain address {:?}", *ppswapchain);
                 // bump when WAIT_HANDLE changes so the per-thread caches in present_hk drop stale entries
                 WAIT_HANDLE_GENERATION.fetch_add(1, Ordering::Release);
@@ -450,7 +447,11 @@ unsafe extern "system" fn present_hk(
 
             // make sure sleep doesn't overshoot by scheduling next frame from deadline and not wakeup
             let after = std::time::Instant::now();
-            let next_ref = if after.duration_since(deadline) > target_frame_time { after } else { deadline };
+            let next_ref = if after.duration_since(deadline) > target_frame_time {
+                after
+            } else {
+                deadline
+            };
             *GLOBAL_LIMIT_CLOCK.write().unwrap() = Some(next_ref);
         }
         // end of limiter
@@ -527,13 +528,23 @@ unsafe extern "system" fn present_hk(
     }
 }
 
+// called by the gpu subprocess right after LoadLibrary, outside the loader lock and before
+// chromium creates its swap chain. returns 1 on success
+#[unsafe(no_mangle)]
+pub extern "system" fn render_attach() -> i32 {
+    match std::panic::catch_unwind(attach) {
+        Ok(()) => 1,
+        Err(_) => {
+            debug_print!("render: attach panicked");
+            0
+        }
+    }
+}
+
 #[unsafe(no_mangle)]
 extern "system" fn DllMain(_: HINSTANCE, call_reason: u32, _: *mut ()) {
     if call_reason == DLL_PROCESS_ATTACH {
-        debug_print!("render: DLL_PROCESS_ATTACH, spawning initialization thread");
-        thread::spawn(|| {
-            attach();
-        });
+        debug_print!("render: DLL_PROCESS_ATTACH, waiting for render_attach");
     } else if call_reason == DLL_PROCESS_DETACH {
         debug_print!("render: DLL_PROCESS_DETACH, cleaning capture state and handles");
         capture::capture_cleanup();
