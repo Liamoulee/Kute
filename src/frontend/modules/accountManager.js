@@ -1,12 +1,27 @@
+/**
+ * Stored account credentials. Username and password are obfuscated with {@link AccountManager#encode}.
+ *
+ * @typedef {object} Account
+ * @property {string} username
+ * @property {string} password
+ * @property {string} color
+ */
+
+/**
+ * Adds an "Accounts" button that lets the user save and switch between login credentials.
+ */
 class AccountManager {
     constructor(){
+        /** @type {HTMLDivElement} */
         this.button = document.createElement("div");
         this.button.textContent = "Accounts";
         this.button.classList.add("button", "buttonB", "bigShadowT");
         this.button.style.cssText =
             "display: block; padding-top: 7px; padding-bottom: 22px; font-size: 25px!important; padding-bottom: 22px; margin-top: 7px; height: 21px; line-height: 35px; width: 162px; font-size:20px!important; margin-left: 3px;";
 
+        /** @type {HTMLDivElement} */
         this.container = document.createElement("div");
+        /** @type {Account[]} */
         this.accounts = JSON.parse(localStorage.getItem("accounts") || "[]");
 
         window.kute.settings.toggleAccountManager = (enabled) => this.toggle(enabled);
@@ -14,6 +29,11 @@ class AccountManager {
         this.toggle(true);
     }
 
+    /**
+     * Moves the button into the comp host UI once a comp match is detected.
+     *
+     * @param {MessageEvent} event
+     */
     gameUpdateListener = (event) => {
         if (event.data === "game-updated"){
             setTimeout(() => {
@@ -27,6 +47,9 @@ class AccountManager {
         }
     };
 
+    /**
+     * @param {boolean} enabled
+     */
     toggle(enabled){
         if (enabled){
             window.chrome.webview.addEventListener("message", this.gameUpdateListener);
@@ -46,6 +69,11 @@ class AccountManager {
         }
     }
 
+    /**
+     * Dispatches clicks inside the account menu.
+     *
+     * @param {MouseEvent} event
+     */
     handleMenuClick = (event) => {
         const clickedElement = event.target;
         if (clickedElement.classList.contains("accountHolder")){
@@ -70,6 +98,12 @@ class AccountManager {
         }
     };
 
+    /**
+     * Obfuscates a string by shifting every char code by the string length.
+     *
+     * @param {string} decoded
+     * @return {string}
+     */
     encode(decoded){
         const key = decoded.length;
         const encoded = decoded
@@ -79,6 +113,9 @@ class AccountManager {
         return encodeURIComponent(encoded);
     }
 
+    /**
+     * Stores the credentials from the creator form, unless empty or already known.
+     */
     createNewAccount(){
         let username = document.querySelector("#username").value;
         let password = document.querySelector("#password").value;
@@ -100,6 +137,12 @@ class AccountManager {
         this.switchTabs();
     }
 
+    /**
+     * Reverses {@link AccountManager#encode}.
+     *
+     * @param {string} encoded
+     * @return {string}
+     */
     decode(encoded){
         const username = decodeURIComponent(encoded);
         const key = username.length;
@@ -109,6 +152,11 @@ class AccountManager {
             .join("");
     }
 
+    /**
+     * Fills Krunker's login form with the selected account and submits it.
+     *
+     * @param {HTMLElement} element The clicked account entry
+     */
     handleAccountSelection(element){
         const account = this.accounts.find((acc) => this.decode(acc.username) === element.textContent);
 
@@ -133,6 +181,9 @@ class AccountManager {
         });
     }
 
+    /**
+     * Clears the creator form and picks a random color.
+     */
     resetForm(){
         document.querySelector("#color-picker").value = `#${Math.floor(Math.random() * 16777215)
             .toString(16)
@@ -141,11 +192,17 @@ class AccountManager {
         document.querySelector("#password").value = "";
     }
 
+    /**
+     * Toggles between the account list and the creator form.
+     */
     switchTabs(){
         document.querySelector("#accountContainerTab").classList.toggle("hidden");
         document.querySelector("#accountCreatorTab").classList.toggle("hidden");
     }
 
+    /**
+     * Re-renders the account list from {@link AccountManager#accounts}.
+     */
     updateAccounts(){
         const accountContainer = document.querySelector("#accountContainer");
         while (accountContainer.children.length > 0){
@@ -161,12 +218,18 @@ class AccountManager {
         }
     }
 
+    /**
+     * Closes the account menu and detaches its listeners.
+     */
     removeWindow(){
         this.container.removeEventListener("contextmenu", this.handleMenuClick);
         document.removeEventListener("click", this.handleMenuClick);
         this.container.remove();
     }
 
+    /**
+     * Opens the account menu.
+     */
     createMenu = () => {
         import("../components/accountManager.html").then((html) => {
             this.container.innerHTML = html.default;
@@ -180,6 +243,11 @@ class AccountManager {
         });
     };
 
+    /**
+     * Deletes the right-clicked account.
+     *
+     * @param {MouseEvent} event
+     */
     removeAccount = (event) => {
         event.preventDefault();
         const clickedElement = event.target;

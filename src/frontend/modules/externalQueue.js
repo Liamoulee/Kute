@@ -1,3 +1,4 @@
+/** @type {HTMLButtonElement} */
 const externalQueue = document.createElement("button");
 
 externalQueue.textContent = "open_in_new";
@@ -12,6 +13,9 @@ externalQueue.style = `background-color: #5ce05a;
 	margin-left: 2px;`;
 
 const origRanked = window.openRankedMenu;
+/**
+ * Wraps Krunker's openRankedMenu to add the external queue button to its footer.
+ */
 window.openRankedMenu = () => {
     origRanked.call();
     const footer = document.querySelector(".footer-controls");
@@ -19,6 +23,9 @@ window.openRankedMenu = () => {
     footer.insertBefore(externalQueue, lastChild);
 };
 
+/**
+ * Opens the ranked queue in a separate popup window, passing region and auth token to it.
+ */
 function openExtQueue(){
     const screenWidth = window.screen.width;
     const screenHeight = window.screen.height;
@@ -26,6 +33,7 @@ function openExtQueue(){
     const windowHeight = 350;
     const left = (screenWidth - windowWidth) / 2;
     const top = (screenHeight - windowHeight) / 2;
+    /** @type {(Window & { info?: { allRegions: boolean, token: string, region: string } })|null} */
     const queueWindow = window.open(
         "about:blank",
         "_blank",

@@ -1,5 +1,12 @@
 import { marked } from "marked";
 
+/**
+ * Compares two version strings numerically.
+ *
+ * @param {string} a
+ * @param {string} b
+ * @return {number} Negative if a < b, zero if equal, positive if a > b
+ */
 function semverCompare(a, b){
     return a.localeCompare(b, undefined, {
         numeric: true,
@@ -9,6 +16,12 @@ function semverCompare(a, b){
 }
 
 (async() => {
+    /**
+     * Shows the release notes of a version fetched from the GitHub release.
+     *
+     * @param {string} version
+     * @return {Promise<void>}
+     */
     async function showChangelogPopup(version){
         const html = await import("../components/changelog.html");
         const overlay = document.createElement("div");

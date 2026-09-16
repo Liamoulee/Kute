@@ -9,6 +9,12 @@ const targetDir = path.join(process.cwd(), "target", buildType);
 const targetWebview2Dir = path.join(process.cwd(), "target", buildType, "WebView2");
 const targetResourcesDir = path.join(targetDir, "resources");
 
+/**
+ * Copies all files and directories from the source to the destination recursively.
+ *
+ * @param {string} source
+ * @param {string} destination
+ */
 function copyDirAll(source, destination){
     fs.mkdirSync(destination, { recursive: true });
 

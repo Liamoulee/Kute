@@ -1,12 +1,20 @@
+/**
+ * Plays the headshot sound only on the player's own headshots, detected through the kill feed in chat.
+ */
 class HsSound {
     constructor(){
+        /** @type {(soundName: string, volume?: number, loop?: boolean) => any} */
         this.originalPlay = () => {};
+        /** @type {MutationObserver} */
         this.observer = new MutationObserver((mutations) => this.parseChat(mutations));
         window.kute.settings.toggleHsSound = (enabled) => this.toggle(enabled);
 
         this.setupSoundHook();
     }
 
+    /**
+     * Waits for Krunker's SOUND object to exist, then installs the hook.
+     */
     setupSoundHook(){
         if (window.SOUND?.play){
             this.originalPlay = window.SOUND.play;
@@ -15,6 +23,9 @@ class HsSound {
         else setTimeout(() => this.setupSoundHook(), 100);
     }
 
+    /**
+     * @param {boolean} enabled
+     */
     toggle(enabled){
         if (enabled){
             const chatList = document.querySelector("#chatList");
@@ -24,6 +35,14 @@ class HsSound {
                 });
             }
             const self = this;
+            /**
+             * Drops the game's own headshot sound (called without a volume) and forwards everything else.
+             *
+             * @param {string} soundName
+             * @param {number} [volume]
+             * @param {boolean} [loop]
+             * @return {any}
+             */
             window.SOUND.play = function(soundName, volume, loop){
                 if (soundName === "headshot_0" && volume === undefined) return undefined;
                 return self.originalPlay.call(window.SOUND, soundName, volume, loop);
@@ -35,6 +54,11 @@ class HsSound {
         }
     }
 
+    /**
+     * Plays the headshot sound for new chat entries that show the player scoring a headshot.
+     *
+     * @param {MutationRecord[]} mutations
+     */
     parseChat(mutations){
         for (const mutation of mutations){
             if (mutation.type !== "childList") continue;

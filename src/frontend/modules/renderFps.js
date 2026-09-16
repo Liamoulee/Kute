@@ -1,13 +1,25 @@
+/**
+ * Shows the render (presented) FPS reported by the host next to the game's own FPS counter.
+ */
 class RenderFps {
     constructor(){
+        /** @type {HTMLElement|null} */
         this.ingameFPS = null;
+        /** @type {HTMLElement|null} */
         this.menuFPS = null;
+        /** @type {((event: MessageEvent) => void)|null} */
         this.listener = null;
+        /** @type {string|null} */
         this.gameFPS = null;
         window.kute.settings.toggleRenderFps = (enabled) => this.toggle(enabled);
         this.toggle(true);
     }
 
+    /**
+     * Captures the game's FPS writes instead of letting them reach the element.
+     *
+     * @param {HTMLElement|null} element
+     */
     applyFpsDisplay(element){
         if (!element) return;
         Object.defineProperty(element, "textContent", {
@@ -18,6 +30,10 @@ class RenderFps {
         });
     }
 
+    /**
+     * @param {boolean} enabled
+     * @return {Promise<void>}
+     */
     async toggle(enabled){
         [this.ingameFPS, this.menuFPS] = await Promise.all([waitForElement("#ingameFPS"), waitForElement("#menuFPS")]);
 

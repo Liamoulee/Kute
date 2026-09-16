@@ -1,6 +1,12 @@
+/** @type {HTMLDivElement} */
 const setHolder = document.createElement("div");
 setHolder.classList = "settName";
 
+/**
+ * Which setting groups get imported. Stored per group in localStorage as kute_<group>.
+ *
+ * @type {Record<string, boolean>}
+ */
 const settings = {
     Keybinds: localStorage.getItem("kute_Keybinds") === "true" || localStorage.getItem("kute_Keybinds") === null,
     Sensitivity:
@@ -26,6 +32,9 @@ setHolder.innerHTML = html;
 const originalimportSettingsPopup = window.importSettingsPopup;
 const originalimportSettings = window.importSettings;
 
+/**
+ * Wraps Krunker's importSettingsPopup to add the import toggles below the text area.
+ */
 window.importSettingsPopup = () => {
     originalimportSettingsPopup();
     queueMicrotask(() => {
@@ -34,6 +43,9 @@ window.importSettingsPopup = () => {
     });
 };
 
+/**
+ * Wraps Krunker's importSettings to keep the current values of the groups that are toggled off.
+ */
 window.importSettings = () => {
     const importTxtElement = document.querySelector("#importTxt");
     const json = JSON.parse(importTxtElement.value);

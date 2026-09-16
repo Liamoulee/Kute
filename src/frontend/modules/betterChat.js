@@ -1,5 +1,9 @@
+/**
+ * Chat improvements: tab to switch channel, clear on blur, channel tags and chat notice removal.
+ */
 class BetterChat {
     constructor(){
+        /** @type {Set<string>} */
         this.teamModes = new Set([
             "Team Deathmatch",
             "Hardpoint",
@@ -20,6 +24,7 @@ class BetterChat {
             "Squad Deathmatch",
             "Team Defender",
         ]);
+        /** @type {HTMLStyleElement} */
         this.styles = document.createElement("style");
         import("../components/betterChat.css").then((css) => {
             this.styles.innerHTML = css.default;
@@ -27,16 +32,26 @@ class BetterChat {
 
         window.kute.settings.toggleBetterChat = (enabled) => this.toggle(enabled);
         this.initDom();
+        /** @type {MutationObserver} */
         this.observer = new MutationObserver((mutations) => this.parseMessages(mutations));
         this.toggle(true);
     }
 
+    /**
+     * Caches the chat elements and builds the channel tag templates.
+     */
     initDom(){
+        /** @type {HTMLElement|null} */
         this.chatHolder = document.querySelector("#chatHolder");
+        /** @type {HTMLElement|null} */
         this.chatList = document.querySelector("#chatList");
+        /** @type {HTMLInputElement|null} */
         this.chatInput = document.querySelector("#chatInput");
+        /** @type {HTMLElement|null} */
         this.chatSwitch = document.querySelector("#chatSwitch");
+        /** @type {HTMLDivElement} */
         this.channelT = document.createElement("div");
+        /** @type {HTMLDivElement} */
         this.channelA = document.createElement("div");
         this.channelT.style.cssText = "float: left; display: inline-block; margin-right: 5px; color: #9eeb56;";
         this.channelT.textContent = "[T]";
@@ -44,17 +59,30 @@ class BetterChat {
         this.channelA.textContent = "[M]";
     }
 
+    /**
+     * Switches the chat channel on Tab.
+     *
+     * @param {KeyboardEvent} event
+     */
     switchChat = (event) => {
         if (event.key !== "Tab") return;
         window.switchChat(this.chatSwitch);
         event.preventDefault();
     };
 
+    /**
+     * Clears and unfocuses the chat input.
+     */
     clearChat = () => {
         this.chatInput.value = "";
         this.chatInput.blur();
     };
 
+    /**
+     * Tags new team-mode messages with their channel and drops the "Text & Voice Chat" notice.
+     *
+     * @param {MutationRecord[]} mutations
+     */
     parseMessages(mutations){
         for (const mutation of mutations){
             for (const node of mutation.addedNodes){
@@ -88,6 +116,9 @@ class BetterChat {
         }
     }
 
+    /**
+     * @param {boolean} enabled
+     */
     toggle(enabled){
         if (enabled){
             document.head.append(this.styles);

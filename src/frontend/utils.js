@@ -1,3 +1,11 @@
+/**
+ * Wraps a prototype method. The wrapper receives the call arguments and the original method.
+ * If the wrapper returns undefined the original method is called with the same arguments.
+ *
+ * @param {{ prototype: Record<string, any> }} target
+ * @param {string} method
+ * @param {(this: any, args: any[], original: Function) => any} wrapper
+ */
 window.hook = (target, method, wrapper) => {
     const original = target.prototype[method];
     target.prototype[method] = function(...args){
@@ -6,12 +14,15 @@ window.hook = (target, method, wrapper) => {
     };
 };
 
+/**
+ * Resolves once an element matching the selector exists in the document.
+ *
+ * @param {string} selector
+ * @return {Promise<Element>}
+ */
 window.waitForElement = (selector) => {
     return new Promise((resolve) => {
-        if (document.querySelector(selector)){
-            resolve(document.querySelector(selector));
-            return;
-        }
+        if (document.querySelector(selector)) return resolve(document.querySelector(selector));
 
         const observer = new MutationObserver(() => {
             if (document.querySelector(selector)){
@@ -23,6 +34,11 @@ window.waitForElement = (selector) => {
     });
 };
 
+/**
+ * Checks whether the game is currently in a comp (tournament) match.
+ *
+ * @return {boolean}
+ */
 window.checkCompMode = () => {
     if (document.querySelector(".cmpTmHed")){
         return true;

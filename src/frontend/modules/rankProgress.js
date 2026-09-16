@@ -1,5 +1,17 @@
+/**
+ * @typedef {object} Rank
+ * @property {string} rank Display name
+ * @property {number|null} elo Elo threshold, null for unranked
+ * @property {string} color
+ * @property {string} image File name on assets.krunker.io
+ */
+
+/**
+ * Adds an elo progress bar and a rank distribution popup to the ranked menu.
+ */
 class RankProgress {
     constructor(){
+        /** @type {Rank[]} */
         this.ranks = [
             {
                 rank: "Unranked",
@@ -87,6 +99,7 @@ class RankProgress {
             },
         ];
 
+        /** @type {MutationObserver} */
         this.observer = new MutationObserver(() => this.checkForMenu());
         const origRanked = window.openRankedMenu;
         window.openRankedMenu = () => {
@@ -108,6 +121,9 @@ class RankProgress {
         });
     }
 
+    /**
+     * Injects the bar and button once the rank card is rendered.
+     */
     checkForMenu(){
         const card = document.querySelector(".rank-card");
         const container = document.querySelector(".rank-and-stats");
@@ -118,6 +134,9 @@ class RankProgress {
         }
     }
 
+    /**
+     * @param {HTMLElement} card
+     */
     injectRankListButton(card){
         const btn = document.createElement("div");
         btn.id = "kute-rank-list-btn";
@@ -132,6 +151,9 @@ class RankProgress {
         card.appendChild(btn);
     }
 
+    /**
+     * Shows the rank distribution popup.
+     */
     openPopup(){
         if (document.getElementById("kute-rank-overlay")) return;
 
@@ -169,6 +191,12 @@ class RankProgress {
         document.body.appendChild(overlay);
     }
 
+    /**
+     * Resolves the current rank, the next rank and the progress between them.
+     *
+     * @param {number} currentElo
+     * @return {{ currentRank: Rank, nextRank: Rank, progress: number, isMax: boolean }}
+     */
     getRankData(currentElo){
         const currentRankIndex = this.ranks.findLastIndex((r) => r.elo !== null && currentElo >= r.elo);
         const currentRank = this.ranks[currentRankIndex];
@@ -191,6 +219,11 @@ class RankProgress {
         };
     }
 
+    /**
+     * Renders the elo progress bar above the quick stats.
+     *
+     * @param {HTMLElement} container
+     */
     injectBar(container){
         const statValues = container.querySelectorAll(".quick-stat-value");
         if (!statValues || statValues.length === 0) return;

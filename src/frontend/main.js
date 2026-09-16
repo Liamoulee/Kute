@@ -1,11 +1,33 @@
 import styles from "./components/base.css";
 import "./utils.js";
 
+/**
+ * Info object sent by the host in reply to "get-info". Modules attach their public functions to it.
+ *
+ * @typedef {object} KuteInfo
+ * @property {{ data: Record<string, any> } & Record<string, any>} settings Setting values by id, plus toggle<Id> and changeSetting functions
+ * @property {string} version
+ * @property {string} launchArgs
+ */
+
 let initialLoad = true;
 window.OffCliV = true;
+/**
+ * Asks the host to close the client window.
+ */
 window.closeClient = () => window.chrome.webview.postMessage("close");
 
+/**
+ * Starts as a promise for the host info and is replaced by the resolved object.
+ *
+ * @type {Promise<KuteInfo>|KuteInfo}
+ */
 window.kute = new Promise((resolve) => {
+    /**
+     * Resolves the info promise on the first message that carries settings or a version.
+     *
+     * @param {MessageEvent} event
+     */
     function handler(event){
         if (event?.data?.settings || event?.data?.version){
             window.chrome.webview.removeEventListener("message", handler);
@@ -64,6 +86,11 @@ document.addEventListener(
 );
 
 Object.defineProperty(window, "gameLoaded", {
+    /**
+     * Main init point. Runs once the game reports loaded and imports the modules gated by settings.
+     *
+     * @param {boolean} value
+     */
     async set(value){
         if (!value) return;
 
@@ -87,6 +114,7 @@ Object.defineProperty(window, "gameLoaded", {
 		    <div class="compMenBtnS" onmouseenter='SOUND.play("tick_0",.1)' style="background-color: #5ce05a" onclick="playSelect(),window.openRankedMenu()"><span class="material-icons" style="color:#fff;font-size:40px;vertical-align:middle;margin-bottom:12px">star</span></div>`;
 
         // classic social button
+        /** @type {string|undefined} */
         let svelteCode;
         for (const cl of document.querySelector("#clientExit .menuItemTitle").classList){
             if (cl.startsWith("svelte-")){
@@ -122,6 +150,11 @@ Object.defineProperty(window, "gameLoaded", {
         if (window.kute?.settings?.data?.rampBoost && !window.checkCompMode()){
             window.chrome.webview.postMessage("toggle-rboost, true");
 
+            /**
+             * Turns ramp boost back off once a comp match is detected.
+             *
+             * @param {MessageEvent} event
+             */
             const gameUpdateListener = (event) => {
                 if (event.data === "game-updated"){
                     setTimeout(() => {
@@ -157,6 +190,9 @@ Object.defineProperty(window, "gameLoaded", {
         }, 2000);
 
         if (window.kute?.settings.data?.autoSpec){
+            /**
+             * Enables spectating as soon as the game activity reports a map, unless the game is custom.
+             */
             const trySetSpect = () => {
                 const activity = window.getGameActivity();
                 if (activity.map === null){

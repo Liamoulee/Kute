@@ -1,5 +1,9 @@
+/**
+ * Shows how many objective points the enemy team just gained next to the score counters in comp matches.
+ */
 class HpEnemyCounter {
     constructor(){
+        /** @type {HTMLDivElement} */
         this.numberDisplay = document.createElement("div");
         this.numberDisplay.id = "hpEnemyCounter";
         this.numberDisplay.classList.add("statIcon");
@@ -10,10 +14,19 @@ class HpEnemyCounter {
                 <span id="myScoreVal" class="pointVal">0</span>
             </div>`;
 
+        /** @type {number} */
         this.enemyOBJ = 0;
+        /** @type {number|null} */
         this.enemyTimeout = null;
+        /** @type {MutationObserver|null} */
         this.observer = null;
+        /** @type {HTMLElement|null} */
         this.pointCounter = null;
+        /**
+         * Sets up the display once a comp match is detected.
+         *
+         * @param {MessageEvent} event
+         */
         this.gameUpdateListener = (event) => {
             if (event.data === "game-updated"){
                 setTimeout(() => {
@@ -28,6 +41,9 @@ class HpEnemyCounter {
         window.kute.settings.toggleHpEnemyCounter = (enabled) => this.toggle(enabled);
         this.toggle(true);
     }
+    /**
+     * @param {boolean} enabled
+     */
     toggle(enabled){
         if (enabled){
             window.chrome.webview.addEventListener("message", this.gameUpdateListener);
@@ -43,6 +59,9 @@ class HpEnemyCounter {
         }
     }
 
+    /**
+     * Compares the enemy score against the last seen value and shows the difference briefly.
+     */
     processTeamScores = () => {
         for (const team of document.querySelectorAll("#tScoreC1, #tScoreC2")){
             if (team && !team.className.includes("you")){
@@ -60,6 +79,9 @@ class HpEnemyCounter {
         }
     };
 
+    /**
+     * Appends the counter to the top right counters and starts observing the team scores.
+     */
     setupDisplay(){
         this.pointCounter = this.numberDisplay.querySelector(".pointVal");
         document.querySelector(".topRightCounters").append(this.numberDisplay);

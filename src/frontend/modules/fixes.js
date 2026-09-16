@@ -3,6 +3,11 @@ window.chrome.webview.postMessage("throttle, menu");
 
 // trick for hiding "PRESS ESC TO EXIT POINTER LOCK" also breaks the default notification for downloads
 const originalExportSettings = window.exportSettings;
+/**
+ * Wraps Krunker's exportSettings to show a notification, since the default download popup is hidden.
+ *
+ * @return {any}
+ */
 window.exportSettings = () => {
     window.kute.showNotification("Settings exported to Downloads!", false, 3);
     return originalExportSettings();
@@ -12,6 +17,12 @@ window.exportSettings = () => {
 // fixes it taking 10 years to load
 
 const originalshowWindow = window.showWindow;
+/**
+ * Wraps Krunker's showWindow to switch CPU throttling based on which window opens.
+ *
+ * @param {...any} args
+ * @return {any}
+ */
 window.showWindow = (...args) => {
     const number = args[0];
     switch (number){
@@ -42,12 +53,21 @@ window.showWindow = (...args) => {
 };
 
 const originalclosWind = window.closWind;
+/**
+ * Wraps Krunker's closWind to re-enable dragging and menu throttling.
+ *
+ * @param {...any} args
+ * @return {any}
+ */
 window.closWind = (...args) => {
     window.chrome.webview.postMessage("drag, true");
     window.chrome.webview.postMessage("throttle, menu");
     return originalclosWind.apply(this, args);
 };
 
+/**
+ * Binds the alternate shoot key to F20 (key code 131) by simulating the keypress in the controls menu.
+ */
 window.kute.bindShoot = () => {
     window.changeCont("shoot", 1, undefined);
     const eventOptions = {

@@ -1,14 +1,26 @@
+/**
+ * Replaces the ping display with an ICMP ping measured by the host.
+ */
 class RealPing {
     constructor(){
+        /** @type {HTMLElement|null} */
         this.ingamePing = null;
+        /** @type {HTMLElement|null} */
         this.menuPing = null;
+        /** @type {number|null} */
         this.interval = null;
+        /** @type {((event: MessageEvent) => void)|null} */
         this.listener = null;
 
         window.kute.settings.toggleRealPing = (enabled) => this.toggle(enabled);
         this.toggle(true);
     }
 
+    /**
+     * Blocks the game from overwriting the element's text.
+     *
+     * @param {HTMLElement|null} element
+     */
     applyPingDisplay(element){
         if (!element) return;
         Object.defineProperty(element, "textContent", {
@@ -17,6 +29,10 @@ class RealPing {
         });
     }
 
+    /**
+     * @param {boolean} enabled
+     * @return {Promise<void>}
+     */
     async toggle(enabled){
         [this.ingamePing, this.menuPing] = await Promise.all([
             waitForElement("#pingText"),

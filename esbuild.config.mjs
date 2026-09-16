@@ -1,6 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { build, transform } from "esbuild";
 
+/**
+ * Esbuild plugin that minifies imported .css files and exposes them as text.
+ *
+ * @type {import("esbuild").Plugin}
+ */
 export const minifyCSS = {
     name: "minifyCSS",
     setup(pluginBuild){
@@ -12,12 +17,18 @@ export const minifyCSS = {
     },
 };
 
+/**
+ * Esbuild plugin that collapses whitespace in imported .html files and minifies their inline scripts.
+ *
+ * @type {import("esbuild").Plugin}
+ */
 export const textMinifyPlugin = {
     name: "textMinifyPlugin",
     setup(pluginBuild){
         pluginBuild.onLoad({ filter: /\.html$/ }, async(args) => {
             let contents = await readFile(args.path, "utf8");
 
+            /** @type {string[]} */
             const scripts = [];
             let index = 0;
 

@@ -1,7 +1,37 @@
 import cSettings from "../cSettings.json";
 
+/**
+ * Shape of an entry in cSettings.json.
+ *
+ * @typedef {object} SettingOption
+ * @property {string} id
+ * @property {string} name
+ * @property {"checkbox"|"slider"|"select"|"none"} type
+ * @property {string} category
+ * @property {string|number|boolean} defaultValue
+ * @property {string} [description]
+ * @property {boolean} [needsRestart]
+ * @property {boolean} [needsRefresh]
+ * @property {string} [button]
+ * @property {string} [buttonAction]
+ * @property {number} [min]
+ * @property {number} [max]
+ * @property {number} [step]
+ * @property {string[]} [options]
+ * @property {string} [html] Rendered control, filled in by SettingsManager
+ */
+
+/** @type {Map<string, number>} */
 const debounceTimers = new Map();
 
+/**
+ * Applies a changed setting: updates the UI, runs side effects for special ids, calls the module's
+ * toggle function (or imports the module) and persists the value through the host.
+ *
+ * @param {string} id
+ * @param {string|number|boolean} rawValue
+ * @param {boolean} slider Whether the change came from a range input (debounced)
+ */
 window.kute.settings.changeSetting = (id, rawValue, slider) => {
     if (rawValue === "") return;
     document.querySelector(`#${id}`).value = rawValue;
@@ -112,11 +142,18 @@ window.kute.settings.changeSetting = (id, rawValue, slider) => {
     window.chrome.webview.postMessage(`set-config, ${id}, ${value}`);
 };
 
+/**
+ * Renders the client settings into Krunker's Advanced settings tab.
+ */
 class SettingsManager {
     constructor(){
+        /** @type {any} Krunker's settings window object */
         this.settingsWindow = window.windows[0];
         this.init();
     }
+    /**
+     * Hooks Krunker's settings renderer and listens for OBS plugin install results.
+     */
     init(){
         const origGetSettings = this.settingsWindow.getSettings;
         this.settingsWindow.getSettings = (...args) =>
@@ -135,11 +172,21 @@ class SettingsManager {
         });
     }
 
+    /**
+     * @param {SettingOption} setting
+     * @return {boolean}
+     */
     searchMatches(setting){
         const query = this.settingsWindow.settingSearch.toLowerCase() || "";
         return (setting.name.toLowerCase() || "").includes(query) || (setting.category.toLowerCase() || "").includes(query);
     }
 
+    /**
+     * Renders the input control for a single setting.
+     *
+     * @param {SettingOption} option
+     * @return {string}
+     */
     generateHtml(option){
         const value = window.kute.settings.data[option.id];
         const button = option.button
@@ -169,6 +216,11 @@ class SettingsManager {
         }
     }
 
+    /**
+     * Renders all client settings grouped by category, or nothing when another tab is active.
+     *
+     * @return {string}
+     */
     getCSettings(){
         if (
             this.settingsWindow.tabs.advanced.length !== this.settingsWindow.tabIndex + 1 &&
