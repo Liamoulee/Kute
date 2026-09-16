@@ -1,14 +1,14 @@
-use std::{collections::HashSet, env, fs, io::Write};
+use std::{collections::HashSet, fs, io::Write};
 
-use crate::constants;
+use crate::{constants, utils};
 
 #[derive(serde::Deserialize, serde::Serialize)]
-struct UserBlocklist {
+struct UserFlags {
     flags: HashSet<String>,
     disabled_defaults: HashSet<String>,
 }
 
-pub fn load() -> String {
+pub fn load() -> Vec<String> {
     let example_flags: &str = r#"
 {
     "flags": [
@@ -20,12 +20,12 @@ pub fn load() -> String {
 }"#;
 
     let defaults: Vec<String> = serde_json::from_str(constants::DEFAULT_FLAGS).unwrap();
-    let flaglist_path: String = env::var("USERPROFILE").unwrap() + "\\Documents\\kute\\user_flags.json";
+    let flaglist_path = utils::settings_dir().join("user_flags.json");
     let mut flaglist_file = if let Ok(flaglist_file) = fs::OpenOptions::new().write(true).read(true).create(true).truncate(false).open(&flaglist_path) {
         flaglist_file
     } else {
         eprintln!("can't open user flags file");
-        return defaults.join(" ");
+        return defaults;
     };
 
     if flaglist_file.metadata().unwrap().len() == 0 {
@@ -38,24 +38,21 @@ pub fn load() -> String {
         eprintln!("can't read user flags file");
         flaglist_file.set_len(0).ok();
         flaglist_file.write_all(example_flags.as_bytes()).ok();
-        example_flags.to_string();
-        return defaults.join(" ");
+        return defaults;
     };
 
-    let flaglist = match serde_json::from_str::<UserBlocklist>(&flaglist_string) {
+    let flaglist = match serde_json::from_str::<UserFlags>(&flaglist_string) {
         Ok(config) => config,
         Err(_) => {
             flaglist_file.set_len(0).ok();
             flaglist_file.write_all(example_flags.as_bytes()).ok();
-            return defaults.join(" ");
+            return defaults;
         }
     };
 
-    let final_flags = defaults.into_iter().filter(|url| !flaglist.disabled_defaults.contains(url)).chain(flaglist.flags);
-
-    let mut args_str = String::new();
-    for flag in final_flags {
-        args_str = args_str + &flag + " ";
-    }
-    args_str
+    defaults
+        .into_iter()
+        .filter(|flag| !flaglist.disabled_defaults.contains(flag))
+        .chain(flaglist.flags)
+        .collect()
 }

@@ -1,10 +1,6 @@
-use std::{collections::HashSet, env, fs, io::Write};
+use std::{collections::HashSet, fs, io::Write, sync::LazyLock};
 
-use webview2_com::Microsoft::Web::WebView2::Win32::*;
-use windows::core::*;
-
-use crate::constants;
-use crate::utils;
+use crate::{constants, utils};
 
 #[derive(serde::Deserialize, serde::Serialize)]
 struct UserBlocklist {
@@ -12,15 +8,43 @@ struct UserBlocklist {
     disabled_defaults: HashSet<String>,
 }
 
-fn load_defaults(webview_window: &ICoreWebView2, defaults: Vec<String>) {
-    for url in defaults {
-        unsafe {
-            let _ = webview_window.AddWebResourceRequestedFilter(PCWSTR(utils::create_utf_string(url).as_ptr()), COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL);
-        };
-    }
+// resolved once, checked on the IO thread for every request
+pub static BLOCKLIST: LazyLock<Vec<String>> = LazyLock::new(|| if utils::config("blocklist", true) { load() } else { Vec::new() });
+
+pub fn is_blocked(url: &str) -> bool {
+    BLOCKLIST.iter().any(|pattern| glob_match(pattern, url))
 }
 
-pub fn load(webview_window: &ICoreWebView2) {
+// WebView2 took these glob filters directly, CEF needs us to match them ourselves
+pub fn glob_match(pattern: &str, text: &str) -> bool {
+    let p: Vec<char> = pattern.chars().collect();
+    let t: Vec<char> = text.chars().collect();
+    let (mut pi, mut ti) = (0usize, 0usize);
+    let (mut star, mut backtrack) = (usize::MAX, 0usize);
+
+    while ti < t.len() {
+        if pi < p.len() && p[pi] == t[ti] {
+            pi += 1;
+            ti += 1;
+        } else if pi < p.len() && p[pi] == '*' {
+            star = pi;
+            backtrack = ti;
+            pi += 1;
+        } else if star != usize::MAX {
+            pi = star + 1;
+            backtrack += 1;
+            ti = backtrack;
+        } else {
+            return false;
+        }
+    }
+    while pi < p.len() && p[pi] == '*' {
+        pi += 1;
+    }
+    pi == p.len()
+}
+
+pub fn load() -> Vec<String> {
     let example_blocklist: &str = r#"
 {
     "blocked": [
@@ -33,13 +57,12 @@ pub fn load(webview_window: &ICoreWebView2) {
 }"#;
 
     let defaults: Vec<String> = serde_json::from_str(constants::DEFAULT_BLOCKLIST).unwrap();
-    let blocklist_path: String = env::var("USERPROFILE").unwrap() + "\\Documents\\kute\\user_blocklist.json";
+    let blocklist_path = utils::settings_dir().join("user_blocklist.json");
     let mut blocklist_file = if let Ok(file) = fs::OpenOptions::new().write(true).read(true).create(true).truncate(false).open(&blocklist_path) {
         file
     } else {
         eprintln!("can't open blocklist file");
-        load_defaults(webview_window, defaults);
-        return;
+        return defaults;
     };
 
     if blocklist_file.metadata().unwrap().len() == 0 {
@@ -52,8 +75,7 @@ pub fn load(webview_window: &ICoreWebView2) {
         eprintln!("can't read user blocklist file");
         blocklist_file.set_len(0).ok();
         blocklist_file.write_all(example_blocklist.as_bytes()).ok();
-        load_defaults(webview_window, defaults);
-        return;
+        return defaults;
     };
 
     let blocklist = match serde_json::from_str::<UserBlocklist>(&blocklist_string) {
@@ -62,19 +84,41 @@ pub fn load(webview_window: &ICoreWebView2) {
             eprintln!("can't parse user blocklist file");
             blocklist_file.set_len(0).ok();
             blocklist_file.write_all(example_blocklist.as_bytes()).ok();
-            load_defaults(webview_window, defaults);
-            return;
+            return defaults;
         }
     };
 
-    let final_url_blocklist = defaults
+    defaults
         .into_iter()
         .filter(|url| !blocklist.disabled_defaults.contains(url))
-        .chain(blocklist.blocked);
+        .chain(blocklist.blocked)
+        .collect()
+}
 
-    for url in final_url_blocklist {
-        unsafe {
-            let _ = webview_window.AddWebResourceRequestedFilter(PCWSTR(utils::create_utf_string(url).as_ptr()), COREWEBVIEW2_WEB_RESOURCE_CONTEXT_ALL);
-        };
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn subdomain_wildcard_matches_real_ad_url() {
+        assert!(glob_match("*://*.doubleclick.net/*", "https://googleads.g.doubleclick.net/pagead/ads?x=1"));
+    }
+
+    #[test]
+    fn trailing_star_matches_query_string() {
+        assert!(glob_match("*://krunker.io/service-worker.js*", "https://krunker.io/service-worker.js?v=3"));
+    }
+
+    #[test]
+    fn does_not_match_unrelated_host() {
+        assert!(!glob_match("*://*.doubleclick.net/*", "https://krunker.io/js/game.js"));
+    }
+
+    #[test]
+    fn defaults_never_block_the_game() {
+        let defaults: Vec<String> = serde_json::from_str(constants::DEFAULT_BLOCKLIST).unwrap();
+        for url in ["https://krunker.io/", "https://krunker.io/js/game.js", "wss://lobby-fra.krunker.io/socket"] {
+            assert!(!defaults.iter().any(|p| glob_match(p, url)), "blocked {url}");
+        }
     }
 }
