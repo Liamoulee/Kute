@@ -87,7 +87,8 @@ class HpEnemyCounter {
      * Appends the counter to the top right counters and starts observing the team scores.
      */
     setupDisplay(){
-        this.pointCounter = getElement(".pointVal", this.numberDisplay);
+        const pointCounter = getElement(".pointVal", this.numberDisplay);
+        this.pointCounter = pointCounter;
         getElement(".topRightCounters").append(this.numberDisplay);
 
         // re-enabling must not stack a second observer

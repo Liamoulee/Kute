@@ -31,16 +31,7 @@ class BetterChat {
         });
 
         window.kute.settings.toggleBetterChat = (enabled) => this.toggle(enabled);
-        this.initDom();
-        /** @type {MutationObserver} */
-        this.observer = new MutationObserver((mutations) => this.parseMessages(mutations));
-        this.toggle(true);
-    }
 
-    /**
-     * Caches the chat elements and builds the channel tag templates.
-     */
-    initDom(){
         /** @type {HTMLElement} */
         this.chatHolder = getElement("#chatHolder");
         /** @type {HTMLElement} */
@@ -57,6 +48,10 @@ class BetterChat {
         this.channelT.textContent = "[T]";
         this.channelA.style.cssText = "float: left; display: inline-block; margin-right: 5px; color: #eb5656;";
         this.channelA.textContent = "[M]";
+
+        /** @type {MutationObserver} */
+        this.observer = new MutationObserver((mutations) => this.parseMessages(mutations));
+        this.toggle(true);
     }
 
     /**

@@ -14,6 +14,13 @@ class KuteNotification {
         this.reqUserInput = reqUserInput;
         /** @type {number} */
         this.duration = duration;
+        /** @type {HTMLDivElement} */
+        this.notificationEl = document.createElement("div");
+        this.notificationEl.id = "notification";
+        /** @type {number|undefined} */
+        this.countdown = undefined;
+        /** @type {((event: KeyboardEvent) => void)|undefined} */
+        this.handlePromise = undefined;
         if (reqUserInput){
             /** @type {Promise<boolean>} */
             this.promise = new Promise((resolve) => {
@@ -30,9 +37,6 @@ class KuteNotification {
      * @return {Promise<void>}
      */
     async createNotificationElement(){
-        /** @type {HTMLDivElement} */
-        this.notificationEl = document.createElement("div");
-        this.notificationEl.id = "notification";
         const notificationHtml = await import("./components/notification.html");
         this.notificationEl.innerHTML = notificationHtml.default;
 
@@ -47,7 +51,6 @@ class KuteNotification {
      * Counts the duration down once per second and hides the notification when it reaches zero.
      */
     startTimer(){
-        /** @type {number} */
         this.countdown = setInterval(() => {
             this.duration--;
             getElement("#notification-timer", this.notificationEl).textContent = String(this.duration);
@@ -64,7 +67,7 @@ class KuteNotification {
      */
     hide(){
         clearInterval(this.countdown);
-        if (this.reqUserInput) document.removeEventListener("keydown", this.handlePromise);
+        if (this.handlePromise) document.removeEventListener("keydown", this.handlePromise);
         this.notificationEl.classList.add("slide-out");
         setTimeout(() => this.notificationEl.remove(), 2000);
     }
@@ -78,7 +81,6 @@ class KuteNotification {
         this.startTimer();
 
         if (this.reqUserInput){
-            /** @type {(event: KeyboardEvent) => void} */
             this.handlePromise = (event) => {
                 if (event.key === "y" || event.key === "n"){
                     const action = event.key === "y";
