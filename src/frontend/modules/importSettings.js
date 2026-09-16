@@ -1,3 +1,6 @@
+import { kute } from "../client.js";
+import { getElement } from "../utils.js";
+
 /** @type {HTMLDivElement} */
 const setHolder = document.createElement("div");
 setHolder.classList = "settName";
@@ -77,7 +80,6 @@ window.importSettings = () => {
 
     importTxtElement.value = JSON.stringify(json);
     originalimportSettings();
-    window.kute.bindShoot();
+    kute.bindShoot();
 };
 
-export {};

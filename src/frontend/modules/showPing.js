@@ -1,3 +1,5 @@
+import { kute } from "../client.js";
+
 /**
  * Replaces the ping icons in the player list with the numeric ping.
  */
@@ -6,7 +8,7 @@ class ShowPing {
         /** @type {() => string} */
         this.originalGenList = window.windows[22].genList;
 
-        window.kute.settings.toggleShowPing = (enabled) => this.toggle(enabled);
+        kute.settings.toggleShowPing = (enabled) => this.toggle(enabled);
 
         this.toggle(true);
     }

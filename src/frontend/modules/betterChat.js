@@ -1,3 +1,6 @@
+import { kute } from "../client.js";
+import { getElement, getInput } from "../utils.js";
+
 /**
  * Chat improvements: tab to switch channel, clear on blur, channel tags and chat notice removal.
  */
@@ -30,7 +33,7 @@ class BetterChat {
             this.styles.innerHTML = css.default;
         });
 
-        window.kute.settings.toggleBetterChat = (enabled) => this.toggle(enabled);
+        kute.settings.toggleBetterChat = (enabled) => this.toggle(enabled);
 
         /** @type {HTMLElement} */
         this.chatHolder = getElement("#chatHolder");

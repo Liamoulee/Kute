@@ -62,7 +62,7 @@ await build({
     entryPoints: ["./src/frontend/main.js"],
     bundle: true,
     minify: true,
-    format: "esm",
+    format: "iife",
     treeShaking: true,
     minifyWhitespace: true,
     minifySyntax: true,

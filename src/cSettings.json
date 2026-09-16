@@ -184,7 +184,7 @@
         "id": "showChangelog",
         "type": "checkbox",
         "button": "Show Now",
-        "buttonAction": "window.kute.showChangelogPopup(window.kute.version)",
+        "buttonAction": "{{kute}}.showChangelogPopup({{kute}}.version)",
         "category": "UI",
         "defaultValue": true
     },

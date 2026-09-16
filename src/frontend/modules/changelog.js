@@ -1,4 +1,5 @@
 import { marked } from "marked";
+import { kute } from "../client.js";
 
 /**
  * Compares two version strings numerically.
@@ -87,14 +88,14 @@ function semverCompare(a, b){
         });
     }
 
-    const currentVersion = window.kute?.version;
+    const currentVersion = kute?.version;
     const lastSeenVersion = window.localStorage.getItem("kute_lastSeenVersion");
     const isNewVersion = lastSeenVersion !== null && semverCompare(currentVersion, lastSeenVersion) > 0;
     window.localStorage.setItem("kute_lastSeenVersion", currentVersion);
-    if (window.kute?.settings.data?.showChangelog && lastSeenVersion && currentVersion && isNewVersion){
+    if (kute?.settings.data?.showChangelog && lastSeenVersion && currentVersion && isNewVersion){
         await showChangelogPopup(currentVersion);
     }
 
     // expose this for the manual trigger button in settings
-    window.kute.showChangelogPopup = showChangelogPopup;
+    kute.showChangelogPopup = showChangelogPopup;
 })();

@@ -16,6 +16,7 @@ type HostMessage =
     | "game-updated"
     | { fpsInfo: number }
     | { pingInfo: number }
+    | { wheel: number }
     | { type: "obs-plugin"; ok: boolean; message: string }
     | { args: string }
     | { settings: Record<string, any>; version: string; launchArgs: string }
@@ -38,7 +39,7 @@ interface KuteSettings {
     [toggleFunction: `toggle${string}`]: (value: any) => void;
 }
 
-/** window.kute: host info plus the functions modules attach to it. */
+/** The client object exported by client.js: host info plus the functions modules attach to it. */
 interface Kute {
     settings: KuteSettings;
     version: string;
@@ -47,7 +48,6 @@ interface Kute {
     showNotification(message: string, reqUserInput: boolean, seconds: number): any;
     showChangelogPopup(version: string): Promise<void>;
     bindShoot(): void;
-    handleMouseWheel(deltaY: number): void;
 }
 
 interface KrunkerGameActivity {
@@ -60,26 +60,13 @@ interface KrunkerSound {
     play(soundName: string, volume?: number, loop?: boolean): any;
 }
 
-// client globals
+// client globals (everything else the client needs lives in modules, see client.js and utils.js)
 
-declare var kute: Kute;
 declare var chrome: { webview: WebViewBridge };
+/** Called by Krunker's own client exit button. */
 declare var closeClient: () => void;
 declare var OffCliV: boolean;
 declare var gameLoaded: boolean;
-
-/** Wraps a prototype method, see utils.js. */
-declare var hook: (
-    target: { prototype: Record<string, any> },
-    method: string,
-    wrapper: (this: any, args: any[], original: Function) => any,
-) => void;
-declare var waitForElement: <T extends Element = HTMLElement>(selector: string) => Promise<T>;
-/** document.querySelector that throws instead of returning null. */
-declare var getElement: <T extends Element = HTMLElement>(selector: string, root?: ParentNode) => T;
-/** getElement typed for form controls. */
-declare var getInput: (selector: string, root?: ParentNode) => HTMLInputElement;
-declare var checkCompMode: () => boolean;
 
 // krunker globals
 

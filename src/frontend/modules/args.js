@@ -1,3 +1,6 @@
+import { kute } from "../client.js";
+import { waitForElement } from "../utils.js";
+
 /**
  * Parameters of a host-comp launch argument (action=host-comp&...).
  *
@@ -193,7 +196,7 @@ const pendingParams = sessionStorage.getItem("pendingCompHost");
 if (pendingParams){
     sessionStorage.removeItem("pendingCompHost");
     const params = JSON.parse(pendingParams);
-    await automateCompHost(params);
+    automateCompHost(params);
 }
 
 /**
@@ -202,7 +205,7 @@ if (pendingParams){
  * @param {string} args Space separated arguments
  * @return {Promise<void>}
  */
-window.kute.parseArgs = async(args) => {
+kute.parseArgs = async(args) => {
     const argList = args.split(" ");
     for (const arg of argList){
         if (arg.includes("action=host-comp")){
@@ -221,7 +224,6 @@ window.kute.parseArgs = async(args) => {
 
 window.chrome.webview.addEventListener("message", async(event) => {
     if (!event.data.args) return;
-    await window.kute.parseArgs(event.data.args);
+    await kute.parseArgs(event.data.args);
 });
 
-export {};

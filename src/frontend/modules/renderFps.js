@@ -1,3 +1,6 @@
+import { kute } from "../client.js";
+import { waitForElement } from "../utils.js";
+
 /**
  * Shows the render (presented) FPS reported by the host next to the game's own FPS counter.
  */
@@ -11,7 +14,7 @@ class RenderFps {
         this.listener = null;
         /** @type {string|null} */
         this.gameFPS = null;
-        window.kute.settings.toggleRenderFps = (enabled) => this.toggle(enabled);
+        kute.settings.toggleRenderFps = (enabled) => this.toggle(enabled);
         this.toggle(true);
     }
 

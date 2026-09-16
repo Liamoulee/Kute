@@ -1,3 +1,6 @@
+import { kute } from "../client.js";
+import { waitForElement } from "../utils.js";
+
 /**
  * Replaces the ping display with an ICMP ping measured by the host.
  */
@@ -12,7 +15,7 @@ class RealPing {
         /** @type {((event: MessageEvent) => void)|null} */
         this.listener = null;
 
-        window.kute.settings.toggleRealPing = (enabled) => this.toggle(enabled);
+        kute.settings.toggleRealPing = (enabled) => this.toggle(enabled);
         this.toggle(true);
     }
 

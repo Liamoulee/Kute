@@ -486,10 +486,7 @@ unsafe extern "system" fn wnd_proc_main(hwnd: HWND, msg: u32, wparam: WPARAM, lp
                 let scroll_amount = delta as f32 / WHEEL_DELTA as f32;
                 window
                     .webview
-                    .ExecuteScript(
-                        PCWSTR(utils::create_utf_string(format!("window.kute.handleMouseWheel({})", scroll_amount)).as_ptr()),
-                        None,
-                    )
+                    .PostWebMessageAsJson(PCWSTR(utils::create_utf_string(format!("{{\"wheel\":{}}}", scroll_amount)).as_ptr()))
                     .ok();
             }
 
@@ -528,7 +525,7 @@ unsafe extern "system" fn wnd_proc_main(hwnd: HWND, msg: u32, wparam: WPARAM, lp
                     string = serde_json::to_string(&string).unwrap_or_else(|_| String::new());
                     window
                         .webview
-                        .ExecuteScript(PCWSTR(utils::create_utf_string(format!("window.kute.parseArgs({})", string)).as_ptr()), None)
+                        .PostWebMessageAsJson(PCWSTR(utils::create_utf_string(format!("{{\"args\":{}}}", string)).as_ptr()))
                         .ok();
                 }
             }
@@ -580,10 +577,11 @@ unsafe extern "system" fn wnd_proc_subwindow(hwnd: HWND, msg: u32, wparam: WPARA
                 let cds_ptr = lparam.0 as *mut COPYDATASTRUCT;
                 let cds = &*cds_ptr;
                 let data = slice::from_raw_parts(cds.lpData as *const u8, cds.cbData as usize);
-                if let Ok(string) = String::from_utf8(data.to_vec()) {
+                if let Ok(mut string) = String::from_utf8(data.to_vec()) {
+                    string = serde_json::to_string(&string).unwrap_or_else(|_| String::new());
                     window
                         .webview
-                        .ExecuteScript(PCWSTR(utils::create_utf_string(format!("window.kute.parseArgs('{}')", string)).as_ptr()), None)
+                        .PostWebMessageAsJson(PCWSTR(utils::create_utf_string(format!("{{\"args\":{}}}", string)).as_ptr()))
                         .ok();
                 }
             }

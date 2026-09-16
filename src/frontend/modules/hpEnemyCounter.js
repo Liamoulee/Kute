@@ -1,3 +1,6 @@
+import { kute } from "../client.js";
+import { getElement, checkCompMode } from "../utils.js";
+
 /**
  * Shows how many objective points the enemy team just gained next to the score counters in comp matches.
  */
@@ -30,7 +33,7 @@ class HpEnemyCounter {
         this.gameUpdateListener = (event) => {
             if (event.data === "game-updated"){
                 setTimeout(() => {
-                    if (window.checkCompMode()){
+                    if (checkCompMode()){
                         window.chrome.webview.removeEventListener("message", this.gameUpdateListener);
 
                         this.setupDisplay();
@@ -38,7 +41,7 @@ class HpEnemyCounter {
                 }, 2000);
             }
         };
-        window.kute.settings.toggleHpEnemyCounter = (enabled) => this.toggle(enabled);
+        kute.settings.toggleHpEnemyCounter = (enabled) => this.toggle(enabled);
         this.toggle(true);
     }
     /**
@@ -47,7 +50,7 @@ class HpEnemyCounter {
     toggle(enabled){
         if (enabled){
             window.chrome.webview.addEventListener("message", this.gameUpdateListener);
-            if (window.checkCompMode()){
+            if (checkCompMode()){
                 window.chrome.webview.removeEventListener("message", this.gameUpdateListener);
                 this.setupDisplay();
             }

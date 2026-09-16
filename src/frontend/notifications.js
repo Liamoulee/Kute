@@ -1,3 +1,6 @@
+import { kute } from "./client.js";
+import { getElement } from "./utils.js";
+
 /**
  * In-page toast notification. Optionally waits for a y/n keypress and resolves a promise with the answer.
  */
@@ -104,11 +107,10 @@ class KuteNotification {
  * @param {number} seconds
  * @return {Promise<boolean>|KuteNotification}
  */
-window.kute.showNotification = (message, reqUserInput, seconds) => {
+kute.showNotification = (message, reqUserInput, seconds) => {
     const notification = new KuteNotification(message, reqUserInput, seconds);
     if (reqUserInput) return notification.promise;
 
     return notification;
 };
 
-export {};

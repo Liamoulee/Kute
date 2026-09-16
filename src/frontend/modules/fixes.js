@@ -1,3 +1,5 @@
+import { kute } from "../client.js";
+
 window.chrome.webview.postMessage("drag, true");
 window.chrome.webview.postMessage("throttle, menu");
 
@@ -9,7 +11,7 @@ const originalExportSettings = window.exportSettings;
  * @return {any}
  */
 window.exportSettings = () => {
-    window.kute.showNotification("Settings exported to Downloads!", false, 3);
+    kute.showNotification("Settings exported to Downloads!", false, 3);
     return originalExportSettings();
 };
 
@@ -68,7 +70,7 @@ window.closWind = (...args) => {
 /**
  * Binds the alternate shoot key to F20 (key code 131) by simulating the keypress in the controls menu.
  */
-window.kute.bindShoot = () => {
+kute.bindShoot = () => {
     window.changeCont("shoot", 1, undefined);
     const eventOptions = {
         key: "F20",
@@ -82,4 +84,3 @@ window.kute.bindShoot = () => {
     window.dispatchEvent(new KeyboardEvent("keyup", eventOptions));
 };
 
-export {};

@@ -1,3 +1,5 @@
+import { kute } from "../client.js";
+
 const nativeRAF = window.requestAnimationFrame;
 let nextFrameTime = performance.now();
 
@@ -9,7 +11,7 @@ let nextFrameTime = performance.now();
  */
 window.requestAnimationFrame = function(callback){
     return nativeRAF(function(timestamp){
-        const targetFps = window.kute?.settings?.data?.gameFpsLimit ?? 0;
+        const targetFps = kute?.settings?.data?.gameFpsLimit ?? 0;
 
         if (targetFps > 0){
             /** @type {number} */
@@ -34,4 +36,3 @@ window.requestAnimationFrame = function(callback){
     });
 };
 
-export {};

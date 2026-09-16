@@ -1,5 +1,6 @@
 import styles from "./components/base.css";
-import "./utils.js";
+import { kute, ready } from "./client.js";
+import { hook, getElement, checkCompMode } from "./utils.js";
 
 let initialLoad = true;
 window.OffCliV = true;
@@ -7,24 +8,6 @@ window.OffCliV = true;
  * Asks the host to close the client window.
  */
 window.closeClient = () => window.chrome.webview.postMessage("close");
-
-// starts as a promise for the host info and is replaced by the resolved object (see Kute in types.d.ts)
-window.kute = /** @type {any} */ (new Promise((resolve) => {
-    /**
-     * Resolves the info promise on the first message that carries settings or a version.
-     *
-     * @param {MessageEvent} event
-     */
-    function handler(event){
-        if (event?.data?.settings || event?.data?.version){
-            window.chrome.webview.removeEventListener("message", handler);
-            resolve(event.data);
-        }
-    }
-
-    window.chrome.webview.addEventListener("message", handler);
-    window.chrome.webview.postMessage("get-info");
-}).then((data) => (window.kute = data)));
 
 document.addEventListener(
     "DOMContentLoaded",
@@ -37,16 +20,23 @@ document.addEventListener(
         baseCSS.textContent = styles;
         document.head.append(baseCSS);
 
+        /** @type {((event: WheelEvent) => void)|null} */
+        let wheelListener = null;
         hook(HTMLCanvasElement, "addEventListener", (args) => {
             const [type, listener] = args;
-            if (type === "wheel") window.kute.handleMouseWheel = (deltaY) => listener(new WheelEvent("wheel", { deltaY }));
+            if (type === "wheel") wheelListener = listener;
+        });
+
+        // the host forwards WM_MOUSEWHEEL as {wheel: deltaY} while the mouse is captured by the game
+        window.chrome.webview.addEventListener("message", (event) => {
+            if (typeof event.data?.wheel === "number") wheelListener?.(new WheelEvent("wheel", { deltaY: event.data.wheel }));
         });
 
         hook(HTMLCanvasElement, "requestPointerLock", function(args, original){
             window.chrome.webview.postMessage("drag, false");
             window.chrome.webview.postMessage("throttle, game");
 
-            return original.call(this, { ...args[0], unadjustedMovement: window.kute?.settings?.data?.rawInput });
+            return original.call(this, { ...args[0], unadjustedMovement: kute?.settings?.data?.rawInput });
         });
 
         document.addEventListener("pointerlockchange", () => {
@@ -60,7 +50,7 @@ document.addEventListener(
             }
         });
 
-        if (window.kute?.settings?.data?.cleanUI){
+        if (kute?.settings?.data?.cleanUI){
             import("./components/clean.css").then((css) => {
                 const cleanCSS = document.createElement("style");
                 cleanCSS.id = "kute_cleanCSS";
@@ -81,8 +71,7 @@ Object.defineProperty(window, "gameLoaded", {
     async set(value){
         if (!value) return;
 
-        // wait for window.kute to resolve
-        if (window.kute instanceof Promise) await window.kute;
+        await ready;
 
         window.chrome.webview.postMessage("game-updated");
         if (!initialLoad) return;
@@ -123,16 +112,16 @@ Object.defineProperty(window, "gameLoaded", {
         import("./modules/fixes.js");
         import("./modules/rankProgress.js");
         import("./modules/importSettings.js");
-        if (window.kute?.settings?.data?.hsSound) import("./modules/hsSound.js");
-        if (window.kute?.settings?.data?.betterChat) import("./modules/betterChat.js");
-        if (window.kute?.settings?.data?.hpEnemyCounter) import("./modules/hpEnemyCounter.js");
-        if (window.kute?.settings?.data?.accountManager) import("./modules/accountManager.js");
-        if (window.kute?.settings?.data?.showPing) import("./modules/showPing.js");
-        if (window.kute?.settings?.data?.realPing) import("./modules/realPing.js");
-        if (window.kute?.settings?.data?.exitButton) getElement("#clientExit").style.display = "flex";
-        if (window.kute?.settings?.data?.renderStats) import("./modules/renderFps.js");
+        if (kute?.settings?.data?.hsSound) import("./modules/hsSound.js");
+        if (kute?.settings?.data?.betterChat) import("./modules/betterChat.js");
+        if (kute?.settings?.data?.hpEnemyCounter) import("./modules/hpEnemyCounter.js");
+        if (kute?.settings?.data?.accountManager) import("./modules/accountManager.js");
+        if (kute?.settings?.data?.showPing) import("./modules/showPing.js");
+        if (kute?.settings?.data?.realPing) import("./modules/realPing.js");
+        if (kute?.settings?.data?.exitButton) getElement("#clientExit").style.display = "flex";
+        if (kute?.settings?.data?.renderStats) import("./modules/renderFps.js");
 
-        if (window.kute?.settings?.data?.rampBoost && !window.checkCompMode()){
+        if (kute?.settings?.data?.rampBoost && !checkCompMode()){
             window.chrome.webview.postMessage("toggle-rboost, true");
 
             /**
@@ -143,7 +132,7 @@ Object.defineProperty(window, "gameLoaded", {
             const gameUpdateListener = (event) => {
                 if (event.data === "game-updated"){
                     setTimeout(() => {
-                        if (window.checkCompMode()){
+                        if (checkCompMode()){
                             window.chrome.webview.removeEventListener("message", gameUpdateListener);
                             window.chrome.webview.postMessage("toggle-rboost, false");
                         }
@@ -154,7 +143,7 @@ Object.defineProperty(window, "gameLoaded", {
             window.chrome.webview.addEventListener("message", gameUpdateListener);
         }
 
-        if (window.kute?.settings.data?.hideBundles){
+        if (kute?.settings.data?.hideBundles){
             const origBundlePopup = window.bundlePopup;
             window.bundlePopup = (...args) => {
                 const windowHolder = /** @type {HTMLElement|null} */ (document.querySelector("#windowHolder"));
@@ -169,12 +158,12 @@ Object.defineProperty(window, "gameLoaded", {
         }
 
         setTimeout(() => {
-            if (sessionStorage.getItem("justLaunched") === "true" && window.kute?.launchArgs){
-                window.kute.parseArgs(window.kute.launchArgs);
+            if (sessionStorage.getItem("justLaunched") === "true" && kute?.launchArgs){
+                kute.parseArgs(kute.launchArgs);
             }
         }, 2000);
 
-        if (window.kute?.settings.data?.autoSpec){
+        if (kute?.settings.data?.autoSpec){
             /**
              * Enables spectating as soon as the game activity reports a map, unless the game is custom.
              */
@@ -189,7 +178,7 @@ Object.defineProperty(window, "gameLoaded", {
             trySetSpect();
         }
 
-        if (window.kute?.settings.data?.discordRPC){
+        if (kute?.settings.data?.discordRPC){
             window.chrome.webview.addEventListener("message", (event) => {
                 if (event.data !== "game-updated") return;
                 setTimeout(() => {
@@ -199,14 +188,14 @@ Object.defineProperty(window, "gameLoaded", {
             });
         }
 
-        if (window.kute?.settings.data?.textSelect){
+        if (kute?.settings.data?.textSelect){
             const textSelectCSS = document.createElement("style");
             textSelectCSS.id = "textSelectCSS";
             textSelectCSS.textContent = "#chatHolder * { user-select: text }";
             document.head.append(textSelectCSS);
         }
 
-        if (window.kute?.settings.data?.menuTimer){
+        if (kute?.settings.data?.menuTimer){
             import("./components/menuTimer.css").then((module) => {
                 const menuTimerCSS = document.createElement("style");
                 menuTimerCSS.id = "kute_menuTimerCSS";

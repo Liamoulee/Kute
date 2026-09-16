@@ -1,3 +1,6 @@
+import { kute } from "../client.js";
+import { getElement, getInput, checkCompMode } from "../utils.js";
+
 /**
  * Stored account credentials. Username and password are obfuscated with {@link AccountManager#encode}.
  *
@@ -24,7 +27,7 @@ class AccountManager {
         /** @type {Account[]} */
         this.accounts = JSON.parse(localStorage.getItem("accounts") || "[]");
 
-        window.kute.settings.toggleAccountManager = (enabled) => this.toggle(enabled);
+        kute.settings.toggleAccountManager = (enabled) => this.toggle(enabled);
 
         this.toggle(true);
     }
@@ -37,7 +40,7 @@ class AccountManager {
     gameUpdateListener = (event) => {
         if (event.data === "game-updated"){
             setTimeout(() => {
-                if (window.checkCompMode()){
+                if (checkCompMode()){
                     window.chrome.webview.removeEventListener("message", this.gameUpdateListener);
                     this.button.style.cssText =
                         "display: block; padding: 14px 24px 22px; bottom: 0; right: 0; z-index: 9; font-size: 21px !important; position: absolute;";
@@ -55,7 +58,7 @@ class AccountManager {
             window.chrome.webview.addEventListener("message", this.gameUpdateListener);
             document.querySelector("#signedOutHeaderBar")?.append(this.button);
             this.button.addEventListener("click", this.createMenu);
-            if (window.checkCompMode()){
+            if (checkCompMode()){
                 window.chrome.webview.removeEventListener("message", this.gameUpdateListener);
                 this.button.style.cssText =
                     "display: block; padding: 14px 24px 22px; bottom: 0; right: 0; z-index: 9; font-size: 21px !important; position: absolute;";

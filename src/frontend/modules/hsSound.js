@@ -1,3 +1,5 @@
+import { kute } from "../client.js";
+
 /**
  * Plays the headshot sound only on the player's own headshots, detected through the kill feed in chat.
  */
@@ -7,7 +9,7 @@ class HsSound {
         this.originalPlay = () => {};
         /** @type {MutationObserver} */
         this.observer = new MutationObserver((mutations) => this.parseChat(mutations));
-        window.kute.settings.toggleHsSound = (enabled) => this.toggle(enabled);
+        kute.settings.toggleHsSound = (enabled) => this.toggle(enabled);
 
         this.setupSoundHook();
     }

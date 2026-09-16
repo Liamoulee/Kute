@@ -1,4 +1,6 @@
 import cSettings from "../cSettings.json";
+import { kute, globalRef } from "./client.js";
+import { getElement, getInput, checkCompMode } from "./utils.js";
 
 /**
  * Shape of an entry in cSettings.json.
@@ -13,7 +15,7 @@ import cSettings from "../cSettings.json";
  * @property {boolean} [needsRestart]
  * @property {boolean} [needsRefresh]
  * @property {string} [button]
- * @property {string} [buttonAction]
+ * @property {string} [buttonAction] Inline JS; "{{kute}}" is replaced with a reference to the client object
  * @property {number} [min]
  * @property {number} [max]
  * @property {number} [step]
@@ -34,7 +36,7 @@ const settings = /** @type {Record<string, SettingOption>} */ (cSettings);
  * @param {string|number|boolean} rawValue
  * @param {boolean} slider Whether the change came from a range input (debounced)
  */
-window.kute.settings.changeSetting = (id, rawValue, slider) => {
+kute.settings.changeSetting = (id, rawValue, slider) => {
     if (rawValue === "") return;
     getInput(`#${id}`).value = String(rawValue);
     let value = rawValue;
@@ -54,7 +56,7 @@ window.kute.settings.changeSetting = (id, rawValue, slider) => {
         clearTimeout(debounceTimers.get(id));
 
         debounceTimers.set(id, setTimeout(() => {
-            window.kute.settings.data[id] = value;
+            kute.settings.data[id] = value;
             window.chrome.webview.postMessage(`set-config, ${id}, ${value}`);
 
             debounceTimers.delete(id);
@@ -78,7 +80,7 @@ window.kute.settings.changeSetting = (id, rawValue, slider) => {
             break;
         case "rampBoost":
             if (value){
-                if (!window.checkCompMode()) window.chrome.webview.postMessage("toggle-rboost, true");
+                if (!checkCompMode()) window.chrome.webview.postMessage("toggle-rboost, true");
             }
             else window.chrome.webview.postMessage("toggle-rboost, false");
             break;
@@ -129,7 +131,7 @@ window.kute.settings.changeSetting = (id, rawValue, slider) => {
     }
 
     const toggleFunctionName = /** @type {const} */ (`toggle${id.charAt(0).toUpperCase() + id.slice(1)}`);
-    if (typeof window.kute.settings[toggleFunctionName] !== "function"){
+    if (typeof kute.settings[toggleFunctionName] !== "function"){
         try {
             import(`./modules/${id}.js`);
         }
@@ -138,10 +140,10 @@ window.kute.settings.changeSetting = (id, rawValue, slider) => {
         }
     }
     else {
-        window.kute.settings[toggleFunctionName](value);
+        kute.settings[toggleFunctionName](value);
     }
 
-    window.kute.settings.data[id] = value;
+    kute.settings.data[id] = value;
     window.chrome.webview.postMessage(`set-config, ${id}, ${value}`);
 };
 
@@ -171,11 +173,11 @@ class SettingsManager {
             const response = event.data;
             if (response?.type !== "obs-plugin") return;
             if (!response.ok){
-                window.kute.settings.data.obsCapturePlugin = false;
+                kute.settings.data.obsCapturePlugin = false;
                 const checkbox = /** @type {HTMLInputElement|null} */ (document.querySelector("#obsCapturePlugin"));
                 if (checkbox) checkbox.checked = false;
             }
-            window.kute.showNotification(response.message, false, 5);
+            kute.showNotification(response.message, false, 5);
         });
     }
 
@@ -195,26 +197,27 @@ class SettingsManager {
      * @return {string}
      */
     generateHtml(option){
-        const value = window.kute.settings.data[option.id];
+        const value = kute.settings.data[option.id];
+        const buttonAction = option.buttonAction?.replaceAll("{{kute}}", globalRef) ?? "";
         const button = option.button
-            ? `<div class="settingsBtn" style="margin-right: 20px; width: auto" onclick="${option.buttonAction}">${option.button}</div>`
+            ? `<div class="settingsBtn" style="margin-right: 20px; width: auto" onclick="${buttonAction}">${option.button}</div>`
             : "";
         switch (option.type){
             case "checkbox":
                 return `<label class='switch'>
                     <input id="${option.id}" type='checkbox'
-                        onclick='window.kute.settings.changeSetting("${option.id}", this.checked, false)'
+                        onclick='${globalRef}.settings.changeSetting("${option.id}", this.checked, false)'
                         ${value ? "checked" : ""}>
                     <span class='slider'></span>
                 </label>
                 ${button}`;
             case "slider":
                 return `<input type="number" class="sliderVal" id="slid_input_${option.id}" min="${option.min}" value="${value || option.min}"
-                    step="${option.step}" oninput='window.kute.settings.changeSetting("${option.id}", this.value, true)' style="margin-right:0px;border-width:0px">
+                    step="${option.step}" oninput='${globalRef}.settings.changeSetting("${option.id}", this.value, true)' style="margin-right:0px;border-width:0px">
                 <div class="slidecontainer" style="margin-top: -8px;"><input type="range" id="${option.id}" min="${option.min}" max="${option.max}"
-                    step="${option.step}" value="${value}" class="sliderM" oninput='window.kute.settings.changeSetting("${option.id}", this.value, true)'></div>`;
+                    step="${option.step}" value="${value}" class="sliderM" oninput='${globalRef}.settings.changeSetting("${option.id}", this.value, true)'></div>`;
             case "select":
-                return `<select id="${option.id}" class="inputGrey2" onchange='window.kute.settings.changeSetting("${option.id}", this.value, false)'>
+                return `<select id="${option.id}" class="inputGrey2" onchange='${globalRef}.settings.changeSetting("${option.id}", this.value, false)'>
                     ${(option.options ?? []).map((opt) => `<option value="${opt}" ${opt === value ? "selected" : ""}>${opt}</option>`)}</select>`;
             case "none":
                 return button;

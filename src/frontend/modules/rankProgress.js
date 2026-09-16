@@ -1,3 +1,5 @@
+import { getElement } from "../utils.js";
+
 /**
  * @typedef {object} Rank
  * @property {string} rank Display name

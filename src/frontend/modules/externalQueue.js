@@ -1,3 +1,5 @@
+import { getElement } from "../utils.js";
+
 /** @type {HTMLButtonElement} */
 const externalQueue = document.createElement("button");
 
@@ -83,4 +85,3 @@ function openExtQueue(){
 
 externalQueue.onclick = openExtQueue;
 
-export {};

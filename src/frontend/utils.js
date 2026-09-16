@@ -6,7 +6,7 @@
  * @param {string} method
  * @param {(this: any, args: any[], original: Function) => any} wrapper
  */
-window.hook = (target, method, wrapper) => {
+export const hook = (target, method, wrapper) => {
     const original = target.prototype[method];
     /**
      * @this {any}
@@ -25,7 +25,7 @@ window.hook = (target, method, wrapper) => {
  * @param {string} selector
  * @return {Promise<T>}
  */
-window.waitForElement = (selector) => {
+export const waitForElement = (selector) => {
     return new Promise((resolve) => {
         const existing = document.querySelector(selector);
         if (existing){
@@ -52,7 +52,7 @@ window.waitForElement = (selector) => {
  * @param {ParentNode} [root]
  * @return {T}
  */
-window.getElement = (selector, root = document) => {
+export const getElement = (selector, root = document) => {
     const element = root.querySelector(selector);
     if (!element) throw new Error(`element not found: ${selector}`);
     return /** @type {T} */ (element);
@@ -65,18 +65,17 @@ window.getElement = (selector, root = document) => {
  * @param {ParentNode} [root]
  * @return {HTMLInputElement}
  */
-window.getInput = (selector, root = document) => getElement(selector, root);
+export const getInput = (selector, root = document) => getElement(selector, root);
 
 /**
  * Checks whether the game is currently in a comp (tournament) match.
  *
  * @return {boolean}
  */
-window.checkCompMode = () => {
+export const checkCompMode = () => {
     if (document.querySelector(".cmpTmHed")){
         return true;
     }
     return false;
 };
 
-export {};
