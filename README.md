@@ -36,14 +36,13 @@ Consider using the CPU Throttler in such scenario
 - Prerequisites:
   - [Rust & Cargo](https://rustup.rs/)
   - [Microsoft Visual C++](https://visualstudio.microsoft.com/downloads/)
-  - [Node](https://nodejs.org/)
-  - [pnpm](https://pnpm.io/installation)
+  - [Bun](https://bun.sh/)
   - [WiX 6 **(if packaging)**](https://github.com/wixtoolset/wix/releases)
 
 1. `git clone https://github.com/NullDev/Kute.git`
 2. `cd Kute`
-3. `pnpm i`
-4. `pnpm build`
+3. `bun install`
+4. `bun run build`
 
 ## Credits
 

@@ -35,13 +35,8 @@ jobs:
           $version = $versionLine.Matches[0].Groups[1].Value
           Add-Content $env:GITHUB_OUTPUT "version=$version"
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v6
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: 24
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
 
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
@@ -59,10 +54,10 @@ jobs:
           wix extension add -g WixToolset.Util.wixext/6.0.2
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Build installer
-        run: pnpm run package
+        run: bun run package
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
