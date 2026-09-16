@@ -1,18 +1,25 @@
 {
+	"name": "kute",
+	"private": true,
 	"type": "module",
+	"packageManager": "bun@1.4.2",
 	"scripts": {
 		"esbuild": "bun esbuild.config.mjs",
 		"dev": "bun run esbuild && cargo build --workspace --features verbose-logs && bun postbuild.js debug && cargo run --features editor-ignore,verbose-logs",
 		"build": "bun run esbuild && cargo build --workspace --release --features packaged,editor-ignore --target x86_64-pc-windows-msvc && bun postbuild.js x86_64-pc-windows-msvc/release",
 		"build:auto-update": "bun run esbuild && cargo build --workspace --release --features packaged,auto-update,editor-ignore --target x86_64-pc-windows-msvc && bun postbuild.js x86_64-pc-windows-msvc/release",
-		"package": "bun run build:auto-update && wix build ./resources/installer_script.wxs -ext WixToolset.Util.wixext -o target/kute-setup-x86_64.msi"
-	},
-	"devDependencies": {
-		"@biomejs/biome": "^2.5.7",
-		"esbuild": "^0.28.1"
+		"package": "bun run build:auto-update && wix build ./resources/installer_script.wxs -ext WixToolset.Util.wixext -o target/kute-setup-x86_64.msi",
+		"lint": "eslint .",
+		"lint:fix": "eslint . --fix"
 	},
 	"dependencies": {
 		"marked": "^18.0.9"
 	},
-	"packageManager": "bun@1.4.2"
+	"devDependencies": {
+		"@babel/core": "^8.0.5",
+		"@babel/eslint-parser": "^8.0.5",
+		"@types/node": "^22.20.3",
+		"esbuild": "^0.28.1",
+		"eslint": "^10.10.0"
+	}
 }
