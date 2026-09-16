@@ -14,7 +14,8 @@
 	display: none !important;
 }
 
-#uiBase.onMenu #spectateHUD {
+/* the direct child selector outranks krunker's `.onMenu #spectateUI > div:not(#replayControls)` rule */
+#uiBase.onMenu #spectateUI > #spectateHUD {
 	box-sizing: border-box;
 	display: flex !important;
 	justify-content: center;
