@@ -59,7 +59,7 @@ impl Window {
         let (controller, env, webview) = create_webview2(hwnd, args, env);
         let widget_wnd = unsafe {
             Some(utils::find_child_window_by_class(
-                FindWindowW(w!("krunker_webview"), PCWSTR::null()).unwrap(),
+                FindWindowW(w!("kute_webview"), PCWSTR::null()).unwrap(),
                 "Chrome_RenderWidgetHostHWND",
             ))
         };
@@ -182,9 +182,9 @@ pub fn create_window(start_mode: &str, is_subwindow: bool, init_state: Option<Wi
             Err(_) => LoadIconW(None, IDI_APPLICATION).unwrap(),
         };
         let class_name = if is_subwindow {
-            w!("krunker_webview_subwindow")
+            w!("kute_webview_subwindow")
         } else {
-            w!("krunker_webview")
+            w!("kute_webview")
         };
         let wc = WNDCLASSW {
             style: CS_HREDRAW | CS_VREDRAW,

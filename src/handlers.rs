@@ -283,7 +283,7 @@ pub fn handle_web_message(
             unsafe {
                 PostMessageW(
                     Some(utils::find_child_window_by_class(
-                        FindWindowW(w!("krunker_webview"), PCWSTR::null()).unwrap(),
+                        FindWindowW(w!("kute_webview"), PCWSTR::null()).unwrap(),
                         "Chrome_RenderWidgetHostHWND",
                     )),
                     WM_USER,

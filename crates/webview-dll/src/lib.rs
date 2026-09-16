@@ -243,7 +243,7 @@ fn detach() {
 fn attach() {
     debug_print!("webview: attach started");
     unsafe {
-        let parent = match FindWindowW(w!("krunker_webview"), PCWSTR::null()) {
+        let parent = match FindWindowW(w!("kute_webview"), PCWSTR::null()) {
             Ok(parent) => parent,
             Err(_error) => {
                 debug_print!("webview: main window not found: {_error}");
@@ -262,7 +262,7 @@ fn attach() {
                 let current_parent = HWND(WINDOW_HANDLE.load(sync::atomic::Ordering::Relaxed));
 
                 if !IsWindow(Some(current_parent)).as_bool() {
-                    let new_parent = FindWindowW(w!("krunker_webview"), PCWSTR::null());
+                    let new_parent = FindWindowW(w!("kute_webview"), PCWSTR::null());
 
                     if let Ok(new_parent) = new_parent {
                         WINDOW_HANDLE.store(new_parent.0, sync::atomic::Ordering::Relaxed);

@@ -4,7 +4,7 @@ pub const DISCORD_CLIENT_ID: &str = "1366441319890948136";
 pub const UPDATE_URL: &str = "https://api.github.com/repos/NullDev/Kute/releases/latest";
 pub const JS_VERSION_URL: &str = "https://raw.githubusercontent.com/NullDev/Kute/master/target/bundle_version";
 pub const JS_BUNDLE_URL: &str = "https://raw.githubusercontent.com/NullDev/Kute/master/target/bundle.js";
-pub const INSTANCE_MUTEX: &str = "Global\\7e0f405e-fe65-493a-acf0-9719b85697cd";
+pub const INSTANCE_MUTEX: &str = "Global\\9e29aac4-cd01-442b-bec2-ddd99403ca14";
 pub const WM_MINOR_UPDATE_READY: u32 = WM_USER + 5;
 
 pub const DEFAULT_BLOCKLIST: &str = r#"[
