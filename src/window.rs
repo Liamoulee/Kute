@@ -287,7 +287,7 @@ pub fn create_window(start_mode: &str, is_subwindow: bool, init_state: Option<Wi
         let hwnd: HWND = CreateWindowExW(
             WINDOW_EX_STYLE::default(),
             class_name,
-            w!("glorp"),
+            w!("kute"),
             WS_OVERLAPPEDWINDOW | WS_VISIBLE,
             x,
             y,
@@ -364,7 +364,7 @@ pub fn create_webview2(
                 Box::new(move |environment_created_handler| {
                     CreateCoreWebView2EnvironmentWithOptions(
                         PCWSTR(utils::create_utf_string(current_dir.to_string_lossy() + "\\\\WebView2").as_ptr()),
-                        PCWSTR(utils::create_utf_string(env::var("USERPROFILE").unwrap() + "\\\\Documents\\\\glorp").as_ptr()),
+                        PCWSTR(utils::create_utf_string(env::var("USERPROFILE").unwrap() + "\\\\Documents\\\\kute").as_ptr()),
                         &ICoreWebView2EnvironmentOptions::from(options),
                         &environment_created_handler,
                     )
@@ -487,7 +487,7 @@ unsafe extern "system" fn wnd_proc_main(hwnd: HWND, msg: u32, wparam: WPARAM, lp
                 window
                     .webview
                     .ExecuteScript(
-                        PCWSTR(utils::create_utf_string(format!("window.glorp.handleMouseWheel({})", scroll_amount)).as_ptr()),
+                        PCWSTR(utils::create_utf_string(format!("window.kute.handleMouseWheel({})", scroll_amount)).as_ptr()),
                         None,
                     )
                     .ok();
@@ -528,7 +528,7 @@ unsafe extern "system" fn wnd_proc_main(hwnd: HWND, msg: u32, wparam: WPARAM, lp
                     string = serde_json::to_string(&string).unwrap_or_else(|_| String::new());
                     window
                         .webview
-                        .ExecuteScript(PCWSTR(utils::create_utf_string(format!("window.glorp.parseArgs({})", string)).as_ptr()), None)
+                        .ExecuteScript(PCWSTR(utils::create_utf_string(format!("window.kute.parseArgs({})", string)).as_ptr()), None)
                         .ok();
                 }
             }
@@ -583,7 +583,7 @@ unsafe extern "system" fn wnd_proc_subwindow(hwnd: HWND, msg: u32, wparam: WPARA
                 if let Ok(string) = String::from_utf8(data.to_vec()) {
                     window
                         .webview
-                        .ExecuteScript(PCWSTR(utils::create_utf_string(format!("window.glorp.parseArgs('{}')", string)).as_ptr()), None)
+                        .ExecuteScript(PCWSTR(utils::create_utf_string(format!("window.kute.parseArgs('{}')", string)).as_ptr()), None)
                         .ok();
                 }
             }

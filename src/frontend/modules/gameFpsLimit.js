@@ -3,7 +3,7 @@ let nextFrameTime = performance.now();
 
 window.requestAnimationFrame = function (callback) {
 	return nativeRAF(function (timestamp) {
-		const targetFps = window.glorp?.settings?.data?.gameFpsLimit ?? 0;
+		const targetFps = window.kute?.settings?.data?.gameFpsLimit ?? 0;
 
 		if (targetFps > 0) {
 			let targetInterval;

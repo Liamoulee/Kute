@@ -32,9 +32,9 @@ fn parse(mut content: String) -> String {
 
 pub fn load(webview: &ICoreWebView2, social: bool) -> Result<()> {
     let scripts_dir = if social {
-        env::var("USERPROFILE").unwrap() + "\\Documents\\glorp\\scripts\\social"
+        env::var("USERPROFILE").unwrap() + "\\Documents\\kute\\scripts\\social"
     } else {
-        env::var("USERPROFILE").unwrap() + "\\Documents\\glorp\\scripts"
+        env::var("USERPROFILE").unwrap() + "\\Documents\\kute\\scripts"
     };
 
     if let Ok(entries) = fs::read_dir(scripts_dir) {

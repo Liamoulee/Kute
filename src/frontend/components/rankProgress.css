@@ -9,7 +9,7 @@
 	}
 }
 
-#glorp-rank-list-btn {
+#kute-rank-list-btn {
 	position: absolute;
 	top: 15px;
 	right: 30px;
@@ -32,13 +32,13 @@
 	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
 }
 
-#glorp-rank-list-btn:hover {
+#kute-rank-list-btn:hover {
 	transform: scale(1.05);
 	background-color: #6efc6c;
 	color: black;
 }
 
-#glorp-rank-overlay {
+#kute-rank-overlay {
 	position: fixed;
 	top: 0;
 	left: 0;
@@ -170,7 +170,7 @@
 	background: #5ce05a;
 }
 
-#glorp-elo-tracker {
+#kute-elo-tracker {
 	width: 100%;
 	margin-top: 5px;
 	margin-bottom: 10px;
@@ -217,7 +217,7 @@
 	letter-spacing: 0.5px;
 }
 
-#glorp-rank-list-btn span {
+#kute-rank-list-btn span {
 	font-size: 16px !important;
 	vertical-align: middle;
 	margin-right: 4px;

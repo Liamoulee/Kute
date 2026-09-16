@@ -2,7 +2,7 @@ class HsSound {
 	constructor() {
 		this.originalPlay = () => {};
 		this.observer = new MutationObserver((mutations) => this.parseChat(mutations));
-		window.glorp.settings.toggleHsSound = (enabled) => this.toggle(enabled);
+		window.kute.settings.toggleHsSound = (enabled) => this.toggle(enabled);
 
 		this.setupSoundHook();
 	}

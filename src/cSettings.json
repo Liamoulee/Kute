@@ -58,7 +58,7 @@
 	"obsCapturePlugin": {
 		"name": "OBS Capture Plugin",
 		"id": "obsCapturePlugin",
-		"description": "Installs Glorp Capture as a source into OBS. Requires OBS to be closed and may require administrator permission. \n To record audio add an 'Application Audio capture and select the 'glorp audio window'",
+		"description": "Installs Kute Capture as a source into OBS. Requires OBS to be closed and may require administrator permission. \n To record audio add an 'Application Audio capture and select the 'kute audio window'",
 		"type": "checkbox",
 		"category": "Main",
 		"defaultValue": false
@@ -184,7 +184,7 @@
 		"id": "showChangelog",
 		"type": "checkbox",
 		"button": "Show Now",
-		"buttonAction": "window.glorp.showChangelogPopup(window.glorp.version)",
+		"buttonAction": "window.kute.showChangelogPopup(window.kute.version)",
 		"category": "UI",
 		"defaultValue": true
 	},

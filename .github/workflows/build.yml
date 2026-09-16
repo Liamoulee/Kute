@@ -57,6 +57,6 @@ jobs:
       - name: Upload installer artifact
         uses: actions/upload-artifact@v7
         with:
-          name: glorp-setup-x86_64-msi-${{ github.sha }}
-          path: target/glorp-setup-x86_64.msi
+          name: kute-setup-x86_64-msi-${{ github.sha }}
+          path: target/kute-setup-x86_64.msi
           retention-days: 7

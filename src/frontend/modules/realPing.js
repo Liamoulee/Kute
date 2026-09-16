@@ -5,7 +5,7 @@ class RealPing {
 		this.interval = null;
 		this.listener = null;
 
-		window.glorp.settings.toggleRealPing = (enabled) => this.toggle(enabled);
+		window.kute.settings.toggleRealPing = (enabled) => this.toggle(enabled);
 		this.toggle(true);
 	}
 

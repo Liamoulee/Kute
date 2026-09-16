@@ -12,7 +12,7 @@ pub fn obs_plugin_paths() -> Vec<PathBuf> {
         if let Ok(root) = std::env::var(variable) {
             let directory = PathBuf::from(root).join("obs-studio").join("obs-plugins").join("64bit");
             if directory.is_dir() {
-                paths.push(directory.join("obs-glorp-capture.dll"));
+                paths.push(directory.join("obs-kute-capture.dll"));
             }
         }
     }
@@ -27,7 +27,7 @@ pub fn set_plugin_installed(webview: &ICoreWebView2, install: bool) {
             .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "OBS was not found in Program Files"))?;
 
         if install {
-            let source = std::env::current_exe()?.parent().unwrap().join("resources").join("obs-glorp-capture.dll");
+            let source = std::env::current_exe()?.parent().unwrap().join("resources").join("obs-kute-capture.dll");
 
             if !source.exists() {
                 return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "bundled OBS plugin is missing"));
@@ -80,7 +80,7 @@ pub fn run_plugin_operation(install: bool) -> std::io::Result<()> {
         .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "OBS was not found in Program Files"))?;
 
     if install {
-        let source = std::env::current_exe()?.parent().unwrap().join("resources").join("obs-glorp-capture.dll");
+        let source = std::env::current_exe()?.parent().unwrap().join("resources").join("obs-kute-capture.dll");
         fs::copy(source, dest).map(drop)
     } else {
         paths.into_iter().filter(|p| p.exists()).try_for_each(fs::remove_file)

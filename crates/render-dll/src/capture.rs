@@ -24,7 +24,7 @@ const VERSION: u32 = 1;
 /// Control block layout — see docs/obs-shared-capture.md §4.
 /// MUST remain byte-for-byte compatible with what the consumer reads.
 #[repr(C, packed)]
-struct GlorpCaptureInfo {
+struct KuteCaptureInfo {
     magic: u32,
     version: u32,
     width: u32,
@@ -45,7 +45,7 @@ struct Capture {
     last_main_present: Instant,
     mapping: usize,
     frame_event: usize,
-    /// Open NT handle (as `usize`) that keeps the `GlorpCaptureTex_<pid>` name resolvable. Must
+    /// Open NT handle (as `usize`) that keeps the `KuteCaptureTex_<pid>` name resolvable. Must
     /// stay open for as long as the texture is published (a name only resolves while alive).
     shared_handle: Option<usize>,
     /// The real D3D11 device/context from the WebView2 composition swap chain.
@@ -110,8 +110,8 @@ pub fn capture_init() {
     let pid = unsafe { GetCurrentProcessId() };
     crate::debug_print!("capture: initialization started for pid {pid}");
     unsafe {
-        let info_name = wide(&format!("GlorpCaptureInfo_{pid}"));
-        let event_name = wide(&format!("GlorpCaptureFrame_{pid}"));
+        let info_name = wide(&format!("KuteCaptureInfo_{pid}"));
+        let event_name = wide(&format!("KuteCaptureFrame_{pid}"));
 
         let mapping = match CreateFileMappingW(INVALID_HANDLE_VALUE, None, PAGE_READWRITE, 0, INFO_SIZE as u32, PCWSTR(info_name.as_ptr())) {
             Ok(m) => m,
@@ -130,7 +130,7 @@ pub fn capture_init() {
 
         // Zero, then stamp the producer-owned header fields.
         std::ptr::write_bytes(view.Value as *mut u8, 0, INFO_SIZE);
-        let info = view.Value as *mut GlorpCaptureInfo;
+        let info = view.Value as *mut KuteCaptureInfo;
         std::ptr::addr_of_mut!((*info).magic).write_unaligned(MAGIC);
         std::ptr::addr_of_mut!((*info).version).write_unaligned(VERSION);
 
@@ -223,7 +223,7 @@ fn ensure_shared_tex(c: &mut Capture, w: u32, h: u32, format: u32) {
     };
 
     // Publish a name so the OBS process can open it by name (raw handles never cross processes).
-    let tex_name = wide(&format!("GlorpCaptureTex_{}", c.pid));
+    let tex_name = wide(&format!("KuteCaptureTex_{}", c.pid));
     let res: IDXGIResource1 = match tex.cast() {
         Ok(r) => r,
         Err(_error) => {
@@ -250,7 +250,7 @@ fn ensure_shared_tex(c: &mut Capture, w: u32, h: u32, format: u32) {
 
     // Publish dims/format so the reader knows what to open.
     unsafe {
-        let info_ptr = INFO_PTR.load(Ordering::Acquire) as *mut GlorpCaptureInfo;
+        let info_ptr = INFO_PTR.load(Ordering::Acquire) as *mut KuteCaptureInfo;
         if !info_ptr.is_null() {
             std::ptr::addr_of_mut!((*info_ptr).width).write_unaligned(w);
             std::ptr::addr_of_mut!((*info_ptr).height).write_unaligned(h);
@@ -268,7 +268,7 @@ pub fn capture_on_present(swapchain: *mut c_void) {
     }
     // Fast path — no reader attached: zero capture work.
     unsafe {
-        if (*(info_ptr as *const GlorpCaptureInfo)).flags & READER_ACTIVE == 0 {
+        if (*(info_ptr as *const KuteCaptureInfo)).flags & READER_ACTIVE == 0 {
             return;
         }
     }
@@ -338,7 +338,7 @@ pub fn capture_on_present(swapchain: *mut c_void) {
 
         // Signal a fresh, safe-to-copy frame and advance the counter.
         unsafe {
-            let info = &mut *(info_ptr as *mut GlorpCaptureInfo);
+            let info = &mut *(info_ptr as *mut KuteCaptureInfo);
             info.frame_counter = info.frame_counter.wrapping_add(1);
             let _ = SetEvent(HANDLE(c.frame_event as *mut _));
         }

@@ -4,7 +4,7 @@ class RenderFps {
 		this.menuFPS = null;
 		this.listener = null;
 		this.gameFPS = null;
-		window.glorp.settings.toggleRenderFps = (enabled) => this.toggle(enabled);
+		window.kute.settings.toggleRenderFps = (enabled) => this.toggle(enabled);
 		this.toggle(true);
 	}
 

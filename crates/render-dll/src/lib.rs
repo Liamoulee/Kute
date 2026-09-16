@@ -125,7 +125,7 @@ fn attach() {
     debug_print!("render: attach started, pid={}", unsafe { GetCurrentProcessId() });
     unsafe {
         capture::capture_init();
-        match OpenFileMappingW(FILE_MAP_ALL_ACCESS.0, false, w!("GlorpFrameTiming")) {
+        match OpenFileMappingW(FILE_MAP_ALL_ACCESS.0, false, w!("KuteFrameTiming")) {
             Ok(mapping) => {
                 debug_print!("render: opened frame timing mapping={mapping:?}");
                 // 24 bytes for SharedState
@@ -278,7 +278,7 @@ unsafe extern "system" fn present_hk(
     let ptr = SHARED_MEM_PTR.load(Ordering::Acquire);
     if ptr == 0 {
         if !MISSING_TIMING_MAPPING_LOGGED.swap(true, Ordering::Relaxed) {
-            debug_print!("render: Present1 running without GlorpFrameTiming mapping; timing, limiter, and capture path bypassed");
+            debug_print!("render: Present1 running without KuteFrameTiming mapping; timing, limiter, and capture path bypassed");
         }
         unsafe {
             let original_present = ORIGINAL_PRESENT.unwrap();

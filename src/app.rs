@@ -15,7 +15,7 @@ use windows::core::*;
 
 pub fn init_fs() -> result::Result<(), io::Error> {
     let user_profile = path::PathBuf::from(env::var("USERPROFILE").unwrap());
-    let client_dir = user_profile.join("Documents").join("glorp");
+    let client_dir = user_profile.join("Documents").join("kute");
     let swap_dir = client_dir.join("swapper");
     let scripts_dir = client_dir.join("scripts").join("social");
     let flaglist_path = client_dir.join("user_flags.json");
@@ -52,7 +52,7 @@ pub fn create_main_window(env: Option<ICoreWebView2Environment>) -> window::Wind
 
     let fps_limit = config("renderFpsLimit", 0);
     unsafe {
-        if let Ok(mapping) = CreateFileMappingW(INVALID_HANDLE_VALUE, None, PAGE_READWRITE, 0, 24, w!("GlorpFrameTiming")) {
+        if let Ok(mapping) = CreateFileMappingW(INVALID_HANDLE_VALUE, None, PAGE_READWRITE, 0, 24, w!("KuteFrameTiming")) {
             let view = MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0, 0, 24);
             if !view.Value.is_null() {
                 std::ptr::write_bytes(view.Value as *mut u8, 0, 24);

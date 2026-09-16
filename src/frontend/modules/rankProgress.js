@@ -113,14 +113,14 @@ class RankProgress {
 		const container = document.querySelector(".rank-and-stats");
 
 		if (card && container) {
-			if (!container.querySelector("#glorp-elo-tracker")) this.injectBar(container);
-			if (!card.querySelector("#glorp-rank-list-btn")) this.injectRankListButton(card);
+			if (!container.querySelector("#kute-elo-tracker")) this.injectBar(container);
+			if (!card.querySelector("#kute-rank-list-btn")) this.injectRankListButton(card);
 		}
 	}
 
 	injectRankListButton(card) {
 		const btn = document.createElement("div");
-		btn.id = "glorp-rank-list-btn";
+		btn.id = "kute-rank-list-btn";
 		btn.className = "season-banner";
 		btn.innerHTML = `<span class="material-icons" style="font-size:16px; vertical-align:middle; margin-right:4px;">list</span> Ranks`;
 		btn.onclick = () => this.openPopup();
@@ -133,7 +133,7 @@ class RankProgress {
 	}
 
 	openPopup() {
-		if (document.getElementById("glorp-rank-overlay")) return;
+		if (document.getElementById("kute-rank-overlay")) return;
 
 		let gridItems = "";
 		for (const r of this.ranks) {
@@ -149,16 +149,16 @@ class RankProgress {
 		}
 
 		const overlay = document.createElement("div");
-		overlay.id = "glorp-rank-overlay";
+		overlay.id = "kute-rank-overlay";
 		overlay.onclick = (e) => {
-			if (e.target.id === "glorp-rank-overlay") overlay.remove();
+			if (e.target.id === "kute-rank-overlay") overlay.remove();
 		};
 
 		overlay.innerHTML = `
 			<div class="rank-popup-content">
 				<div class="rank-popup-header">
 					<h2>Rank Distribution</h2>
-					<div class="rank-popup-close" onclick="document.getElementById('glorp-rank-overlay').remove()">✕</div>
+					<div class="rank-popup-close" onclick="document.getElementById('kute-rank-overlay').remove()">✕</div>
 				</div>
 				<div class="rank-grid-container">
 					${gridItems}
@@ -200,7 +200,7 @@ class RankProgress {
 		const data = this.getRankData(currentElo);
 
 		const wrapper = document.createElement("div");
-		wrapper.id = "glorp-elo-tracker";
+		wrapper.id = "kute-elo-tracker";
 
 		const nextRankDisplay = data.isMax
 			? ""

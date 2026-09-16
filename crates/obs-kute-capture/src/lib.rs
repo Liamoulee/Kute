@@ -1,4 +1,4 @@
-//! OBS source plugin — "Glorp Capture" (consumer side of the shared-texture capture pair).
+//! OBS source plugin — "Kute Capture" (consumer side of the shared-texture capture pair).
 //!
 //! Loaded by OBS into `obs64.exe`. In `obs_module_load` we register an input video source that:
 //!   1. discovers the producer (the WebView2 GPU process running `render.dll`)
@@ -62,7 +62,7 @@ fn backend_supported(api: &ObsApi) -> bool {
     ok
 }
 
-struct GlorpSource {
+struct KuteSource {
     session: Option<capture::Session>,
     dxgi_tex: Option<ID3D11Texture2D>,
     gs_tex: *mut gs_texture_t,
@@ -72,7 +72,7 @@ struct GlorpSource {
     last_attempt: Instant,
 }
 
-impl GlorpSource {
+impl KuteSource {
     fn new() -> Self {
         Self {
             session: None,
@@ -124,7 +124,7 @@ impl GlorpSource {
             // OpenSharedResourceByName lives on ID3D11Device1 (runtime 11.1+, always available).
             let Ok(dev1) = dev.cast::<ID3D11Device1>() else { return };
 
-            let name = format!("GlorpCaptureTex_{}", sess.pid);
+            let name = format!("KuteCaptureTex_{}", sess.pid);
             let name_w: Vec<u16> = name.encode_utf16().chain(Some(0)).collect();
             let opened = dev1.OpenSharedResourceByName::<_, ID3D11Texture2D>(PCWSTR(name_w.as_ptr()), GENERIC_ALL.0);
             drop(dev1); // release our QI reference
@@ -149,12 +149,12 @@ impl GlorpSource {
 // ---- OBS callbacks ----
 
 unsafe extern "C" fn get_name(_data: *mut c_void) -> *const c_char {
-    c"Glorp Capture".as_ptr()
+    c"Kute Capture".as_ptr()
 }
 
 unsafe extern "C" fn create(_settings: *mut obs_data_t, _source: *mut obs_source_t) -> *mut c_void {
     debug_print!("capture: source created");
-    Box::into_raw(Box::new(GlorpSource::new())) as *mut c_void
+    Box::into_raw(Box::new(KuteSource::new())) as *mut c_void
 }
 
 unsafe extern "C" fn destroy(data: *mut c_void) {
@@ -162,26 +162,26 @@ unsafe extern "C" fn destroy(data: *mut c_void) {
         return;
     }
     debug_print!("capture: source destroyed");
-    let s = &mut *(data as *mut GlorpSource);
+    let s = &mut *(data as *mut KuteSource);
     if let Some(mut sess) = s.session.take() {
         capture::set_reader_active(&sess, false);
         debug_print!("capture: reader off (pid {})", sess.pid);
         sess.close();
     }
     s.teardown_texture();
-    drop(Box::from_raw(data as *mut GlorpSource));
+    drop(Box::from_raw(data as *mut KuteSource));
 }
 
 unsafe extern "C" fn get_width(data: *mut c_void) -> u32 {
-    (*(data as *mut GlorpSource)).width
+    (*(data as *mut KuteSource)).width
 }
 
 unsafe extern "C" fn get_height(data: *mut c_void) -> u32 {
-    (*(data as *mut GlorpSource)).height
+    (*(data as *mut KuteSource)).height
 }
 
 unsafe extern "C" fn video_tick(data: *mut c_void, _seconds: f32) {
-    let s = &mut *(data as *mut GlorpSource);
+    let s = &mut *(data as *mut KuteSource);
 
     // No session yet -> try to find the producer (throttled).
     if s.session.is_none() {
@@ -221,7 +221,7 @@ unsafe extern "C" fn video_tick(data: *mut c_void, _seconds: f32) {
 }
 
 unsafe extern "C" fn video_render(data: *mut c_void, effect: *mut gs_effect_t) {
-    let s = &mut *(data as *mut GlorpSource);
+    let s = &mut *(data as *mut KuteSource);
 
     // Open (or resize/reopen) the shared texture here, on the render thread, where a gs context
     // is guaranteed active.
@@ -258,7 +258,7 @@ pub extern "C" fn obs_module_load() -> bool {
     // render thread (in open_texture) before the first device/texture work.
 
     let info = obs_source_info {
-        id: c"glorp_capture".as_ptr(),
+        id: c"kute_capture".as_ptr(),
         source_type: obsabi::OBS_SOURCE_TYPE_INPUT,
         output_flags: obsabi::OBS_SOURCE_VIDEO,
         get_name: Some(get_name),
@@ -280,7 +280,7 @@ pub extern "C" fn obs_module_load() -> bool {
     unsafe {
         (api.register_source)(&info, std::mem::size_of::<obs_source_info>());
     }
-    debug_print!("capture: Glorp Capture source registered");
+    debug_print!("capture: Kute Capture source registered");
     true
 }
 

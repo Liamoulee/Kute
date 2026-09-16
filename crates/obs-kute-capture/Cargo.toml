@@ -1,5 +1,5 @@
 [package]
-name = "obs-glorp-capture"
+name = "obs-kute-capture"
 version = "0.1.0"
 edition = "2024"
 

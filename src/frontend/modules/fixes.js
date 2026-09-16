@@ -4,7 +4,7 @@ window.chrome.webview.postMessage("throttle, menu");
 // trick for hiding "PRESS ESC TO EXIT POINTER LOCK" also breaks the default notification for downloads
 const originalExportSettings = window.exportSettings;
 window.exportSettings = () => {
-	window.glorp.showNotification("Settings exported to Downloads!", false, 3);
+	window.kute.showNotification("Settings exported to Downloads!", false, 3);
 	return originalExportSettings();
 };
 
@@ -46,7 +46,7 @@ window.closWind = (...args) => {
 	return originalclosWind.apply(this, args);
 };
 
-window.glorp.bindShoot = () => {
+window.kute.bindShoot = () => {
 	window.changeCont("shoot", 1, undefined);
 	const eventOptions = {
 		key: "F20",

@@ -1,11 +1,11 @@
-![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/slavcp/glorp/total)<br>
+![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/NullDev/Kute/total)<br>
 
-Glorp uses unorthodox methods in attempt of fixing the issues modern chromium poses for a browser game
+Kute uses unorthodox methods in attempt of fixing the issues modern chromium poses for a browser game
 
 # Why is the client getting marked as a trojan?
 
 - **The installer is not signed:** digital signatures help verify software, but in the case of such a small open source project, paying for a license is not feasible, so antiviruses will mark it as malicious.
-  ~~- **DLL Injection:** Glorp utilizes DLL injection, a technique used for running code in the context of another application's space, something that is often used for malicious purposes. I assure you that the client only uses this for the user's convenience.~~
+  ~~- **DLL Injection:** Kute utilizes DLL injection, a technique used for running code in the context of another application's space, something that is often used for malicious purposes. I assure you that the client only uses this for the user's convenience.~~
   THIS HAS BEEN REPLACED WITH PLAIN OLD TRICKERY (DLL hijacking) BUT IT MAY STILL GET FLAGGED
 
 I strongly urge you to **review the source code** if you have any doubts.
@@ -40,8 +40,8 @@ Consider using the CPU Throttler in such scenario
   - [pnpm](https://pnpm.io/installation)
   - [WiX 6 **(if packaging)**](https://github.com/wixtoolset/wix/releases)
 
-1. `git clone https://github.com/slavcp/glorp.git`
-2. `cd glorp`
+1. `git clone https://github.com/NullDev/Kute.git`
+2. `cd Kute`
 3. `pnpm i`
 4. `pnpm build`
 

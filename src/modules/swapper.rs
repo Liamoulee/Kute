@@ -47,7 +47,7 @@ fn recurse_swap(root_dir: PathBuf, swap_dir: PathBuf, window: &ICoreWebView2) ->
 }
 
 pub fn load(window: &ICoreWebView2) -> HashMap<String, IStream> {
-    let swap_dir = PathBuf::from(env::var("USERPROFILE").unwrap() + "\\Documents\\glorp\\swapper");
+    let swap_dir = PathBuf::from(env::var("USERPROFILE").unwrap() + "\\Documents\\kute\\swapper");
     fs::create_dir_all(&swap_dir).unwrap_or_default();
     let swaps = recurse_swap(swap_dir.clone(), swap_dir, window);
     swaps.unwrap()

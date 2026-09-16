@@ -33,7 +33,7 @@ pub fn load(webview_window: &ICoreWebView2) {
 }"#;
 
     let defaults: Vec<String> = serde_json::from_str(constants::DEFAULT_BLOCKLIST).unwrap();
-    let blocklist_path: String = env::var("USERPROFILE").unwrap() + "\\Documents\\glorp\\user_blocklist.json";
+    let blocklist_path: String = env::var("USERPROFILE").unwrap() + "\\Documents\\kute\\user_blocklist.json";
     let mut blocklist_file = if let Ok(file) = fs::OpenOptions::new().write(true).read(true).create(true).truncate(false).open(&blocklist_path) {
         file
     } else {

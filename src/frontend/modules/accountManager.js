@@ -9,7 +9,7 @@ class AccountManager {
 		this.container = document.createElement("div");
 		this.accounts = JSON.parse(localStorage.getItem("accounts") || "[]");
 
-		window.glorp.settings.toggleAccountManager = (enabled) => this.toggle(enabled);
+		window.kute.settings.toggleAccountManager = (enabled) => this.toggle(enabled);
 
 		this.toggle(true);
 	}

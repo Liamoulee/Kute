@@ -22,7 +22,7 @@ impl Config {
 
             settings_info.iter().map(|(key, info)| (key.clone(), info.default_value.clone())).collect()
         }
-        let client_dir: String = env::var("USERPROFILE").unwrap() + "\\Documents\\glorp";
+        let client_dir: String = env::var("USERPROFILE").unwrap() + "\\Documents\\kute";
         let settings_path: String = client_dir + "\\settings.json";
         let defaults = load_defaults();
 
@@ -68,7 +68,7 @@ impl Config {
     }
 
     pub fn save(&self) {
-        let settings_path = env::var("USERPROFILE").unwrap() + "\\Documents\\glorp\\settings.json";
+        let settings_path = env::var("USERPROFILE").unwrap() + "\\Documents\\kute\\settings.json";
         let settings_string = serde_json::to_string_pretty(&self.data).unwrap();
         fs::write(settings_path, settings_string).ok();
     }

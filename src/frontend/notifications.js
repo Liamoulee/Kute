@@ -64,7 +64,7 @@ class Notification {
 	}
 }
 
-window.glorp.showNotification = (message, reqUserInput, seconds) => {
+window.kute.showNotification = (message, reqUserInput, seconds) => {
 	const notification = new Notification(message, reqUserInput, seconds);
 	if (reqUserInput) return notification.promise;
 

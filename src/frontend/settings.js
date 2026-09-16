@@ -2,7 +2,7 @@ import cSettings from "../cSettings.json";
 
 const debounceTimers = new Map();
 
-window.glorp.settings.changeSetting = (id, value, slider) => {
+window.kute.settings.changeSetting = (id, value, slider) => {
 	if (value === "") return;
 	document.querySelector(`#${id}`).value = value;
 
@@ -20,7 +20,7 @@ window.glorp.settings.changeSetting = (id, value, slider) => {
 		if (debounceTimers[id]) clearTimeout(debounceTimers[id]);
 
 		debounceTimers[id] = setTimeout(() => {
-			window.glorp.settings.data[id] = value;
+			window.kute.settings.data[id] = value;
 			window.chrome.webview.postMessage(`set-config, ${id}, ${value}`);
 
 			debounceTimers.delete(id);
@@ -33,7 +33,7 @@ window.glorp.settings.changeSetting = (id, value, slider) => {
 			if (
 				value &&
 				!confirm(
-					"Install the Glorp Capture plugin into OBS? OBS must be closed, and Windows may ask for administrator permission.",
+					"Install the Kute Capture plugin into OBS? OBS must be closed, and Windows may ask for administrator permission.",
 				)
 			) {
 				document.querySelector("#obsCapturePlugin").checked = false;
@@ -53,24 +53,24 @@ window.glorp.settings.changeSetting = (id, value, slider) => {
 			if (value) {
 				import("./components/menuTimer.css").then((css) => {
 					const menuTimerCSS = document.createElement("style");
-					menuTimerCSS.id = "glorp_menuTimerCSS";
+					menuTimerCSS.id = "kute_menuTimerCSS";
 					menuTimerCSS.textContent = css.default;
 					document.head.append(menuTimerCSS);
 				});
 			} else {
-				document.querySelector("#glorp_menuTimerCSS")?.remove();
+				document.querySelector("#kute_menuTimerCSS")?.remove();
 			}
 			break;
 		case "cleanUI": {
 			if (value) {
 				import("./components/clean.css").then((css) => {
 					const cleanCSS = document.createElement("style");
-					cleanCSS.id = "glorp_cleanCSS";
+					cleanCSS.id = "kute_cleanCSS";
 					cleanCSS.textContent = css.default;
 					document.head.append(cleanCSS);
 				});
 			} else {
-				document.querySelector("#glorp_cleanCSS")?.remove();
+				document.querySelector("#kute_cleanCSS")?.remove();
 			}
 			break;
 		}
@@ -88,17 +88,17 @@ window.glorp.settings.changeSetting = (id, value, slider) => {
 	}
 
 	const toggleFunctionName = `toggle${id.charAt(0).toUpperCase() + id.slice(1)}`;
-	if (typeof window.glorp.settings[toggleFunctionName] !== "function") {
+	if (typeof window.kute.settings[toggleFunctionName] !== "function") {
 		try {
 			import(`./modules/${id}.js`);
 		} catch {
 			/*  */
 		}
 	} else {
-		window.glorp.settings[toggleFunctionName](value);
+		window.kute.settings[toggleFunctionName](value);
 	}
 
-	window.glorp.settings.data[id] = value;
+	window.kute.settings.data[id] = value;
 	window.chrome.webview.postMessage(`set-config, ${id}, ${value}`);
 };
 
@@ -117,11 +117,11 @@ class SettingsManager {
 			const response = event.data;
 			if (response?.type !== "obs-plugin") return;
 			if (!response.ok) {
-				window.glorp.settings.data.obsCapturePlugin = false;
+				window.kute.settings.data.obsCapturePlugin = false;
 				const checkbox = document.querySelector("#obsCapturePlugin");
 				if (checkbox) checkbox.checked = false;
 			}
-			window.glorp.showNotification(response.message, false, 5);
+			window.kute.showNotification(response.message, false, 5);
 		});
 	}
 
@@ -131,13 +131,13 @@ class SettingsManager {
 	}
 
 	generateHtml(option) {
-		const value = window.glorp.settings.data[option.id];
+		const value = window.kute.settings.data[option.id];
 		switch (option.type) {
 			// biome-ignore format: it looks like straight ass when biome formats it
 			case "checkbox":
 				return `<label class='switch'>
 									<input id="${option.id}" type='checkbox'
-										onclick='window.glorp.settings.changeSetting("${option.id}", this.checked, false)'
+										onclick='window.kute.settings.changeSetting("${option.id}", this.checked, false)'
 										${value ? "checked" : ""}>
 										<span class='slider'></span>
 								</label>
@@ -148,12 +148,12 @@ class SettingsManager {
 			// biome-ignore format: see above
 			case "slider":
 				return `<input type="number" class="sliderVal" id="slid_input_${option.id}" min="${option.min}" value="${value || option.min}"
-								step="${option.step}" oninput='window.glorp.settings.changeSetting("${option.id}", this.value, true)' style="margin-right:0px;border-width:0px">
+								step="${option.step}" oninput='window.kute.settings.changeSetting("${option.id}", this.value, true)' style="margin-right:0px;border-width:0px">
 								<div class="slidecontainer" style="margin-top: -8px;"><input type="range" id="${option.id}" min="${option.min}" max="${option.max}"
-								step="${option.step}" value="${value}" class="sliderM" oninput='window.glorp.settings.changeSetting("${option.id}", this.value, true)'></div>`;
+								step="${option.step}" value="${value}" class="sliderM" oninput='window.kute.settings.changeSetting("${option.id}", this.value, true)'></div>`;
 			// biome-ignore format: see above
 			case "select":
-				return  `<select id="${option.id}" class="inputGrey2" onchange='window.glorp.settings.changeSetting("${option.id}", this.value, false)'>
+				return  `<select id="${option.id}" class="inputGrey2" onchange='window.kute.settings.changeSetting("${option.id}", this.value, false)'>
 							${option.options.map(
 					(opt) => `<option value="${opt}" ${opt === value ? "selected" : ""}>${opt}</option>`,
 				)}</select>`;
@@ -171,7 +171,7 @@ class SettingsManager {
 		)
 			return "";
 
-		let tempHTML = "<div class='glorpSettings'>";
+		let tempHTML = "<div class='kuteSettings'>";
 		let previousCategory = null;
 
 		for (const entry of Object.keys(cSettings)) {
@@ -184,9 +184,9 @@ class SettingsManager {
 				if (previousCategory) tempHTML += "</div>";
 
 				previousCategory = setting.category;
-				tempHTML += `<div class='setHed' id="setHed_glorp_${setting.category}" onclick='window.windows[0].collapseFolder(this)'>
+				tempHTML += `<div class='setHed' id="setHed_kute_${setting.category}" onclick='window.windows[0].collapseFolder(this)'>
 										<span class='material-icons plusOrMinus'>keyboard_arrow_down</span> ${setting.category}</div>
-										<div class='setBodH' id="setBod_glorp_${setting.category}">`;
+										<div class='setBodH' id="setBod_kute_${setting.category}">`;
 			}
 
 			tempHTML += `<div class='settName' ${setting.description ? `title="${setting.description}"` : ""}>

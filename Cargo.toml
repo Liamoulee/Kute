@@ -1,12 +1,12 @@
 [package]
-name = "glorp"
-version = "0.9.2"
+name = "kute"
+version = "0.1.0"
 description = "krunker"
-authors = ["slav"]
+authors = ["NullDev"]
 edition = "2024"
 
 [package.metadata]
-js_bundle_version = "0.2.2"
+js_bundle_version = "0.1.0"
 
 [workspace]
 members = ["crates/*"]
@@ -28,30 +28,30 @@ packaged = []
 auto-update = ["packaged"]
 editor-ignore = []
 verbose-logs = [
-    "obs-glorp-capture/verbose-logs",
+    "obs-kute-capture/verbose-logs",
     "render-dll/verbose-logs",
     "webview-dll/verbose-logs",
 ]
 
 [dependencies]
 windows = { version = "0.62.2", features = [
-       "Win32_UI_WindowsAndMessaging",
-       "Win32_UI_Input_KeyboardAndMouse",
-       "Win32_UI_Shell",
-       "Win32_System_Com",
-       "Win32_System_Com_StructuredStorage",
-       "Win32_System_DataExchange",
-       "Win32_System_Diagnostics_Debug",
-       "Win32_System_Diagnostics_ToolHelp",
-       "Win32_System_LibraryLoader",
-       "Win32_System_ProcessStatus",
-       "Win32_System_Threading",
-       "Win32_System_SystemServices",
-       "Win32_System_Memory",
-       "Win32_Foundation",
-       "Win32_Graphics_Gdi",
-       "Win32_Storage_FileSystem",
-       "Win32_Security_Authorization",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_DataExchange",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_LibraryLoader",
+    "Win32_System_ProcessStatus",
+    "Win32_System_Threading",
+    "Win32_System_SystemServices",
+    "Win32_System_Memory",
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_Storage_FileSystem",
+    "Win32_Security_Authorization",
 ] }
 webview2-com = { version = "0.39.1", default-features = false }
 ureq = { version = "3.3.*", features = ["rustls"], default-features = false }
@@ -62,7 +62,7 @@ serde_json = "1.0.*"
 discord-rich-presence = "1.1.*"
 ping-rs = "0.1.*"
 dns-lookup = "3.0.*"
-obs-glorp-capture = { path = "crates/obs-glorp-capture", optional = true }
+obs-kute-capture = { path = "crates/obs-kute-capture", optional = true }
 render-dll = { path = "crates/render-dll", optional = true }
 webview-dll = { path = "crates/webview-dll", optional = true }
 

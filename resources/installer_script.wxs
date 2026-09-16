@@ -3,33 +3,33 @@
      xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
 
   <Package
-    Id="glorpPackage"
-    Name="glorp"
-    Manufacturer="slav"
-    Version="0.9.2"
+    Id="kutePackage"
+    Name="kute"
+    Manufacturer="NullDev"
+    Version="0.1.0"
     Scope="perUser"
     UpgradeCode="80b28117-cea0-4ef1-8d6f-5884f5ae7270">
         <util:CloseApplication
-          Target="glorp.exe"
+          Target="kute.exe"
           CloseMessage="yes"
           RebootPrompt="no"/>
-    <Icon Id="AppIconIco" SourceFile="resources/glorp.ico"/>
+    <Icon Id="AppIconIco" SourceFile="resources/kute.ico"/>
     <Property Id="ARPPRODUCTICON" Value="AppIconIco" />
 
     <MediaTemplate EmbedCab="yes" />
     <MajorUpgrade AllowDowngrades="yes" Schedule="afterInstallValidate"/>
 
     <StandardDirectory Id="LocalAppDataFolder">
-      <Directory Id="INSTALLFOLDER" Name="glorp">
+      <Directory Id="INSTALLFOLDER" Name="kute">
         <Directory Id="WEBVIEW2FOLDER" Name="WebView2"/>
         <Directory Id="RESOURCESFOLDER" Name="resources"/>
       </Directory>
     </StandardDirectory>
 
 
-    <Feature Id="ProductFeature" Title="glorp" Level="1">
+    <Feature Id="ProductFeature" Title="kute" Level="1">
       <ComponentGroupRef Id="WebView2Components" />
-      <ComponentGroupRef Id="GlorpComponents" />
+      <ComponentGroupRef Id="KuteComponents" />
       <ComponentGroupRef Id="ResourcesComponents" />
     </Feature>
   </Package>
@@ -46,44 +46,44 @@
       <Component Id="BundleVersionComponent" Guid="e1f2a3b4-c5d6-4789-9012-3456789abcde">
         <File Id="bundle_version" Name="bundle_version" Source="target\x86_64-pc-windows-msvc\release\resources\bundle_version" KeyPath="yes"/>
 		<File Id="bundle.js" Name="bundle.js" Source="target\x86_64-pc-windows-msvc\release\resources\bundle.js"/>
-		<File Id="obs_glorp_capture_dll" Name="obs-glorp-capture.dll" Source="target\x86_64-pc-windows-msvc\release\resources\obs-glorp-capture.dll"/>
+		<File Id="obs_kute_capture_dll" Name="obs-kute-capture.dll" Source="target\x86_64-pc-windows-msvc\release\resources\obs-kute-capture.dll"/>
         <RemoveFile Id="CleanInstallResources" Name="*" On="uninstall" Directory="RESOURCESFOLDER"/>
       </Component>
     </ComponentGroup>
-    <ComponentGroup Id="GlorpComponents" Directory="INSTALLFOLDER">
+    <ComponentGroup Id="KuteComponents" Directory="INSTALLFOLDER">
       <Component Id="MainExecutableComponent" Guid="305c2cca-2e2d-4d5a-ac43-84a3be86d148">
-        <File Id="glorp.exe" Name="glorp.exe" Source="target\x86_64-pc-windows-msvc\release\glorp.exe" KeyPath="yes"/>
-        <File Id="glorp.pdb" Name ="glorp.pdb" Source="target\x86_64-pc-windows-msvc\release\glorp.pdb"/>
+        <File Id="kute.exe" Name="kute.exe" Source="target\x86_64-pc-windows-msvc\release\kute.exe" KeyPath="yes"/>
+        <File Id="kute.pdb" Name ="kute.pdb" Source="target\x86_64-pc-windows-msvc\release\kute.pdb"/>
 				<File Id="vcruntime140_1.dll" Name="vcruntime140_1.dll" Source="target\x86_64-pc-windows-msvc\release\vcruntime140_1.dll"/>
 
-        <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="glorp" Target="[INSTALLFOLDER]glorp.exe" WorkingDirectory="INSTALLFOLDER" />
-        <Shortcut Id="ProgramMenuShortcut" Directory="ProgramMenuFolder" Name="glorp" Target="[INSTALLFOLDER]glorp.exe" WorkingDirectory="INSTALLFOLDER" />
+        <Shortcut Id="DesktopShortcut" Directory="DesktopFolder" Name="kute" Target="[INSTALLFOLDER]kute.exe" WorkingDirectory="INSTALLFOLDER" />
+        <Shortcut Id="ProgramMenuShortcut" Directory="ProgramMenuFolder" Name="kute" Target="[INSTALLFOLDER]kute.exe" WorkingDirectory="INSTALLFOLDER" />
         <RemoveFile Id="CleanInstallexe" Name="*.exe" On="uninstall" Directory="INSTALLFOLDER" />
         <RemoveFile Id="CleanInstalldlls" Name="*.dll" On="uninstall" Directory="INSTALLFOLDER" />
       </Component>
 
       <Component Id="ProtocolRegistrationComponent" Guid="def3f6ef-ffff-407c-904d-b2a952fb0c2f">
-        <RegistryKey Root="HKCU" Key="Software\Classes\glorp">
-            <RegistryValue Value="URL:glorp Protocol" Type="string" />
+        <RegistryKey Root="HKCU" Key="Software\Classes\kute">
+            <RegistryValue Value="URL:kute Protocol" Type="string" />
             <RegistryValue Name="URL Protocol" Value="" Type="string" />
         </RegistryKey>
-        <RegistryKey Root="HKCU" Key="Software\Classes\glorp\DefaultIcon">
-            <RegistryValue Value="&quot;[INSTALLFOLDER]glorp.exe&quot;,0" Type="string" />
+        <RegistryKey Root="HKCU" Key="Software\Classes\kute\DefaultIcon">
+            <RegistryValue Value="&quot;[INSTALLFOLDER]kute.exe&quot;,0" Type="string" />
         </RegistryKey>
 
-        <RegistryKey Root="HKCU" Key="Software\Classes\glorp\shell\open\command">
-            <RegistryValue Value="&quot;[INSTALLFOLDER]glorp.exe&quot; &quot;%1&quot;" Type="string" />
+        <RegistryKey Root="HKCU" Key="Software\Classes\kute\shell\open\command">
+            <RegistryValue Value="&quot;[INSTALLFOLDER]kute.exe&quot; &quot;%1&quot;" Type="string" />
         </RegistryKey>
       </Component>
     </ComponentGroup>
 
-        <CustomAction Id="ExecuteGlorp"
+        <CustomAction Id="ExecuteKute"
                 Impersonate="yes"
                 Return="asyncNoWait"
-                FileRef="glorp.exe"
+                FileRef="kute.exe"
                 ExeCommand="" />
     <InstallExecuteSequence >
-      <Custom Action="ExecuteGlorp" After="InstallFinalize" />
+      <Custom Action="ExecuteKute" After="InstallFinalize" />
     </InstallExecuteSequence>
   </Fragment>
 

@@ -9,11 +9,11 @@ function semverCompare(a, b) {
 }
 
 (async () => {
-	const currentVersion = window.glorp?.version;
-	const lastSeenVersion = window.localStorage.getItem("glorp_lastSeenVersion");
+	const currentVersion = window.kute?.version;
+	const lastSeenVersion = window.localStorage.getItem("kute_lastSeenVersion");
 	const isNewVersion = semverCompare(currentVersion, lastSeenVersion) > 0;
-	window.localStorage.setItem("glorp_lastSeenVersion", currentVersion);
-	if (window.glorp?.settings.data?.showChangelog && lastSeenVersion && currentVersion && isNewVersion)
+	window.localStorage.setItem("kute_lastSeenVersion", currentVersion);
+	if (window.kute?.settings.data?.showChangelog && lastSeenVersion && currentVersion && isNewVersion)
 		await showChangelogPopup(currentVersion);
 
 	async function showChangelogPopup(version) {
@@ -43,7 +43,7 @@ function semverCompare(a, b) {
 		while (container.firstChild) shadow.append(container.firstChild);
 
 		const title = shadow.getElementById("changelogTitle");
-		if (title) title.textContent = `glorp ${version}`;
+		if (title) title.textContent = `kute ${version}`;
 		const content = shadow.getElementById("changelogContent");
 		if (content) content.textContent = "loading release notes...";
 		const closeBtn = shadow.getElementById("closeChangelog");
@@ -51,12 +51,12 @@ function semverCompare(a, b) {
 
 		let markdown = "no release notes found";
 		try {
-			const res = await fetch(`https://api.github.com/repos/slavcp/glorp/releases/tags/${version}`);
+			const res = await fetch(`https://api.github.com/repos/NullDev/Kute/releases/tags/${version}`);
 			const data = await res.json();
 			markdown = data.body || markdown;
 		} catch {
 			if (content) {
-				content.innerHTML = `<span style='color:#eb5656'>failed to load release notes. check them out on <a href='https://github.com/slavcp/glorp/releases/tag/${version}' target='_blank' rel='noopener'>github</a></span>`;
+				content.innerHTML = `<span style='color:#eb5656'>failed to load release notes. check them out on <a href='https://github.com/NullDev/Kute/releases/tag/${version}' target='_blank' rel='noopener'>github</a></span>`;
 			}
 			return;
 		}
@@ -68,7 +68,7 @@ function semverCompare(a, b) {
 		if (content) content.innerHTML = htmlContent;
 
 		// make anchor links point to the release page instead of attempting to scroll to the anchor in the current page (which won't work)
-		const releaseUrl = `https://github.com/slavcp/glorp/releases/tag/${version}`;
+		const releaseUrl = `https://github.com/NullDev/Kute/releases/tag/${version}`;
 		for (const a of shadow.querySelectorAll("a")) {
 			if (a.getAttribute("href")?.startsWith("#")) a.setAttribute("href", releaseUrl + a.getAttribute("href"));
 			a.setAttribute("target", "_blank");
@@ -81,5 +81,5 @@ function semverCompare(a, b) {
 	}
 
 	// expose this for the manual trigger button in settings
-	window.glorp.showChangelogPopup = showChangelogPopup;
+	window.kute.showChangelogPopup = showChangelogPopup;
 })();

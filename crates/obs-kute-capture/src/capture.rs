@@ -8,16 +8,16 @@ use windows::{
     core::*,
 };
 
-pub const GLORP_CAPTURE_MAGIC: u32 = 0x5052_4347; // "GCRP"
-pub const GLORP_CAPTURE_VERSION: u32 = 1;
+pub const KUTE_CAPTURE_MAGIC: u32 = 0x5052_4347; // "GCRP"
+pub const KUTE_CAPTURE_VERSION: u32 = 1;
 pub const READER_ACTIVE: u32 = 0x1;
 const INFO_SIZE: usize = 64;
 /// SYNCHRONIZE access right needed to peek (wait) on the frame event.
 const SYNCHRONIZE: u32 = 0x0010_0000;
 
-/// Layout must match the producer's `GlorpCaptureInfo` byte-for-byte (docs/obs-shared-capture.md §4).
+/// Layout must match the producer's `KuteCaptureInfo` byte-for-byte (docs/obs-shared-capture.md §4).
 #[repr(C, packed)]
-pub struct GlorpCaptureInfo {
+pub struct KuteCaptureInfo {
     pub magic: u32,
     pub version: u32,
     pub width: u32,
@@ -34,7 +34,7 @@ pub struct Session {
     pub mapping: HANDLE,
     pub frame_event: HANDLE,
     pub view: MEMORY_MAPPED_VIEW_ADDRESS,
-    pub info: *mut GlorpCaptureInfo,
+    pub info: *mut KuteCaptureInfo,
 }
 
 impl Session {
@@ -83,15 +83,15 @@ fn name_matches(name: &[u16], expected: &str) -> bool {
 /// magic/version valid), otherwise `None` and nothing leaks.
 fn try_attach(pid: u32) -> Option<Session> {
     unsafe {
-        let info_name = wide(&format!("GlorpCaptureInfo_{pid}"));
+        let info_name = wide(&format!("KuteCaptureInfo_{pid}"));
         let mapping = OpenFileMappingW(FILE_MAP_ALL_ACCESS.0, false, PCWSTR(info_name.as_ptr())).ok()?;
         let view = MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0, 0, INFO_SIZE);
         if view.Value.is_null() {
             let _ = CloseHandle(mapping);
             return None;
         }
-        let info = view.Value as *mut GlorpCaptureInfo;
-        if (*info).magic != GLORP_CAPTURE_MAGIC || (*info).version != GLORP_CAPTURE_VERSION {
+        let info = view.Value as *mut KuteCaptureInfo;
+        if (*info).magic != KUTE_CAPTURE_MAGIC || (*info).version != KUTE_CAPTURE_VERSION {
             let _ = UnmapViewOfFile(view);
             let _ = CloseHandle(mapping);
             return None;
@@ -101,7 +101,7 @@ fn try_attach(pid: u32) -> Option<Session> {
 
         // Frame event is optional for correctness (we poll frame_counter), so a failure here is
         // non-fatal — pass a null/invalid handle.
-        let event_name = wide(&format!("GlorpCaptureFrame_{pid}"));
+        let event_name = wide(&format!("KuteCaptureFrame_{pid}"));
         let frame_event = OpenEventW(SYNCHRONIZATION_ACCESS_RIGHTS(SYNCHRONIZE), false, PCWSTR(event_name.as_ptr())).unwrap_or_default();
 
         Some(Session {

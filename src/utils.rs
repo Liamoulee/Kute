@@ -86,7 +86,7 @@ pub fn HIWORD(l: usize) -> usize {
 }
 
 pub fn settings_dir() -> path::PathBuf {
-    path::PathBuf::from(env::var("USERPROFILE").unwrap()).join("Documents").join("glorp")
+    path::PathBuf::from(env::var("USERPROFILE").unwrap()).join("Documents").join("kute")
 }
 
 pub fn config<T: serde::de::DeserializeOwned>(setting: &str, default: T) -> T {

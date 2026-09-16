@@ -115,7 +115,7 @@ fn spawn_injected_audio_window() {
         CreateWindowExW(
             WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_NOACTIVATE,
             class_name,
-            w!("glorp audio window"),
+            w!("kute audio window"),
             WS_POPUP | WS_VISIBLE,
             -32000,
             -32000,
@@ -327,7 +327,7 @@ extern "system" fn find_child_window(handle: HWND, lparam: LPARAM) -> BOOL {
         // }
 
         // no heap alloc for this. cuts a bit of memory
-        // even if there isnt much to begin with on glorps executable lol
+        // even if there isnt much to begin with on kutes executable lol
         let len = class_name.iter().position(|&c| c == 0).unwrap_or(256);
         let class_slice = &class_name[..len];
         let mut target_wide = [0u16; 64];
@@ -375,9 +375,9 @@ unsafe extern "system" fn wnd_proc_1(window: HWND, message: u32, wparam: WPARAM,
             // when you press esc chromium puts a few seconds of delay before the pointer can get locked again as a security measure
             WM_KEYDOWN | WM_KEYUP => {
                 if wparam.0 == VK_ESCAPE.0 as usize && DRAG_STATUS.load(sync::atomic::Ordering::Relaxed) {
-                    // glorp.exe (not the webview)
-                    let glorp = WINDOW_HANDLE.load(sync::atomic::Ordering::Relaxed);
-                    let _result = SetFocus(Some(HWND(glorp)));
+                    // kute.exe (not the webview)
+                    let kute = WINDOW_HANDLE.load(sync::atomic::Ordering::Relaxed);
+                    let _result = SetFocus(Some(HWND(kute)));
                     debug_print!("webview: redirected Escape focus to client result={_result:?}");
                 }
                 CallWindowProcW(PREV_WNDPROC_1, window, message, wparam, lparam)
@@ -436,10 +436,10 @@ unsafe extern "system" fn wnd_proc_widget(window: HWND, message: u32, wparam: WP
             }
             WM_MOUSEWHEEL | WM_MOUSEHWHEEL | WM_POINTERWHEEL | WM_POINTERHWHEEL => {
                 if DRAG_STATUS.load(sync::atomic::Ordering::Relaxed) {
-                    let glorp = WINDOW_HANDLE.load(sync::atomic::Ordering::Relaxed);
-                    // send the message to the glorp window, from where it gets sent as a js event
+                    let kute = WINDOW_HANDLE.load(sync::atomic::Ordering::Relaxed);
+                    // send the message to the kute window, from where it gets sent as a js event
                     // best fix i could find for the fps dropping when scrolling whilst still keeping scroll behaviour intact
-                    PostMessageW(Some(HWND(glorp)), message, wparam, lparam).ok();
+                    PostMessageW(Some(HWND(kute)), message, wparam, lparam).ok();
                     return LRESULT(1);
                 }
                 CallWindowProcW(PREV_WNDPROC_2, window, message, wparam, lparam)

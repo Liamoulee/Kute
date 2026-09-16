@@ -25,7 +25,7 @@ class HpEnemyCounter {
 				}, 2000);
 			}
 		};
-		window.glorp.settings.toggleHpEnemyCounter = (enabled) => this.toggle(enabled);
+		window.kute.settings.toggleHpEnemyCounter = (enabled) => this.toggle(enabled);
 		this.toggle(true);
 	}
 	toggle(enabled) {

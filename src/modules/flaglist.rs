@@ -20,7 +20,7 @@ pub fn load() -> String {
 }"#;
 
     let defaults: Vec<String> = serde_json::from_str(constants::DEFAULT_FLAGS).unwrap();
-    let flaglist_path: String = env::var("USERPROFILE").unwrap() + "\\Documents\\glorp\\user_flags.json";
+    let flaglist_path: String = env::var("USERPROFILE").unwrap() + "\\Documents\\kute\\user_flags.json";
     let mut flaglist_file = if let Ok(flaglist_file) = fs::OpenOptions::new().write(true).read(true).create(true).truncate(false).open(&flaglist_path) {
         flaglist_file
     } else {

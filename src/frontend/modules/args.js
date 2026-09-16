@@ -147,7 +147,7 @@ if (pendingParams) {
 	await automateCompHost(params);
 }
 
-window.glorp.parseArgs = async (args) => {
+window.kute.parseArgs = async (args) => {
 	args = args.split(" ");
 	for (const arg of args) {
 		if (arg.includes("action=host-comp")) {
@@ -165,5 +165,5 @@ window.glorp.parseArgs = async (args) => {
 
 window.chrome.webview.addEventListener("message", async (event) => {
 	if (!event.data.args) return;
-	await window.glorp.parseArgs(event.data.args);
+	await window.kute.parseArgs(event.data.args);
 });

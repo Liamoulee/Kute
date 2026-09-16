@@ -2,7 +2,7 @@ class ShowPing {
 	constructor() {
 		this.originalGenList = window.windows[22].genList;
 
-		window.glorp.settings.toggleShowPing = (enabled) => this.toggle(enabled);
+		window.kute.settings.toggleShowPing = (enabled) => this.toggle(enabled);
 
 		this.toggle(true);
 	}

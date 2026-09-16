@@ -56,9 +56,9 @@ try {
 		fs.copyFileSync(bundleJsPath, path.join(targetResourcesDir, "bundle.js"));
 	}
 
-	const obsPluginSrc = path.join(targetDir, "obs_glorp_capture.dll");
+	const obsPluginSrc = path.join(targetDir, "obs_kute_capture.dll");
 	if (fs.existsSync(obsPluginSrc)) {
-		fs.copyFileSync(obsPluginSrc, path.join(targetResourcesDir, "obs-glorp-capture.dll"));
+		fs.copyFileSync(obsPluginSrc, path.join(targetResourcesDir, "obs-kute-capture.dll"));
 	} else {
 		console.warn("OBS plugin was not built; skipping bundled plugin copy.");
 	}
