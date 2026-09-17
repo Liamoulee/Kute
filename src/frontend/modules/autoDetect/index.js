@@ -2,7 +2,7 @@ import panelHtml from "../../components/autoDetect.html";
 import { kute } from "../../client.js";
 import { checkCompMode } from "../../utils.js";
 import { FrameRecorder } from "./metrics.js";
-import { decide, MIN_RESOLUTION } from "./decide.js";
+import { decide, MIN_RESOLUTION, TARGET_REFRESH_MULTIPLE } from "./decide.js";
 import * as game from "./gameSettings.js";
 
 // One click auto-detect: measures the real Krunker renderer behind the menu for a few seconds, decides
@@ -12,6 +12,10 @@ import * as game from "./gameSettings.js";
 const STORAGE_KEY = "kute_autodetect";
 const SAMPLE_MS = 1200;
 const SETTLE_MS = 450;
+// two samples of the same settings may differ by this share before the scene counts as too busy to probe
+const STEADY_SPREAD = 0.15;
+// this far above the goal the graphics card probes are skipped, their outcome could not change anything
+const COMFORTABLE = 1.3;
 const CLIENT_KEYS = ["gameFpsLimit", "throttle"];
 // the private lobby of the fine tune run: Burg, small and the same for everyone
 const LOBBY_MAP = "gameMap0";
@@ -485,30 +489,43 @@ class AutoDetect {
         await sleep(SETTLE_MS + 300);
         if (this.cancelled) return null;
 
-        panel.progress("Measuring your current settings", 0.15);
-        const firstBase = await measure();
-        const presentFps = Number(await request("get-present", "presentFps")) || 0;
-        if (this.cancelled) return null;
-
-        // half the pixels: faster means the GPU is the limit. twice the pixels: no slower means it is far from it
+        // half the pixels: faster means the GPU is the limit. twice the pixels: no slower means it is far from it.
+        // the current settings are sampled before and after the probe: the better of the two is the honest
+        // baseline (a hiccup can only make a sample slower, never faster), and how far they are apart says
+        // whether the scene holds still enough to compare anything. a busy scene swings by a factor of two
+        // within seconds (seen in a live public match), and a probe read against that is pure noise
         const resolution = Number(state.snapshot.game[game.RESOLUTION]) || 1;
-        panel.progress("Checking the graphics card", 0.35);
-        game.write(game.RESOLUTION, String(Math.max(0.1, resolution * 0.5)));
-        await sleep(SETTLE_MS);
-        const lowRes = await measure();
-        if (this.cancelled) return null;
+        let base = await measure();
+        let lowRes = base;
+        let presentFps = 0;
+        // a PC that is far above the goal gets no changes whatever limits it, so it is done after one sample
+        const comfortable = base.fps >= hz * TARGET_REFRESH_MULTIPLE * COMFORTABLE;
+        let steady = comfortable;
+        if (comfortable) presentFps = Number(await request("get-present", "presentFps")) || 0;
+        for (let attempt = 0; attempt < 2 && !steady; attempt++){
+            panel.progress("Measuring your current settings", 0.15 + attempt * 0.1);
+            const firstBase = attempt === 0 ? base : await measure();
+            presentFps = Number(await request("get-present", "presentFps")) || 0;
+            if (this.cancelled) return null;
 
-        // the current settings again: a second sample around the probe cancels drift, and the better of the
-        // two is the honest baseline (a hiccup can only make a sample slower, never faster)
-        panel.progress("Measuring your current settings", 0.45);
-        game.write(game.RESOLUTION, String(resolution));
-        await sleep(SETTLE_MS);
-        const secondBase = await measure();
-        const base = secondBase.fps > firstBase.fps ? secondBase : firstBase;
+            panel.progress("Checking the graphics card", 0.3 + attempt * 0.1);
+            game.write(game.RESOLUTION, String(Math.max(0.1, resolution * 0.5)));
+            await sleep(SETTLE_MS);
+            lowRes = await measure();
+            game.write(game.RESOLUTION, String(resolution));
+            await sleep(SETTLE_MS);
+            if (this.cancelled) return null;
+
+            const secondBase = await measure();
+            base = secondBase.fps > firstBase.fps ? secondBase : firstBase;
+            steady = Math.abs(firstBase.fps - secondBase.fps) / Math.max(1, base.fps) <= STEADY_SPREAD;
+        }
+        // nothing may be concluded from a probe when the baseline itself does not hold
+        if (!steady) lowRes = base;
         if (this.cancelled) return null;
 
         let highRes = null;
-        if (lowRes.fps / Math.max(1, base.fps) < 1.15 && resolution * 2 <= 2){
+        if (steady && !comfortable && lowRes.fps / Math.max(1, base.fps) < 1.15 && resolution * 2 <= 2){
             panel.progress("Checking the graphics card", 0.55);
             game.write(game.RESOLUTION, String(resolution * 2));
             await sleep(SETTLE_MS);
@@ -572,8 +589,10 @@ class AutoDetect {
 
         const limited = plan.regime === "gpu" ? "graphics card" : "processor";
         details.push(
-            `${Math.round(base.fps)} FPS in ${inMatch ? "a match" : "the menu"}, goal ${plan.target} (${hz} Hz), limited by the ${limited}` +
-                `${plan.gpuHeadroom ? ", graphics card far from its limit" : ""}${plan.healthy ? "" : ", frames were piling up"}`,
+            `${Math.round(base.fps)} FPS in ${inMatch ? "a match" : "the menu"}, goal ${plan.target} (${hz} Hz)` +
+                `${comfortable ? ", well above it" : `, limited by the ${limited}`}` +
+                `${plan.gpuHeadroom ? ", graphics card far from its limit" : ""}${plan.healthy ? "" : ", frames were piling up"}` +
+                `${steady ? "" : ". The scene was too busy to test the graphics card"}`,
         );
         const changed = details.length > 1;
         return {
