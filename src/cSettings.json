@@ -214,7 +214,7 @@
         "category": "Tweaks",
         "defaultValue": 0,
         "min": 0,
-        "max": 1000,
+        "max": 2000,
         "step": 5
     },
     "throttle": {
