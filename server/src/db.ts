@@ -50,6 +50,31 @@ export function initDb(): void {
     `);
 
     ensureColumn("autodetect_reports", "run_index", "INTEGER NOT NULL DEFAULT 0");
+    // added with the detailed report. all nullable: older clients do not send the details
+    for (const [column, def] of [
+        ["renderer", "TEXT"],
+        ["os_build", "TEXT"],
+        ["ram_gb", "INTEGER"],
+        ["threads", "INTEGER"],
+        ["canvas_width", "INTEGER"],
+        ["canvas_height", "INTEGER"],
+        ["resolution", "REAL"],
+        ["hard_flip", "INTEGER"],
+        ["throttle", "REAL"],
+        ["fps_limit", "INTEGER"],
+        ["present_p99", "REAL"],
+    ]) ensureColumn("autodetect_reports", column, def);
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS autodetect_failures (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            received_day  TEXT NOT NULL,
+            kute_version  TEXT NOT NULL,
+            stage         TEXT NOT NULL,
+            message       TEXT NOT NULL,
+            seconds       REAL NOT NULL
+        );
+    `);
 
     Log.done("Database initialized.");
 }
