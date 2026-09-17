@@ -342,6 +342,7 @@ function advancedHtml(report){
         .map((row) => `<tr><td>${row.label}</td><td>${row.fps > 0 ? Math.round(row.fps) : "failed"}</td><td>${row.fps > 0 ? `${(row.p99 ?? 0).toFixed(1)} ms` : ""}</td></tr>`)
         .join("")}</table>
         <p>${report.clientNote ?? ""}</p>
+        <div class="adButton" id="adCopy" style="margin: 1em 0">Copy this report</div>
         <p>${report.seconds.toFixed(0)} s. Settings that need a reload or only cost something in a fight cannot be measured in an empty
         test match. They were not tested and not changed.</p>`;
 }
@@ -404,6 +405,18 @@ class Panel {
             advanced.innerHTML = advancedHtml(actions.report);
             this.element("adAdvancedButton").onclick = () => {
                 advanced.style.display = advanced.style.display === "block" ? "none" : "block";
+            };
+            // for bug reports and for whoever tunes the rules: the numbers as they were measured
+            this.element("adCopy").onclick = () => {
+                const text = JSON.stringify({ kute: kute.version, ...actions.report }, null, 2);
+                navigator.clipboard.writeText(text).then(
+                    () => {
+                        this.element("adCopy").textContent = "Copied";
+                    },
+                    () => {
+                        this.element("adCopy").textContent = "Copying failed";
+                    },
+                );
             };
         }
         this.element("adOk").onclick = () => this.close();
