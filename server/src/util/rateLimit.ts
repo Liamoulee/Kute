@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { FastifyRequest, FastifyReply } from "fastify";
+import { isDevelopment } from "./env";
 
 // ========================= //
 // = Copyright (c) NullDev = //
@@ -37,6 +38,9 @@ export function cleanupRateLimits(): number {
  * @param message - Error message when limit exceeded
  */
 export function createRateLimit(name: string, max: number, windowMs: number, message: string) {
+    // testing means sending the same report over and over, a development server does not get in the way
+    const allowed = isDevelopment ? max * 100 : max;
+
     return async(req: FastifyRequest, reply: FastifyReply): Promise<void> => {
         const key = keyFor(name, req.ip);
         const now = Date.now();
@@ -48,11 +52,11 @@ export function createRateLimit(name: string, max: number, windowMs: number, mes
         }
         entry.hits++;
 
-        reply.header("X-RateLimit-Limit", max);
-        reply.header("X-RateLimit-Remaining", Math.max(0, max - entry.hits));
+        reply.header("X-RateLimit-Limit", allowed);
+        reply.header("X-RateLimit-Remaining", Math.max(0, allowed - entry.hits));
         reply.header("X-RateLimit-Reset", Math.ceil(entry.resetAt / 1000));
 
-        if (entry.hits > max){
+        if (entry.hits > allowed){
             reply.header("Retry-After", Math.ceil((entry.resetAt - now) / 1000));
             reply.code(429).send({
                 statusCode: 429,

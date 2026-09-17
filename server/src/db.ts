@@ -1,4 +1,5 @@
 import { Database } from "bun:sqlite";
+import { isDevelopment } from "./util/env";
 import Log from "./util/log";
 
 // ========================= //
@@ -20,7 +21,9 @@ function ensureColumn(table: string, column: string, def: string): void {
 }
 
 export function initDb(): void {
-    db = new Database("data/kute.db", { create: true });
+    // a development server gets its own file, test reports never end up next to real ones
+    const file = isDevelopment ? "data/kute.dev.db" : "data/kute.db";
+    db = new Database(file, { create: true });
 
     db.run("PRAGMA journal_mode = WAL;");
 
@@ -76,5 +79,5 @@ export function initDb(): void {
         );
     `);
 
-    Log.done("Database initialized.");
+    Log.done("Database initialized (" + file + ").");
 }

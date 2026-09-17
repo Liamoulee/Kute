@@ -9,6 +9,7 @@ import { metaRoutes } from "./routes/meta";
 import { telemetryRoutes } from "./routes/telemetry";
 import { config, meta } from "../config/config";
 import sheduleCrons from "./util/cron";
+import { envName, envWasSet, isDevelopment } from "./util/env";
 import Log from "./util/log";
 
 // ========================= //
@@ -31,7 +32,8 @@ Log.raw(
 Log.info("--- START ---");
 Log.info(appname + " v" + version + " by " + author);
 
-Log.debug("Bun Environment: " + process.env.NODE_ENV, true);
+Log.info("Environment: " + envName);
+if (!envWasSet) Log.warn("NODE_ENV is not set to 'development' or 'production', running as production. Use 'bun run start:dev' or 'bun run start:prod'.");
 Log.debug("Bun version: " + Bun.version, true);
 Log.debug("OS: " + process.platform + " " + process.arch, true);
 
@@ -46,6 +48,7 @@ else Log.done("Data dir exists!");
 
 const app = Fastify({
     logger: {
+        level: isDevelopment ? "debug" : "info",
         // the default request log carries the caller's address. nothing this server writes down may
         serializers: {
             req: (req) => ({ method: req.method, url: req.url }),

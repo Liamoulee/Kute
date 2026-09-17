@@ -21,13 +21,16 @@
     "type": "module",
     "main": "src/server.js",
     "scripts": {
-        "start": "bun run src/server.ts",
-        "dev": "bun --watch run src/server.ts",
+        "start:dev": "cross-env NODE_ENV=development bun --watch run src/server.ts",
+        "start:prod": "cross-env NODE_ENV=production bun run src/server.ts",
+        "start": "bun run start:dev",
+        "dev": "bun run start:dev",
         "generate-config": "bun scripts/generate-config.ts",
         "test": "echo \"Error: no test specified\" && exit 1"
     },
     "devDependencies": {
-        "bun-types": "^1.4.2"
+        "bun-types": "^1.4.2",
+        "cross-env": "^10.1.0"
     },
     "dependencies": {
         "@fastify/cors": "^11.3.0",
