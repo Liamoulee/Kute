@@ -132,7 +132,19 @@ pub const STUB_PAGE: &str =
 pub fn finish(page_json: &str) {
     let Some(config) = config() else { return };
     let page: serde_json::Value = serde_json::from_str(page_json).unwrap_or(serde_json::Value::Null);
-    let present = app::render_stats().map(|(fps, frame_ns)| serde_json::json!({ "fps": fps, "frameNs": frame_ns }));
+    let intervals = if config.hook { app::take_present_intervals() } else { None };
+    let present = app::render_stats().map(|(fps, frame_ns)| {
+        serde_json::json!({
+            "fps": fps,
+            "frameNs": frame_ns,
+            // ms, measured by the hook itself with the full clock resolution
+            "p50": intervals.map(|i| i.0 as f64 / 1e6),
+            "p99": intervals.map(|i| i.1 as f64 / 1e6),
+            "max": intervals.map(|i| i.2 as f64 / 1e6),
+            "arriveP99": intervals.map(|i| i.3 as f64 / 1e6),
+            "samples": intervals.map(|i| i.4),
+        })
+    });
     let result = serde_json::json!({
         "config": { "hook": config.hook, "uncap": config.uncap, "depth": config.depth, "limit": config.limit, "throttle": config.throttle },
         "page": page,

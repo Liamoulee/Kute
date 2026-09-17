@@ -29,13 +29,21 @@ pub fn init_fs() -> result::Result<(), io::Error> {
     Ok(())
 }
 
-// 24 bytes, layout must match SharedState in render-dll/src/lib.rs
+// layout must match SharedState in render-dll/src/lib.rs, the fields are explained there
 #[repr(C)]
 pub(crate) struct SharedStats {
     pub(crate) frame_ns: u64,
     pub(crate) fps: u64,
     pub(crate) target_fps: u64,
+    pub(crate) stats_request: u64,
+    pub(crate) stats_ack: u64,
+    pub(crate) present_p50_ns: u64,
+    pub(crate) present_p99_ns: u64,
+    pub(crate) present_max_ns: u64,
+    pub(crate) arrive_p99_ns: u64,
+    pub(crate) samples: u64,
 }
+const SHARED_STATS_SIZE: usize = std::mem::size_of::<SharedStats>();
 
 pub(crate) static SHARED_STATS_PTR: AtomicU64 = AtomicU64::new(0);
 
@@ -47,10 +55,10 @@ pub fn create_frame_timing_mapping() {
     };
     let name = HSTRING::from(modules::bench::timing_mapping_name());
     unsafe {
-        if let Ok(mapping) = CreateFileMappingW(INVALID_HANDLE_VALUE, None, PAGE_READWRITE, 0, 24, &name) {
-            let view = MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0, 0, 24);
+        if let Ok(mapping) = CreateFileMappingW(INVALID_HANDLE_VALUE, None, PAGE_READWRITE, 0, SHARED_STATS_SIZE as u32, &name) {
+            let view = MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0, 0, SHARED_STATS_SIZE);
             if !view.Value.is_null() {
-                std::ptr::write_bytes(view.Value as *mut u8, 0, 24);
+                std::ptr::write_bytes(view.Value as *mut u8, 0, SHARED_STATS_SIZE);
                 (*(view.Value as *mut SharedStats)).target_fps = fps_limit;
                 SHARED_STATS_PTR.store(view.Value as u64, Ordering::SeqCst);
             }
@@ -64,6 +72,35 @@ pub fn set_target_fps(fps_limit: u64) {
         unsafe {
             (*(ptr as *mut SharedStats)).target_fps = fps_limit;
         }
+    }
+}
+
+// asks the present hook for the distribution of its frame intervals since the last call and starts a new window.
+// the hook answers from its next present, so this waits a moment. None without the hook, or when nothing presents.
+// returns (p50, p99, max of the present intervals, p99 of the arrival intervals, samples), times in ns
+pub fn take_present_intervals() -> Option<(u64, u64, u64, u64, u64)> {
+    let ptr = SHARED_STATS_PTR.load(Ordering::SeqCst);
+    if ptr == 0 {
+        return None;
+    }
+    let shared = ptr as *mut SharedStats;
+    unsafe {
+        let request = std::ptr::read_volatile(&raw const (*shared).stats_request) + 1;
+        std::ptr::write_volatile(&raw mut (*shared).stats_request, request);
+        let started = std::time::Instant::now();
+        while std::ptr::read_volatile(&raw const (*shared).stats_ack) != request {
+            if started.elapsed() > std::time::Duration::from_millis(150) {
+                return None;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(1));
+        }
+        Some((
+            (*shared).present_p50_ns,
+            (*shared).present_p99_ns,
+            (*shared).present_max_ns,
+            (*shared).arrive_p99_ns,
+            (*shared).samples,
+        ))
     }
 }
 

@@ -35,13 +35,69 @@ struct SendHandle(pub HANDLE);
 unsafe impl Send for SendHandle {}
 unsafe impl Sync for SendHandle {}
 
-// 24 bytes for SharedState
+// layout must match SharedStats in src/app.rs
 #[repr(C)]
 struct SharedState {
-    frame_ns: u64, // 8 bytes
-    fps: u64,      // 8 bytes
-    // another 8 bytes free
-    target_fps: u64, // 8 bytes
+    frame_ns: u64,
+    fps: u64,
+    target_fps: u64,
+    // the host bumps stats_request, the hook answers with the distribution of the intervals it collected since
+    // the last request and sets stats_ack to the same number. this is what frame pacing is judged by: an average
+    // cannot tell an even 240 from bursts and stalls that add up to 240
+    stats_request: u64,
+    stats_ack: u64,
+    // intervals between the calls into the real Present1, after the limiter: what goes out to the screen
+    present_p50_ns: u64,
+    present_p99_ns: u64,
+    present_max_ns: u64,
+    // intervals between chromium handing frames to the hook, before any waiting: what the pipeline delivers
+    arrive_p99_ns: u64,
+    samples: u64,
+}
+const SHARED_STATE_SIZE: usize = std::mem::size_of::<SharedState>();
+const INTERVAL_SAMPLES: usize = 16384;
+
+struct Intervals {
+    ns: Vec<u32>,
+    next: usize,
+    count: usize,
+    last: Option<std::time::Instant>,
+}
+
+impl Intervals {
+    fn new() -> Self {
+        Intervals {
+            ns: vec![0; INTERVAL_SAMPLES],
+            next: 0,
+            count: 0,
+            last: None,
+        }
+    }
+
+    fn mark(&mut self, now: std::time::Instant) {
+        if let Some(last) = self.last {
+            self.ns[self.next] = now.duration_since(last).as_nanos().min(u32::MAX as u128) as u32;
+            self.next = (self.next + 1) % INTERVAL_SAMPLES;
+            self.count = (self.count + 1).min(INTERVAL_SAMPLES);
+        }
+        self.last = Some(now);
+    }
+
+    // (p50, p99, max), and starts a fresh window
+    fn take(&mut self) -> (u64, u64, u64, u64) {
+        let mut sorted: Vec<u32> = self.ns[..self.count].to_vec();
+        sorted.sort_unstable();
+        let at = |p: f64| {
+            sorted
+                .get(((sorted.len() as f64 * p) as usize).min(sorted.len().saturating_sub(1)))
+                .copied()
+                .unwrap_or(0) as u64
+        };
+        let result = (at(0.5), at(0.99), sorted.last().copied().unwrap_or(0) as u64, sorted.len() as u64);
+        self.next = 0;
+        self.count = 0;
+        result
+    }
 }
 
 #[macro_export]
@@ -130,8 +186,7 @@ fn attach() {
         match OpenFileMappingW(FILE_MAP_ALL_ACCESS.0, false, &mapping_name) {
             Ok(mapping) => {
                 debug_print!("render: opened frame timing mapping={mapping:?}");
-                // 24 bytes for SharedState
-                let ptr = MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0, 0, 24);
+                let ptr = MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0, 0, SHARED_STATE_SIZE);
                 if !ptr.Value.is_null() {
                     SHARED_MEM_PTR.store(ptr.Value as u64, Ordering::Release);
                     debug_print!("render: mapped frame timing state={:?}", ptr.Value);
@@ -289,6 +344,8 @@ unsafe extern "system" fn present_hk(
         static INITIALIZED: cell::Cell<bool> = const { cell::Cell::new(false) };
         static LAST_PRESENT: cell::Cell<Option<std::time::Instant>> = const { cell::Cell::new(None) };
         static FRAME_NS_EMA: cell::Cell<u64> = const { cell::Cell::new(0) };
+        static ARRIVALS: std::cell::RefCell<Intervals> = std::cell::RefCell::new(Intervals::new());
+        static PRESENTS: std::cell::RefCell<Intervals> = std::cell::RefCell::new(Intervals::new());
         static LAST_REPORTED_MOVE_QPC: cell::Cell<i64> = const { cell::Cell::new(0) };
         static DIAGNOSTIC_START: cell::Cell<Option<std::time::Instant>> = const { cell::Cell::new(None) };
         static DIAGNOSTIC_PRESENTS: cell::Cell<u64> = const { cell::Cell::new(0) };
@@ -340,6 +397,7 @@ unsafe extern "system" fn present_hk(
         if handle_opt.is_some() {
             LAST_PRESENT.with(|last| {
                 let now = std::time::Instant::now();
+                ARRIVALS.with_borrow_mut(|arrivals| arrivals.mark(now));
                 if let Some(prev) = last.get() {
                     let frame_ns = now.duration_since(prev).as_nanos() as u64;
                     if cfg!(feature = "verbose-logs") {
@@ -464,6 +522,20 @@ unsafe extern "system" fn present_hk(
             present_flags |= DXGI_PRESENT_ALLOW_TEARING;
         }
         let present_started = std::time::Instant::now();
+        if handle_opt.is_some() {
+            PRESENTS.with_borrow_mut(|presents| presents.mark(present_started));
+            let shared = &mut *(ptr as *mut SharedState);
+            if shared.stats_request != shared.stats_ack {
+                let (p50, p99, max, samples) = PRESENTS.with_borrow_mut(|presents| presents.take());
+                let (_, arrive_p99, _, _) = ARRIVALS.with_borrow_mut(|arrivals| arrivals.take());
+                shared.present_p50_ns = p50;
+                shared.present_p99_ns = p99;
+                shared.present_max_ns = max;
+                shared.arrive_p99_ns = arrive_p99;
+                shared.samples = samples;
+                shared.stats_ack = shared.stats_request;
+            }
+        }
         let original_present = ORIGINAL_PRESENT.unwrap();
         let mut hr = original_present(p_this, sync_interval, present_flags, p_present_parameters);
         if hr.is_err() && (present_flags.0 & DXGI_PRESENT_ALLOW_TEARING.0) != 0 {

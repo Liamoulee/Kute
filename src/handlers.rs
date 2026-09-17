@@ -452,6 +452,13 @@ pub fn open_in_default_browser(url: &str) {
 pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str) {
     debug_print!("web message: {message_string}");
     // the payload is JSON, so it must not go through the ", " split
+    if message_string == "bench-sample-start" {
+        // the settle phase is over: throw away what the hook collected so far (without the hook nobody would answer)
+        if modules::bench::config().is_some_and(|bench| bench.hook) {
+            app::take_present_intervals();
+        }
+        return;
+    }
     if let Some(result) = message_string.strip_prefix("bench-finish ") {
         modules::bench::finish(result);
         return;
