@@ -125,7 +125,9 @@ fn attach() {
     debug_print!("render: attach started, pid={}", unsafe { GetCurrentProcessId() });
     unsafe {
         capture::capture_init();
-        match OpenFileMappingW(FILE_MAP_ALL_ACCESS.0, false, w!("KuteFrameTiming")) {
+        // a bench run (src/modules/bench.rs) points its gpu process at its own mapping
+        let mapping_name = HSTRING::from(std::env::var("KUTE_TIMING_MAPPING").unwrap_or_else(|_| "KuteFrameTiming".to_string()));
+        match OpenFileMappingW(FILE_MAP_ALL_ACCESS.0, false, &mapping_name) {
             Ok(mapping) => {
                 debug_print!("render: opened frame timing mapping={mapping:?}");
                 // 24 bytes for SharedState

@@ -14,6 +14,7 @@ mod renderer;
 mod utils;
 mod window;
 pub mod modules {
+    pub mod bench;
     pub mod blocklist;
     pub mod devtools;
     pub mod flaglist;
@@ -63,7 +64,13 @@ fn main() {
         std::process::exit(code);
     }
 
-    modules::lifecycle::register_instance();
+    // a bench run is a second browser process next to the client (see modules/bench.rs)
+    let bench = modules::bench::config();
+    if let Some(bench) = bench {
+        modules::bench::prepare_environment(bench);
+    } else {
+        modules::lifecycle::register_instance();
+    }
     #[cfg(feature = "packaged")]
     {
         modules::lifecycle::set_panic_hook().ok();
@@ -93,5 +100,8 @@ fn main() {
     shutdown();
     debug_print!("main: cef shut down");
 
-    CONFIG.lock().unwrap().save();
+    // a bench window must not end up as the client's lastPosition
+    if bench.is_none() {
+        CONFIG.lock().unwrap().save();
+    }
 }

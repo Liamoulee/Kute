@@ -9,7 +9,8 @@ use crate::{debug_print, utils};
 // gpu subprocess only: load the DXGI hook before chromium creates its swap chain.
 // the DLL exports render_attach so the hooks are installed synchronously instead of racing from DllMain
 pub fn load() {
-    if !utils::config("hardFlip", true) {
+    // a bench run decides the hook through the environment instead of the user's setting
+    if !crate::modules::bench::hook_override().unwrap_or_else(|| utils::config("hardFlip", true)) {
         debug_print!("render_hook: hardFlip disabled, gpu process runs the stock swapchain");
         return;
     }

@@ -82,6 +82,12 @@ wrap_resource_request_handler! {
             request: Option<&mut Request>,
         ) -> Option<ResourceHandler> {
             let url = request_url(request)?;
+            if modules::bench::active() && url.contains(modules::bench::BENCH_PATH) {
+                let mut read_handler =
+                    ByteReadHandler::new(Arc::new(Mutex::new(ByteStream::new(modules::bench::STUB_PAGE.as_bytes().to_vec()))));
+                let stream = stream_reader_create_for_handler(Some(&mut read_handler))?;
+                return Some(StreamResourceHandler::new_with_stream("text/html".to_string(), stream));
+            }
             let bytes = modules::swapper::swap_for(&url)?;
             debug_print!("handlers: swapping {url}");
 
@@ -444,8 +450,13 @@ pub fn open_in_default_browser(url: &str) {
 }
 
 pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str) {
-    let parts: Vec<&str> = message_string.split(", ").map(|s| s.trim()).collect();
     debug_print!("web message: {message_string}");
+    // the payload is JSON, so it must not go through the ", " split
+    if let Some(result) = message_string.strip_prefix("bench-finish ") {
+        modules::bench::finish(result);
+        return;
+    }
+    let parts: Vec<&str> = message_string.split(", ").map(|s| s.trim()).collect();
 
     match parts.as_slice() {
         ["set-config", setting, value] => {

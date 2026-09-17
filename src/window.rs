@@ -180,6 +180,9 @@ pub fn attach_browser(browser: &Browser) {
 
     if browser.is_popup() == 0 {
         MAIN_BROWSER.set(Some(browser.clone()));
+        if modules::bench::active() {
+            return;
+        }
         modules::input::attach(hwnd);
         modules::priority::set(config("webviewPriority", "Normal".to_string()));
         if config("realPing", false) {
@@ -223,15 +226,13 @@ pub fn detach_browser(browser: &Browser) {
     }
 }
 
-// "close" from the page: shut every window down the regular way
+// "close" from the page: shut every window down the regular way. only this process's windows,
+// a bench run and the client can be open at the same time
 pub fn close_all() {
-    unsafe {
-        for class in [w!("kute_webview"), w!("kute_webview_subwindow")] {
-            let mut hwnd = HWND::default();
-            while let Ok(next) = FindWindowExW(None, Some(hwnd), class, PCWSTR::null()) {
-                PostMessageW(Some(next), WM_CLOSE, WPARAM(0), LPARAM(0)).ok();
-                hwnd = next;
-            }
+    let windows: Vec<HWND> = BROWSER_WINDOWS.with_borrow(|m| m.values().copied().collect());
+    for hwnd in windows {
+        unsafe {
+            PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0)).ok();
         }
     }
 }
@@ -279,12 +280,22 @@ pub fn create_main_window() {
         None
     };
 
-    let hwnd = create_window(&start_mode, false, state);
-    create_browser(hwnd, constants_url());
-}
+    if let Some([left, top, right, bottom]) = modules::bench::config().and_then(|bench| bench.rect) {
+        let state = WindowState {
+            fullscreen: false,
+            position: Position { left, top, right, bottom },
+        };
+        let hwnd = create_window("Remember Previous", false, Some(state));
+        create_browser(hwnd, &modules::bench::url());
+        return;
+    }
 
-fn constants_url() -> &'static str {
-    crate::constants::KRUNKER_URL
+    let hwnd = create_window(&start_mode, false, state);
+    if modules::bench::active() {
+        create_browser(hwnd, &modules::bench::url());
+    } else {
+        create_browser(hwnd, crate::constants::KRUNKER_URL);
+    }
 }
 
 fn create_browser(hwnd: HWND, url: &str) {
@@ -369,7 +380,14 @@ pub fn create_window(start_mode: &str, is_subwindow: bool, init_state: Option<Wi
             Ok(icon) => icon,
             Err(_) => LoadIconW(None, IDI_APPLICATION).unwrap(),
         };
-        let class_name = if is_subwindow { w!("kute_webview_subwindow") } else { w!("kute_webview") };
+        // input.rs and the single instance check find the client by these names, a bench window must not match
+        let class_name = if modules::bench::active() {
+            w!("kute_bench")
+        } else if is_subwindow {
+            w!("kute_webview_subwindow")
+        } else {
+            w!("kute_webview")
+        };
         let wc = WNDCLASSW {
             style: CS_HREDRAW | CS_VREDRAW,
             lpfnWndProc: Some(wnd_proc_setup),

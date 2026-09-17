@@ -41,9 +41,13 @@ pub(crate) static SHARED_STATS_PTR: AtomicU64 = AtomicU64::new(0);
 
 // the gpu subprocess opens this mapping when render.dll attaches, so it has to exist before initialize()
 pub fn create_frame_timing_mapping() {
-    let fps_limit = config("gameFpsLimit", 0);
+    let fps_limit = match modules::bench::config() {
+        Some(bench) => bench.limit,
+        None => config("gameFpsLimit", 0),
+    };
+    let name = HSTRING::from(modules::bench::timing_mapping_name());
     unsafe {
-        if let Ok(mapping) = CreateFileMappingW(INVALID_HANDLE_VALUE, None, PAGE_READWRITE, 0, 24, w!("KuteFrameTiming")) {
+        if let Ok(mapping) = CreateFileMappingW(INVALID_HANDLE_VALUE, None, PAGE_READWRITE, 0, 24, &name) {
             let view = MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0, 0, 24);
             if !view.Value.is_null() {
                 std::ptr::write_bytes(view.Value as *mut u8, 0, 24);
@@ -101,7 +105,9 @@ fn color_profile_switch(option: &str) -> Option<&'static str> {
 
 pub fn load_flags() {
     let mut flags = modules::flaglist::load();
-    if config("uncapFps", true) {
+    if let Some(bench) = modules::bench::config() {
+        flags.extend(modules::bench::flags(bench));
+    } else if config("uncapFps", true) {
         flags.push("--disable-frame-rate-limit".to_string());
     }
     if let Some(backend) = angle_backend_switch(&config("angleBackend", "Default".to_string())) {
@@ -122,7 +128,7 @@ pub fn has_flag(wanted: &str) -> bool {
 // as cleanly exited before every start. the same pass pins the profile preferences that mirror
 // the WebView2 settings (no password or autofill prompts, no translate bubble)
 pub fn prepare_profile() {
-    let profile_dir = utils::settings_dir().join("cef").join("Default");
+    let profile_dir = cache_dir().join("Default");
     if let Ok(entries) = fs::read_dir(profile_dir.join("Sessions")) {
         for entry in entries.flatten() {
             fs::remove_file(entry.path()).ok();
@@ -162,8 +168,17 @@ pub fn prepare_profile() {
     }
 }
 
+// chromium allows one browser process per profile, so a bench run gets its own
+fn cache_dir() -> std::path::PathBuf {
+    if modules::bench::active() {
+        modules::bench::profile_dir()
+    } else {
+        utils::settings_dir().join("cef")
+    }
+}
+
 pub fn settings() -> Settings {
-    let cache_dir = utils::settings_dir().join("cef");
+    let cache_dir = cache_dir();
     let log_file = utils::settings_dir().join("cef_debug.log");
     Settings {
         // a normal exe cannot host CEF's windows sandbox (that needs the bootstrap.exe model)
@@ -189,7 +204,7 @@ pub fn settings() -> Settings {
 
 // shares the global storage (same cache_path) but carries our handler, which the global context cannot
 pub fn request_context() -> Option<RequestContext> {
-    let cache_dir = utils::settings_dir().join("cef");
+    let cache_dir = cache_dir();
     let settings = RequestContextSettings {
         cache_path: CefString::from(cache_dir.to_string_lossy().as_ref()),
         persist_session_cookies: 1,
@@ -232,6 +247,11 @@ wrap_browser_process_handler! {
 
     impl BrowserProcessHandler {
         fn on_context_initialized(&self) {
+            if modules::bench::active() {
+                window::create_main_window();
+                return;
+            }
+
             if config("discordRPC", true) {
                 let mut client = DiscordIpcClient::new(constants::DISCORD_CLIENT_ID);
                 client.connect().ok();
