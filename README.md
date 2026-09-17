@@ -14,11 +14,11 @@
 ## :star: Features
 
 - [x] Runs on its own bundled Chromium (CEF), no browser or runtime install needed
-  - [x] Patched CEF with aim-freeze fix
+  - [x] Patched CEF: fixes the aim freeze and the GPU bottleneck stutter of uncapped clients
 - [x] Uncapped FPS with a DXGI present hook: waitable flip swapchain, frame pacing, present FPS counter and limiter
 - [x] **Proper** Raw input
 - [x] Increased performance tweaks
-- [x] Auto-Detect Settings
+- [x] Auto-Detect: measures your PC in a private test match (about a minute) and sets up the game and the client for it, with undo
 - [x] Selectable graphics backend (ANGLE: D3D11, D3D11on12, OpenGL, Vulkan) and color profile
 - [x] Optimized URL blocklist (only ~50 entries, fully customizable), custom Chromium flags
 - [x] Resource swapper
@@ -38,8 +38,10 @@
 
 ## :lock: Potential issues
 
-If in a GPU bottleneck, the amount of frames displayed will drop severely, but the game's render loop won't slow down, this results in the client being almost unusable. <br>
-Consider using the CPU Throttler in such scenario
+- The stutter known from other uncapped clients (FPS counter high, screen choppy, worst when the GPU is the limit) is fixed by the patched CEF. <br>
+  If you still see it: run Auto-Detect, open its Advanced view, copy the report and [open an issue](https://github.com/NullDev/Kute/issues/choose).
+- CPU Throttling pauses the game in short bursts and causes lag spikes. Leave it at 1 unless Auto-Detect sets it.
+- Auto-Detect needs a Krunker account, because it measures in a private match.
 
 <hr>
 
