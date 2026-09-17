@@ -10,7 +10,7 @@
     "packageManager": "bun@1.4.2",
     "scripts": {
         "esbuild": "bun esbuild.config.mjs",
-        "dev": "bun run esbuild && cargo build --workspace --features verbose-logs && bun postbuild.js debug && cargo run --features editor-ignore,verbose-logs",
+        "dev": "bun run esbuild && cargo build --workspace --features verbose-logs && bun postbuild.js debug && cross-env KUTE_TELEMETRY_URL=http://127.0.0.1:3030/api/telemetry/ cargo run --features editor-ignore,verbose-logs",
         "build": "bun run esbuild && cargo build --workspace --release --features packaged,editor-ignore && bun postbuild.js release",
         "build:auto-update": "bun run esbuild && cargo build --workspace --release --features packaged,auto-update,editor-ignore && bun postbuild.js release",
         "package": "bun run build:auto-update && wix build ./resources/installer_script.wxs -ext WixToolset.Util.wixext -o target/kute-setup-x86_64.msi",
@@ -38,9 +38,10 @@
         "@types/node": "^22.20.3",
         "@typescript-eslint/eslint-plugin": "^8.70.0",
         "@typescript-eslint/parser": "^8.70.0",
+        "@typescript/native": "npm:typescript@^7.0.2",
+        "cross-env": "^10.1.0",
         "esbuild": "^0.28.1",
         "eslint": "^10.10.0",
-        "@typescript/native": "npm:typescript@^7.0.2",
         "typescript": "npm:@typescript/typescript6@^6.0.2"
     },
     "peerDependencies": {
