@@ -97,9 +97,26 @@ class AccountManager {
     }
 
     /**
-     * Puts the button into the signed-out header bar or the signed-in header bar, whichever is rendered.
+     * Puts the entry at the start of the right header bar (the left one runs under the Krunker logo).
+     * Falls back to the signed-in or signed-out bar when the right one is not rendered.
      */
     placeButton(){
+        const right = document.querySelector("#playerHeaderEl .headerBarRight");
+        if (right){
+            if (right.firstElementChild !== this.headerItem){
+                // krunker's own entries carry a svelte scope class, without it the entry is unstyled
+                const scope = [...(right.querySelector(".nav-item")?.classList ?? [])].find((name) => name.startsWith("svelte-")) ?? "";
+                this.headerItem.style.cssText = "";
+                this.headerItem.className = `nav-item ${scope}`;
+                this.headerItem.innerHTML = `<span class="material-icons nav-mat-icon ${scope}">switch_account</span> <span class="nav-label ${scope}">Accounts</span>`;
+                this.headerSeparator.className = "verticalSeparator";
+                this.headerSeparator.style.cssText = "height: 35px;";
+                right.prepend(this.headerItem, this.headerSeparator);
+            }
+            this.button.remove();
+            return;
+        }
+
         const signedIn = document.querySelector("#signedInHeaderBar");
         if (signedIn){
             if (!signedIn.contains(this.headerItem)) signedIn.append(this.headerSeparator, this.headerItem);
