@@ -1,4 +1,20 @@
-/target/*
-!/target/!bundle.js
-!/target/!bundle_version
-/node_modules
+# Client Rust
+target/*
+!target/!bundle.js
+!target/!bundle_version
+
+# Client Node
+node_modules/
+
+# ---
+
+# Server
+server/node_modules
+
+# Config
+server/config/config.custom.ts
+
+# DB
+server/data/*.db
+server/data/*.db-shm
+server/data/*.db-wal

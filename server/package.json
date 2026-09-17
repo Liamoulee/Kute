@@ -1,0 +1,41 @@
+{
+    "name": "kute-server",
+    "version": "1.0.0",
+    "private": "true",
+    "description": "The Metadata Server for the Kute Client",
+    "keywords": ["browser-game", "cute", "krunker", "krunker-client", "krunkerio", "kute", "nulldev"],
+    "homepage": "https://github.com/NullDev/Kute#readme",
+    "packageManager": "bun@1.4.2",
+    "bugs": {
+        "url": "https://github.com/NullDev/Kute/issues"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/NullDev/Kute.git"
+    },
+    "license": "GPL-3.0-only",
+    "engines": {
+        "bun": ">=1.4.2"
+    },
+    "author": "NullDev",
+    "type": "module",
+    "main": "src/server.js",
+    "scripts": {
+        "start": "bun run src/server.ts",
+        "dev": "bun --watch run src/server.ts",
+        "generate-config": "bun scripts/generate-config.ts",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "devDependencies": {
+        "bun-types": "^1.4.2"
+    },
+    "dependencies": {
+        "@fastify/cors": "^11.3.0",
+        "@fastify/helmet": "^13.1.1",
+        "fastify": "^5.12.5",
+        "node-cron": "^4.6.0"
+    },
+    "peerDependencies": {
+        "typescript": "^7.0.2"
+    }
+}
