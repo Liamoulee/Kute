@@ -25,6 +25,8 @@ type HostMessage =
     | { wheel: number }
     | { type: "obs-plugin"; ok: boolean; message: string }
     | { args: string }
+    | { specs: Record<string, any> }
+    | { presentFps: number }
     | { settings: Record<string, any>; version: string; launchArgs: string }
     | Record<string, any>;
 
@@ -54,6 +56,7 @@ interface Kute {
     showNotification(message: string, reqUserInput: boolean, seconds: number): any;
     showChangelogPopup(version: string): Promise<void>;
     showAboutPopup(): Promise<void>;
+    autoDetect: { start(automatic?: boolean): Promise<void>; undo(): void };
     bindShoot(): void;
 }
 

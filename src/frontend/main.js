@@ -113,6 +113,7 @@ Object.defineProperty(window, "gameLoaded", {
         import("./settings.js");
         import("./modules/changelog.js");
         import("./modules/about.js");
+        import("./modules/autoDetect/index.js");
         import("./modules/externalQueue.js");
         import("./modules/bpClaimAll.js");
         import("./modules/args.js");

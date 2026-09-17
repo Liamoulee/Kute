@@ -1,4 +1,22 @@
 {
+    "autoDetect": {
+        "name": "Auto-Detect Best Settings",
+        "id": "autoDetect",
+        "description": "Measures this PC for a few seconds, then sets up the game and the client for it",
+        "type": "none",
+        "category": "General",
+        "button": "Run",
+        "buttonAction": "{{kute}}.autoDetect.start()"
+    },
+    "autoDetectUndo": {
+        "name": "Undo Auto-Detect",
+        "id": "autoDetectUndo",
+        "description": "Brings back the settings from before the last run",
+        "type": "none",
+        "category": "General",
+        "button": "Undo",
+        "buttonAction": "{{kute}}.autoDetect.undo()"
+    },
     "startMode": {
         "name": "Start Mode",
         "id": "startMode",
