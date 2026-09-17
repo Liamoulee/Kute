@@ -60,7 +60,8 @@ pub const DEFAULT_BLOCKLIST: &str = r#"[
 ]"#;
 
 // every entry is checked against the Chromium 151.0.7922.174 source (switch or feature exists and is read on Windows under CEF),
-// check them again when the cef crate is bumped
+// check them again when the cef crate is bumped. --raise-timer-frequency is applied by utils::raise_timer_frequency,
+// chromium only reads it in chrome.exe
 pub const DEFAULT_FLAGS: &str = r#"[
   "--disable-features=NativeNotifications,MediaRouter,CalculateNativeWinOcclusion,HappinessTrackingSurveysForDesktopDemo,HardwareMediaKeyHandling",
   "--disable-backgrounding-occluded-windows",

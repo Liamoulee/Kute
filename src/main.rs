@@ -42,6 +42,10 @@ fn main() {
     // every CEF subprocess (renderer, gpu, utility) is this exe again with --type=<kind>
     if let Some(process_type) = utils::process_type() {
         modules::priority::apply_to_self();
+        // the browser hands the switch down to every child
+        if utils::has_arg("--raise-timer-frequency") {
+            utils::raise_timer_frequency();
+        }
         match process_type.as_str() {
             // replaces the vk_swiftshader.dll hijack: the gpu process loads the DXGI hook itself
             "gpu-process" => modules::render_hook::load(),
@@ -72,6 +76,9 @@ fn main() {
 
     app::create_frame_timing_mapping();
     app::load_flags();
+    if app::has_flag("--raise-timer-frequency") {
+        utils::raise_timer_frequency();
+    }
     app::prepare_profile();
 
     let settings = app::settings();

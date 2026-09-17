@@ -113,6 +113,10 @@ pub fn load_flags() {
     *FLAGS.lock().unwrap() = flags;
 }
 
+pub fn has_flag(wanted: &str) -> bool {
+    FLAGS.lock().unwrap().iter().any(|flag| flag == wanted)
+}
+
 // chromium's session service records our game tab and its startup code restores it into a plain
 // chrome window on the next start, so the recorded session is dropped and the profile is marked
 // as cleanly exited before every start. the same pass pins the profile preferences that mirror

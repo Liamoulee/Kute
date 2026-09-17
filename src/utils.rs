@@ -49,6 +49,14 @@ pub fn has_arg(wanted: &str) -> bool {
     env::args().any(|arg| arg == wanted)
 }
 
+// chromium handles --raise-timer-frequency in chrome_main.cc, which a CEF host never runs, so every
+// process applies it itself. the resolution is per process since Windows 10 2004
+pub fn raise_timer_frequency() {
+    unsafe {
+        windows::Win32::Media::timeBeginPeriod(1);
+    }
+}
+
 // cef string helpers, CefStringUserfree has no Display
 pub fn cef_to_string(value: &cef::CefStringUserfree) -> String {
     cef::CefStringUtf16::from(value).to_string()
