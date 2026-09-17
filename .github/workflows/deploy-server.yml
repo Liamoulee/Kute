@@ -1,0 +1,103 @@
+name: deploy server
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Server version bump (server/package.json), committed to master before the deploy
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+          - none
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy-server
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy
+    runs-on: ubuntu-latest
+    environment:
+      name: Production
+
+    if: ${{ !github.event.repository.fork }}
+
+    steps:
+      # the server is plain files, the client's libcef.dll in LFS is not needed here
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: master
+          lfs: false
+
+      - name: Bump the server version
+        id: version
+        run: |
+          version=$(node -e '
+            const fs = require("fs");
+            const file = "server/package.json";
+            const text = fs.readFileSync(file, "utf8");
+            const current = JSON.parse(text).version;
+            let [major, minor, patch] = current.split(".").map(Number);
+            const bump = process.argv[1];
+            if (bump === "major") { major++; minor = 0; patch = 0; }
+            else if (bump === "minor") { minor++; patch = 0; }
+            else if (bump === "patch") patch++;
+            const next = [major, minor, patch].join(".");
+            // only the version line changes, the file keeps its formatting
+            if (next !== current) fs.writeFileSync(file, text.replace(`"version": "${current}"`, `"version": "${next}"`));
+            console.log(next);
+          ' "${{ inputs.bump }}")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      # through the API so the commit is signed by GitHub. expectedHeadOid makes it fail instead of
+      # overwriting anything when master moved in the meantime
+      - name: Commit the version bump
+        if: inputs.bump != 'none'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          jq -n \
+            --arg repo "$GITHUB_REPOSITORY" \
+            --arg head "$(git rev-parse HEAD)" \
+            --arg headline "bump server version to ${{ steps.version.outputs.version }}" \
+            --arg contents "$(base64 -w0 server/package.json)" \
+            '{
+              query: "mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }",
+              variables: { input: {
+                branch: { repositoryNameWithOwner: $repo, branchName: "master" },
+                message: { headline: $headline },
+                expectedHeadOid: $head,
+                fileChanges: { additions: [{ path: "server/package.json", contents: $contents }] }
+              } }
+            }' | gh api graphql --input - --jq '.data.createCommitOnBranch.commit.oid'
+
+      - name: Pull and restart on the server
+        uses: appleboy/ssh-action@334f9259f2f8eb3376d33fa4c684fff373f2c2a6
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            cd ${{ secrets.REPO_PATH }}
+            GIT_LFS_SKIP_SMUDGE=1 git pull
+            bun server/scripts/pull-and-restart.ts ${{ secrets.PM2_HOME }}
+
+      - name: Check that the new version answers
+        run: |
+          for attempt in 1 2 3 4 5 6; do
+            answer=$(curl -fsS --max-time 10 https://v1.cx/kute/api/health || true)
+            echo "$answer"
+            if echo "$answer" | grep -q "\"version\":\"${{ steps.version.outputs.version }}\""; then exit 0; fi
+            sleep 5
+          done
+          echo "the server does not report version ${{ steps.version.outputs.version }}"
+          exit 1
