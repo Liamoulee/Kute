@@ -94,7 +94,7 @@ jobs:
       - name: Check that the new version answers
         run: |
           for attempt in 1 2 3 4 5 6; do
-            answer=$(curl -fsS --max-time 10 https://v1.cx/kute/api/health || true)
+            answer=$(curl -fsS --max-time 10 https://kute.lol/api/health || true)
             echo "$answer"
             if echo "$answer" | grep -q "\"version\":\"${{ steps.version.outputs.version }}\""; then exit 0; fi
             sleep 5
