@@ -14,8 +14,11 @@
 ## :star: Features
 
 - [x] Runs on its own bundled Chromium (CEF), no browser or runtime install needed
+  - [x] Patched CEF with aim-freeze fix
 - [x] Uncapped FPS with a DXGI present hook: waitable flip swapchain, frame pacing, present FPS counter and limiter
 - [x] **Proper** Raw input
+- [x] Increased performance tweaks
+- [x] Auto-Detect Settings
 - [x] Selectable graphics backend (ANGLE: D3D11, D3D11on12, OpenGL, Vulkan) and color profile
 - [x] Optimized URL blocklist (only ~50 entries, fully customizable), custom Chromium flags
 - [x] Resource swapper
@@ -59,8 +62,10 @@ Consider using the CPU Throttler in such scenario
 
 ## :octocat: Credits
 
-- [glorp](https://github.com/slavcp/glorp) - base
-- [client-pp](https://github.com/6ct/clientpp) - flags
-- [crankshaft](https://github.com/KraXen72/crankshaft) - menu timer css
+- [slavcpglorp](https://github.com/slavcp/glorp) - base
+- [6ct/client-pp](https://github.com/6ct/clientpp) - flags
+- [KraXen72/crankshaft](https://github.com/KraXen72/crankshaft) - menu timer css
+- [idkr-client/idkr](https://github.com/idkr-client/idkr) - tweaks
+- [bigjakk/Electron-Websocket-Fix](https://github.com/bigjakk/Electron-Websocket-Fix) - aim-freeze fix
 
 <hr>
