@@ -306,6 +306,14 @@
         "category": "About",
         "defaultValue": true
     },
+    "telemetry": {
+        "name": "Share Auto-Detect Results",
+        "id": "telemetry",
+        "description": "Sends what an auto-detect run measured (hardware names and numbers, nothing about you) so the detection can be improved",
+        "type": "checkbox",
+        "category": "About",
+        "defaultValue": true
+    },
     "checkUpdates": {
         "name": "Check For Updates",
         "id": "checkUpdates",

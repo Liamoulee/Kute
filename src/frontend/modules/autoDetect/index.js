@@ -345,7 +345,10 @@ function advancedHtml(report){
         <p>${report.clientNote ?? ""}</p>
         <div class="adButton" id="adCopy" style="margin: 1em 0">Copy this report</div>
         <p>${report.seconds.toFixed(0)} s. Settings that need a reload or only cost something in a fight cannot be measured in an empty
-        test match. They were not tested and not changed.</p>`;
+        test match. They were not tested and not changed.</p>
+        <p>${kute.settings.data.telemetry === false
+        ? "Sharing is off, these numbers stayed on this PC."
+        : "These numbers (and nothing else) were shared to improve auto-detect. Settings, About, Share Auto-Detect Results turns that off."}</p>`;
 }
 
 class Panel {
@@ -572,6 +575,10 @@ class AutoDetect {
             // leaving the test match is a page load, the summary comes up after it
             state.showSummary = true;
             writeState(state);
+            // shared unless the player switched it off: the measurements, no account, no ids (the host checks the setting too)
+            if (kute.settings.data.telemetry !== false){
+                window.chrome.webview.postMessage(`telemetry ${JSON.stringify({ kute: kute.version, ...outcome.report })}`);
+            }
             panel.progress("Leaving the test match", 1);
             document.exitPointerLock();
             await sleep(800);
@@ -874,8 +881,8 @@ class AutoDetect {
                 {
                     title: "Set Kute up for this PC?",
                     line: canRun
-                        ? "Auto-detect measures your PC in a private test match for about a minute and then sets up the game for it. You can undo it, and run it any time from Settings, Client, Auto-Detect Best Settings."
-                        : "Auto-detect measures your PC in a private test match and then sets up the game for it. It needs an account: log in, then open Settings, Client and press Auto-Detect Best Settings.",
+                        ? "Auto-detect measures your PC in a private test match for about a minute and then sets up the game for it. You can undo it, and run it any time from Settings, Client, Auto-Detect Best Settings. The measurements (hardware names and numbers, nothing about you) are shared to improve it, which you can switch off under About."
+                        : "Auto-detect measures your PC in a private test match and then sets up the game for it. It needs an account: log in, then open Settings, Client and press Auto-Detect Best Settings. The measurements (hardware names and numbers, nothing about you) are shared to improve it, which you can switch off under About.",
                     details: [],
                     changed: false,
                 },

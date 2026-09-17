@@ -452,6 +452,13 @@ pub fn open_in_default_browser(url: &str) {
 pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str) {
     debug_print!("web message: {message_string}");
     // the payload is JSON, so it must not go through the ", " split
+    if let Some(report) = message_string.strip_prefix("telemetry ") {
+        // JSON, so it must not go through the ", " split. capped like the server caps it
+        if report.len() <= 32 * 1024 {
+            modules::lifecycle::send_telemetry(report.to_string());
+        }
+        return;
+    }
     if message_string == "bench-sample-start" {
         // the settle phase is over: throw away what the hook collected so far (without the hook nobody would answer)
         if modules::bench::config().is_some_and(|bench| bench.hook) {
