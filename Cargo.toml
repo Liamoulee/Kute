@@ -1,17 +1,15 @@
 [package]
 name = "kute"
 version = "0.1.0"
-description = "krunker"
+description = "High performance krunker client made by [cute]"
 authors = ["NullDev"]
 edition = "2024"
 
 [package.metadata]
-js_bundle_version = "0.1.10"
+js_bundle_version = "0.1.11"
 
 [workspace]
 members = ["crates/*"]
-# not a rust crate: the metadata server (JS)
-exclude = ["crates/server"]
 
 # https://doc.rust-lang.org/rustc/codegen-options/index.html
 [profile.dev]
@@ -62,7 +60,6 @@ windows = { version = "0.62.2", features = [
     "Win32_System_Power",
     "Win32_System_SystemInformation",
 ] }
-# the wrapper is built without the sandbox, kute runs with no_sandbox (see app.rs)
 cef = { version = "=151.5.0", default-features = false }
 ureq = { version = "3.3.*", features = ["rustls"], default-features = false }
 serde = { version = "1.0.*", features = ["derive"], default-features = false }
