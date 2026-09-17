@@ -10,6 +10,8 @@ js_bundle_version = "0.1.9"
 
 [workspace]
 members = ["crates/*"]
+# not a rust crate: the metadata server (JS)
+exclude = ["crates/server"]
 
 # https://doc.rust-lang.org/rustc/codegen-options/index.html
 [profile.dev]
