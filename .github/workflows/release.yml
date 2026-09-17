@@ -11,6 +11,15 @@ on:
           - draft release
           - published release
           - build only
+      bump:
+        description: Version bump, committed to master once the build passed (ignored for build only)
+        type: choice
+        default: patch
+        options:
+          - patch
+          - minor
+          - major
+          - none
 
 permissions:
   contents: write
@@ -32,17 +41,15 @@ jobs:
           fetch-depth: 0
           lfs: true
 
-      - name: Read Cargo version
+      # only edits the checkout for now, the commit happens after the build
+      - name: Bump version
         id: version
         shell: pwsh
         run: |
-          $versionLine = Select-String -Path Cargo.toml -Pattern '^\s*version\s*=\s*"([^"]+)"\s*$' | Select-Object -First 1
-          if (-not $versionLine) {
-            throw "Could not find package version in Cargo.toml"
-          }
-
-          $version = $versionLine.Matches[0].Groups[1].Value
+          $bump = if ("${{ inputs.mode }}" -eq "build only") { "none" } else { "${{ inputs.bump }}" }
+          $version = ./.github/scripts/bump-version.ps1 -Bump $bump
           Add-Content $env:GITHUB_OUTPUT "version=$version"
+          Add-Content $env:GITHUB_OUTPUT "bumped=$($bump -ne 'none')"
 
       # fail before the long build when the version was not bumped. an existing draft is fine, it gets updated
       - name: Check that the version is not released yet
@@ -53,7 +60,7 @@ jobs:
         run: |
           $isDraft = gh release view "${{ steps.version.outputs.version }}" --json isDraft --jq .isDraft 2>$null
           if ($LASTEXITCODE -eq 0 -and $isDraft -eq "false") {
-            throw "Release ${{ steps.version.outputs.version }} is already published. Bump the version in Cargo.toml first."
+            throw "Release ${{ steps.version.outputs.version }} is already published. Pick a bump other than none."
           }
           exit 0
 
@@ -91,11 +98,53 @@ jobs:
           path: target/kute-setup-x86_64.msi
           retention-days: 7
 
+      # created through the API so the commit is signed by GitHub. expectedHeadOid makes it fail
+      # instead of overwriting anything when master moved during the build
+      - name: Commit the version bump
+        id: commit
+        if: inputs.mode != 'build only'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $head = git rev-parse HEAD
+          if ("${{ steps.version.outputs.bumped }}" -ne "True") {
+            Add-Content $env:GITHUB_OUTPUT "oid=$head"
+            exit 0
+          }
+
+          $files = "Cargo.toml", "Cargo.lock", "package.json", "resources/installer_script.wxs"
+          $additions = @($files | ForEach-Object {
+            @{ path = $_; contents = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Resolve-Path $_))) }
+          })
+          $body = @{
+            query = 'mutation($input: CreateCommitOnBranchInput!) { createCommitOnBranch(input: $input) { commit { oid } } }'
+            variables = @{
+              input = @{
+                branch = @{ repositoryNameWithOwner = $env:GITHUB_REPOSITORY; branchName = "master" }
+                message = @{ headline = "bump version to ${{ steps.version.outputs.version }}" }
+                expectedHeadOid = $head
+                fileChanges = @{ additions = $additions }
+              }
+            }
+          } | ConvertTo-Json -Depth 10
+
+          $response = $body | gh api graphql --input -
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not commit the version bump: $response"
+          }
+          $oid = ($response | ConvertFrom-Json).data.createCommitOnBranch.commit.oid
+          if (-not $oid) {
+            throw "Could not commit the version bump: $response"
+          }
+          Add-Content $env:GITHUB_OUTPUT "oid=$oid"
+
       - name: Create GitHub Release
         if: inputs.mode != 'build only'
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.version.outputs.version }}
+          target_commitish: ${{ steps.commit.outputs.oid }}
           name: ${{ steps.version.outputs.version }}
           draft: ${{ inputs.mode == 'draft release' }}
           generate_release_notes: true
