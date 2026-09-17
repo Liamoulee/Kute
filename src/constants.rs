@@ -91,6 +91,8 @@ pub const DEFAULT_FLAGS: &str = r#"[
   "--quic-max-packet-length=1460",
   "--no-proxy-server",
   "--no-pings",
+  "--disable-background-networking",
+  "--disable-domain-reliability",
   "--disable-hang-monitor",
   "--disable-breakpad",
   "--disable-oopr-debug-crash-dump",
