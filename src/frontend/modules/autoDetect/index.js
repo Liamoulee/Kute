@@ -63,6 +63,7 @@ const HOME = "https://krunker.io/";
  * @property {string} line
  * @property {string[]} details
  * @property {boolean} changed
+ * @property {boolean} [needsRestart] A changed client setting only applies on the next start
  */
 
 /**
@@ -394,6 +395,8 @@ class Panel {
         this.element("adDetailsButton").style.display = "none";
         this.element("adUndo").style.display = summary.changed && actions.onUndo ? "" : "none";
         this.element("adRun").style.display = actions.onRun ? "" : "none";
+        this.element("adRestart").style.display = summary.needsRestart ? "" : "none";
+        this.element("adRestart").onclick = () => window.chrome.webview.postMessage("restart");
         this.element("adAdvancedButton").style.display = actions.report ? "" : "none";
 
         const details = this.element("adDetails");
@@ -766,6 +769,7 @@ class AutoDetect {
         const details = [];
         let limitChanged = false;
         let gameChanged = false;
+        let needsRestart = false;
         for (const change of plan.changes){
             if (change.scope === "game"){
                 details.push(`<b>${change.label}</b>: ${readable(state.snapshot.game[change.id])} → ${readable(change.value)} (${change.reason})`);
@@ -776,6 +780,7 @@ class AutoDetect {
                 details.push(`<b>${change.label}</b>: ${readable(state.snapshot.client[change.id])} → ${readable(change.value)} (${change.reason})`);
                 applyClient(change.id, change.value);
                 if (change.id === "gameFpsLimit") limitChanged = true;
+                if (change.id === "hardFlip") needsRestart = true;
             }
         }
 
@@ -817,7 +822,7 @@ class AutoDetect {
         }
 
         return {
-            summary: { title: changed ? "Optimized" : "Nothing to change", line, details, changed },
+            summary: { title: changed ? "Optimized" : "Nothing to change", line: needsRestart ? `${line} Restart Kute to finish.` : line, details, changed, needsRestart },
             report: {
                 gpu: gpuName,
                 cpu: `${specs.cpu?.name ?? "unknown processor"}, ${specs.cpu?.threads ?? "?"} threads`,
