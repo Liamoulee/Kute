@@ -2,12 +2,13 @@ import panelHtml from "../../components/autoDetect.html";
 import { kute } from "../../client.js";
 import { checkCompMode } from "../../utils.js";
 import { FrameRecorder } from "./metrics.js";
-import { decide, HEADROOM, MIN_RESOLUTION, SIGNIFICANT_SETTING, TARGET_REFRESH_MULTIPLE } from "./decide.js";
+import { decide, decideClient, HEADROOM, MIN_RESOLUTION, SIGNIFICANT_SETTING, TARGET_REFRESH_MULTIPLE } from "./decide.js";
 import * as game from "./gameSettings.js";
 
-// One click auto-detect. The same run on every PC: an empty private test match (it needs an account),
-// a baseline, every live render setting flipped and measured on this PC, the resolution scale probed,
-// then decide.js applies what was measured to help. Everything that gets touched is snapshotted first
+// One click auto-detect. The same run on every PC. First the client itself: the host starts one bench
+// process per client configuration (swapchain hook, FPS cap, CPU throttle) while the game page is hidden.
+// Then the game: an empty private test match (it needs an account), a baseline, every live render setting
+// flipped and measured on this PC, the resolution scale probed. decide.js applies what was measured to help. Everything that gets touched is snapshotted first
 // and can be undone, and every number ends up in the Advanced view. Nothing runs on its own: a first
 // start only tells the player where the button is.
 
@@ -17,7 +18,16 @@ const SETTLE_MS = 450;
 // samples of the same settings right before and after a measurement may differ by this share. beyond it
 // something else moved (a hitch, a shader compile) and the number is not used
 const STEADY_SPREAD = 0.08;
-const CLIENT_KEYS = ["gameFpsLimit", "throttle"];
+const CLIENT_KEYS = ["gameFpsLimit", "throttle", "hardFlip"];
+// the client configurations every run measures, the least restrictive first. "limit=auto" is a cap a bit
+// below what the first one reaches, the classic advice against a graphics card that cannot keep up
+const CLIENT_CONFIGS = [
+    { config: "hook=1", label: "Hook on, uncapped" },
+    { config: "hook=0", label: "Hook off, uncapped" },
+    { config: "hook=1,limit=auto", label: "Hook on, FPS cap" },
+    { config: "hook=0,limit=auto", label: "Hook off, FPS cap" },
+    { config: "hook=1,throttle=1.5", label: "Hook on, CPU throttle" },
+];
 // the private test match: Burg, small and the same for everyone
 const LOBBY_MAP = "gameMap0";
 const HOME = "https://krunker.io/";
@@ -40,6 +50,8 @@ const HOME = "https://krunker.io/";
  * @property {number} drift Last baseline divided by the first one, below 1 when the PC got slower (heat)
  * @property {number|null} halfResolutionGain
  * @property {MeasuredSetting[]} settings
+ * @property {import("./decide.js").ClientResult[]} client
+ * @property {string} clientNote
  * @property {import("./decide.js").Plan} plan
  * @property {number|null} finalFps Measured again after the changes
  * @property {number} seconds
@@ -218,20 +230,25 @@ function activity(){
 async function hostLobby(){
     if (typeof window.openHostWindow !== "function" || typeof window.createPrivateRoom !== "function") return false;
     const previousId = activity().id;
-    window.openHostWindow(false, 0);
-    await sleep(800);
-    window.windows[7]?.switchTab?.(0);
-    await sleep(300);
-    const maps = /** @type {HTMLInputElement[]} */ ([...document.querySelectorAll("#windowHolder input[id^=gameMap]")]);
-    if (maps.length === 0) return false;
-    for (const map of maps){
-        if (map.checked !== (map.id === LOBBY_MAP)) map.click();
-    }
-    window.createPrivateRoom();
-    for (let i = 0; i < 80; i++){
-        await sleep(250);
-        const now = activity();
-        if (now.custom && now.id && now.id !== previousId && now.map) return true;
+    // the game does not always take the request, for one while the match behind the menu is ending
+    for (let attempt = 0; attempt < 4; attempt++){
+        window.openHostWindow(false, 0);
+        await sleep(800);
+        window.windows[7]?.switchTab?.(0);
+        await sleep(300);
+        const maps = /** @type {HTMLInputElement[]} */ ([...document.querySelectorAll("#windowHolder input[id^=gameMap]")]);
+        if (maps.length === 0) return false;
+        for (const map of maps){
+            if (map.checked !== (map.id === LOBBY_MAP)) map.click();
+        }
+        window.createPrivateRoom();
+        for (let i = 0; i < 32; i++){
+            await sleep(250);
+            const now = activity();
+            if (now.custom && now.id && now.id !== previousId && now.map) return true;
+        }
+        window.closWind?.();
+        await sleep(1500);
     }
     return false;
 }
@@ -260,6 +277,30 @@ async function spawn(){
     }
     await sleep(800);
     return spawned();
+}
+
+/**
+ * Runs client configurations in bench processes (the host hides the game page meanwhile).
+ *
+ * @param {{config: string, label: string}[]} configs
+ * @return {Promise<import("./decide.js").ClientResult[]>}
+ */
+async function measureClient(configs){
+    /** @type {any[]|null} */
+    const raw = await request(`run-bench-matrix ${JSON.stringify(configs.map((entry) => entry.config))}`, "benchMatrix", 20000 * configs.length);
+    return configs.map((entry, index) => {
+        const stats = raw?.[index]?.page?.stats;
+        return {
+            config: entry.config,
+            label: entry.label,
+            hook: !entry.config.includes("hook=0"),
+            capped: entry.config.includes("limit="),
+            throttled: entry.config.includes("throttle="),
+            fps: stats?.fps ?? 0,
+            p99: stats?.p99 ?? 0,
+            low: stats?.p99 > 0 ? 1000 / stats.p99 : 0,
+        };
+    });
 }
 
 /**
@@ -297,6 +338,10 @@ function advancedHtml(report){
         ${report.plan.healthy ? "" : "Frames were piling up behind the screen."}</p>
         ${report.finalFps === null ? "" : `<p>After the changes: ${Math.round(report.finalFps)} FPS.</p>`}
         <table><tr><th>Setting</th><th>Was</th><th>Measured</th><th>Result</th></tr>${rows.join("")}</table>
+        <table><tr><th>Client</th><th>Average FPS</th><th>Slowest 1 % of frames</th></tr>${(report.client ?? [])
+        .map((row) => `<tr><td>${row.label}</td><td>${row.fps > 0 ? Math.round(row.fps) : "failed"}</td><td>${row.fps > 0 ? `${(row.p99 ?? 0).toFixed(1)} ms` : ""}</td></tr>`)
+        .join("")}</table>
+        <p>${report.clientNote ?? ""}</p>
         <p>${report.seconds.toFixed(0)} s. Settings that need a reload or only cost something in a fight cannot be measured in an empty
         test match. They were not tested and not changed.</p>`;
 }
@@ -552,6 +597,33 @@ class AutoDetect {
         const gpus = (specs.gpus ?? []).filter((/** @type {{software: boolean}} */ gpu) => !gpu.software);
         const gpuName = [...gpus].sort((a, b) => b.vramMb - a.vramMb)[0]?.name ?? "unknown graphics card";
 
+        // the client first, from the menu: the host hides this page and shows its own test window meanwhile
+        panel.progress("Testing the client", 0.03);
+        const settingsNow = {
+            hardFlip: kute.settings.data.hardFlip !== false,
+            capped: Number(kute.settings.data.gameFpsLimit) > 0,
+            throttled: Number(kute.settings.data.throttle) > 1,
+        };
+        let client = await measureClient(CLIENT_CONFIGS);
+        let clientPlan = decideClient(client, settingsNow);
+        let clientNote = "The client configuration in use measured as good as any other, nothing to change there.";
+        if (client.every((row) => row.fps === 0)){
+            clientNote = "The client test did not run, the client settings were left alone.";
+        }
+        else if (clientPlan.change && clientPlan.best && clientPlan.current){
+            // one measurement is not enough to change something: the two run against each other once more
+            panel.progress("Confirming the client test", 0.04);
+            const [currentAgain, bestAgain] = await measureClient([clientPlan.current, clientPlan.best]);
+            const confirmed = decideClient([currentAgain, bestAgain], settingsNow);
+            if (confirmed.change) clientNote = `"${clientPlan.best.label}" measured clearly better than "${clientPlan.current.label}", twice.`;
+            else {
+                clientNote = `"${clientPlan.best.label}" looked better at first, but not when measured again. Nothing changed there.`;
+                clientPlan = { ...clientPlan, change: false };
+            }
+            client = client.map((row) => (row.config === bestAgain.config && bestAgain.fps > 0 ? { ...row, p99: Math.max(row.p99, bestAgain.p99), low: Math.min(row.low, bestAgain.low) } : row));
+        }
+        if (this.cancelled) return null;
+
         panel.progress("Opening a private test match", 0.05);
         panel.clickThrough(true);
         let joined = await hostLobby();
@@ -671,6 +743,8 @@ class AutoDetect {
                 throttle: Number(state.snapshot.client.throttle) || 1,
                 gameFpsLimit: fpsLimitBefore,
                 gameFrameCap: frameCapBefore,
+                hardFlip: settingsNow.hardFlip,
+                client: clientPlan.change ? clientPlan.best : null,
             },
         );
 
@@ -744,6 +818,8 @@ class AutoDetect {
                 drift,
                 halfResolutionGain,
                 settings,
+                client,
+                clientNote,
                 plan,
                 finalFps,
                 seconds: (performance.now() - started) / 1000,

@@ -16,6 +16,68 @@ export const SIGNIFICANT_RESOLUTION = 1.1;
 /** Auto-detect never lowers the resolution scale below this. */
 export const MIN_RESOLUTION = 0.75;
 
+/** One client configuration has to beat another by this much in its slowest frames before it replaces it. */
+export const SIGNIFICANT_CLIENT = 1.1;
+/**
+ * ... and by this many milliseconds. The page's clock ticks in 0.1 ms steps, so at 2000 frames per second one
+ * tick of difference reads as "30 % smoother". Half a millisecond is where a difference starts to be real.
+ */
+export const SIGNIFICANT_CLIENT_MS = 0.5;
+
+/**
+ * A client configuration as one bench process measured it.
+ *
+ * @typedef {object} ClientResult
+ * @property {string} config What was started, e.g. "hook=0,limit=auto"
+ * @property {string} label
+ * @property {boolean} hook The DXGI swapchain hook
+ * @property {boolean} capped
+ * @property {boolean} throttled
+ * @property {number} fps Average frames per second, 0 when the process failed
+ * @property {number} p99 Frame time of the slowest 1 % of frames in ms, what stutter feels like
+ * @property {number} low The same as frames per second (1000 / p99), for showing it
+ */
+
+/**
+ * @typedef {object} ClientPlan
+ * @property {ClientResult|null} current The measured configuration that matches the player's settings
+ * @property {ClientResult|null} best
+ * @property {boolean} change Whether best is clearly better than current
+ */
+
+/**
+ * Ranks the measured client configurations. The slowest frames decide (a high average with stalls in it is
+ * the old GPU bottleneck bug), the average breaks ties, and between equals the one with fewer restrictions
+ * wins (the list is ordered that way).
+ *
+ * @param {ClientResult[]} results
+ * @param {{hardFlip: boolean, capped: boolean, throttled: boolean}} settings
+ * @return {ClientPlan}
+ */
+export function decideClient(results, settings){
+    const usable = results.filter((result) => result.fps > 0);
+    const current =
+        usable.find((result) => result.hook === settings.hardFlip && result.capped === settings.capped && result.throttled === settings.throttled) ??
+        usable.find((result) => result.hook === settings.hardFlip && !result.capped && !result.throttled) ??
+        null;
+    /**
+     * @param {ClientResult} a
+     * @param {ClientResult} b
+     * @return {boolean} Whether a is clearly better than b
+     */
+    const beats = (a, b) => {
+        const smoother = a.p99 * SIGNIFICANT_CLIENT <= b.p99 && b.p99 - a.p99 >= SIGNIFICANT_CLIENT_MS;
+        const notRougher = a.p99 <= b.p99 + SIGNIFICANT_CLIENT_MS;
+        return smoother || (notRougher && a.fps >= b.fps * SIGNIFICANT_CLIENT);
+    };
+    // the configuration in use defends its place: another one has to clearly beat it, and the best challenger wins
+    let best = current ?? usable[0] ?? null;
+    for (const result of usable){
+        if (best && result !== best && beats(result, best)) best = result;
+    }
+    return { current, best, change: Boolean(best && current && best !== current) };
+}
+
 /**
  * @typedef {object} MeasuredSetting
  * @property {string} id
@@ -44,6 +106,8 @@ export const MIN_RESOLUTION = 0.75;
  * @property {number} throttle Kute's CPU throttle setting
  * @property {number} gameFpsLimit Kute's FPS limit setting
  * @property {number} gameFrameCap Krunker's own frame cap setting
+ * @property {boolean} hardFlip Kute's swapchain hook setting
+ * @property {ClientResult|null} client The client configuration to switch to, null to leave the client alone
  */
 
 /**
@@ -136,8 +200,19 @@ export function decide(measured, facts){
         changes.push({ scope: "client", id: "gameFpsLimit", label: "FPS Limit", value: fpsLimit, reason });
     }
 
-    // CPU throttling pauses the main thread in bursts, which is what causes the lag spikes people report with it
-    if (facts.throttle > 1) changes.push({ scope: "client", id: "throttle", label: "CPU Throttling", value: 1, reason: "causes lag spikes" });
+    // the client configuration that measured clearly better on this PC than the one in use
+    if (facts.client){
+        const reason = `slowest frames measured at ${facts.client.p99.toFixed(1)} ms`;
+        if (facts.client.hook !== facts.hardFlip){
+            changes.push({ scope: "client", id: "hardFlip", label: "DXGI Swapchain Hook", value: facts.client.hook, reason: `${reason}, needs a restart` });
+        }
+        if (facts.client.capped && fpsLimit === 0){
+            changes.push({ scope: "client", id: "gameFpsLimit", label: "FPS Limit", value: roundToStep(predictedFps * 0.9), reason });
+        }
+        if (facts.client.throttled !== facts.throttle > 1){
+            changes.push({ scope: "client", id: "throttle", label: "CPU Throttling", value: facts.client.throttled ? 1.5 : 1, reason });
+        }
+    }
 
     return {
         goal,

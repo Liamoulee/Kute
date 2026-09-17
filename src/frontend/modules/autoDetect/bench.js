@@ -17,9 +17,14 @@ function numberParam(key, fallback){
     return query.has(key) && Number.isFinite(value) ? value : fallback;
 }
 
-const settleMs = numberParam("settle", 700);
+// long enough to read the label that auto-detect shows
+const settleMs = numberParam("settle", numberParam("steps", 0) > 0 ? 1100 : 700);
 const sampleMs = numberParam("ms", 2000);
 const hitchMs = numberParam("hitch", 8);
+// frames per second the page holds itself by spinning, like gameFpsLimit.js does when the hook cannot limit
+const cap = numberParam("cap", 0);
+const step = numberParam("step", 0);
+const steps = numberParam("steps", 0);
 
 const load = {
     draws: numberParam("draws", DEFAULT_LOAD.draws),
@@ -43,6 +48,18 @@ function run(){
     canvas.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;display:block";
     document.body.append(canvas);
 
+    // started by auto-detect: the window takes no input, so it has to say what it is
+    /** @type {HTMLDivElement|null} */
+    let label = null;
+    if (steps > 0){
+        label = document.createElement("div");
+        label.style.cssText =
+            "position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);padding:1.2em 2em;border-radius:14px;background:#1e1e1ee6;" +
+            "color:#35e0e8;font:22px Consolas,monospace;text-align:center;line-height:1.6";
+        label.innerHTML = `Kute is testing this PC<br><span style="color:#bbb;font-size:0.7em">client test ${step} of ${steps}, this takes a moment</span>`;
+        document.body.append(label);
+    }
+
     const scene = createScene(canvas, load);
     scene.resize(window.innerWidth * devicePixelRatio, window.innerHeight * devicePixelRatio);
 
@@ -50,16 +67,25 @@ function run(){
     const tasks = new TaskCounter();
     const start = performance.now();
     let sampling = false;
+    let nextSlot = start;
 
     /**
      * @param {number} timestamp
      */
     const frame = (timestamp) => {
+        if (cap > 0){
+            while (performance.now() < nextSlot){
+                // spin until the frame's slot
+            }
+            nextSlot = Math.max(nextSlot + 1000 / cap, performance.now());
+        }
         const now = performance.now();
         scene.render(timestamp);
 
         if (!sampling && now - start >= settleMs){
             sampling = true;
+            // text over the canvas costs compositing, the sample has to be the scene alone
+            label?.remove();
             tasks.start();
         }
         if (sampling) recorder.frame(now);
