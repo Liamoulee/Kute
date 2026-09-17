@@ -49,7 +49,7 @@
 
 After an Auto-Detect run the client shares what it measured, so the detection can be tuned for hardware we do not own: GPU and CPU name, display refresh rate, the measured frame rates and frame times, which settings were tested and what was changed. <br>
 That is all. No account, no IP address, no install id, and only the day is kept as a time. The server code is in [`server/`](/server), the exact fields in [`server/src/util/report.ts`](/server/src/util/report.ts). <br>
-Turn it off any time under Settings, Client, About, "Share Auto-Detect Results".
+Turn it off any time under Settings, Client, About, "Anonymous Telemetry".
 
 <hr>
 

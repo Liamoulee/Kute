@@ -1,0 +1,67 @@
+<style>
+#confirmPopup {
+	box-sizing: border-box;
+	width: 480px;
+	max-width: 90vw;
+	padding: 2em 2.4em 1.6em 2.4em;
+	background: #1e1e1e;
+	color: #fff;
+	border-radius: 14px;
+	box-shadow: 0 8px 48px #000c;
+	font-family: Consolas, monospace;
+	text-align: center;
+}
+
+#confirmTitle {
+	margin: 0 0 0.8em 0;
+	font-size: 1.6em;
+	letter-spacing: 1px;
+	color: #35e0e8;
+}
+
+#confirmText p {
+	margin: 0 0 0.9em 0;
+	line-height: 1.6;
+	color: #ccc;
+}
+
+#confirmActions {
+	display: flex;
+	gap: 0.7em;
+	margin-top: 1.4em;
+}
+
+.confirmButton {
+	flex: 1 1 0;
+	padding: 0.7em 0.5em;
+	border-radius: 8px;
+	background: #2a2a2a;
+	color: #fff;
+	cursor: pointer;
+	user-select: none;
+}
+
+.confirmButton:hover {
+	background: #333;
+}
+
+#confirmStay {
+	background: #1b5e63;
+}
+
+#confirmStay:hover {
+	background: #23777d;
+}
+
+#confirmLeave {
+	color: #999;
+}
+</style>
+<div id="confirmPopup">
+	<h2 id="confirmTitle"></h2>
+	<div id="confirmText"></div>
+	<div id="confirmActions">
+		<div class="confirmButton" id="confirmStay"></div>
+		<div class="confirmButton" id="confirmLeave"></div>
+	</div>
+</div>

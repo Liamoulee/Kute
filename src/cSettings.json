@@ -307,9 +307,9 @@
         "defaultValue": true
     },
     "telemetry": {
-        "name": "Share Auto-Detect Results",
+        "name": "Anonymous Telemetry",
         "id": "telemetry",
-        "description": "Sends what an auto-detect run measured (hardware names and numbers, nothing about you) so the detection can be improved",
+        "description": "Sends client performance metrics and hardware specs, for example what an auto-detect run measured. \nNothing about you: no account, no IP address, no ids",
         "type": "checkbox",
         "category": "About",
         "defaultValue": true
