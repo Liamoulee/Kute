@@ -41,7 +41,7 @@ pub(crate) static SHARED_STATS_PTR: AtomicU64 = AtomicU64::new(0);
 
 // the gpu subprocess opens this mapping when render.dll attaches, so it has to exist before initialize()
 pub fn create_frame_timing_mapping() {
-    let fps_limit = config("renderFpsLimit", 0);
+    let fps_limit = config("gameFpsLimit", 0);
     unsafe {
         if let Ok(mapping) = CreateFileMappingW(INVALID_HANDLE_VALUE, None, PAGE_READWRITE, 0, 24, w!("KuteFrameTiming")) {
             let view = MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0, 0, 24);

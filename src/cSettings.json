@@ -207,20 +207,9 @@
         "needsRestart": true
     },
     "gameFpsLimit": {
-        "name": "Game FPS Limit",
-        "description": "The maximum FPS the game logic will run at \n0 = uncapped",
+        "name": "FPS Limit",
+        "description": "Caps the game at this frame rate \n0 = uncapped",
         "id": "gameFpsLimit",
-        "type": "slider",
-        "category": "Tweaks",
-        "defaultValue": 0,
-        "min": 0,
-        "max": 2000,
-        "step": 5
-    },
-    "renderFpsLimit": {
-        "name": "Present FPS Limit",
-        "description": "The amount of frames that get presented to the screen \nalways ≤ than the FPS outputted by the game \ndisplayed only with the 'Show Present FPS Counter' setting \n0 = uncapped",
-        "id": "renderFpsLimit",
         "type": "slider",
         "category": "Tweaks",
         "defaultValue": 0,
@@ -253,7 +242,7 @@
     "hardFlip": {
         "name": "DXGI Swapchain Hook",
         "id": "hardFlip",
-        "description": "Hooks swapchain creation for frame pacing, the Present FPS limiter/counter and OBS capture. \nTurning it off can raise game FPS but disables those OBS features.",
+        "description": "Hooks swapchain creation for frame pacing, the precise FPS limit, the Present FPS counter and OBS capture. \nTurning it off can raise game FPS but disables the OBS capture and makes the FPS limit less efficient.",
         "type": "checkbox",
         "category": "Tweaks",
         "defaultValue": true,
