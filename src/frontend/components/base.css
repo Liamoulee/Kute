@@ -37,6 +37,7 @@ div #setHed_local,
 #streamContainer,
 #aHider,
 .webpush-container,
+.nav-notif-section + .verticalSeparator,
 .endAHolder {
 	display: none !important;
 }
