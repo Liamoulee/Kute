@@ -439,7 +439,8 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         ["set-config", setting, value] => {
             crate::CONFIG.lock().unwrap().set(setting, parse_web_message_value(value));
 
-            if *setting == "renderFpsLimit"
+            // the one FPS limit: the present hook paces the whole game loop (see gameFpsLimit.js for the fallback)
+            if *setting == "gameFpsLimit"
                 && let Ok(fps_limit) = value.parse::<u64>()
             {
                 app::set_target_fps(fps_limit);

@@ -22,6 +22,7 @@ jobs:
         with:
           ref: master
           fetch-depth: 0
+          lfs: true
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
