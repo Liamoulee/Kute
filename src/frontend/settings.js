@@ -198,7 +198,8 @@ class SettingsManager {
      */
     generateHtml(option){
         const value = kute.settings.data[option.id];
-        const buttonAction = option.buttonAction?.replaceAll("{{kute}}", globalRef) ?? "";
+        // globalRef contains double quotes, which would end the onclick attribute
+        const buttonAction = option.buttonAction?.replaceAll("{{kute}}", globalRef).replaceAll('"', "&quot;") ?? "";
         const button = option.button
             ? `<div class="settingsBtn" style="margin-right: 20px; width: auto" onclick="${buttonAction}">${option.button}</div>`
             : "";
