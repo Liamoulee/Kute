@@ -8,6 +8,15 @@
         "button": "Run",
         "buttonAction": "{{kute}}.autoDetect.start()"
     },
+    "autoDetectFineTune": {
+        "name": "Fine-Tune in a Test Lobby",
+        "id": "autoDetectFineTune",
+        "description": "The same, measured in a private match. Takes about 20 seconds",
+        "type": "none",
+        "category": "General",
+        "button": "Run",
+        "buttonAction": "{{kute}}.autoDetect.fineTune()"
+    },
     "autoDetectUndo": {
         "name": "Undo Auto-Detect",
         "id": "autoDetectUndo",

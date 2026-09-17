@@ -13,6 +13,9 @@ const STORAGE_KEY = "kute_autodetect";
 const SAMPLE_MS = 1200;
 const SETTLE_MS = 450;
 const CLIENT_KEYS = ["gameFpsLimit", "throttle"];
+// the private lobby of the fine tune run: Burg, small and the same for everyone
+const LOBBY_MAP = "gameMap0";
+const HOME = "https://krunker.io/";
 
 /**
  * @typedef {import("./decide.js").Change} Change
@@ -153,6 +156,71 @@ function devOverrides(){
     return overrides;
 }
 
+/**
+ * @return {Partial<KrunkerGameActivity> & {id?: string}}
+ */
+function activity(){
+    try {
+        return window.getGameActivity?.() ?? {};
+    }
+    catch {
+        return {};
+    }
+}
+
+/**
+ * Hosts a private lobby through Krunker's own host window. The game switches rooms inside the page,
+ * so success shows up as a new custom game in the activity, not as a page load.
+ *
+ * @return {Promise<boolean>}
+ */
+async function hostLobby(){
+    if (typeof window.openHostWindow !== "function" || typeof window.createPrivateRoom !== "function") return false;
+    const previousId = activity().id;
+    window.openHostWindow(false, 0);
+    await sleep(800);
+    window.windows[7]?.switchTab?.(0);
+    await sleep(300);
+    const maps = /** @type {HTMLInputElement[]} */ ([...document.querySelectorAll("#windowHolder input[id^=gameMap]")]);
+    if (maps.length === 0) return false;
+    for (const map of maps){
+        if (map.checked !== (map.id === LOBBY_MAP)) map.click();
+    }
+    window.createPrivateRoom();
+    for (let i = 0; i < 80; i++){
+        await sleep(250);
+        const now = activity();
+        if (now.custom && now.id && now.id !== previousId && now.map) return true;
+    }
+    return false;
+}
+
+/**
+ * @return {boolean}
+ */
+function spawned(){
+    const instructions = document.querySelector("#instructions");
+    return Boolean(document.pointerLockElement) || (instructions !== null && getComputedStyle(instructions).display === "none");
+}
+
+/**
+ * Clicks into the match. Pointer lock needs a trusted click, so the host sends it (a DOM click() does nothing).
+ *
+ * @return {Promise<boolean>}
+ */
+async function spawn(){
+    for (let i = 0; i < 40 && !(activity().map && document.querySelector("#instructions")); i++) await sleep(250);
+    await sleep(500);
+    const x = Math.round(window.innerWidth / 2);
+    const y = Math.round(window.innerHeight / 2);
+    for (let attempt = 0; attempt < 3 && !spawned(); attempt++){
+        window.chrome.webview.postMessage(`click, ${x}, ${y}`);
+        await sleep(1200);
+    }
+    await sleep(800);
+    return spawned();
+}
+
 class Panel {
     constructor(){
         document.querySelector("#adPanelHost")?.parentElement?.remove();
@@ -209,6 +277,15 @@ class Panel {
             this.close();
             onUndo();
         };
+    }
+
+    /**
+     * Lets clicks through to the game underneath (the host's click that spawns the player).
+     *
+     * @param {boolean} enabled
+     */
+    clickThrough(enabled){
+        this.overlay.style.pointerEvents = enabled ? "none" : "";
     }
 
     close(){
@@ -273,10 +350,20 @@ class AutoDetect {
     }
 
     /**
-     * @param {boolean} [automatic] True for the first start run, which stays quiet when it cannot run
+     * The same run, measured in a private match instead of behind the menu. Slower, but it sees the real load.
+     *
      * @return {Promise<void>}
      */
-    async start(automatic = false){
+    fineTune(){
+        return this.start(false, true);
+    }
+
+    /**
+     * @param {boolean} [automatic] True for the first start run, which stays quiet when it cannot run
+     * @param {boolean} [inMatch] Measure in a private test lobby
+     * @return {Promise<void>}
+     */
+    async start(automatic = false, inMatch = false){
         if (this.running) return;
         if (document.pointerLockElement || checkCompMode()){
             if (!automatic) kute.showNotification("Open the menu outside of a competitive match first", false, 4);
@@ -300,13 +387,29 @@ class AutoDetect {
         };
         document.addEventListener("keydown", onKey, true);
 
+        let leftTheMenu = false;
         try {
-            const summary = await this.run(panel, state);
+            if (inMatch){
+                panel.progress("Opening a private test lobby", 0.02);
+                panel.clickThrough(true);
+                leftTheMenu = await hostLobby();
+                if (leftTheMenu){
+                    panel.progress("Joining the test lobby", 0.04);
+                    leftTheMenu = await spawn();
+                }
+                panel.clickThrough(false);
+                // no account, no free host slot or a changed host window: the menu still gives a result
+                if (!leftTheMenu) window.closWind?.();
+            }
+
+            const summary = await this.run(panel, state, leftTheMenu);
+            if (leftTheMenu) document.exitPointerLock();
             if (summary === null){
                 this.restore(state.snapshot);
                 // an automatic run that was cancelled must not come back on every start
                 writeState(previous ?? { status: "done", at: Date.now(), snapshot: state.snapshot });
                 panel.close();
+                if (leftTheMenu) location.href = HOME;
                 return;
             }
             state.status = "done";
@@ -318,12 +421,14 @@ class AutoDetect {
                 state.undoable = true;
             }
             delete state.previous;
-            if (summary.needsReload){
+            // leaving the test lobby is a page load as well, the summary comes up after it
+            if (summary.needsReload || leftTheMenu){
                 state.showSummary = true;
                 writeState(state);
-                panel.progress("Reloading the game to apply the new settings", 1);
+                panel.progress(leftTheMenu ? "Leaving the test lobby" : "Reloading the game to apply the new settings", 1);
                 await sleep(1200);
-                location.reload();
+                if (leftTheMenu) location.href = HOME;
+                else location.reload();
                 return;
             }
             writeState(state);
@@ -334,6 +439,10 @@ class AutoDetect {
             if (previous) writeState(previous);
             else localStorage.removeItem(STORAGE_KEY);
             panel.close();
+            if (leftTheMenu){
+                document.exitPointerLock();
+                location.href = HOME;
+            }
             kute.showNotification(`Auto-detect failed: ${error}`, false, 6);
         }
         finally {
@@ -348,9 +457,10 @@ class AutoDetect {
      *
      * @param {Panel} panel
      * @param {RunState} state
+     * @param {boolean} inMatch Whether the page shows a match instead of the menu
      * @return {Promise<{summary: NonNullable<RunState["summary"]>, needsReload: boolean}|null>} null when cancelled
      */
-    async run(panel, state){
+    async run(panel, state, inMatch){
         const dev = devOverrides();
 
         panel.progress("Reading your hardware", 0.05);
@@ -462,7 +572,7 @@ class AutoDetect {
 
         const limited = plan.regime === "gpu" ? "graphics card" : "processor";
         details.push(
-            `${Math.round(base.fps)} FPS in the menu, goal ${plan.target} (${hz} Hz), limited by the ${limited}` +
+            `${Math.round(base.fps)} FPS in ${inMatch ? "a match" : "the menu"}, goal ${plan.target} (${hz} Hz), limited by the ${limited}` +
                 `${plan.gpuHeadroom ? ", graphics card far from its limit" : ""}${plan.healthy ? "" : ", frames were piling up"}`,
         );
         const changed = details.length > 1;
