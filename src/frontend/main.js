@@ -2,6 +2,10 @@ import styles from "./components/base.css";
 import { kute, ready } from "./client.js";
 import { hook, getElement, checkCompMode } from "./utils.js";
 
+// the stub page of a bench run (src/modules/bench.rs): only the synthetic scene runs there
+const isBenchPage = location.pathname === "/kute-bench";
+if (isBenchPage) import("./modules/autoDetect/bench.js");
+
 let initialLoad = true;
 window.OffCliV = true;
 /**
@@ -12,6 +16,8 @@ window.closeClient = () => window.chrome.webview.postMessage("close");
 document.addEventListener(
     "DOMContentLoaded",
     () => {
+        if (isBenchPage) return;
+
         // load noticeable style changes and stuff that requires hooks earlier
         window.localStorage.setItem("cont_shoot1Key_alt", "131");
         import("./modules/gameFpsLimit.js");
