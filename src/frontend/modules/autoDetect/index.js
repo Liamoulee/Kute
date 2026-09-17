@@ -2,38 +2,65 @@ import panelHtml from "../../components/autoDetect.html";
 import { kute } from "../../client.js";
 import { checkCompMode } from "../../utils.js";
 import { FrameRecorder } from "./metrics.js";
-import { decide, expectedFps, MIN_RESOLUTION, TARGET_REFRESH_MULTIPLE } from "./decide.js";
+import { decide, HEADROOM, MIN_RESOLUTION, SIGNIFICANT_SETTING, TARGET_REFRESH_MULTIPLE } from "./decide.js";
 import * as game from "./gameSettings.js";
 
-// One click auto-detect: measures the real Krunker renderer, decides (decide.js) and applies game and
-// client settings. One sample behind the menu settles it for a PC that is far above its goal. Any other
-// PC is measured in an empty private match, because on a weak processor the menu runs far slower than
-// the game and says little about it. Everything that gets touched is snapshotted first and can be
-// undone. Runs on its own (menu only) on the first start and after the storage was cleared.
+// One click auto-detect. The same run on every PC: an empty private test match (it needs an account),
+// a baseline, every live render setting flipped and measured on this PC, the resolution scale probed,
+// then decide.js applies what was measured to help. Everything that gets touched is snapshotted first
+// and can be undone, and every number ends up in the Advanced view. Nothing runs on its own: a first
+// start only tells the player where the button is.
 
 const STORAGE_KEY = "kute_autodetect";
-const SAMPLE_MS = 1200;
+const SAMPLE_MS = 900;
 const SETTLE_MS = 450;
-// two samples of the same settings may differ by this share before the scene counts as too busy to probe
-const STEADY_SPREAD = 0.15;
-// this far above the goal the graphics card probes are skipped, their outcome could not change anything
-const COMFORTABLE = 1.3;
+// samples of the same settings right before and after a measurement may differ by this share. beyond it
+// something else moved (a hitch, a shader compile) and the number is not used
+const STEADY_SPREAD = 0.08;
 const CLIENT_KEYS = ["gameFpsLimit", "throttle"];
-// the private lobby of the fine tune run: Burg, small and the same for everyone
+// the private test match: Burg, small and the same for everyone
 const LOBBY_MAP = "gameMap0";
 const HOME = "https://krunker.io/";
 
 /**
- * @typedef {import("./decide.js").Change} Change
+ * @typedef {import("./decide.js").MeasuredSetting} MeasuredSetting
+ */
+
+/**
+ * @typedef {object} Report Everything the run measured, shown in the Advanced view
+ * @property {string} gpu
+ * @property {string} cpu
+ * @property {number} hz
+ * @property {boolean} laptop
+ * @property {number} baseFps
+ * @property {number} p50
+ * @property {number} p99
+ * @property {number} presentFps
+ * @property {number} noise Spread of three samples of the same settings
+ * @property {number} drift Last baseline divided by the first one, below 1 when the PC got slower (heat)
+ * @property {number|null} halfResolutionGain
+ * @property {MeasuredSetting[]} settings
+ * @property {import("./decide.js").Plan} plan
+ * @property {number|null} finalFps Measured again after the changes
+ * @property {number} seconds
+ */
+
+/**
+ * @typedef {object} Summary
+ * @property {string} title
+ * @property {string} line
+ * @property {string[]} details
+ * @property {boolean} changed
  */
 
 /**
  * @typedef {object} RunState
- * @property {"running"|"done"} status
+ * @property {"running"|"done"|"prompted"} status
  * @property {number} at
  * @property {{client: Record<string, any>, game: Record<string, string|null>}} snapshot
- * @property {{title: string, line: string, details: string[], changed: boolean}} [summary]
- * @property {boolean} [showSummary] Set across the reload that applies reload-only game settings
+ * @property {Summary} [summary]
+ * @property {Report} [report]
+ * @property {boolean} [showSummary] Set across the page load that ends a run
  * @property {boolean} [undoable] The snapshot holds values that differ from what is set now
  * @property {RunState|null} [previous] While running: the state to fall back to, it may still hold an undo
  */
@@ -63,6 +90,15 @@ function readState(){
  */
 function writeState(state){
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+/**
+ * Hosting a test match needs an account.
+ *
+ * @return {boolean}
+ */
+export function loggedIn(){
+    return document.querySelector("#signedInHeaderBar") !== null;
 }
 
 /**
@@ -144,21 +180,19 @@ function readable(value){
 }
 
 /**
- * Test overrides from the launch arguments, e.g. `--autodetect-dev=hz:600,battery,gpu`. A strong PC reaches
- * every goal, so the weak PC branches need a pretend display (hz), battery or graphics card limit (gpu).
+ * Test overrides from the launch arguments, e.g. `--autodetect-dev=hz:600,battery`. A strong PC clears
+ * every goal, a pretend display is what makes it take the path of a weak one.
  *
- * @return {{hz?: number, battery?: boolean, gpu?: boolean, laptop?: boolean}}
+ * @return {{hz?: number, battery?: boolean}}
  */
 function devOverrides(){
     const match = /--autodetect-dev=(\S+)/.exec(kute.launchArgs ?? "");
-    /** @type {{hz?: number, battery?: boolean, gpu?: boolean, laptop?: boolean}} */
+    /** @type {{hz?: number, battery?: boolean}} */
     const overrides = {};
     for (const part of match?.[1].split(",") ?? []){
         const [key, value] = part.split(":");
         if (key === "hz") overrides.hz = Number(value);
         if (key === "battery") overrides.battery = true;
-        if (key === "gpu") overrides.gpu = true;
-        if (key === "laptop") overrides.laptop = true;
     }
     return overrides;
 }
@@ -176,7 +210,7 @@ function activity(){
 }
 
 /**
- * Hosts a private lobby through Krunker's own host window. The game switches rooms inside the page,
+ * Hosts a private match through Krunker's own host window. The game switches rooms inside the page,
  * so success shows up as a new custom game in the activity, not as a page load.
  *
  * @return {Promise<boolean>}
@@ -228,11 +262,50 @@ async function spawn(){
     return spawned();
 }
 
+/**
+ * @param {number} ratio
+ * @return {string} "+12 %" style
+ */
+function percent(ratio){
+    const value = Math.round((ratio - 1) * 100);
+    return `${value > 0 ? "+" : ""}${value} %`;
+}
+
+/**
+ * The Advanced view: what was measured, in the player's terms.
+ *
+ * @param {Report} report
+ * @return {string}
+ */
+function advancedHtml(report){
+    const changed = new Set(report.plan.changes.map((change) => change.id));
+    const rows = report.settings.map((setting) => {
+        let measured = setting.note ?? "";
+        if (setting.gain !== null) measured = setting.steady ? `${percent(setting.gain)} when ${readable(setting.cheap)}` : "unsteady, not used";
+        const action = changed.has(setting.id) ? `<td class="adChanged">set to ${readable(setting.cheap)}</td>` : "<td>kept</td>";
+        return `<tr><td>${setting.label}</td><td>${readable(setting.current)}</td><td>${measured}</td>${action}</tr>`;
+    });
+    const limited = { cpu: "the processor", gpu: "the graphics card", unknown: "unknown" }[report.plan.regime];
+    const half = report.halfResolutionGain === null ? "not measured" : percent(report.halfResolutionGain);
+    return `
+        <p>${report.gpu}<br>${report.cpu}${report.laptop ? " (laptop)" : ""}, ${report.hz} Hz</p>
+        <p>${Math.round(report.baseFps)} FPS in the test match (median ${report.p50.toFixed(1)} ms, 1 % worst ${report.p99.toFixed(1)} ms),
+        ${report.presentFps > 0 ? `${report.presentFps} reaching the screen, ` : ""}needed ${Math.round(report.plan.needed)}
+        (goal ${report.plan.goal} plus headroom for fights and heat).</p>
+        <p>Limited by ${limited} (half the resolution: ${half}). Same settings sampled three times differ by
+        ${Math.round(report.noise * 100)} %, the PC ended the run at ${Math.round(report.drift * 100)} % of its starting speed.
+        ${report.plan.healthy ? "" : "Frames were piling up behind the screen."}</p>
+        ${report.finalFps === null ? "" : `<p>After the changes: ${Math.round(report.finalFps)} FPS.</p>`}
+        <table><tr><th>Setting</th><th>Was</th><th>Measured</th><th>Result</th></tr>${rows.join("")}</table>
+        <p>${report.seconds.toFixed(0)} s. Settings that need a reload or only cost something in a fight cannot be measured in an empty
+        test match. They were not tested and not changed.</p>`;
+}
+
 class Panel {
     constructor(){
         document.querySelector("#adPanelHost")?.parentElement?.remove();
         this.overlay = document.createElement("div");
-        // nearly opaque: the probes change the resolution behind it
+        // nearly opaque: the measurements change how the game looks behind it
         this.overlay.style.cssText =
             "position:fixed;inset:0;z-index:2147483000;display:flex;justify-content:center;align-items:center;background:rgba(0,0,0,0.93)";
         const host = document.createElement("div");
@@ -261,28 +334,41 @@ class Panel {
     }
 
     /**
-     * Switches from the progress view to the result.
+     * Switches from the progress view to a message with buttons.
      *
-     * @param {NonNullable<RunState["summary"]>} summary
-     * @param {() => void} onUndo
+     * @param {Summary} summary
+     * @param {{onUndo?: () => void, onRun?: () => void, report?: Report}} [actions]
      */
-    result(summary, onUndo){
+    result(summary, actions = {}){
         this.element("adTitle").textContent = summary.title;
         this.element("adStatus").textContent = summary.line;
         this.element("adBar").style.display = "none";
         this.element("adHint").style.display = "none";
         this.element("adActions").style.display = "flex";
-        this.element("adUndo").style.display = summary.changed ? "" : "none";
-        this.element("adDetailsButton").style.display = summary.details.length > 0 ? "" : "none";
-        this.element("adDetails").innerHTML = summary.details.map((line) => `<li>${line}</li>`).join("");
-        this.element("adDetailsButton").onclick = () => {
-            const details = this.element("adDetails");
-            details.style.display = details.style.display === "block" ? "none" : "block";
-        };
+        this.element("adDetailsButton").style.display = "none";
+        this.element("adUndo").style.display = summary.changed && actions.onUndo ? "" : "none";
+        this.element("adRun").style.display = actions.onRun ? "" : "none";
+        this.element("adAdvancedButton").style.display = actions.report ? "" : "none";
+
+        const details = this.element("adDetails");
+        details.innerHTML = summary.details.map((line) => `<li>${line}</li>`).join("");
+        details.style.display = summary.details.length > 0 ? "block" : "none";
+
+        if (actions.report){
+            const advanced = this.element("adAdvanced");
+            advanced.innerHTML = advancedHtml(actions.report);
+            this.element("adAdvancedButton").onclick = () => {
+                advanced.style.display = advanced.style.display === "block" ? "none" : "block";
+            };
+        }
         this.element("adOk").onclick = () => this.close();
         this.element("adUndo").onclick = () => {
             this.close();
-            onUndo();
+            actions.onUndo?.();
+        };
+        this.element("adRun").onclick = () => {
+            this.close();
+            actions.onRun?.();
         };
     }
 
@@ -320,21 +406,15 @@ class AutoDetect {
      * Puts every snapshotted value back.
      *
      * @param {RunState["snapshot"]} snapshot
-     * @return {boolean} Whether a value changed that Krunker only applies after a reload
      */
     restore(snapshot){
-        const reloadOnly = new Set(game.TIERS.flatMap((tier) => tier.settings.filter((setting) => setting.needsReload).map((setting) => setting.id)));
-        let needsReload = false;
         game.resetCache();
         for (const [id, value] of Object.entries(snapshot.game)){
-            if (value === null || game.read(id) === value) continue;
-            game.write(id, value);
-            if (reloadOnly.has(id)) needsReload = true;
+            if (value !== null && game.read(id) !== value) game.write(id, value);
         }
         for (const [id, value] of Object.entries(snapshot.client)){
             if (value !== undefined && kute.settings.data[id] !== value) applyClient(id, value);
         }
-        return needsReload;
     }
 
     /**
@@ -346,25 +426,36 @@ class AutoDetect {
             kute.showNotification("Nothing to undo", false, 3);
             return;
         }
-        const needsReload = this.restore(state.snapshot);
+        this.restore(state.snapshot);
         state.undoable = false;
         state.summary = { title: "Undone", line: "Your previous settings are back.", details: [], changed: false };
-        // the reload would swallow a notification, so the panel confirms it afterwards
-        state.showSummary = needsReload;
         writeState(state);
-        if (needsReload) location.reload();
-        else kute.showNotification("Auto-detect undone, your previous settings are back", false, 4);
+        kute.showNotification("Auto-detect undone, your previous settings are back", false, 4);
     }
 
     /**
-     * @param {boolean} [automatic] True for the first start run: it stays quiet when it cannot run and never
-     * leaves the menu, nobody asked for their pointer to be taken into a match
+     * Shows the result of the last run again.
+     */
+    showLast(){
+        const state = readState();
+        if (!state?.summary){
+            kute.showNotification("Auto-detect has not run yet", false, 3);
+            return;
+        }
+        new Panel().result(state.summary, { onUndo: state.undoable ? () => this.undo() : undefined, report: state.report });
+    }
+
+    /**
      * @return {Promise<void>}
      */
-    async start(automatic = false){
+    async start(){
         if (this.running) return;
+        if (!loggedIn()){
+            kute.showNotification("Log in first: auto-detect measures in a private test match, and hosting one needs an account", false, 6);
+            return;
+        }
         if (document.pointerLockElement || checkCompMode()){
-            if (!automatic) kute.showNotification("Open the menu outside of a competitive match first", false, 4);
+            kute.showNotification("Open the menu outside of a competitive match first", false, 4);
             return;
         }
         this.running = true;
@@ -385,51 +476,49 @@ class AutoDetect {
         };
         document.addEventListener("keydown", onKey, true);
 
-        // run() moves into a test lobby when it has to, and whoever cleans up needs to know
+        // whoever cleans up has to know whether the page is still the menu
         const venue = { inMatch: false };
-        try {
-            const summary = await this.run(panel, state, venue, !automatic);
-            if (venue.inMatch) document.exitPointerLock();
-            if (summary === null){
-                this.restore(state.snapshot);
-                // an automatic run that was cancelled must not come back on every start
-                writeState(previous ?? { status: "done", at: Date.now(), snapshot: state.snapshot });
-                panel.close();
-                if (venue.inMatch) location.href = HOME;
-                return;
-            }
-            state.status = "done";
-            state.summary = summary.summary;
-            state.undoable = summary.summary.changed;
-            // a run that changed nothing must not cost the player the undo of the run before it
-            if (!summary.summary.changed && previous?.undoable){
-                state.snapshot = previous.snapshot;
-                state.undoable = true;
-            }
-            delete state.previous;
-            // leaving the test lobby is a page load as well, the summary comes up after it
-            if (summary.needsReload || venue.inMatch){
-                state.showSummary = true;
-                writeState(state);
-                panel.progress(venue.inMatch ? "Leaving the test lobby" : "Reloading the game to apply the new settings", 1);
-                await sleep(1200);
-                if (venue.inMatch) location.href = HOME;
-                else location.reload();
-                return;
-            }
-            writeState(state);
-            panel.result(summary.summary, () => this.undo());
-        }
-        catch (error){
+        /**
+         * Back to how it was before the run.
+         */
+        const abandon = () => {
             this.restore(state.snapshot);
             if (previous) writeState(previous);
-            else localStorage.removeItem(STORAGE_KEY);
+            else writeState({ status: "prompted", at: Date.now(), snapshot: state.snapshot });
             panel.close();
             if (venue.inMatch){
                 document.exitPointerLock();
                 location.href = HOME;
             }
-            kute.showNotification(`Auto-detect failed: ${error}`, false, 6);
+        };
+
+        try {
+            const outcome = await this.run(panel, state, venue);
+            if (outcome === null){
+                abandon();
+                return;
+            }
+            state.status = "done";
+            state.summary = outcome.summary;
+            state.report = outcome.report;
+            state.undoable = outcome.summary.changed;
+            // a run that changed nothing must not cost the player the undo of the run before it
+            if (!outcome.summary.changed && previous?.undoable){
+                state.snapshot = previous.snapshot;
+                state.undoable = true;
+            }
+            delete state.previous;
+            // leaving the test match is a page load, the summary comes up after it
+            state.showSummary = true;
+            writeState(state);
+            panel.progress("Leaving the test match", 1);
+            document.exitPointerLock();
+            await sleep(800);
+            location.href = HOME;
+        }
+        catch (error){
+            abandon();
+            kute.showNotification(`Auto-detect stopped: ${error instanceof Error ? error.message : error}`, false, 7);
         }
         finally {
             document.removeEventListener("keydown", onKey, true);
@@ -443,17 +532,17 @@ class AutoDetect {
      *
      * @param {Panel} panel
      * @param {RunState} state
-     * @param {{inMatch: boolean}} venue Set to the match once the run had to leave the menu
-     * @param {boolean} allowLobby Whether the run may open a private test lobby
-     * @return {Promise<{summary: NonNullable<RunState["summary"]>, needsReload: boolean}|null>} null when cancelled
+     * @param {{inMatch: boolean}} venue
+     * @return {Promise<{summary: Summary, report: Report}|null>} null when cancelled
      */
-    async run(panel, state, venue, allowLobby){
+    async run(panel, state, venue){
+        const started = performance.now();
         const dev = devOverrides();
 
-        panel.progress("Reading your hardware", 0.05);
+        panel.progress("Reading your hardware", 0.02);
         const specs = await request("get-specs", "specs");
-        // the bundle can be newer than the exe (hot update). an exe without these queries also cannot
-        // switch the menu throttle off, and a throttled measurement would lower settings for no reason
+        // the bundle can be newer than the exe (hot update), and an exe without these queries also cannot
+        // switch its throttle off or click into the match
         if (specs === null) throw new Error("this needs a newer version of the client");
         /** @type {{hz: number, hostsWindow: boolean}[]} */
         const displays = specs.displays ?? [];
@@ -461,173 +550,210 @@ class AutoDetect {
         const hz = dev.hz ?? (display?.hz > 1 ? display.hz : 60);
         /** @type {{name: string, software: boolean, vramMb: number}[]} */
         const gpus = (specs.gpus ?? []).filter((/** @type {{software: boolean}} */ gpu) => !gpu.software);
-        const gpuName = [...gpus].sort((a, b) => b.vramMb - a.vramMb)[0]?.name ?? "your PC";
-        const laptop = dev.laptop ?? Boolean(specs.laptop);
-        const goal = hz * TARGET_REFRESH_MULTIPLE;
+        const gpuName = [...gpus].sort((a, b) => b.vramMb - a.vramMb)[0]?.name ?? "unknown graphics card";
 
-        // measure the page itself: no menu throttle, no limiter of ours, no frame cap of the game
+        panel.progress("Opening a private test match", 0.05);
+        panel.clickThrough(true);
+        let joined = await hostLobby();
+        if (joined){
+            panel.progress("Joining the test match", 0.1);
+            joined = await spawn();
+        }
+        panel.clickThrough(false);
+        if (!joined){
+            window.closWind?.();
+            throw new Error("could not open a private test match (is a host slot free?)");
+        }
+        venue.inMatch = true;
+        if (this.cancelled) return null;
+
+        // measure the game itself: no throttle, no limiter of ours, no frame cap of the game
         window.chrome.webview.postMessage("throttle, off");
         const fpsLimitBefore = Number(kute.settings.data.gameFpsLimit) || 0;
         const frameCapBefore = Number(state.snapshot.game[game.GAME_FRAME_CAP]) || 0;
         if (fpsLimitBefore > 0) applyClient("gameFpsLimit", 0);
         if (frameCapBefore > 0) game.write(game.GAME_FRAME_CAP, "0");
-        await sleep(SETTLE_MS + 300);
+        // the first seconds of a match still stream assets and compile shaders
+        await sleep(2500);
+
+        panel.progress("Measuring your current settings", 0.15);
+        const first = await measure();
+        const repeats = [first.fps, (await measure()).fps, (await measure()).fps];
+        const presentFps = Number(await request("get-present", "presentFps")) || 0;
+        const base = first;
+        const baseFps = Math.max(...repeats);
+        const noise = (Math.max(...repeats) - Math.min(...repeats)) / Math.max(1, baseFps);
         if (this.cancelled) return null;
 
-        // half the pixels: faster means the GPU is the limit. twice the pixels: no slower means it is far from it.
-        // the current settings are sampled before and after the probe: the better of the two is the honest
-        // baseline (a hiccup can only make a sample slower, never faster), and how far they are apart says
-        // whether the scene holds still enough to compare anything. a busy scene swings by a factor of two
-        // within seconds (seen in a live public match), and a probe read against that is pure noise
+        // every measurement sits between two samples of the unchanged settings and is compared with their
+        // mean. a laptop gets slower by a third while it warms up, and this is what takes that drift out
+        let reference = repeats[2];
+        /**
+         * @param {() => void} apply
+         * @param {() => void} revert
+         * @return {Promise<{ratio: number, steady: boolean}>}
+         */
+        const compare = async(apply, revert) => {
+            const before = reference;
+            apply();
+            await sleep(SETTLE_MS);
+            const changed = await measure();
+            revert();
+            await sleep(SETTLE_MS);
+            const after = (await measure()).fps;
+            reference = after;
+            const mean = (before + after) / 2;
+            return { ratio: changed.fps / Math.max(1, mean), steady: Math.abs(before - after) / Math.max(1, mean) <= STEADY_SPREAD };
+        };
+
+        /** @type {MeasuredSetting[]} */
+        const settings = [];
+        const live = game.SETTINGS.filter((setting) => !setting.needsReload && !setting.fightOnly);
+        for (const setting of game.SETTINGS){
+            const current = state.snapshot.game[setting.id];
+            const cheap = String(setting.cheap);
+            /** @type {MeasuredSetting} */
+            const row = { id: setting.id, label: setting.label, current: current ?? "default", cheap, gain: null, steady: true };
+            settings.push(row);
+            if (setting.needsReload){
+                row.note = "not tested (needs a reload)";
+                continue;
+            }
+            // an empty match never shows what these cost, and the run does not shoot to find out
+            if (setting.fightOnly){
+                row.note = "not tested (only costs in a fight)";
+                continue;
+            }
+            if (current === null){
+                row.note = "value unknown";
+                continue;
+            }
+            if (this.cancelled) return null;
+
+            panel.progress(`Measuring ${setting.label}`, 0.2 + (0.6 * live.indexOf(setting)) / live.length);
+            const flipped = game.opposite(current);
+            const { ratio, steady } = await compare(() => game.write(setting.id, flipped), () => game.write(setting.id, current));
+            // always stored as "what the cheap value gains", whichever direction was measured
+            row.gain = flipped === cheap ? ratio : 1 / Math.max(0.01, ratio);
+            row.steady = steady;
+        }
+        if (this.cancelled) return null;
+
+        // one measurement is enough for the diagnostics, not for changing something: a setting that is about
+        // to be switched gets measured a second time, and the lower of the two numbers counts
+        if (baseFps < hz * TARGET_REFRESH_MULTIPLE * HEADROOM){
+            for (const row of settings){
+                if (row.gain === null || !row.steady || row.current === row.cheap || row.gain < SIGNIFICANT_SETTING) continue;
+                if (this.cancelled) return null;
+                panel.progress(`Confirming ${row.label}`, 0.8);
+                const { ratio, steady } = await compare(() => game.write(row.id, row.cheap), () => game.write(row.id, row.current));
+                row.gain = Math.min(row.gain, ratio);
+                row.steady = steady;
+            }
+        }
+
+        panel.progress("Checking the graphics card", 0.82);
         const resolution = Number(state.snapshot.game[game.RESOLUTION]) || 1;
-        panel.progress("Measuring your current settings", 0.1);
-        let base = await measure();
-        let lowRes = base;
-        let presentFps = 0;
-        // a PC that is far above the goal gets no changes whatever limits it, so it is done after one sample
-        let comfortable = expectedFps(base.fps, { inMatch: false, laptop }) >= goal * COMFORTABLE;
-
-        // everyone else is measured where it counts. the menu of a weak PC runs at half the speed of its
-        // matches, and deciding from that would take effects away from players who do not need to lose them
-        if (!comfortable && allowLobby && !this.cancelled){
-            panel.progress("Opening a private test lobby", 0.12);
-            panel.clickThrough(true);
-            let joined = await hostLobby();
-            if (joined){
-                panel.progress("Joining the test lobby", 0.16);
-                joined = await spawn();
-            }
-            panel.clickThrough(false);
-            if (joined){
-                venue.inMatch = true;
-                // clicking in switched the client to its in-game throttle
-                window.chrome.webview.postMessage("throttle, off");
-                await sleep(1000);
-                base = await measure();
-                lowRes = base;
-                comfortable = expectedFps(base.fps, { inMatch: true, laptop }) >= goal * COMFORTABLE;
-            }
-            // no account, no free host slot or a changed host window: the menu still gives a result
-            else window.closWind?.();
-        }
-        if (this.cancelled) return null;
-
-        let steady = comfortable;
-        if (comfortable) presentFps = Number(await request("get-present", "presentFps")) || 0;
-        for (let attempt = 0; attempt < 2 && !steady; attempt++){
-            panel.progress("Measuring your current settings", 0.15 + attempt * 0.1);
-            const firstBase = attempt === 0 ? base : await measure();
-            presentFps = Number(await request("get-present", "presentFps")) || 0;
-            if (this.cancelled) return null;
-
-            panel.progress("Checking the graphics card", 0.3 + attempt * 0.1);
-            game.write(game.RESOLUTION, String(Math.max(0.1, resolution * 0.5)));
-            await sleep(SETTLE_MS);
-            lowRes = await measure();
-            game.write(game.RESOLUTION, String(resolution));
-            await sleep(SETTLE_MS);
-            if (this.cancelled) return null;
-
-            const secondBase = await measure();
-            base = secondBase.fps > firstBase.fps ? secondBase : firstBase;
-            // half the pixels cannot be slower either, a sample like that caught a hiccup
-            steady =
-                Math.abs(firstBase.fps - secondBase.fps) / Math.max(1, base.fps) <= STEADY_SPREAD &&
-                lowRes.fps >= base.fps * (1 - STEADY_SPREAD);
-        }
-        // nothing may be concluded from a probe when the baseline itself does not hold
-        if (!steady) lowRes = base;
-        if (this.cancelled) return null;
-
-        let highRes = null;
-        if (steady && !comfortable && lowRes.fps / Math.max(1, base.fps) < 1.15 && resolution * 2 <= 2){
-            panel.progress("Checking the graphics card", 0.55);
-            game.write(game.RESOLUTION, String(resolution * 2));
-            await sleep(SETTLE_MS);
-            highRes = await measure();
-        }
-        game.write(game.RESOLUTION, String(resolution));
+        const half = await compare(
+            () => game.write(game.RESOLUTION, String(Math.max(0.1, resolution * 0.5))),
+            () => game.write(game.RESOLUTION, String(resolution)),
+        );
+        // half the pixels cannot be slower, a number like that caught a hiccup
+        const halfResolutionGain = half.steady && half.ratio > 0.92 ? half.ratio : null;
+        const drift = reference / Math.max(1, repeats[0]);
         if (this.cancelled) return null;
 
         const plan = decide(
-            { baseFps: base.fps, lowResFps: dev.gpu ? base.fps * 1.5 : lowRes.fps, highResFps: highRes?.fps ?? null, p50: base.p50, p99: base.p99, presentFps },
+            { baseFps, p50: base.p50, p99: base.p99, presentFps, halfResolutionGain, settings },
             {
                 hz,
                 onBattery: dev.battery ?? Boolean(specs.onBattery),
-                laptop,
-                inMatch: venue.inMatch,
-                readGameSetting: (id) => state.snapshot.game[id],
                 throttle: Number(state.snapshot.client.throttle) || 1,
                 gameFpsLimit: fpsLimitBefore,
                 gameFrameCap: frameCapBefore,
             },
         );
 
-        panel.progress("Applying", 0.65);
+        panel.progress("Applying", 0.88);
         /** @type {string[]} */
         const details = [];
-        let needsReload = false;
         let limitChanged = false;
+        let gameChanged = false;
         for (const change of plan.changes){
             if (change.scope === "game"){
-                details.push(`<b>${change.label}</b>: ${readable(state.snapshot.game[change.id])} → ${readable(change.value)}`);
+                details.push(`<b>${change.label}</b>: ${readable(state.snapshot.game[change.id])} → ${readable(change.value)} (${change.reason})`);
                 game.write(change.id, String(change.value));
-                if (change.needsReload) needsReload = true;
+                if (change.id !== game.GAME_FRAME_CAP) gameChanged = true;
             }
             else {
-                details.push(`<b>${change.label}</b>: ${readable(state.snapshot.client[change.id])} → ${readable(change.value)}`);
+                details.push(`<b>${change.label}</b>: ${readable(state.snapshot.client[change.id])} → ${readable(change.value)} (${change.reason})`);
                 applyClient(change.id, change.value);
                 if (change.id === "gameFpsLimit") limitChanged = true;
             }
         }
 
-        // the resolution scale is the one thing the menu shows truthfully, so it is tuned by measuring.
-        // only when the GPU is the limit and the cheaper settings did not get there
-        if (plan.tuneResolution){
+        // what the gains added up to is a prediction, this is the check
+        let finalFps = null;
+        if (gameChanged || plan.tuneResolution){
             await sleep(SETTLE_MS);
-            let { fps } = await measure();
+            finalFps = (await measure()).fps;
+        }
+
+        // the resolution scale only goes down when half the pixels measurably helped and the goal is still
+        // missed. frame rate follows the pixel count then, so one estimate lands close and gets verified
+        if (plan.tuneResolution && finalFps !== null){
             let scale = resolution;
-            // GPU bound frame rate goes with the pixel count, so one estimate lands close. a second step
-            // only goes to the floor when the estimate was not enough
-            for (let step = 0; step < 2 && fps < plan.target && scale > MIN_RESOLUTION && !this.cancelled; step++){
-                const estimate = step === 0 ? scale * Math.sqrt(fps / plan.target) : MIN_RESOLUTION;
+            for (let step = 0; step < 2 && finalFps < plan.needed && scale > MIN_RESOLUTION && !this.cancelled; step++){
+                const estimate = step === 0 ? scale * Math.sqrt(finalFps / plan.needed) : MIN_RESOLUTION;
                 scale = Math.min(scale, Math.max(MIN_RESOLUTION, Math.floor(estimate * 20) / 20));
-                panel.progress(`Trying resolution ${scale}`, 0.75 + step * 0.1);
+                panel.progress(`Trying resolution ${scale}`, 0.92 + step * 0.03);
                 game.write(game.RESOLUTION, String(scale));
                 await sleep(SETTLE_MS);
-                ({ fps } = await measure());
+                finalFps = (await measure()).fps;
             }
-            if (scale !== resolution) details.push(`<b>Resolution</b>: ${resolution} → ${scale}`);
+            if (scale !== resolution) details.push(`<b>Resolution</b>: ${resolution} → ${scale} (the graphics card is the limit)`);
         }
         if (this.cancelled) return null;
 
         if (!limitChanged && fpsLimitBefore > 0) applyClient("gameFpsLimit", fpsLimitBefore);
         game.resetCache();
 
-        const limited = plan.regime === "gpu" ? "graphics card" : "processor";
-        details.push(
-            `${Math.round(base.fps)} FPS in ${venue.inMatch ? "a test match" : "the menu"}` +
-                `${Math.round(plan.expectedFps) === Math.round(base.fps) ? "" : `, about ${Math.round(plan.expectedFps)} expected in long matches`}` +
-                `, goal ${plan.target} (${hz} Hz)${comfortable ? ", well above it" : `, limited by the ${limited}`}` +
-                `${plan.gpuHeadroom ? ", graphics card far from its limit" : ""}${plan.healthy ? "" : ", frames were piling up"}` +
-                `${steady ? "" : ". The scene was too busy to test the graphics card"}`,
-        );
-        const changed = details.length > 1;
+        const changed = details.length > 0;
+        let line = `${Math.round(baseFps)} FPS in the test match, this PC holds its goal of ${plan.goal}. Nothing to change.`;
+        if (changed){
+            line =
+                `${details.length} setting${details.length === 1 ? "" : "s"} changed. ` +
+                `${Math.round(baseFps)} FPS before${finalFps === null ? "" : `, ${Math.round(finalFps)} after`}, goal ${plan.goal}.`;
+        }
+        else if (!plan.holds){
+            line = `${Math.round(baseFps)} FPS in the test match, goal ${plan.goal}. No setting measurably helps on this PC, so nothing was changed.`;
+        }
+
         return {
-            needsReload,
-            summary: {
-                title: changed ? "Optimized" : "Already optimal",
-                line: changed
-                    ? `${details.length - 1} setting${details.length === 2 ? "" : "s"} changed for ${gpuName} at ${hz} Hz.`
-                    : `Nothing to change for ${gpuName} at ${hz} Hz.`,
-                details,
-                changed,
+            summary: { title: changed ? "Optimized" : "Nothing to change", line, details, changed },
+            report: {
+                gpu: gpuName,
+                cpu: `${specs.cpu?.name ?? "unknown processor"}, ${specs.cpu?.threads ?? "?"} threads`,
+                hz,
+                laptop: Boolean(specs.laptop),
+                baseFps,
+                p50: base.p50,
+                p99: base.p99,
+                presentFps,
+                noise,
+                drift,
+                halfResolutionGain,
+                settings,
+                plan,
+                finalFps,
+                seconds: (performance.now() - started) / 1000,
             },
         };
     }
 
     /**
-     * Start of the page: finish or clean up what a previous page left, and run on the first start.
+     * Start of the page: finish or clean up what a previous page left. A first start (or cleared storage)
+     * only points the player to the button, nothing is measured or changed without being asked.
      */
     resume(){
         const state = readState();
@@ -641,12 +767,27 @@ class AutoDetect {
         if (state?.showSummary && state.summary){
             state.showSummary = false;
             writeState(state);
-            new Panel().result(state.summary, () => this.undo());
+            new Panel().result(state.summary, { onUndo: () => this.undo(), report: state.report });
             return;
         }
-        // no state at all: first start, or the storage was cleared
-        // (the delay lets the freshly loaded menu finish streaming its assets in)
-        if (!state) setTimeout(() => this.start(true), 6000);
+        if (state) return;
+
+        setTimeout(() => {
+            if (this.running || document.pointerLockElement) return;
+            writeState({ status: "prompted", at: Date.now(), snapshot: { client: {}, game: {} } });
+            const canRun = loggedIn();
+            new Panel().result(
+                {
+                    title: "Set Kute up for this PC?",
+                    line: canRun
+                        ? "Auto-detect measures your PC in a private test match for about a minute and then sets up the game for it. You can undo it, and run it any time from Settings, Client, Auto-Detect Best Settings."
+                        : "Auto-detect measures your PC in a private test match and then sets up the game for it. It needs an account: log in, then open Settings, Client and press Auto-Detect Best Settings.",
+                    details: [],
+                    changed: false,
+                },
+                { onRun: canRun ? () => this.start() : undefined },
+            );
+        }, 5000);
     }
 }
 

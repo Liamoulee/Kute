@@ -1,59 +1,42 @@
-// Krunker's own performance settings, changed only through the game's setSetting() and read from where
-// the game stores them. Ordered by how much a player misses them, cheapest loss first.
+// Krunker's own render settings, changed only through the game's setSetting() and read from where the
+// game stores them. Auto-detect measures each of them on the player's PC, nothing here says what they cost.
 
 /**
  * @typedef {object} GameSetting
  * @property {string} id Krunker's setting id
  * @property {string} label
  * @property {string|boolean} cheap The value that costs the least
- * @property {boolean} [needsReload] Krunker only applies it after the page reloads (marked * in its settings)
+ * @property {boolean} [needsReload] Krunker only applies it after the page reloads (marked * in its settings),
+ * so it cannot be measured inside one test match
+ * @property {boolean} [fightOnly] Only costs something while it is on screen (shots, explosions), which an
+ * empty test match never shows. Not measured and never changed
  */
 
 /**
- * @typedef {object} Tier
- * @property {string} name
- * @property {GameSetting[]} settings
+ * Ordered by how little a player misses them. The order only breaks ties between equal gains.
+ *
+ * @type {GameSetting[]}
  */
-
-/** @type {Tier[]} */
-export const TIERS = [
-    {
-        name: "heavy effects",
-        settings: [
-            { id: "postProcessing", label: "Post Processing", cheap: false },
-            { id: "shadows", label: "Shadows", cheap: false },
-            { id: "shadowsDynamic", label: "Dynamic Shadows", cheap: false },
-            { id: "softShad", label: "Soft Shadows", cheap: false, needsReload: true },
-            { id: "highResShad", label: "High-Res Shadows", cheap: false, needsReload: true },
-            { id: "antiAlias", label: "Antialiasing", cheap: false, needsReload: true },
-            { id: "reflection", label: "Reflection Quality", cheap: "1", needsReload: true },
-        ],
-    },
-    {
-        name: "lighting and particles",
-        settings: [
-            { id: "lighting", label: "Lighting", cheap: "0", needsReload: true },
-            { id: "particles", label: "Particles", cheap: false },
-            { id: "showExplo", label: "Explosions", cheap: false },
-            { id: "weaponShine", label: "Weapons Shine", cheap: false },
-            { id: "ambientShading", label: "Old Shading", cheap: false },
-        ],
-    },
-    {
-        name: "details and animations",
-        settings: [
-            { id: "textureAnim", label: "Texture Animations", cheap: false },
-            { id: "objectAnim", label: "Object Animations", cheap: false },
-            { id: "bulletCasings", label: "Bullet Casings", cheap: false },
-            { id: "impactHoles", label: "Bullet Impact Holes", cheap: false },
-            { id: "noPaintAnim", label: "Disable Animated Paints", cheap: true, needsReload: true },
-            { id: "mapDet", label: "Map Details", cheap: false, needsReload: true },
-        ],
-    },
-    {
-        name: "low spec mode",
-        settings: [{ id: "lowSpec", label: "Low Spec", cheap: true }],
-    },
+export const SETTINGS = [
+    { id: "postProcessing", label: "Post Processing", cheap: false },
+    { id: "shadowsDynamic", label: "Dynamic Shadows", cheap: false },
+    { id: "softShad", label: "Soft Shadows", cheap: false, needsReload: true },
+    { id: "highResShad", label: "High-Res Shadows", cheap: false, needsReload: true },
+    { id: "shadows", label: "Shadows", cheap: false },
+    { id: "antiAlias", label: "Antialiasing", cheap: false, needsReload: true },
+    { id: "reflection", label: "Reflection Quality", cheap: "1", needsReload: true },
+    { id: "lighting", label: "Lighting", cheap: "0", needsReload: true },
+    { id: "weaponShine", label: "Weapons Shine", cheap: false },
+    { id: "ambientShading", label: "Old Shading", cheap: false },
+    { id: "particles", label: "Particles", cheap: false, fightOnly: true },
+    { id: "showExplo", label: "Explosions", cheap: false, fightOnly: true },
+    { id: "textureAnim", label: "Texture Animations", cheap: false },
+    { id: "objectAnim", label: "Object Animations", cheap: false },
+    { id: "bulletCasings", label: "Bullet Casings", cheap: false, fightOnly: true },
+    { id: "impactHoles", label: "Bullet Impact Holes", cheap: false, fightOnly: true },
+    { id: "noPaintAnim", label: "Disable Animated Paints", cheap: true, needsReload: true },
+    { id: "mapDet", label: "Map Details", cheap: false, needsReload: true },
+    { id: "lowSpec", label: "Low Spec", cheap: true },
 ];
 
 export const RESOLUTION = "resolution";
@@ -61,7 +44,7 @@ export const RESOLUTION = "resolution";
 export const GAME_FRAME_CAP = "updateRate";
 
 /** Every game setting a run may touch, for the undo snapshot. */
-export const ALL_IDS = [...TIERS.flatMap((tier) => tier.settings.map((setting) => setting.id)), RESOLUTION, GAME_FRAME_CAP];
+export const ALL_IDS = [...SETTINGS.map((setting) => setting.id), RESOLUTION, GAME_FRAME_CAP];
 
 /** @type {Document|null} */
 let settingsDocument = null;
@@ -128,10 +111,11 @@ export function write(id, value){
 }
 
 /**
- * @param {string} id
- * @param {string|boolean} value
- * @return {boolean}
+ * The value to flip a checkbox setting to for a measurement.
+ *
+ * @param {string} value
+ * @return {string}
  */
-export function is(id, value){
-    return read(id) === String(value);
+export function opposite(value){
+    return value === "true" ? "false" : "true";
 }

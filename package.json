@@ -9,7 +9,6 @@
     "packageManager": "bun@1.4.2",
     "scripts": {
         "esbuild": "bun esbuild.config.mjs",
-        "lab": "esbuild src/frontend/modules/autoDetect/lab.js --bundle --minify --format=iife --outfile=target/autodetect-lab.js",
         "dev": "bun run esbuild && cargo build --workspace --features verbose-logs && bun postbuild.js debug && cargo run --features editor-ignore,verbose-logs",
         "build": "bun run esbuild && cargo build --workspace --release --features packaged,editor-ignore && bun postbuild.js release",
         "build:auto-update": "bun run esbuild && cargo build --workspace --release --features packaged,auto-update,editor-ignore && bun postbuild.js release",

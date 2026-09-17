@@ -56,7 +56,7 @@ interface Kute {
     showNotification(message: string, reqUserInput: boolean, seconds: number): any;
     showChangelogPopup(version: string): Promise<void>;
     showAboutPopup(): Promise<void>;
-    autoDetect: { start(automatic?: boolean): Promise<void>; undo(): void };
+    autoDetect: { start(): Promise<void>; undo(): void; showLast(): void };
     bindShoot(): void;
 }
 

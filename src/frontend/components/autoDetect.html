@@ -1,10 +1,13 @@
 <style>
 #adPanel {
 	box-sizing: border-box;
-	width: 440px;
+	width: 620px;
 	max-width: 90vw;
 	max-height: 86vh;
+	overflow-x: hidden;
 	overflow-y: auto;
+	scrollbar-width: thin;
+	scrollbar-color: #444 #1e1e1e;
 	padding: 2em 2.4em 1.6em 2.4em;
 	background: #1e1e1e;
 	color: #fff;
@@ -85,6 +88,41 @@
 	color: #fff;
 	font-weight: normal;
 }
+
+#adAdvanced {
+	display: none;
+	margin-top: 1.2em;
+	text-align: left;
+	font-size: 0.8em;
+	color: #bbb;
+}
+
+#adAdvanced table {
+	width: 100%;
+	border-collapse: collapse;
+	margin-top: 0.8em;
+}
+
+#adAdvanced th,
+#adAdvanced td {
+	padding: 0.25em 0.4em;
+	border-bottom: 1px solid #2c2c2c;
+	text-align: left;
+}
+
+#adAdvanced th {
+	color: #777;
+	font-weight: normal;
+}
+
+#adAdvanced td.adChanged {
+	color: #35e0e8;
+}
+
+#adAdvanced p {
+	margin: 0.3em 0;
+	line-height: 1.5;
+}
 </style>
 <div id="adPanel">
 	<h2 id="adTitle">Auto-Detect</h2>
@@ -94,7 +132,10 @@
 	<div id="adActions">
 		<div class="adButton" id="adUndo">Undo</div>
 		<div class="adButton" id="adDetailsButton">Details</div>
+		<div class="adButton" id="adAdvancedButton">Advanced</div>
+		<div class="adButton" id="adRun">Run now</div>
 		<div class="adButton" id="adOk">OK</div>
 	</div>
 	<ul id="adDetails"></ul>
+	<div id="adAdvanced"></div>
 </div>

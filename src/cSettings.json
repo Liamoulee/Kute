@@ -2,20 +2,21 @@
     "autoDetect": {
         "name": "Auto-Detect Best Settings",
         "id": "autoDetect",
-        "description": "Measures this PC and sets up the game and the client for it. \nA few seconds on a fast PC, about 20 in a private test match on a slower one",
+        "description": "Measures this PC in a private test match (under a minute) and sets up the game for it. \nNeeds an account, and can be undone",
         "type": "none",
         "category": "General",
         "button": "Run",
-        "buttonAction": "{{kute}}.autoDetect.start()"
+        "buttonAction": "{{kute}}.autoDetect.start()",
+        "requiresLogin": true
     },
-    "autoDetectUndo": {
-        "name": "Undo Auto-Detect",
-        "id": "autoDetectUndo",
-        "description": "Brings back the settings from before the last run",
+    "autoDetectResult": {
+        "name": "Last Auto-Detect Result",
+        "id": "autoDetectResult",
+        "description": "What the last run measured and changed, with the undo",
         "type": "none",
         "category": "General",
-        "button": "Undo",
-        "buttonAction": "{{kute}}.autoDetect.undo()"
+        "button": "Show",
+        "buttonAction": "{{kute}}.autoDetect.showLast()"
     },
     "startMode": {
         "name": "Start Mode",

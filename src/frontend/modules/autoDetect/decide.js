@@ -1,42 +1,46 @@
-import { TIERS } from "./gameSettings.js";
-
-// The decision rules of auto-detect, kept free of DOM and game access so they can change through the
-// hot update channel (and be reasoned about) on their own. Background: _docs/auto-detect-plan.md.
+// The decision of auto-detect, free of DOM and game access so it can change through the hot update
+// channel on its own. It knows no presets and no kinds of PC: every game setting it changes is one that
+// was measured to help on this PC. Background and the data behind the constants: _docs/auto-detect-plan.md.
 
 /** Frames per second the game should hold, as a multiple of the display's refresh rate. */
 export const TARGET_REFRESH_MULTIPLE = 3;
-/** A probe has to move the frame rate by this factor to count, below it is measuring noise. */
-export const SIGNIFICANT = 1.15;
+/**
+ * The test match is empty and the PC is cool, a real match is neither. A laptop was measured to lose a
+ * quarter to heat within a minute, so the goal has to be cleared by that much.
+ */
+export const HEADROOM = 1.25;
+/** Neighbouring samples agree within one to four percent in a test match. Less than five is not worth a visual loss either. */
+export const SIGNIFICANT_SETTING = 1.05;
+/** Half the pixels has to gain this much before the graphics card counts as the limit. */
+export const SIGNIFICANT_RESOLUTION = 1.1;
 /** Auto-detect never lowers the resolution scale below this. */
 export const MIN_RESOLUTION = 0.75;
+
 /**
- * A match runs at least this much faster than the menu in front of it: the menu's own interface costs main
- * thread time. Measured 1.5 to 2.2 on a desktop and 1.7 on a Tiger Lake laptop, the low end is used.
+ * @typedef {object} MeasuredSetting
+ * @property {string} id
+ * @property {string} label
+ * @property {string} current The value before the run
+ * @property {string} cheap
+ * @property {number|null} gain Frame rate with the cheap value divided by the rate with the other, null when not measured
+ * @property {boolean} steady Whether the samples around the measurement agreed
+ * @property {string} [note] Why there is no usable number
  */
-export const MENU_TO_MATCH = 1.5;
-/**
- * What a laptop still delivers once it is warm, as a share of what it shows in the first seconds.
- * A Tiger Lake laptop fell from 205 to 150 frames per second within a minute of an empty match.
- */
-export const LAPTOP_SUSTAINED = 0.75;
 
 /**
  * @typedef {object} Measurements
  * @property {number} baseFps At the player's current settings
- * @property {number} lowResFps At half the resolution scale
- * @property {number|null} highResFps At twice the resolution scale, null when it was not measured
- * @property {number} p50 Median frame time at the current settings, ms
+ * @property {number} p50 Median frame time, ms
  * @property {number} p99
  * @property {number} presentFps Frames reaching the swap chain, 0 without the hook
+ * @property {number|null} halfResolutionGain Frame rate at half the resolution scale divided by the normal one
+ * @property {MeasuredSetting[]} settings
  */
 
 /**
  * @typedef {object} Facts
  * @property {number} hz Refresh rate of the display that hosts the window
  * @property {boolean} onBattery
- * @property {boolean} laptop
- * @property {boolean} inMatch Whether the samples come from a match, otherwise from the menu
- * @property {(id: string) => string|null} readGameSetting
  * @property {number} throttle Kute's CPU throttle setting
  * @property {number} gameFpsLimit Kute's FPS limit setting
  * @property {number} gameFrameCap Krunker's own frame cap setting
@@ -48,18 +52,18 @@ export const LAPTOP_SUSTAINED = 0.75;
  * @property {string} id
  * @property {string} label
  * @property {string|number|boolean} value
- * @property {boolean} [needsReload]
+ * @property {string} reason
  */
 
 /**
  * @typedef {object} Plan
- * @property {"cpu"|"gpu"} regime What limits the frame rate right now
- * @property {boolean} gpuHeadroom Whether the GPU still kept up at four times the pixels
+ * @property {number} goal
+ * @property {number} needed The goal with headroom, what the test match has to show
+ * @property {boolean} holds Whether the PC already clears it
+ * @property {"cpu"|"gpu"|"unknown"} regime What limits the frame rate
  * @property {boolean} healthy False when frames pile up behind the swap chain
- * @property {number} target
- * @property {number} expectedFps What the PC should hold in a long match, the number the goal is compared with
- * @property {number} tiers How many tiers of game settings get their cheap values
- * @property {boolean} tuneResolution Whether the resolution scale may be lowered afterwards (measured by the caller)
+ * @property {number} predictedFps After the game changes, from the measured gains
+ * @property {boolean} tuneResolution Whether the caller may lower the resolution scale afterwards (by measuring)
  * @property {Change[]} changes
  */
 
@@ -72,25 +76,18 @@ function roundToStep(fps){
 }
 
 /**
- * From a few seconds of samples to what the PC holds in a long match.
- *
- * @param {number} fps
- * @param {{inMatch: boolean, laptop: boolean}} facts
- * @return {number}
- */
-export function expectedFps(fps, facts){
-    return fps * (facts.inMatch ? 1 : MENU_TO_MATCH) * (facts.laptop ? LAPTOP_SUSTAINED : 1);
-}
-
-/**
  * @param {Measurements} measured
  * @param {Facts} facts
  * @return {Plan}
  */
 export function decide(measured, facts){
-    const target = facts.hz * TARGET_REFRESH_MULTIPLE;
-    const gpuBound = measured.lowResFps / Math.max(1, measured.baseFps) >= SIGNIFICANT;
-    const gpuHeadroom = !gpuBound && measured.highResFps !== null && measured.baseFps / Math.max(1, measured.highResFps) < SIGNIFICANT;
+    const goal = facts.hz * TARGET_REFRESH_MULTIPLE;
+    const needed = goal * HEADROOM;
+    const holds = measured.baseFps >= needed;
+
+    /** @type {Plan["regime"]} */
+    let regime = "unknown";
+    if (measured.halfResolutionGain !== null) regime = measured.halfResolutionGain >= SIGNIFICANT_RESOLUTION ? "gpu" : "cpu";
 
     // the signature of frames piling up behind the swap chain: the loop counts far more frames than get
     // presented, or they arrive in bursts with a stall after each (p99 many times the median)
@@ -101,45 +98,55 @@ export function decide(measured, facts){
     /** @type {Change[]} */
     const changes = [];
 
-    // how far the PC is from the target decides how many tiers go, the menu cannot show what most of them cost
-    const expected = expectedFps(measured.baseFps, facts);
-    const deficit = target / Math.max(1, expected);
-    let tiers = 0;
-    if (deficit > 2.5) tiers = 4;
-    else if (deficit > 1.7) tiers = 3;
-    else if (deficit > 1.3) tiers = 2;
-    else if (deficit > 1) tiers = 1;
-
-    for (const tier of TIERS.slice(0, tiers)){
-        for (const setting of tier.settings){
-            if (facts.readGameSetting(setting.id) === String(setting.cheap)) continue;
-            changes.push({ scope: "game", id: setting.id, label: setting.label, value: setting.cheap, needsReload: setting.needsReload });
+    // quality is only traded while the goal is missed, and only for what was measured to pay on this PC:
+    // the biggest gain first, until the measured gains add up to the goal
+    let predictedFps = measured.baseFps;
+    if (!holds){
+        const helpful = measured.settings
+            .filter((setting) => setting.gain !== null && setting.steady && setting.current !== setting.cheap && setting.gain >= SIGNIFICANT_SETTING)
+            .sort((a, b) => (b.gain ?? 0) - (a.gain ?? 0));
+        for (const setting of helpful){
+            if (predictedFps >= needed) break;
+            const gain = setting.gain ?? 1;
+            predictedFps *= gain;
+            changes.push({
+                scope: "game",
+                id: setting.id,
+                label: setting.label,
+                value: setting.cheap,
+                reason: `measured +${Math.round((gain - 1) * 100)} %`,
+            });
         }
     }
 
     // Krunker's frame cap spins inside the frame loop. Kute's limiter holds the same rate with an idle main thread
     let fpsLimit = facts.gameFpsLimit;
     if (facts.gameFrameCap > 0){
-        changes.push({ scope: "game", id: "updateRate", label: "Frame Cap (game)", value: "0" });
+        changes.push({ scope: "game", id: "updateRate", label: "Frame Cap (game)", value: "0", reason: "replaced by Kute's FPS limit" });
         if (fpsLimit === 0) fpsLimit = roundToStep(facts.gameFrameCap);
     }
-    // everything above the target only drains the battery
-    if (facts.onBattery && (fpsLimit === 0 || fpsLimit > target)) fpsLimit = roundToStep(target);
+    // everything above the goal only drains the battery
+    if (facts.onBattery && (fpsLimit === 0 || fpsLimit > goal)) fpsLimit = roundToStep(goal);
     // rescue for a pipeline that still floods: hold the loop a bit below what actually gets presented
     if (!healthy && fpsLimit === 0) fpsLimit = roundToStep((measured.presentFps || measured.baseFps) * 0.9);
-    if (fpsLimit !== facts.gameFpsLimit) changes.push({ scope: "client", id: "gameFpsLimit", label: "FPS Limit", value: fpsLimit });
+    if (fpsLimit !== facts.gameFpsLimit){
+        let reason = "moved over from the game's frame cap";
+        if (!healthy) reason = "frames were piling up";
+        else if (facts.onBattery) reason = "on battery";
+        changes.push({ scope: "client", id: "gameFpsLimit", label: "FPS Limit", value: fpsLimit, reason });
+    }
 
     // CPU throttling pauses the main thread in bursts, which is what causes the lag spikes people report with it
-    if (facts.throttle > 1) changes.push({ scope: "client", id: "throttle", label: "CPU Throttling", value: 1 });
+    if (facts.throttle > 1) changes.push({ scope: "client", id: "throttle", label: "CPU Throttling", value: 1, reason: "causes lag spikes" });
 
     return {
-        regime: gpuBound ? "gpu" : "cpu",
-        gpuHeadroom,
+        goal,
+        needed,
+        holds,
+        regime,
         healthy,
-        target,
-        expectedFps: expected,
-        tiers,
-        tuneResolution: gpuBound && deficit > 1,
+        predictedFps,
+        tuneResolution: !holds && regime === "gpu" && predictedFps < needed,
         changes,
     };
 }
