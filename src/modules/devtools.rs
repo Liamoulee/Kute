@@ -35,6 +35,20 @@ pub fn clear_cache(browser: &Browser) {
     browser.reload();
 }
 
+// a trusted left click in view coordinates. pointer lock needs a real user gesture, a DOM click() is not one,
+// and unlike SendInput this does not move the user's cursor
+pub fn click(browser: &Browser, x: i32, y: i32) {
+    for event in ["mousePressed", "mouseReleased"] {
+        let Some(params) = dictionary_value_create() else { return };
+        params.set_string(Some(&CefString::from("type")), Some(&CefString::from(event)));
+        params.set_int(Some(&CefString::from("x")), x);
+        params.set_int(Some(&CefString::from("y")), y);
+        params.set_string(Some(&CefString::from("button")), Some(&CefString::from("left")));
+        params.set_int(Some(&CefString::from("clickCount")), 1);
+        call(browser, "Input.dispatchMouseEvent", Some(params));
+    }
+}
+
 pub fn enable_network(browser: &Browser) {
     call(browser, "Network.enable", None);
 }

@@ -485,8 +485,27 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             modules::input::set_pointer_locked(!value);
         }
         ["throttle", status] => {
-            let setting = if *status == "game" { "throttle" } else { "inMenuThrottle" };
-            modules::devtools::set_cpu_throttling(browser, config(setting, 1.0));
+            // "off" is the auto-detect run measuring the unthrottled page
+            let rate = match *status {
+                "off" => 1.0,
+                "game" => config("throttle", 1.0),
+                _ => config("inMenuThrottle", 1.0),
+            };
+            modules::devtools::set_cpu_throttling(browser, rate);
+        }
+        ["get-specs"] => {
+            let hwnd = window::root_hwnd(browser).unwrap_or_default();
+            bridge::post_json(browser, &serde_json::json!({ "specs": modules::specs::collect(hwnd) }).to_string());
+        }
+        // frames per second at the swap chain, 0 without the hook
+        ["get-present"] => {
+            let fps = app::render_stats().map(|(fps, _)| fps).unwrap_or(0);
+            bridge::post_json(browser, &format!("{{\"presentFps\":{fps}}}"));
+        }
+        ["click", x, y] => {
+            if let (Ok(x), Ok(y)) = (x.parse(), y.parse()) {
+                modules::devtools::click(browser, x, y);
+            }
         }
         ["close"] => {
             window::close_all();
