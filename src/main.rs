@@ -29,7 +29,8 @@ pub mod modules {
     pub mod userscripts;
 }
 
-static LAUNCH_ARGS: LazyLock<Mutex<Vec<String>>> = LazyLock::new(|| Mutex::new(env::args().skip(1).collect()));
+static LAUNCH_ARGS: LazyLock<Mutex<Vec<String>>> =
+    LazyLock::new(|| Mutex::new(env::args().skip(1).filter(|arg| !modules::lifecycle::is_internal_arg(arg)).collect()));
 static CONFIG: LazyLock<Mutex<config::Config>> = LazyLock::new(|| Mutex::new(config::Config::load()));
 static JS_VERSION: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new("0.0.0".to_string()));
 
@@ -70,6 +71,7 @@ fn main() {
     if let Some(bench) = bench {
         modules::bench::prepare_environment(bench);
     } else {
+        modules::lifecycle::wait_for_previous_instance();
         modules::lifecycle::register_instance();
     }
     #[cfg(feature = "packaged")]

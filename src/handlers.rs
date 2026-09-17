@@ -519,6 +519,9 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         ["close"] => {
             window::close_all();
         }
+        ["restart"] => {
+            modules::lifecycle::restart();
+        }
         ["clear-cache"] => {
             modules::devtools::clear_cache(browser);
         }

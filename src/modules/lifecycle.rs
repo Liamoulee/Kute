@@ -224,6 +224,36 @@ pub fn set_panic_hook() -> io::Result<()> {
     Ok(())
 }
 
+const WAIT_PID_ARG: &str = "--wait-pid=";
+
+// settings that only apply on a start (the swapchain hook, flags): start a second client that waits for this
+// one to be gone, then close this one the regular way so the config gets saved and the profile is released
+pub fn restart() {
+    let args: Vec<String> = crate::LAUNCH_ARGS.lock().unwrap().clone();
+    if let Ok(exe) = env::current_exe() {
+        process::Command::new(exe).args(args).arg(format!("{WAIT_PID_ARG}{}", process::id())).spawn().ok();
+    }
+    crate::window::close_all();
+}
+
+// started by restart(): the old client still holds the instance mutex and the chromium profile
+pub fn wait_for_previous_instance() {
+    let Some(pid) = env::args().find_map(|arg| arg.strip_prefix(WAIT_PID_ARG).and_then(|pid| pid.parse::<u32>().ok())) else {
+        return;
+    };
+    unsafe {
+        use windows::Win32::System::Threading::{OpenProcess, PROCESS_SYNCHRONIZE, WaitForSingleObject};
+        if let Ok(handle) = OpenProcess(PROCESS_SYNCHRONIZE, false, pid) {
+            WaitForSingleObject(handle, 15_000);
+            CloseHandle(handle).ok();
+        }
+    }
+}
+
+pub fn is_internal_arg(arg: &str) -> bool {
+    arg.starts_with(WAIT_PID_ARG)
+}
+
 pub fn register_instance() {
     unsafe {
         CreateMutexW(None, false, PCWSTR(create_utf_string(constants::INSTANCE_MUTEX).as_ptr())).ok();
