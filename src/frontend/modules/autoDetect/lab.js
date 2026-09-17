@@ -13,7 +13,7 @@ import * as game from "./gameSettings.js";
 const SAMPLE_MS = 1500;
 const SETTLE_MS = 500;
 
-/** @type {{delay?: number, hz?: number}} */
+/** @type {{delay?: number, hz?: number, laptop?: boolean}} */
 const options = /** @type {any} */ (window).kuteLab ?? {};
 
 /**
@@ -190,6 +190,8 @@ async function run(){
             {
                 hz: report.hz,
                 onBattery: false,
+                laptop: Boolean(options.laptop),
+                inMatch,
                 readGameSetting: (id) => snapshot[id],
                 throttle: 1,
                 gameFpsLimit: 0,

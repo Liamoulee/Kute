@@ -2,20 +2,11 @@
     "autoDetect": {
         "name": "Auto-Detect Best Settings",
         "id": "autoDetect",
-        "description": "Measures this PC for a few seconds, then sets up the game and the client for it",
+        "description": "Measures this PC and sets up the game and the client for it. \nA few seconds on a fast PC, about 20 in a private test match on a slower one",
         "type": "none",
         "category": "General",
         "button": "Run",
         "buttonAction": "{{kute}}.autoDetect.start()"
-    },
-    "autoDetectFineTune": {
-        "name": "Fine-Tune in a Test Lobby",
-        "id": "autoDetectFineTune",
-        "description": "The same, measured in a private match. Takes about 20 seconds",
-        "type": "none",
-        "category": "General",
-        "button": "Run",
-        "buttonAction": "{{kute}}.autoDetect.fineTune()"
     },
     "autoDetectUndo": {
         "name": "Undo Auto-Detect",

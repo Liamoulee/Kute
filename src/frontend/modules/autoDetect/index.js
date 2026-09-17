@@ -2,12 +2,14 @@ import panelHtml from "../../components/autoDetect.html";
 import { kute } from "../../client.js";
 import { checkCompMode } from "../../utils.js";
 import { FrameRecorder } from "./metrics.js";
-import { decide, MIN_RESOLUTION, TARGET_REFRESH_MULTIPLE } from "./decide.js";
+import { decide, expectedFps, MIN_RESOLUTION, TARGET_REFRESH_MULTIPLE } from "./decide.js";
 import * as game from "./gameSettings.js";
 
-// One click auto-detect: measures the real Krunker renderer behind the menu for a few seconds, decides
-// (decide.js) and applies game and client settings. Everything it touches is snapshotted first and can
-// be undone. Runs on its own on the first start and after the storage was cleared.
+// One click auto-detect: measures the real Krunker renderer, decides (decide.js) and applies game and
+// client settings. One sample behind the menu settles it for a PC that is far above its goal. Any other
+// PC is measured in an empty private match, because on a weak processor the menu runs far slower than
+// the game and says little about it. Everything that gets touched is snapshotted first and can be
+// undone. Runs on its own (menu only) on the first start and after the storage was cleared.
 
 const STORAGE_KEY = "kute_autodetect";
 const SAMPLE_MS = 1200;
@@ -145,17 +147,18 @@ function readable(value){
  * Test overrides from the launch arguments, e.g. `--autodetect-dev=hz:600,battery,gpu`. A strong PC reaches
  * every goal, so the weak PC branches need a pretend display (hz), battery or graphics card limit (gpu).
  *
- * @return {{hz?: number, battery?: boolean, gpu?: boolean}}
+ * @return {{hz?: number, battery?: boolean, gpu?: boolean, laptop?: boolean}}
  */
 function devOverrides(){
     const match = /--autodetect-dev=(\S+)/.exec(kute.launchArgs ?? "");
-    /** @type {{hz?: number, battery?: boolean, gpu?: boolean}} */
+    /** @type {{hz?: number, battery?: boolean, gpu?: boolean, laptop?: boolean}} */
     const overrides = {};
     for (const part of match?.[1].split(",") ?? []){
         const [key, value] = part.split(":");
         if (key === "hz") overrides.hz = Number(value);
         if (key === "battery") overrides.battery = true;
         if (key === "gpu") overrides.gpu = true;
+        if (key === "laptop") overrides.laptop = true;
     }
     return overrides;
 }
@@ -354,20 +357,11 @@ class AutoDetect {
     }
 
     /**
-     * The same run, measured in a private match instead of behind the menu. Slower, but it sees the real load.
-     *
+     * @param {boolean} [automatic] True for the first start run: it stays quiet when it cannot run and never
+     * leaves the menu, nobody asked for their pointer to be taken into a match
      * @return {Promise<void>}
      */
-    fineTune(){
-        return this.start(false, true);
-    }
-
-    /**
-     * @param {boolean} [automatic] True for the first start run, which stays quiet when it cannot run
-     * @param {boolean} [inMatch] Measure in a private test lobby
-     * @return {Promise<void>}
-     */
-    async start(automatic = false, inMatch = false){
+    async start(automatic = false){
         if (this.running) return;
         if (document.pointerLockElement || checkCompMode()){
             if (!automatic) kute.showNotification("Open the menu outside of a competitive match first", false, 4);
@@ -391,29 +385,17 @@ class AutoDetect {
         };
         document.addEventListener("keydown", onKey, true);
 
-        let leftTheMenu = false;
+        // run() moves into a test lobby when it has to, and whoever cleans up needs to know
+        const venue = { inMatch: false };
         try {
-            if (inMatch){
-                panel.progress("Opening a private test lobby", 0.02);
-                panel.clickThrough(true);
-                leftTheMenu = await hostLobby();
-                if (leftTheMenu){
-                    panel.progress("Joining the test lobby", 0.04);
-                    leftTheMenu = await spawn();
-                }
-                panel.clickThrough(false);
-                // no account, no free host slot or a changed host window: the menu still gives a result
-                if (!leftTheMenu) window.closWind?.();
-            }
-
-            const summary = await this.run(panel, state, leftTheMenu);
-            if (leftTheMenu) document.exitPointerLock();
+            const summary = await this.run(panel, state, venue, !automatic);
+            if (venue.inMatch) document.exitPointerLock();
             if (summary === null){
                 this.restore(state.snapshot);
                 // an automatic run that was cancelled must not come back on every start
                 writeState(previous ?? { status: "done", at: Date.now(), snapshot: state.snapshot });
                 panel.close();
-                if (leftTheMenu) location.href = HOME;
+                if (venue.inMatch) location.href = HOME;
                 return;
             }
             state.status = "done";
@@ -426,12 +408,12 @@ class AutoDetect {
             }
             delete state.previous;
             // leaving the test lobby is a page load as well, the summary comes up after it
-            if (summary.needsReload || leftTheMenu){
+            if (summary.needsReload || venue.inMatch){
                 state.showSummary = true;
                 writeState(state);
-                panel.progress(leftTheMenu ? "Leaving the test lobby" : "Reloading the game to apply the new settings", 1);
+                panel.progress(venue.inMatch ? "Leaving the test lobby" : "Reloading the game to apply the new settings", 1);
                 await sleep(1200);
-                if (leftTheMenu) location.href = HOME;
+                if (venue.inMatch) location.href = HOME;
                 else location.reload();
                 return;
             }
@@ -443,7 +425,7 @@ class AutoDetect {
             if (previous) writeState(previous);
             else localStorage.removeItem(STORAGE_KEY);
             panel.close();
-            if (leftTheMenu){
+            if (venue.inMatch){
                 document.exitPointerLock();
                 location.href = HOME;
             }
@@ -461,10 +443,11 @@ class AutoDetect {
      *
      * @param {Panel} panel
      * @param {RunState} state
-     * @param {boolean} inMatch Whether the page shows a match instead of the menu
+     * @param {{inMatch: boolean}} venue Set to the match once the run had to leave the menu
+     * @param {boolean} allowLobby Whether the run may open a private test lobby
      * @return {Promise<{summary: NonNullable<RunState["summary"]>, needsReload: boolean}|null>} null when cancelled
      */
-    async run(panel, state, inMatch){
+    async run(panel, state, venue, allowLobby){
         const dev = devOverrides();
 
         panel.progress("Reading your hardware", 0.05);
@@ -479,6 +462,8 @@ class AutoDetect {
         /** @type {{name: string, software: boolean, vramMb: number}[]} */
         const gpus = (specs.gpus ?? []).filter((/** @type {{software: boolean}} */ gpu) => !gpu.software);
         const gpuName = [...gpus].sort((a, b) => b.vramMb - a.vramMb)[0]?.name ?? "your PC";
+        const laptop = dev.laptop ?? Boolean(specs.laptop);
+        const goal = hz * TARGET_REFRESH_MULTIPLE;
 
         // measure the page itself: no menu throttle, no limiter of ours, no frame cap of the game
         window.chrome.webview.postMessage("throttle, off");
@@ -495,11 +480,38 @@ class AutoDetect {
         // whether the scene holds still enough to compare anything. a busy scene swings by a factor of two
         // within seconds (seen in a live public match), and a probe read against that is pure noise
         const resolution = Number(state.snapshot.game[game.RESOLUTION]) || 1;
+        panel.progress("Measuring your current settings", 0.1);
         let base = await measure();
         let lowRes = base;
         let presentFps = 0;
         // a PC that is far above the goal gets no changes whatever limits it, so it is done after one sample
-        const comfortable = base.fps >= hz * TARGET_REFRESH_MULTIPLE * COMFORTABLE;
+        let comfortable = expectedFps(base.fps, { inMatch: false, laptop }) >= goal * COMFORTABLE;
+
+        // everyone else is measured where it counts. the menu of a weak PC runs at half the speed of its
+        // matches, and deciding from that would take effects away from players who do not need to lose them
+        if (!comfortable && allowLobby && !this.cancelled){
+            panel.progress("Opening a private test lobby", 0.12);
+            panel.clickThrough(true);
+            let joined = await hostLobby();
+            if (joined){
+                panel.progress("Joining the test lobby", 0.16);
+                joined = await spawn();
+            }
+            panel.clickThrough(false);
+            if (joined){
+                venue.inMatch = true;
+                // clicking in switched the client to its in-game throttle
+                window.chrome.webview.postMessage("throttle, off");
+                await sleep(1000);
+                base = await measure();
+                lowRes = base;
+                comfortable = expectedFps(base.fps, { inMatch: true, laptop }) >= goal * COMFORTABLE;
+            }
+            // no account, no free host slot or a changed host window: the menu still gives a result
+            else window.closWind?.();
+        }
+        if (this.cancelled) return null;
+
         let steady = comfortable;
         if (comfortable) presentFps = Number(await request("get-present", "presentFps")) || 0;
         for (let attempt = 0; attempt < 2 && !steady; attempt++){
@@ -518,7 +530,10 @@ class AutoDetect {
 
             const secondBase = await measure();
             base = secondBase.fps > firstBase.fps ? secondBase : firstBase;
-            steady = Math.abs(firstBase.fps - secondBase.fps) / Math.max(1, base.fps) <= STEADY_SPREAD;
+            // half the pixels cannot be slower either, a sample like that caught a hiccup
+            steady =
+                Math.abs(firstBase.fps - secondBase.fps) / Math.max(1, base.fps) <= STEADY_SPREAD &&
+                lowRes.fps >= base.fps * (1 - STEADY_SPREAD);
         }
         // nothing may be concluded from a probe when the baseline itself does not hold
         if (!steady) lowRes = base;
@@ -539,6 +554,8 @@ class AutoDetect {
             {
                 hz,
                 onBattery: dev.battery ?? Boolean(specs.onBattery),
+                laptop,
+                inMatch: venue.inMatch,
                 readGameSetting: (id) => state.snapshot.game[id],
                 throttle: Number(state.snapshot.client.throttle) || 1,
                 gameFpsLimit: fpsLimitBefore,
@@ -589,8 +606,9 @@ class AutoDetect {
 
         const limited = plan.regime === "gpu" ? "graphics card" : "processor";
         details.push(
-            `${Math.round(base.fps)} FPS in ${inMatch ? "a match" : "the menu"}, goal ${plan.target} (${hz} Hz)` +
-                `${comfortable ? ", well above it" : `, limited by the ${limited}`}` +
+            `${Math.round(base.fps)} FPS in ${venue.inMatch ? "a test match" : "the menu"}` +
+                `${Math.round(plan.expectedFps) === Math.round(base.fps) ? "" : `, about ${Math.round(plan.expectedFps)} expected in long matches`}` +
+                `, goal ${plan.target} (${hz} Hz)${comfortable ? ", well above it" : `, limited by the ${limited}`}` +
                 `${plan.gpuHeadroom ? ", graphics card far from its limit" : ""}${plan.healthy ? "" : ", frames were piling up"}` +
                 `${steady ? "" : ". The scene was too busy to test the graphics card"}`,
         );

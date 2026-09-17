@@ -9,6 +9,16 @@ export const TARGET_REFRESH_MULTIPLE = 3;
 export const SIGNIFICANT = 1.15;
 /** Auto-detect never lowers the resolution scale below this. */
 export const MIN_RESOLUTION = 0.75;
+/**
+ * A match runs at least this much faster than the menu in front of it: the menu's own interface costs main
+ * thread time. Measured 1.5 to 2.2 on a desktop and 1.7 on a Tiger Lake laptop, the low end is used.
+ */
+export const MENU_TO_MATCH = 1.5;
+/**
+ * What a laptop still delivers once it is warm, as a share of what it shows in the first seconds.
+ * A Tiger Lake laptop fell from 205 to 150 frames per second within a minute of an empty match.
+ */
+export const LAPTOP_SUSTAINED = 0.75;
 
 /**
  * @typedef {object} Measurements
@@ -24,6 +34,8 @@ export const MIN_RESOLUTION = 0.75;
  * @typedef {object} Facts
  * @property {number} hz Refresh rate of the display that hosts the window
  * @property {boolean} onBattery
+ * @property {boolean} laptop
+ * @property {boolean} inMatch Whether the samples come from a match, otherwise from the menu
  * @property {(id: string) => string|null} readGameSetting
  * @property {number} throttle Kute's CPU throttle setting
  * @property {number} gameFpsLimit Kute's FPS limit setting
@@ -45,6 +57,7 @@ export const MIN_RESOLUTION = 0.75;
  * @property {boolean} gpuHeadroom Whether the GPU still kept up at four times the pixels
  * @property {boolean} healthy False when frames pile up behind the swap chain
  * @property {number} target
+ * @property {number} expectedFps What the PC should hold in a long match, the number the goal is compared with
  * @property {number} tiers How many tiers of game settings get their cheap values
  * @property {boolean} tuneResolution Whether the resolution scale may be lowered afterwards (measured by the caller)
  * @property {Change[]} changes
@@ -56,6 +69,17 @@ export const MIN_RESOLUTION = 0.75;
  */
 function roundToStep(fps){
     return Math.max(5, Math.round(fps / 5) * 5);
+}
+
+/**
+ * From a few seconds of samples to what the PC holds in a long match.
+ *
+ * @param {number} fps
+ * @param {{inMatch: boolean, laptop: boolean}} facts
+ * @return {number}
+ */
+export function expectedFps(fps, facts){
+    return fps * (facts.inMatch ? 1 : MENU_TO_MATCH) * (facts.laptop ? LAPTOP_SUSTAINED : 1);
 }
 
 /**
@@ -78,7 +102,8 @@ export function decide(measured, facts){
     const changes = [];
 
     // how far the PC is from the target decides how many tiers go, the menu cannot show what most of them cost
-    const deficit = target / Math.max(1, measured.baseFps);
+    const expected = expectedFps(measured.baseFps, facts);
+    const deficit = target / Math.max(1, expected);
     let tiers = 0;
     if (deficit > 2.5) tiers = 4;
     else if (deficit > 1.7) tiers = 3;
@@ -112,6 +137,7 @@ export function decide(measured, facts){
         gpuHeadroom,
         healthy,
         target,
+        expectedFps: expected,
         tiers,
         tuneResolution: gpuBound && deficit > 1,
         changes,
