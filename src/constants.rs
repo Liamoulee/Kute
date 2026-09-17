@@ -61,7 +61,9 @@ pub const DEFAULT_BLOCKLIST: &str = r#"[
 
 // most are expired, but theyre all in here to cover multiple versions
 pub const DEFAULT_FLAGS: &str = r#"[
-  "--disable-features=PerformanceInterventionUI,site-isolation-trial-opt-out,slow-dc-timer-interrupts-win,NativeNotifications,webxr-runtime,enable-resource-loading-hint,MediaRouter,msWebOOUI,msPdfOOUI,msSmartScreenProtection,TextureLayerSkipWaitForActivation,CalculateNativeWinOcclusion,HappinessTrackingSurveysForDesktopDemo",
+  "--disable-features=PerformanceInterventionUI,site-isolation-trial-opt-out,slow-dc-timer-interrupts-win,NativeNotifications,webxr-runtime,enable-resource-loading-hint,MediaRouter,msWebOOUI,msPdfOOUI,msSmartScreenProtection,TextureLayerSkipWaitForActivation,CalculateNativeWinOcclusion,HappinessTrackingSurveysForDesktopDemo,HardwareMediaKeyHandling",
+  "--disable-backgrounding-occluded-windows",
+  "--force-high-performance-gpu",
   "--ui-disable-partial-swap",
   "--disable-gpu-sandbox",
   "--ignore-gpu-blocklist",
