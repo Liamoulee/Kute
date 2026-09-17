@@ -11,8 +11,8 @@ import { parseReport } from "../util/report";
 export async function telemetryRoutes(app: FastifyInstance): Promise<void> {
     const insert = getDb().prepare(
         `INSERT INTO autodetect_reports
-            (received_day, kute_version, gpu, cpu, hz, laptop, base_fps, final_fps, regime, holds_goal, changes, report)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            (received_day, kute_version, run_index, gpu, cpu, hz, laptop, base_fps, final_fps, regime, holds_goal, changes, report)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
 
     // The result of one auto-detect run, sent by clients that did not opt out. A run takes a minute,
@@ -30,6 +30,7 @@ export async function telemetryRoutes(app: FastifyInstance): Promise<void> {
             // the day is all the time that is kept
             new Date().toISOString().slice(0, 10),
             report.kute,
+            report.run,
             report.gpu,
             report.cpu,
             report.hz,

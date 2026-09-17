@@ -12,6 +12,13 @@ export function getDb(): Database {
     return db;
 }
 
+function ensureColumn(table: string, column: string, def: string): void {
+    const cols = db.query<{ name: string }, []>(`PRAGMA table_info(${table})`).all();
+    if (!cols.some((c: { name: string }) => c.name === column)){
+        db.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${def}`);
+    }
+}
+
 export function initDb(): void {
     db = new Database("data/kute.db", { create: true });
 
@@ -25,6 +32,7 @@ export function initDb(): void {
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
             received_day  TEXT NOT NULL,
             kute_version  TEXT NOT NULL,
+            run_index     INTEGER NOT NULL DEFAULT 0,
             gpu           TEXT NOT NULL,
             cpu           TEXT NOT NULL,
             hz            INTEGER NOT NULL,
@@ -40,6 +48,8 @@ export function initDb(): void {
         CREATE INDEX IF NOT EXISTS autodetect_reports_gpu ON autodetect_reports (gpu);
         CREATE INDEX IF NOT EXISTS autodetect_reports_day ON autodetect_reports (received_day);
     `);
+
+    ensureColumn("autodetect_reports", "run_index", "INTEGER NOT NULL DEFAULT 0");
 
     Log.done("Database initialized.");
 }

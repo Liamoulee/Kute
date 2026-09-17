@@ -35,6 +35,9 @@ export type Change = {
 
 export type Report = {
     kute: string;
+    // the how-manieth auto-detect run on that install, 0 when the client did not say. not an id: it only tells
+    // first runs from repeats
+    run: number;
     gpu: string;
     cpu: string;
     hz: number;
@@ -115,6 +118,7 @@ export function parseReport(body: unknown): Report | string {
 
         return {
             kute: text(raw.kute, "kute", 24),
+            run: raw.run === undefined ? 0 : number(raw.run, "run", 0, 100000),
             gpu: text(raw.gpu, "gpu", 160),
             cpu: text(raw.cpu, "cpu", 160),
             hz: number(raw.hz, "hz", 1, 2000),

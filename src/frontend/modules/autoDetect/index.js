@@ -13,6 +13,9 @@ import * as game from "./gameSettings.js";
 // start only tells the player where the button is.
 
 const STORAGE_KEY = "kute_autodetect";
+// how many runs finished on this install. shared with a report so that first runs can be told from repeats,
+// which a server without any kind of client id could not do otherwise
+const RUNS_KEY = "kute_autodetect_runs";
 const SAMPLE_MS = 900;
 const SETTLE_MS = 450;
 // samples of the same settings right before and after a measurement may differ by this share. beyond it
@@ -348,7 +351,7 @@ function advancedHtml(report){
         test match. They were not tested and not changed.</p>
         <p>${kute.settings.data.telemetry === false
         ? "Sharing is off, these numbers stayed on this PC."
-        : "These numbers (and nothing else) were shared to improve auto-detect. Settings, About, Share Auto-Detect Results turns that off."}</p>`;
+        : "These numbers (and nothing else) were shared to improve auto-detect. Settings, About, Anonymous Telemetry turns that off."}</p>`;
 }
 
 class Panel {
@@ -576,8 +579,10 @@ class AutoDetect {
             state.showSummary = true;
             writeState(state);
             // shared unless the player switched it off: the measurements, no account, no ids (the host checks the setting too)
+            const run = (Number(localStorage.getItem(RUNS_KEY)) || 0) + 1;
+            localStorage.setItem(RUNS_KEY, String(run));
             if (kute.settings.data.telemetry !== false){
-                window.chrome.webview.postMessage(`telemetry ${JSON.stringify({ kute: kute.version, ...outcome.report })}`);
+                window.chrome.webview.postMessage(`telemetry ${JSON.stringify({ kute: kute.version, run, ...outcome.report })}`);
             }
             panel.progress("Leaving the test match", 1);
             document.exitPointerLock();
