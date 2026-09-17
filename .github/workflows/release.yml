@@ -2,6 +2,15 @@ name: release
 
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: What to do with the built installer
+        type: choice
+        default: draft release
+        options:
+          - draft release
+          - published release
+          - build only
 
 permissions:
   contents: write
@@ -12,12 +21,12 @@ concurrency:
 
 jobs:
   release:
-    name: Draft release
+    name: Build installer
     runs-on: windows-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: master
           fetch-depth: 0
@@ -34,6 +43,19 @@ jobs:
 
           $version = $versionLine.Matches[0].Groups[1].Value
           Add-Content $env:GITHUB_OUTPUT "version=$version"
+
+      # fail before the long build when the version was not bumped. an existing draft is fine, it gets updated
+      - name: Check that the version is not released yet
+        if: inputs.mode != 'build only'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $isDraft = gh release view "${{ steps.version.outputs.version }}" --json isDraft --jq .isDraft 2>$null
+          if ($LASTEXITCODE -eq 0 -and $isDraft -eq "false") {
+            throw "Release ${{ steps.version.outputs.version }} is already published. Bump the version in Cargo.toml first."
+          }
+          exit 0
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
@@ -62,11 +84,19 @@ jobs:
       - name: Build installer
         run: bun run package
 
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: kute-setup-x86_64-msi-${{ steps.version.outputs.version }}-${{ github.sha }}
+          path: target/kute-setup-x86_64.msi
+          retention-days: 7
+
       - name: Create GitHub Release
+        if: inputs.mode != 'build only'
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.version.outputs.version }}
           name: ${{ steps.version.outputs.version }}
-          draft: true
+          draft: ${{ inputs.mode == 'draft release' }}
           generate_release_notes: true
           files: target/kute-setup-x86_64.msi
