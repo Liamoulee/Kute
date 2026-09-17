@@ -227,14 +227,15 @@ pub fn set_panic_hook() -> io::Result<()> {
 // an auto-detect report: hardware names and measurements, nothing about the player (see server/src/util/report.ts
 // for the exact fields the server keeps). sent from here and not from the page, where the game's content
 // security policy decides what may be fetched. fire and forget: a lost report is not worth a retry
-pub fn send_telemetry(report: String) {
-    if !utils::config("telemetry", true) {
+pub fn send_telemetry(kind: &str, report: String) {
+    if !utils::config("telemetry", true) || !constants::TELEMETRY_KINDS.contains(&kind) {
         return;
     }
+    let kind = kind.to_string();
     std::thread::spawn(move || {
         let agent: ureq::Agent = ureq::Agent::config_builder().timeout_global(Some(std::time::Duration::from_secs(8))).build().into();
         // KUTE_TELEMETRY_URL points a development client at a local server
-        let url = env::var("KUTE_TELEMETRY_URL").unwrap_or_else(|_| constants::TELEMETRY_URL.to_string());
+        let url = env::var("KUTE_TELEMETRY_URL").unwrap_or_else(|_| constants::TELEMETRY_URL.to_string()) + &kind;
         let _result = agent.post(&url).header("content-type", "application/json").send(report);
         crate::debug_print!("telemetry: {:?}", _result.map(|response| response.status()));
     });

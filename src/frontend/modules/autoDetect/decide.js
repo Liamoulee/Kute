@@ -46,6 +46,11 @@ export const SIGNIFICANT_CLIENT_FPS = 1.25;
  * @property {number} fps Average frames per second, 0 when the process failed
  * @property {number} p99 Frame time of the slowest 1 % of frames in ms, what stutter feels like
  * @property {number} low The same as frames per second (1000 / p99), for showing it
+ * @property {number} [p50] The rest is only there for the report: median and worst frame time in ms,
+ * @property {number} [max]
+ * @property {{p50: number, p99: number, max: number}|null} [present] the hook's own present intervals in ms,
+ * @property {number} [taskDelayP99] how long other main thread work waited in ms,
+ * @property {number} [limit] and the FPS cap that "limit=auto" turned into
  */
 
 /**
@@ -99,6 +104,8 @@ export function decideClient(results, settings, hz){
  * @property {number|null} gain Frame rate with the cheap value divided by the rate with the other, null when not measured
  * @property {boolean} steady Whether the samples around the measurement agreed
  * @property {string} [note] Why there is no usable number
+ * @property {number[]} [raw] For the report: frames per second before, with the value flipped, and after
+ * @property {number} [confirmGain] The second measurement, when there was one
  */
 
 /**

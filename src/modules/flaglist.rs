@@ -56,3 +56,25 @@ pub fn load() -> Vec<String> {
         .chain(flaglist.flags)
         .collect()
 }
+
+// what the user added or switched off, for the auto-detect report. only the switch names: the part after "="
+// can be anything, including a path, except for the feature lists, which are plain chromium feature names
+pub fn user_flag_names() -> (Vec<String>, Vec<String>) {
+    let path = utils::settings_dir().join("user_flags.json");
+    let Some(user) = fs::read_to_string(path).ok().and_then(|text| serde_json::from_str::<UserFlags>(&text).ok()) else {
+        return (Vec::new(), Vec::new());
+    };
+    let name = |flag: &String| -> Option<String> {
+        let flag = flag.trim();
+        if flag.is_empty() {
+            return None;
+        }
+        let keeps_value = flag.starts_with("--enable-features=") || flag.starts_with("--disable-features=");
+        let text = if keeps_value { flag } else { flag.split('=').next().unwrap_or(flag) };
+        Some(text.chars().take(200).collect())
+    };
+    (
+        user.flags.iter().filter_map(name).take(32).collect(),
+        user.disabled_defaults.iter().filter_map(name).take(64).collect(),
+    )
+}

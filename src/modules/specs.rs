@@ -121,9 +121,32 @@ fn power() -> (bool, bool) {
     (laptop, on_battery)
 }
 
+// the windows build number ("26200"), the presentation path differs between builds
+fn os_build() -> String {
+    let mut buf = [0u16; 32];
+    let mut size = (buf.len() * 2) as u32;
+    let status = unsafe {
+        RegGetValueW(
+            HKEY_LOCAL_MACHINE,
+            w!("SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion"),
+            w!("CurrentBuildNumber"),
+            RRF_RT_REG_SZ,
+            None,
+            Some(buf.as_mut_ptr() as *mut _),
+            Some(&mut size),
+        )
+    };
+    if status == ERROR_SUCCESS { wide_to_string(&buf) } else { String::new() }
+}
+
 pub fn collect(hwnd: HWND) -> Value {
     let (laptop, on_battery) = power();
+    let (user_flags, disabled_defaults) = crate::modules::flaglist::user_flag_names();
     json!({
+        "osBuild": os_build(),
+        // names only: a flag's value can be a path with a user name in it
+        "userFlags": user_flags,
+        "disabledDefaults": disabled_defaults,
         "displays": displays(hwnd),
         "gpus": gpus(),
         "cpu": {

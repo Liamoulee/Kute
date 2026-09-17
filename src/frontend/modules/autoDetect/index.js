@@ -58,6 +58,8 @@ const HOME = "https://krunker.io/";
  * @property {import("./decide.js").Plan} plan
  * @property {number|null} finalFps Measured again after the changes
  * @property {number} seconds
+ * @property {Record<string, any>} [details] Only for the shared report: the system, the settings the run happened
+ * under and the raw numbers behind the results, so that the rules can be re-evaluated later without new runs
  */
 
 /**
@@ -293,7 +295,9 @@ async function measureClient(configs){
     /** @type {any[]|null} */
     const raw = await request(`run-bench-matrix ${JSON.stringify(configs.map((entry) => entry.config))}`, "benchMatrix", 20000 * configs.length);
     return configs.map((entry, index) => {
-        const stats = raw?.[index]?.page?.stats;
+        const result = raw?.[index];
+        const stats = result?.page?.stats;
+        const present = result?.present;
         return {
             config: entry.config,
             label: entry.label,
@@ -303,8 +307,40 @@ async function measureClient(configs){
             fps: stats?.fps ?? 0,
             p99: stats?.p99 ?? 0,
             low: stats?.p99 > 0 ? 1000 / stats.p99 : 0,
+            p50: stats?.p50 ?? 0,
+            max: stats?.maxMs ?? 0,
+            present: typeof present?.p99 === "number" ? { p50: present.p50, p99: present.p99, max: present.max } : null,
+            taskDelayP99: result?.page?.otherTasks?.p99 ?? 0,
+            limit: result?.config?.limit ?? 0,
         };
     });
+}
+
+/**
+ * The GPU the page really renders on. On a laptop with two that is not always the fast one.
+ *
+ * @return {string}
+ */
+function webglRenderer(){
+    try {
+        const gl = document.createElement("canvas").getContext("webgl2");
+        const info = gl?.getExtension("WEBGL_debug_renderer_info");
+        return gl && info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : "";
+    }
+    catch {
+        return "";
+    }
+}
+
+/**
+ * @return {number[]} Width and height of the game's canvas, the pixels that really get rendered
+ */
+function gameCanvasSize(){
+    let best = [0, 0];
+    for (const canvas of document.querySelectorAll("canvas")){
+        if (canvas.width * canvas.height > best[0] * best[1]) best = [canvas.width, canvas.height];
+    }
+    return best;
 }
 
 /**
@@ -543,8 +579,9 @@ class AutoDetect {
         };
         document.addEventListener("keydown", onKey, true);
 
-        // whoever cleans up has to know whether the page is still the menu
-        const venue = { inMatch: false };
+        // whoever cleans up has to know whether the page is still the menu, and a failure report how far it got
+        const venue = { inMatch: false, stage: "start" };
+        const startedAt = performance.now();
         /**
          * Back to how it was before the run.
          */
@@ -575,6 +612,9 @@ class AutoDetect {
                 state.undoable = true;
             }
             delete state.previous;
+            // the raw numbers are for the shared report, the stored one only needs what the Advanced view shows
+            state.report = { ...outcome.report };
+            delete state.report.details;
             // leaving the test match is a page load, the summary comes up after it
             state.showSummary = true;
             writeState(state);
@@ -582,7 +622,7 @@ class AutoDetect {
             const run = (Number(localStorage.getItem(RUNS_KEY)) || 0) + 1;
             localStorage.setItem(RUNS_KEY, String(run));
             if (kute.settings.data.telemetry !== false){
-                window.chrome.webview.postMessage(`telemetry ${JSON.stringify({ kute: kute.version, run, ...outcome.report })}`);
+                window.chrome.webview.postMessage(`telemetry autodetect ${JSON.stringify({ kute: kute.version, run, ...outcome.report })}`);
             }
             panel.progress("Leaving the test match", 1);
             document.exitPointerLock();
@@ -591,7 +631,13 @@ class AutoDetect {
         }
         catch (error){
             abandon();
-            kute.showNotification(`Auto-detect stopped: ${error instanceof Error ? error.message : error}`, false, 7);
+            const message = error instanceof Error ? error.message : String(error);
+            kute.showNotification(`Auto-detect stopped: ${message}`, false, 7);
+            // a run that breaks is the one we need to hear about: it is how a changed host window gets noticed
+            if (kute.settings.data.telemetry !== false){
+                const failure = { kute: kute.version, stage: venue.stage, message: message.slice(0, 200), seconds: (performance.now() - startedAt) / 1000 };
+                window.chrome.webview.postMessage(`telemetry autodetect-failure ${JSON.stringify(failure)}`);
+            }
         }
         finally {
             document.removeEventListener("keydown", onKey, true);
@@ -605,7 +651,7 @@ class AutoDetect {
      *
      * @param {Panel} panel
      * @param {RunState} state
-     * @param {{inMatch: boolean}} venue
+     * @param {{inMatch: boolean, stage: string}} venue
      * @return {Promise<{summary: Summary, report: Report}|null>} null when cancelled
      */
     async run(panel, state, venue){
@@ -626,6 +672,7 @@ class AutoDetect {
         const gpuName = [...gpus].sort((a, b) => b.vramMb - a.vramMb)[0]?.name ?? "unknown graphics card";
 
         // the client first, from the menu: the host hides this page and shows its own test window meanwhile
+        venue.stage = "client";
         panel.progress("Testing the client", 0.03);
         const settingsNow = {
             hardFlip: kute.settings.data.hardFlip !== false,
@@ -652,6 +699,8 @@ class AutoDetect {
         }
         if (this.cancelled) return null;
 
+        const clientSeconds = (performance.now() - started) / 1000;
+        venue.stage = "lobby";
         panel.progress("Opening a private test match", 0.05);
         panel.clickThrough(true);
         let joined = await hostLobby();
@@ -665,6 +714,8 @@ class AutoDetect {
             throw new Error("could not open a private test match (is a host slot free?)");
         }
         venue.inMatch = true;
+        venue.stage = "measure";
+        const lobbySeconds = (performance.now() - started) / 1000 - clientSeconds;
         if (this.cancelled) return null;
 
         // measure the game itself: no throttle, no limiter of ours, no frame cap of the game
@@ -677,8 +728,11 @@ class AutoDetect {
         await sleep(2500);
 
         panel.progress("Measuring your current settings", 0.15);
+        // (the first call only starts a fresh window in the hook, the second one reads the baseline's presents)
+        await request("get-present-intervals", "presentIntervals");
         const first = await measure();
         const repeats = [first.fps, (await measure()).fps, (await measure()).fps];
+        const presentIntervals = (await request("get-present-intervals", "presentIntervals")) || null;
         const presentFps = Number(await request("get-present", "presentFps")) || 0;
         const base = first;
         const baseFps = Math.max(...repeats);
@@ -691,7 +745,7 @@ class AutoDetect {
         /**
          * @param {() => void} apply
          * @param {() => void} revert
-         * @return {Promise<{ratio: number, steady: boolean}>}
+         * @return {Promise<{ratio: number, steady: boolean, raw: number[]}>}
          */
         const compare = async(apply, revert) => {
             const before = reference;
@@ -703,7 +757,11 @@ class AutoDetect {
             const after = (await measure()).fps;
             reference = after;
             const mean = (before + after) / 2;
-            return { ratio: changed.fps / Math.max(1, mean), steady: Math.abs(before - after) / Math.max(1, mean) <= STEADY_SPREAD };
+            return {
+                ratio: changed.fps / Math.max(1, mean),
+                steady: Math.abs(before - after) / Math.max(1, mean) <= STEADY_SPREAD,
+                raw: [before, changed.fps, after],
+            };
         };
 
         /** @type {MeasuredSetting[]} */
@@ -732,10 +790,11 @@ class AutoDetect {
 
             panel.progress(`Measuring ${setting.label}`, 0.2 + (0.6 * live.indexOf(setting)) / live.length);
             const flipped = game.opposite(current);
-            const { ratio, steady } = await compare(() => game.write(setting.id, flipped), () => game.write(setting.id, current));
+            const { ratio, steady, raw } = await compare(() => game.write(setting.id, flipped), () => game.write(setting.id, current));
             // always stored as "what the cheap value gains", whichever direction was measured
             row.gain = flipped === cheap ? ratio : 1 / Math.max(0.01, ratio);
             row.steady = steady;
+            row.raw = raw;
         }
         if (this.cancelled) return null;
 
@@ -747,6 +806,7 @@ class AutoDetect {
                 if (this.cancelled) return null;
                 panel.progress(`Confirming ${row.label}`, 0.8);
                 const { ratio, steady } = await compare(() => game.write(row.id, row.cheap), () => game.write(row.id, row.current));
+                row.confirmGain = ratio;
                 row.gain = Math.min(row.gain, ratio);
                 row.steady = steady;
             }
@@ -776,6 +836,7 @@ class AutoDetect {
             },
         );
 
+        venue.stage = "apply";
         panel.progress("Applying", 0.88);
         /** @type {string[]} */
         const details = [];
@@ -853,6 +914,42 @@ class AutoDetect {
                 plan,
                 finalFps,
                 seconds: (performance.now() - started) / 1000,
+                details: {
+                    system: {
+                        gpus: (specs.gpus ?? []).map((/** @type {Record<string, any>} */ gpu) => ({ name: gpu.name, vramMb: gpu.vramMb, software: gpu.software })),
+                        renderer: webglRenderer(),
+                        threads: specs.cpu?.threads ?? 0,
+                        ramGb: Math.round((specs.ramMb ?? 0) / 1024),
+                        osBuild: specs.osBuild ?? "",
+                        displays: displays.map((/** @type {Record<string, any>} */ entry) => ({ width: entry.width, height: entry.height, hz: entry.hz, hostsWindow: Boolean(entry.hostsWindow) })),
+                        window: [window.innerWidth, window.innerHeight],
+                        canvas: gameCanvasSize(),
+                        pixelRatio: devicePixelRatio,
+                        onBattery: Boolean(specs.onBattery),
+                        userFlags: specs.userFlags ?? [],
+                        disabledDefaults: specs.disabledDefaults ?? [],
+                    },
+                    clientSettings: Object.fromEntries(
+                        ["hardFlip", "uncapFps", "gameFpsLimit", "throttle", "inMenuThrottle", "webviewPriority", "angleBackend", "colorProfile", "rawInput"]
+                            .map((key) => [key, key in state.snapshot.client ? state.snapshot.client[key] : kute.settings.data[key]]),
+                    ),
+                    game: {
+                        resolution,
+                        frameCap: frameCapBefore,
+                        map: activity().map ?? "",
+                    },
+                    baseline: {
+                        samples: repeats,
+                        p50: base.p50,
+                        p95: base.p95,
+                        p99: base.p99,
+                        p999: base.p999,
+                        max: base.maxMs,
+                        present: presentIntervals,
+                    },
+                    halfResolution: half.raw,
+                    timings: { clientSeconds, lobbySeconds },
+                },
             },
         };
     }

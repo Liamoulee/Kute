@@ -452,10 +452,12 @@ pub fn open_in_default_browser(url: &str) {
 pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str) {
     debug_print!("web message: {message_string}");
     // the payload is JSON, so it must not go through the ", " split
-    if let Some(report) = message_string.strip_prefix("telemetry ") {
-        // JSON, so it must not go through the ", " split. capped like the server caps it
-        if report.len() <= 32 * 1024 {
-            modules::lifecycle::send_telemetry(report.to_string());
+    if let Some(rest) = message_string.strip_prefix("telemetry ") {
+        // "telemetry <kind> <json>". JSON, so it must not go through the ", " split. capped like the server caps it
+        if let Some((kind, report)) = rest.split_once(' ')
+            && report.len() <= 64 * 1024
+        {
+            modules::lifecycle::send_telemetry(kind, report.to_string());
         }
         return;
     }
@@ -524,6 +526,17 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         ["get-present"] => {
             let fps = app::render_stats().map(|(fps, _)| fps).unwrap_or(0);
             bridge::post_json(browser, &format!("{{\"presentFps\":{fps}}}"));
+        }
+        // the distribution of the hook's present intervals since the last call (a call also starts a new window)
+        ["get-present-intervals"] => {
+            let intervals = if config("hardFlip", true) { app::take_present_intervals() } else { None };
+            let reply = match intervals {
+                Some((p50, p99, max, arrive_p99, samples)) => serde_json::json!({ "presentIntervals": {
+                    "p50": p50 as f64 / 1e6, "p99": p99 as f64 / 1e6, "max": max as f64 / 1e6, "arriveP99": arrive_p99 as f64 / 1e6, "samples": samples,
+                } }),
+                None => serde_json::json!({ "presentIntervals": false }),
+            };
+            bridge::post_json(browser, &reply.to_string());
         }
         ["click", x, y] => {
             if let (Ok(x), Ok(y)) = (x.parse(), y.parse()) {
