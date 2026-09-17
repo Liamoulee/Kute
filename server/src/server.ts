@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import Fastify from "fastify";
+import fastifyStatic from "@fastify/static";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import { createRateLimit } from "./util/rateLimit";
@@ -65,6 +66,12 @@ app.register(cors, { origin: "*" });
 app.register(helmet);
 
 app.addHook("onRequest", createRateLimit("global", 10, 1000, "Rate limit exceeded. Max 10 requests per second."));
+
+// the root: a page that says hello, nothing more
+app.register(fastifyStatic, {
+    root: path.join(import.meta.dir, "../public"),
+    prefix: "/",
+});
 
 app.register(metaRoutes, { prefix: "/api" });
 app.register(telemetryRoutes, { prefix: "/api/telemetry" });
