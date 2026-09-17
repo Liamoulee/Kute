@@ -153,6 +153,35 @@ pub fn window_from_browser(browser: &Browser) -> Option<&'static mut Window> {
     window_from_hwnd(hwnd)
 }
 
+// hides or shows the browser's own child window. a hidden page stops rendering
+pub fn set_browser_visible(browser: &Browser, visible: bool) {
+    let Some(host) = browser.host() else { return };
+    let handle = host.window_handle().0;
+    if handle.is_null() {
+        return;
+    }
+    unsafe {
+        let _ = ShowWindow(HWND(handle.cast()), if visible { SW_SHOW } else { SW_HIDE });
+    }
+    if visible {
+        host.set_focus(1);
+    }
+}
+
+// left, top, right, bottom of the window's client area in screen pixels
+pub fn client_rect_on_screen(browser: &Browser) -> Option<[i32; 4]> {
+    let hwnd = root_hwnd(browser)?;
+    unsafe {
+        let mut rect = RECT::default();
+        GetClientRect(hwnd, &mut rect).ok()?;
+        let mut origin = POINT::default();
+        if !ClientToScreen(hwnd, &mut origin).as_bool() {
+            return None;
+        }
+        Some([origin.x, origin.y, origin.x + rect.right, origin.y + rect.bottom])
+    }
+}
+
 pub fn browser_by_id(id: i32) -> Option<Browser> {
     BROWSERS.with_borrow(|b| b.get(&id).cloned())
 }
@@ -180,7 +209,8 @@ pub fn attach_browser(browser: &Browser) {
 
     if browser.is_popup() == 0 {
         MAIN_BROWSER.set(Some(browser.clone()));
-        if modules::bench::active() {
+        if let Some(bench) = modules::bench::config() {
+            modules::devtools::set_cpu_throttling(browser, bench.throttle);
             return;
         }
         modules::input::attach(hwnd);
@@ -281,11 +311,31 @@ pub fn create_main_window() {
     };
 
     if let Some([left, top, right, bottom]) = modules::bench::config().and_then(|bench| bench.rect) {
+        let locked = modules::bench::config().is_some_and(|bench| bench.locked);
         let state = WindowState {
-            fullscreen: false,
+            // borderless, so the rect is the client area
+            fullscreen: locked,
             position: Position { left, top, right, bottom },
         };
         let hwnd = create_window("Remember Previous", false, Some(state));
+        if locked {
+            // in front of the client without taking its focus, no taskbar entry, and deaf to mouse and keyboard
+            unsafe {
+                SetWindowLongPtrW(hwnd, GWL_EXSTYLE, (WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE).0 as _);
+                SetWindowPos(
+                    hwnd,
+                    Some(HWND_TOPMOST),
+                    left,
+                    top,
+                    right - left,
+                    bottom - top,
+                    SWP_NOACTIVATE | SWP_FRAMECHANGED,
+                )
+                .ok();
+                SetWindowPos(hwnd, Some(HWND_NOTOPMOST), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE).ok();
+                let _ = EnableWindow(hwnd, false);
+            }
+        }
         create_browser(hwnd, &modules::bench::url());
         return;
     }

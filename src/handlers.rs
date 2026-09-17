@@ -456,6 +456,15 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         modules::bench::finish(result);
         return;
     }
+    if let Some(configs) = message_string.strip_prefix("run-bench-matrix ") {
+        // only what a bench configuration is made of, the strings end up on a command line
+        let configs: Vec<String> = serde_json::from_str(configs).unwrap_or_default();
+        let harmless = |config: &String| config.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '=' | ',' | '.'));
+        if !modules::bench::active() && configs.len() <= 8 && configs.iter().all(harmless) {
+            modules::bench::run_matrix(browser, configs);
+        }
+        return;
+    }
     let parts: Vec<&str> = message_string.split(", ").map(|s| s.trim()).collect();
 
     match parts.as_slice() {
