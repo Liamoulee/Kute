@@ -78,6 +78,21 @@ try {
         console.warn("OBS plugin was not built; skipping bundled plugin copy.");
     }
 
+    // our own CEF build (aim freeze patches, see CLAUDE.md) replaces the stock files cef-dll-sys copied.
+    // same CEF version, so the downloaded headers, wrapper and resources still match
+    const patchedCefDir = path.join(process.cwd(), "resources", "cef");
+    if (fs.existsSync(patchedCefDir)){
+        for (const file of fs.readdirSync(patchedCefDir)){
+            const source = path.join(patchedCefDir, file);
+            // a checkout without git lfs leaves a small pointer file behind, never ship that
+            if (fs.statSync(source).size < 1024){
+                console.warn(`${file} in resources/cef is a git lfs pointer, run "git lfs pull". Keeping the stock file.`);
+                continue;
+            }
+            fs.copyFileSync(source, path.join(targetDir, file));
+        }
+    }
+
     // installer payload, everything except the exe itself (which the wxs references directly)
     fs.rmSync(distDir, { recursive: true, force: true });
     fs.mkdirSync(distDir, { recursive: true });
