@@ -11,6 +11,12 @@ declare module "*.html" {
     export default content;
 }
 
+/** Imported as a data URL. */
+declare module "*.webp" {
+    const content: string;
+    export default content;
+}
+
 /** Messages posted by the host (Rust) to the page. */
 type HostMessage =
     | "game-updated"
@@ -47,6 +53,7 @@ interface Kute {
     parseArgs(args: string): Promise<void>;
     showNotification(message: string, reqUserInput: boolean, seconds: number): any;
     showChangelogPopup(version: string): Promise<void>;
+    showAboutPopup(): Promise<void>;
     bindShoot(): void;
 }
 

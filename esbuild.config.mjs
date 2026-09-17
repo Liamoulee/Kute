@@ -69,6 +69,7 @@ await build({
     ignoreAnnotations: true,
     loader: {
         ".html": "text",
+        ".webp": "dataurl",
     },
     outfile: "./target/bundle.js",
     plugins: [textMinifyPlugin, minifyCSS],
