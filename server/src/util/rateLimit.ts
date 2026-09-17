@@ -1,0 +1,64 @@
+import { createHash, randomBytes } from "node:crypto";
+import type { FastifyRequest, FastifyReply } from "fastify";
+
+// ========================= //
+// = Copyright (c) NullDev = //
+// =     - SPDX: MIT -     = //
+// ========================= //
+
+// Rate limits live in memory and are keyed by a salted hash of the address. The salt is made up at start
+// and never stored, so there is no list of IP addresses anywhere, not on disk and not in a usable form in RAM.
+const salt = randomBytes(32);
+
+type Window = { hits: number; resetAt: number };
+const windows = new Map<string, Window>();
+
+function keyFor(name: string, ip: string): string {
+    return name + ":" + createHash("sha256").update(salt).update(ip).digest("base64url");
+}
+
+export function cleanupRateLimits(): number {
+    const now = Date.now();
+    let removed = 0;
+    for (const [key, entry] of windows){
+        if (entry.resetAt <= now){
+            windows.delete(key);
+            removed++;
+        }
+    }
+    return removed;
+}
+
+/**
+ * Creates a rate limit hook for Fastify routes.
+ * @param name - Unique name for this limiter
+ * @param max - Max requests allowed in the window
+ * @param windowMs - Time window in milliseconds
+ * @param message - Error message when limit exceeded
+ */
+export function createRateLimit(name: string, max: number, windowMs: number, message: string) {
+    return async(req: FastifyRequest, reply: FastifyReply): Promise<void> => {
+        const key = keyFor(name, req.ip);
+        const now = Date.now();
+
+        let entry = windows.get(key);
+        if (!entry || now > entry.resetAt){
+            entry = { hits: 0, resetAt: now + windowMs };
+            windows.set(key, entry);
+        }
+        entry.hits++;
+
+        reply.header("X-RateLimit-Limit", max);
+        reply.header("X-RateLimit-Remaining", Math.max(0, max - entry.hits));
+        reply.header("X-RateLimit-Reset", Math.ceil(entry.resetAt / 1000));
+
+        if (entry.hits > max){
+            reply.header("Retry-After", Math.ceil((entry.resetAt - now) / 1000));
+            reply.code(429).send({
+                statusCode: 429,
+                error: "Too Many Requests",
+                message,
+            });
+        }
+    };
+}
