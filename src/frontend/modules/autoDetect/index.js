@@ -621,7 +621,7 @@ class AutoDetect {
             throttled: Number(kute.settings.data.throttle) > 1,
         };
         let client = await measureClient(CLIENT_CONFIGS);
-        let clientPlan = decideClient(client, settingsNow);
+        let clientPlan = decideClient(client, settingsNow, hz);
         let clientNote = "The client configuration in use measured as good as any other, nothing to change there.";
         if (client.every((row) => row.fps === 0)){
             clientNote = "The client test did not run, the client settings were left alone.";
@@ -630,7 +630,7 @@ class AutoDetect {
             // one measurement is not enough to change something: the two run against each other once more
             panel.progress("Confirming the client test", 0.04);
             const [currentAgain, bestAgain] = await measureClient([clientPlan.current, clientPlan.best]);
-            const confirmed = decideClient([currentAgain, bestAgain], settingsNow);
+            const confirmed = decideClient([currentAgain, bestAgain], settingsNow, hz);
             if (confirmed.change) clientNote = `"${clientPlan.best.label}" measured clearly better than "${clientPlan.current.label}", twice.`;
             else {
                 clientNote = `"${clientPlan.best.label}" looked better at first, but not when measured again. Nothing changed there.`;

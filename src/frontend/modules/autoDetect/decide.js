@@ -19,10 +19,20 @@ export const MIN_RESOLUTION = 0.75;
 /** One client configuration has to beat another by this much in its slowest frames before it replaces it. */
 export const SIGNIFICANT_CLIENT = 1.1;
 /**
- * ... and by this many milliseconds. The page's clock ticks in 0.1 ms steps, so at 2000 frames per second one
- * tick of difference reads as "30 % smoother". Half a millisecond is where a difference starts to be real.
+ * ... and by this share of one refresh interval of the display (1.4 ms at 180 Hz, 4.2 ms at 60 Hz), never less
+ * than half a millisecond. The client test is there to find a configuration that stutters on this PC, which
+ * shows as several milliseconds. Below a quarter of a refresh the same picture reaches the screen either way:
+ * at 2000 frames per second the hook measures 1.0 ms against 0.7 ms without it, which reads as "30 % smoother"
+ * and means nothing, while the hook is what keeps the input latency short and the FPS limit exact.
  */
-export const SIGNIFICANT_CLIENT_MS = 0.5;
+export const SIGNIFICANT_CLIENT_REFRESH_SHARE = 0.25;
+export const SIGNIFICANT_CLIENT_MIN_MS = 0.5;
+/**
+ * Between configurations that are equally smooth, more frames only count from a quarter more. CPU throttling costs
+ * 40 %, that is a reason to switch. The hook costs 3 to 15 % at 2000 frames per second from one run to the next,
+ * that is not: it would flip with the weather, and it buys the short input latency and the exact FPS limit.
+ */
+export const SIGNIFICANT_CLIENT_FPS = 1.25;
 
 /**
  * A client configuration as one bench process measured it.
@@ -52,9 +62,11 @@ export const SIGNIFICANT_CLIENT_MS = 0.5;
  *
  * @param {ClientResult[]} results
  * @param {{hardFlip: boolean, capped: boolean, throttled: boolean}} settings
+ * @param {number} hz Refresh rate of the display that hosts the window
  * @return {ClientPlan}
  */
-export function decideClient(results, settings){
+export function decideClient(results, settings, hz){
+    const significantMs = Math.max(SIGNIFICANT_CLIENT_MIN_MS, (1000 / hz) * SIGNIFICANT_CLIENT_REFRESH_SHARE);
     const usable = results.filter((result) => result.fps > 0);
     const current =
         usable.find((result) => result.hook === settings.hardFlip && result.capped === settings.capped && result.throttled === settings.throttled) ??
@@ -66,9 +78,9 @@ export function decideClient(results, settings){
      * @return {boolean} Whether a is clearly better than b
      */
     const beats = (a, b) => {
-        const smoother = a.p99 * SIGNIFICANT_CLIENT <= b.p99 && b.p99 - a.p99 >= SIGNIFICANT_CLIENT_MS;
-        const notRougher = a.p99 <= b.p99 + SIGNIFICANT_CLIENT_MS;
-        return smoother || (notRougher && a.fps >= b.fps * SIGNIFICANT_CLIENT);
+        const smoother = a.p99 * SIGNIFICANT_CLIENT <= b.p99 && b.p99 - a.p99 >= significantMs;
+        const notRougher = a.p99 <= b.p99 + significantMs;
+        return smoother || (notRougher && a.fps >= b.fps * SIGNIFICANT_CLIENT_FPS);
     };
     // the configuration in use defends its place: another one has to clearly beat it, and the best challenger wins
     let best = current ?? usable[0] ?? null;
