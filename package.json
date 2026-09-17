@@ -4,7 +4,7 @@
     "type": "module",
     "version": "0.1.0",
     "description": "High performance krunker client made by [cute]",
-    "keywords": ["browser-game", "cute", "krunker", "krunker-client","krunkerio", "kute", "nulldev"],
+    "keywords": ["browser-game", "cute", "krunker", "krunker-client", "krunkerio", "kute", "nulldev"],
     "author": "NullDev",
     "license": "GPL-3.0-only",
     "packageManager": "bun@1.4.2",
@@ -16,7 +16,7 @@
         "package": "bun run build:auto-update && wix build ./resources/installer_script.wxs -ext WixToolset.Util.wixext -o target/kute-setup-x86_64.msi",
         "lint": "eslint .",
         "lint:fix": "eslint . --fix",
-        "typecheck": "tsc -p jsconfig.json && tsc -p src/frontend/jsconfig.json"
+        "typecheck": "tsc -p jsconfig.json && tsc -p src/frontend/jsconfig.json && tsc -p server/tsconfig.json"
     },
     "engines": {
         "bun": ">=1.4.2"
@@ -36,9 +36,12 @@
         "@babel/core": "^8.0.5",
         "@babel/eslint-parser": "^8.0.5",
         "@types/node": "^22.20.3",
+        "@typescript-eslint/eslint-plugin": "^8.70.0",
+        "@typescript-eslint/parser": "^8.70.0",
         "esbuild": "^0.28.1",
         "eslint": "^10.10.0",
-        "typescript": "^7.0.2"
+        "@typescript/native": "npm:typescript@^7.0.2",
+        "typescript": "npm:@typescript/typescript6@^6.0.2"
     },
     "peerDependencies": {
         "typescript": "^7.0.2"
