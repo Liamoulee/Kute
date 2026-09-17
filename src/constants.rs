@@ -1,5 +1,7 @@
 pub const DISCORD_CLIENT_ID: &str = "1549875633276981249";
 pub const UPDATE_URL: &str = "https://api.github.com/repos/NullDev/Kute/releases/latest";
+// the only place "open-url" may lead to, the page cannot send the user anywhere else
+pub const GITHUB_URL: &str = "https://github.com/";
 pub const JS_VERSION_URL: &str = "https://raw.githubusercontent.com/NullDev/Kute/master/target/bundle_version";
 pub const JS_BUNDLE_URL: &str = "https://raw.githubusercontent.com/NullDev/Kute/master/target/bundle.js";
 pub const INSTANCE_MUTEX: &str = "Global\\9e29aac4-cd01-442b-bec2-ddd99403ca14";

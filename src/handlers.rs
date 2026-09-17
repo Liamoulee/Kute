@@ -431,6 +431,18 @@ pub fn open_documents_subpath(target: &str) {
     std::process::Command::new("explorer.exe").arg(path_to_open).spawn().ok();
 }
 
+// links of the about popup. they open in the user's browser, where they are signed in to github
+pub fn open_in_default_browser(url: &str) {
+    if !url.starts_with(constants::GITHUB_URL) || url.chars().any(|c| c.is_whitespace() || c == '"') {
+        return;
+    }
+    use windows::Win32::UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOWNORMAL};
+    let url = windows::core::HSTRING::from(url);
+    unsafe {
+        ShellExecuteW(None, windows::core::w!("open"), &url, None, None, SW_SHOWNORMAL);
+    }
+}
+
 pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str) {
     let parts: Vec<&str> = message_string.split(", ").map(|s| s.trim()).collect();
     debug_print!("web message: {message_string}");
@@ -473,6 +485,9 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         }
         ["open", target] => {
             open_documents_subpath(target);
+        }
+        ["open-url", url] => {
+            open_in_default_browser(url);
         }
         ["rpc-update", part1, part2] => {
             let state = format!("{} on {}", part1, part2);
