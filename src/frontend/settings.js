@@ -7,7 +7,7 @@ import { getElement, getInput, checkCompMode } from "./utils.js";
  *
  * @typedef {object} SettingOption
  * @property {string} id
- * @property {string} name
+ * @property {string} name "{{version}}" is replaced with the client version
  * @property {string} type "checkbox", "slider", "select" or "none"
  * @property {string} category
  * @property {string|number|boolean} [defaultValue] Absent for button-only settings
@@ -257,7 +257,7 @@ class SettingsManager {
             }
 
             tempHTML += `<div class='settName' ${setting.description ? `title="${setting.description}"` : ""}>
-								${setting.name}
+								${setting.name.replaceAll("{{version}}", kute.version ?? "")}
 								${setting.needsRestart ? ' <span style="color: #eb5656" title="Requires Restart">*</span>' : ""}
 								${setting.needsRefresh ? ' <span style="color: #3244a8" title="Requires Refresh">*</span>' : ""}
 								${setting.html}</div>`;

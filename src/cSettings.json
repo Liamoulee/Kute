@@ -2,268 +2,219 @@
     "startMode": {
         "name": "Start Mode",
         "id": "startMode",
+        "description": "How the window opens",
         "type": "select",
-        "category": "Main",
+        "category": "General",
         "defaultValue": "Remember Previous",
         "options": ["Remember Previous", "Borderless Fullscreen", "Windowed", "Maximized"]
     },
-    "uncapFps": {
-        "name": "Uncap FPS",
-        "id": "uncapFps",
-        "type": "checkbox",
-        "category": "Main",
-        "defaultValue": true,
-        "needsRestart": true
-    },
-    "swapper": {
-        "name": "Resource Swapper",
-        "id": "swapper",
-        "type": "checkbox",
-        "category": "Main",
-        "defaultValue": true,
-        "button": "Open folder",
-        "buttonAction": "window.chrome.webview.postMessage('open, swapper')",
-        "needsRestart": true
-    },
-    "blocklist": {
-        "name": "URL Blocklist",
-        "id": "blocklist",
-        "description": "Blocks connection to the sites listed in the filter list, defaults offer a safe and efficient set.",
-        "type": "checkbox",
-        "category": "Main",
-        "defaultValue": true,
-        "button": "Open file",
-        "buttonAction": "window.chrome.webview.postMessage('open, blocklist')",
-        "needsRestart": true
-    },
-    "userscripts": {
-        "name": "Userscripts",
-        "id": "userscripts",
-        "description": "it really just loads files from a folder, userscripts is an overstatement",
-        "type": "checkbox",
-        "category": "Main",
-        "defaultValue": true,
-        "button": "Open folder",
-        "buttonAction": "window.chrome.webview.postMessage('open, userscripts')",
-        "needsRestart": true
-    },
-    "checkUpdates": {
-        "name": "Check For Updates",
-        "id": "checkUpdates",
-        "type": "checkbox",
-        "category": "Main",
-        "defaultValue": true,
-        "needsRestart": true
-    },
-    "obsCapturePlugin": {
-        "name": "OBS Capture Plugin",
-        "id": "obsCapturePlugin",
-        "description": "Installs Kute Capture as a source into OBS. Requires OBS to be closed and may require administrator permission. \n To record audio add an 'Application Audio capture and select the 'Kute audio window'",
-        "type": "checkbox",
-        "category": "Main",
-        "defaultValue": false
+    "gameFpsLimit": {
+        "name": "FPS Limit",
+        "id": "gameFpsLimit",
+        "description": "0 = unlimited",
+        "type": "slider",
+        "category": "General",
+        "defaultValue": 0,
+        "min": 0,
+        "max": 2000,
+        "step": 5
     },
     "discordRPC": {
         "name": "Discord Rich Presence",
         "id": "discordRPC",
+        "description": "Shows your mode and map on Discord",
         "type": "checkbox",
-        "category": "Main",
+        "category": "General",
         "defaultValue": true,
         "needsRestart": true
     },
     "accountManager": {
         "name": "Account Manager",
         "id": "accountManager",
+        "description": "Save accounts and switch between them from the menu",
         "type": "checkbox",
-        "category": "Main",
+        "category": "General",
         "defaultValue": true
     },
-    "clearCache": {
-        "name": "Clear Cache & Storage",
-        "description": "Clears local storage, browser cache, and web data for the client",
-        "id": "clearCache",
-        "type": "none",
-        "category": "Main",
-        "button": "Clear Now",
-        "buttonAction": "if(confirm('Are you sure you want to clear cache and local storage?')) { localStorage.clear(); sessionStorage.clear(); window.chrome.webview.postMessage('clear-cache'); }"
+    "obsCapturePlugin": {
+        "name": "OBS Capture Plugin",
+        "id": "obsCapturePlugin",
+        "description": "Adds a Kute Capture source to OBS. Close OBS first. \nFor sound, add an Application Audio Capture of the 'Kute audio window'",
+        "type": "checkbox",
+        "category": "General",
+        "defaultValue": false
+    },
+    "rawInput": {
+        "name": "Raw Input",
+        "id": "rawInput",
+        "description": "Unfiltered mouse input without acceleration",
+        "type": "checkbox",
+        "category": "Game",
+        "defaultValue": true,
+        "needsRefresh": true
     },
     "rampBoost": {
         "name": "Ramp Boosting",
         "id": "rampBoost",
-        "description": "a much less powerful version of the regular rampboosting but way easier to hit consistently (and more useful in regular matches i'd say); turn off if you plan on using external software",
+        "description": "Jumps when you scroll, for easier ramp boosts. Off in competitive. \nTurn it off if you use external software for this",
+        "type": "checkbox",
+        "category": "Game",
+        "defaultValue": false
+    },
+    "autoSpec": {
+        "name": "Auto Spectate",
+        "id": "autoSpec",
+        "description": "Joins public matches as a spectator",
         "type": "checkbox",
         "category": "Game",
         "defaultValue": false
     },
     "hsSound": {
-        "name": "Always Play HS Sound on Kill",
+        "name": "Headshot Sound on Every Kill",
         "id": "hsSound",
         "category": "Game",
         "type": "checkbox",
         "defaultValue": false
     },
     "hpEnemyCounter": {
-        "name": "Hardpoint Enemy counter",
+        "name": "Hardpoint Enemy Counter",
         "id": "hpEnemyCounter",
-        "description": "Shows the number of enemies present on the hardpoint during competitive matches",
+        "description": "Shows how many enemies are on the point in competitive matches",
         "type": "checkbox",
         "category": "Game",
         "defaultValue": true
     },
-    "autoSpec": {
-        "name": "Auto Spectate",
-        "id": "autoSpec",
-        "type": "checkbox",
-        "category": "Game",
-        "defaultValue": false
-    },
     "showPing": {
         "name": "Player List Ping",
         "id": "showPing",
+        "description": "Shows everyone's ping in the player list",
         "type": "checkbox",
         "category": "Game",
         "defaultValue": true,
         "needsRefresh": true
+    },
+    "realPing": {
+        "name": "Real Ping™️",
+        "id": "realPing",
+        "description": "Pings the lobby server and shows your real latency",
+        "type": "checkbox",
+        "category": "Game",
+        "defaultValue": false,
+        "needsRestart": true
     },
     "exitButton": {
         "name": "Exit Button",
         "id": "exitButton",
         "type": "checkbox",
-        "category": "UI",
+        "category": "Interface",
         "defaultValue": true
     },
     "menuTimer": {
         "name": "Menu Timer",
         "id": "menuTimer",
+        "description": "Shows the match timer in the menu",
         "type": "checkbox",
-        "category": "UI",
+        "category": "Interface",
         "defaultValue": true
     },
     "betterChat": {
         "name": "Better Chat",
         "id": "betterChat",
-        "description": "Groups the team and all chat into a single channel; press tab to switch where you send yours",
+        "description": "Team and all chat in one view. Tab switches where you send",
         "type": "checkbox",
-        "category": "UI",
+        "category": "Interface",
+        "defaultValue": true
+    },
+    "textSelect": {
+        "name": "Selectable Chat",
+        "id": "textSelect",
+        "description": "Select and copy chat text",
+        "type": "checkbox",
+        "category": "Interface",
         "defaultValue": true
     },
     "cleanUI": {
         "name": "Cleaner Menu",
         "id": "cleanUI",
-        "description": "Remove some of the unnecessary DOM elements",
+        "description": "Hides clutter in the menu",
         "type": "checkbox",
-        "category": "UI",
+        "category": "Interface",
         "defaultValue": false
     },
     "hideBundles": {
         "name": "Hide Bundle Popups",
         "id": "hideBundles",
+        "description": "No store popups outside the store",
         "type": "checkbox",
-        "category": "UI",
+        "category": "Interface",
         "defaultValue": false
     },
-    "textSelect": {
-        "name": "Selectable Chat",
-        "id": "textSelect",
-        "description": "Make game chat selectable",
-        "type": "checkbox",
-        "category": "UI",
-        "defaultValue": true
-    },
-    "realPing": {
-        "name": "Real Ping™️",
-        "id": "realPing",
-        "description": "Show real network latency™️! pings the lobby every few seconds to get a value;",
-        "type": "checkbox",
-        "category": "UI",
-        "defaultValue": false,
-        "needsRestart": true
-    },
-    "showChangelog": {
-        "name": "Show Changelogs",
-        "id": "showChangelog",
-        "type": "checkbox",
-        "button": "Show Now",
-        "buttonAction": "{{kute}}.showChangelogPopup({{kute}}.version)",
-        "category": "UI",
-        "defaultValue": true
-    },
-    "rawInput": {
-        "name": "Raw Input",
-        "id": "rawInput",
-        "description": "Lower latency, greater precision, fixes mouse flicks",
-        "type": "checkbox",
-        "category": "Tweaks",
-        "defaultValue": true,
-        "needsRefresh": true
-    },
     "renderStats": {
-        "name": "Show Present FPS Counter",
-        "description": "Makes another FPS counter that shows how many frames are presented to the screen next to the default one \n",
+        "name": "Present FPS Counter",
         "id": "renderStats",
+        "description": "Second FPS counter: the frames that reach your screen",
         "type": "checkbox",
-        "category": "Tweaks",
+        "category": "Interface",
         "defaultValue": false,
         "needsRestart": true
     },
-    "gameFpsLimit": {
-        "name": "FPS Limit",
-        "description": "Caps the game at this frame rate \n0 = uncapped",
-        "id": "gameFpsLimit",
-        "type": "slider",
-        "category": "Tweaks",
-        "defaultValue": 0,
-        "min": 0,
-        "max": 2000,
-        "step": 5
+    "swapper": {
+        "name": "Resource Swapper",
+        "id": "swapper",
+        "description": "Replaces game files with the ones in your swapper folder",
+        "type": "checkbox",
+        "category": "Customization",
+        "defaultValue": true,
+        "button": "Open folder",
+        "buttonAction": "window.chrome.webview.postMessage('open, swapper')",
+        "needsRestart": true
     },
-    "throttle": {
-        "name": "CPU Throttling",
-        "id": "throttle",
-        "description": "Throttle CPU, value is the multiplier (2 is 50%), \nONLY USE IF YOUR GAME EXPERIENCES INSTABILITY",
-        "type": "slider",
-        "min": 1,
-        "max": 3,
-        "step": 0.01,
-        "category": "Tweaks",
-        "defaultValue": 1
+    "userscripts": {
+        "name": "Userscripts",
+        "id": "userscripts",
+        "description": "Runs the .js files in your scripts folder",
+        "type": "checkbox",
+        "category": "Customization",
+        "defaultValue": true,
+        "button": "Open folder",
+        "buttonAction": "window.chrome.webview.postMessage('open, userscripts')",
+        "needsRestart": true
     },
-    "inMenuThrottle": {
-        "name": "CPU Throttling in Menu",
-        "id": "inMenuThrottle",
-        "description": "Throttle CPU in menus, fixes an issue related to render FPS in menus",
-        "type": "slider",
-        "min": 1,
-        "max": 3,
-        "step": 0.01,
-        "category": "Tweaks",
-        "defaultValue": 1.5
+    "blocklist": {
+        "name": "URL Blocklist",
+        "id": "blocklist",
+        "description": "Blocks ads and trackers. The file holds your own entries",
+        "type": "checkbox",
+        "category": "Customization",
+        "defaultValue": true,
+        "button": "Open file",
+        "buttonAction": "window.chrome.webview.postMessage('open, blocklist')",
+        "needsRestart": true
+    },
+    "uncapFps": {
+        "name": "Uncap FPS",
+        "id": "uncapFps",
+        "description": "Removes the refresh rate cap",
+        "type": "checkbox",
+        "category": "Advanced",
+        "defaultValue": true,
+        "needsRestart": true
     },
     "hardFlip": {
         "name": "DXGI Swapchain Hook",
         "id": "hardFlip",
-        "description": "Hooks swapchain creation for frame pacing, the precise FPS limit, the Present FPS counter and OBS capture. \nTurning it off can raise game FPS but disables the OBS capture and makes the FPS limit less efficient.",
+        "description": "Needed for the exact FPS limit, the present FPS counter and OBS capture",
         "type": "checkbox",
-        "category": "Tweaks",
+        "category": "Advanced",
         "defaultValue": true,
         "needsRestart": true
-    },
-    "webviewPriority": {
-        "name": "Webview Priority",
-        "id": "webviewPriority",
-        "description": "Higher priority yields slightly better performance but might cause instabilities",
-        "type": "select",
-        "category": "Tweaks",
-        "defaultValue": "Normal",
-        "needsRestart": true,
-        "options": ["High", "Above Normal", "Normal", "Below Normal", "Low", "Idle"]
     },
     "angleBackend": {
         "name": "Graphics Backend (ANGLE)",
         "id": "angleBackend",
-        "description": "The backend Chromium renders WebGL through. Default is D3D11 on Windows. \nOpenGL and Vulkan bypass the DXGI swapchain, so the present FPS counter/limiter and OBS capture do not work with them",
+        "description": "Default is D3D11. \nOpenGL and Vulkan turn off everything the swapchain hook does",
         "type": "select",
-        "category": "Tweaks",
+        "category": "Advanced",
         "defaultValue": "Default",
         "needsRestart": true,
         "options": ["Default", "D3D11", "D3D11on12", "OpenGL", "Vulkan"]
@@ -271,11 +222,77 @@
     "colorProfile": {
         "name": "Color Profile",
         "id": "colorProfile",
-        "description": "Forces the color profile Chromium renders with instead of the monitor's own. \nsRGB is the classic choice when colors look washed out or oversaturated",
+        "description": "Try sRGB when colors look washed out or oversaturated",
         "type": "select",
-        "category": "Tweaks",
+        "category": "Advanced",
         "defaultValue": "Default",
         "needsRestart": true,
         "options": ["Default", "sRGB", "Display P3 D65", "Extended sRGB", "scRGB linear", "HDR10"]
+    },
+    "webviewPriority": {
+        "name": "Process Priority",
+        "id": "webviewPriority",
+        "description": "Higher can help a little but may cause instability",
+        "type": "select",
+        "category": "Advanced",
+        "defaultValue": "Normal",
+        "needsRestart": true,
+        "options": ["High", "Above Normal", "Normal", "Below Normal", "Low", "Idle"]
+    },
+    "throttle": {
+        "name": "CPU Throttling",
+        "id": "throttle",
+        "description": "Slows the game down by this factor (2 = 50%). \nOnly use it when the game is unstable",
+        "type": "slider",
+        "min": 1,
+        "max": 3,
+        "step": 0.01,
+        "category": "Advanced",
+        "defaultValue": 1
+    },
+    "inMenuThrottle": {
+        "name": "CPU Throttling in Menu",
+        "id": "inMenuThrottle",
+        "description": "Same, but only while you are in the menu",
+        "type": "slider",
+        "min": 1,
+        "max": 3,
+        "step": 0.01,
+        "category": "Advanced",
+        "defaultValue": 1.5
+    },
+    "clearCache": {
+        "name": "Clear Cache & Storage",
+        "id": "clearCache",
+        "description": "Deletes the cache and local storage. This also resets your game settings",
+        "type": "none",
+        "category": "Advanced",
+        "button": "Clear Now",
+        "buttonAction": "if(confirm('Are you sure you want to clear cache and local storage?')) { localStorage.clear(); sessionStorage.clear(); window.chrome.webview.postMessage('clear-cache'); }"
+    },
+    "about": {
+        "name": "Kute {{version}}",
+        "id": "about",
+        "type": "none",
+        "category": "About",
+        "button": "About",
+        "buttonAction": "{{kute}}.showAboutPopup()"
+    },
+    "showChangelog": {
+        "name": "Show Changelog After Updates",
+        "id": "showChangelog",
+        "type": "checkbox",
+        "button": "Show Now",
+        "buttonAction": "{{kute}}.showChangelogPopup({{kute}}.version)",
+        "category": "About",
+        "defaultValue": true
+    },
+    "checkUpdates": {
+        "name": "Check For Updates",
+        "id": "checkUpdates",
+        "type": "checkbox",
+        "category": "About",
+        "defaultValue": true,
+        "needsRestart": true
     }
 }
