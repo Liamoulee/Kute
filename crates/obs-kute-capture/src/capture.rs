@@ -126,7 +126,7 @@ pub fn process_exists(pid: u32) -> bool {
     }
 }
 
-/// Enumerate every `msedgewebview2.exe` and (re)attach to the one that publishes a valid capture
+/// Enumerate every `kute.exe` and (re)attach to the one that publishes a valid capture
 /// control block.
 pub fn discover() -> Option<Session> {
     unsafe {
@@ -136,7 +136,7 @@ pub fn discover() -> Option<Session> {
 
         let mut ok = Process32FirstW(snapshot, &mut pe);
         while ok.is_ok() {
-            if name_matches(&pe.szExeFile, "msedgewebview2.exe")
+            if name_matches(&pe.szExeFile, "kute.exe")
                 && let Some(s) = try_attach(pe.th32ProcessID)
             {
                 let _ = CloseHandle(snapshot);

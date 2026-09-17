@@ -30,16 +30,16 @@ editor-ignore = []
 verbose-logs = [
     "obs-kute-capture/verbose-logs",
     "render-dll/verbose-logs",
-    "webview-dll/verbose-logs",
 ]
 
 [dependencies]
 windows = { version = "0.62.2", features = [
     "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Input",
     "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Accessibility",
     "Win32_UI_Shell",
     "Win32_System_Com",
-    "Win32_System_Com_StructuredStorage",
     "Win32_System_DataExchange",
     "Win32_System_Diagnostics_Debug",
     "Win32_System_Diagnostics_ToolHelp",
@@ -50,10 +50,12 @@ windows = { version = "0.62.2", features = [
     "Win32_System_Memory",
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
+    "Win32_Graphics_Dwm",
     "Win32_Storage_FileSystem",
     "Win32_Security_Authorization",
 ] }
-webview2-com = { version = "0.39.1", default-features = false }
+# the wrapper is built without the sandbox, kute runs with no_sandbox (see app.rs)
+cef = { version = "=151.5.0", default-features = false }
 ureq = { version = "3.3.*", features = ["rustls"], default-features = false }
 serde = { version = "1.0.*", features = ["derive"], default-features = false }
 regex = { version = "1.13.*", features = ["std", "perf", "perf-dfa-full", "unicode-perl"], default-features = false }
@@ -64,7 +66,6 @@ ping-rs = "0.1.*"
 dns-lookup = "3.0.*"
 obs-kute-capture = { path = "crates/obs-kute-capture", optional = true }
 render-dll = { path = "crates/render-dll", optional = true }
-webview-dll = { path = "crates/webview-dll", optional = true }
 
 [build-dependencies]
 embed-resource = "3.0.*"

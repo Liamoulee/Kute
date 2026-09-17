@@ -1,23 +1,28 @@
 #![cfg_attr(feature = "packaged", windows_subsystem = "windows")]
+use cef::{args::Args, *};
 use std::{
-    env, sync,
-    sync::{LazyLock, Mutex, atomic::Ordering},
+    env,
+    sync::{LazyLock, Mutex},
 };
-use windows::{Win32::UI::WindowsAndMessaging::*, core::*};
 
 mod app;
+mod bridge;
 mod config;
 mod constants;
 mod handlers;
+mod renderer;
 mod utils;
 mod window;
 pub mod modules {
     pub mod blocklist;
+    pub mod devtools;
     pub mod flaglist;
+    pub mod input;
     pub mod lifecycle;
     pub mod obs;
     pub mod ping;
     pub mod priority;
+    pub mod render_hook;
     pub mod swapper;
     pub mod userscripts;
 }
@@ -25,11 +30,33 @@ pub mod modules {
 static LAUNCH_ARGS: LazyLock<Mutex<Vec<String>>> = LazyLock::new(|| Mutex::new(env::args().skip(1).collect()));
 static CONFIG: LazyLock<Mutex<config::Config>> = LazyLock::new(|| Mutex::new(config::Config::load()));
 static JS_VERSION: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new("0.0.0".to_string()));
-static SCRIPT_ID: LazyLock<Mutex<String>> = LazyLock::new(|| Mutex::new(String::new()));
 
 fn main() {
+    // CEF 151 uses a versioned C ABI, without this handshake every struct is rejected at runtime
+    let _ = api_hash(sys::CEF_API_VERSION_LAST, 0);
+
     if modules::obs::handle_cli_flags() {
         return;
+    }
+
+    // every CEF subprocess (renderer, gpu, utility) is this exe again with --type=<kind>
+    if let Some(process_type) = utils::process_type() {
+        modules::priority::apply_to_self();
+        match process_type.as_str() {
+            // replaces the vk_swiftshader.dll hijack: the gpu process loads the DXGI hook itself
+            "gpu-process" => modules::render_hook::load(),
+            // the audio service plays the game sound, OBS captures it through this window
+            "utility" if utils::has_arg("--utility-sub-type=audio.mojom.AudioService") => modules::input::spawn_audio_window_thread(),
+            _ => {}
+        }
+    }
+
+    let args = Args::new();
+    let mut cef_app = app::KuteApp::new();
+    let code = execute_process(Some(args.as_main_args()), Some(&mut cef_app), std::ptr::null_mut());
+    if code >= 0 {
+        // this was a subprocess and it is done
+        std::process::exit(code);
     }
 
     modules::lifecycle::register_instance();
@@ -43,75 +70,21 @@ fn main() {
         eprintln!("failed to set all the files in place {}", e);
     }
 
-    let window = app::create_main_window(None);
-    let (_tx, rx) = sync::mpsc::channel::<String>();
-    #[cfg(feature = "auto-update")]
-    {
-        use utils::config;
-        use windows::Win32::Foundation::{LPARAM, WPARAM};
-        let main_thread_id = unsafe { windows::Win32::System::Threading::GetCurrentThreadId() };
-        if config("checkUpdates", true) {
-            std::thread::spawn(move || {
-                modules::lifecycle::check_major_update();
-                if let Some(new_js) = modules::lifecycle::check_minor_update() {
-                    _tx.send(new_js).ok();
-                    unsafe {
-                        PostThreadMessageW(main_thread_id, constants::WM_MINOR_UPDATE_READY, WPARAM(0), LPARAM(0)).unwrap();
-                    }
-                }
-            });
-        }
+    app::create_frame_timing_mapping();
+    app::load_flags();
+    app::prepare_profile();
+
+    let settings = app::settings();
+    if initialize(Some(args.as_main_args()), Some(&settings), Some(&mut cef_app), std::ptr::null_mut()) != 1 {
+        eprintln!("cef initialize failed");
+        std::process::exit(1);
     }
-    if utils::config("renderStats", false) {
-        unsafe {
-            SetTimer(None, 1, 100, None);
-        }
-    }
-    let mut last_render_stats: Option<(u64, u64)> = None;
-    let mut msg: MSG = MSG::default();
-    while unsafe { GetMessageW(&mut msg, None, 0, 0).into() } {
-        unsafe {
-            _ = TranslateMessage(&msg);
-        }
 
-        if msg.message == constants::WM_MINOR_UPDATE_READY
-            && let Ok(js_content) = rx.try_recv()
-        {
-            let script_id = SCRIPT_ID.lock().unwrap();
-            println!("updating js, {}", *script_id);
-
-            let old_script_str = utils::create_utf_string(&*script_id);
-            let new_script_str = utils::create_utf_string(js_content);
-
-            unsafe {
-                window.webview.RemoveScriptToExecuteOnDocumentCreated(PCWSTR(old_script_str.as_ptr())).ok();
-                window.webview.AddScriptToExecuteOnDocumentCreated(PCWSTR(new_script_str.as_ptr()), None).ok();
-            }
-        }
-
-        if msg.message == WM_TIMER {
-            let ptr = app::SHARED_STATS_PTR.load(Ordering::SeqCst);
-            if ptr != 0 {
-                let shared = unsafe { &*(ptr as *const app::SharedStats) };
-                let current = (shared.fps, shared.frame_ns);
-
-                if shared.fps > 0 && last_render_stats != Some(current) {
-                    last_render_stats = Some(current);
-
-                    let payload = format!("{{\"fpsInfo\":{}}}", shared.fps);
-                    let payload_str = utils::create_utf_string(payload);
-
-                    unsafe {
-                        window.webview.PostWebMessageAsJson(PCWSTR(payload_str.as_ptr())).ok();
-                    }
-                }
-            }
-        }
-
-        unsafe {
-            DispatchMessageW(&msg);
-        }
-    }
+    // the main window is created from on_context_initialized in app.rs
+    run_message_loop();
+    debug_print!("main: message loop ended");
+    shutdown();
+    debug_print!("main: cef shut down");
 
     CONFIG.lock().unwrap().save();
 }

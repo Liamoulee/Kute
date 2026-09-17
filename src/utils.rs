@@ -1,73 +1,16 @@
 #![allow(non_snake_case)]
 use crate::CONFIG;
 use std::{
-    convert, env, fs, io, mem,
+    convert, env, fs, io,
     path::{self, *},
 };
-use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2;
 use windows::{
     Win32::{
-        Foundation::{CloseHandle, HWND, LPARAM},
-        System::{Diagnostics::ToolHelp::*, Threading::*},
+        Foundation::{HWND, LPARAM},
         UI::WindowsAndMessaging::*,
     },
     core::*,
 };
-
-#[repr(transparent)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct UnsafeSend<T> {
-    val: T,
-}
-
-unsafe impl<T> Send for UnsafeSend<T> {}
-unsafe impl<T> Sync for UnsafeSend<T> {}
-
-impl<T> UnsafeSend<T> {
-    #[inline]
-    pub const fn new(val: T) -> Self {
-        Self { val }
-    }
-
-    #[inline]
-    pub fn take(self) -> T {
-        self.val
-    }
-}
-
-impl<T> std::ops::Deref for UnsafeSend<T> {
-    type Target = T;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.val
-    }
-}
-
-impl<T> std::ops::DerefMut for UnsafeSend<T> {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.val
-    }
-}
-
-use webview2_com::Microsoft::Web::WebView2::Win32::*;
-
-pub trait EnvironmentRef {
-    fn env_ref(&self) -> &ICoreWebView2Environment;
-}
-
-impl EnvironmentRef for ICoreWebView2Environment {
-    fn env_ref(&self) -> &ICoreWebView2Environment {
-        self
-    }
-}
-
-impl EnvironmentRef for UnsafeSend<ICoreWebView2Environment> {
-    fn env_ref(&self) -> &ICoreWebView2Environment {
-        &self.val
-    }
-}
 
 pub fn create_utf_string(string: impl AsRef<str>) -> Vec<u16> {
     let s = string.as_ref();
@@ -89,16 +32,40 @@ pub fn settings_dir() -> path::PathBuf {
     path::PathBuf::from(env::var("USERPROFILE").unwrap()).join("Documents").join("kute")
 }
 
+pub fn exe_dir() -> path::PathBuf {
+    env::current_exe().unwrap().parent().unwrap().to_path_buf()
+}
+
 pub fn config<T: serde::de::DeserializeOwned>(setting: &str, default: T) -> T {
     CONFIG.lock().unwrap().get(setting).unwrap_or(default)
 }
 
+// the value of --type=<kind>, None for the browser process
+pub fn process_type() -> Option<String> {
+    env::args().find_map(|arg| arg.strip_prefix("--type=").map(str::to_string))
+}
+
+pub fn has_arg(wanted: &str) -> bool {
+    env::args().any(|arg| arg == wanted)
+}
+
+// cef string helpers, CefStringUserfree has no Display
+pub fn cef_to_string(value: &cef::CefStringUserfree) -> String {
+    cef::CefStringUtf16::from(value).to_string()
+}
+
+pub fn cef_str(value: Option<&cef::CefString>) -> String {
+    value.map(|v| v.to_string()).unwrap_or_default()
+}
+
+// substring match on the class name, "Chrome_WidgetWin_" finds both _0 and _1.
+// chromium keeps spare render widget windows around, so the largest match wins
 pub fn find_child_window_by_class(parent: HWND, class_name: &str) -> HWND {
-    let mut data = (HWND::default(), class_name);
+    let mut data = (HWND::default(), class_name, 0i64);
 
     extern "system" fn enum_child_proc(handle: HWND, lparam: LPARAM) -> BOOL {
         unsafe {
-            let data = lparam.0 as *mut (HWND, &str);
+            let data = lparam.0 as *mut (HWND, &str, i64);
             let target_class = (*data).1;
             let mut class_name: [u16; 256] = [0; 256];
 
@@ -113,74 +80,25 @@ pub fn find_child_window_by_class(parent: HWND, class_name: &str) -> HWND {
             }
             let target_slice = &target_wide[..target_len];
             if class_slice.windows(target_len).any(|w| w == target_slice) {
-                (*data).0 = handle;
-                return BOOL(0);
+                let mut rect = windows::Win32::Foundation::RECT::default();
+                GetWindowRect(handle, &mut rect).ok();
+                let area = (rect.right - rect.left).max(0) as i64 * (rect.bottom - rect.top).max(0) as i64;
+                if (*data).0.0.is_null() || area > (*data).2 {
+                    (*data).0 = handle;
+                    (*data).2 = area;
+                }
             }
 
             BOOL(1)
         }
     }
     unsafe {
-        if let BOOL(1) = EnumChildWindows(Some(parent), Some(enum_child_proc), LPARAM(&mut data as *mut (HWND, &str) as _)) {
-            eprint!("Could not find child window")
+        let _ = EnumChildWindows(Some(parent), Some(enum_child_proc), LPARAM(&mut data as *mut (HWND, &str, i64) as _));
+        if data.0.0.is_null() {
+            crate::debug_print!("utils: no child window with class {class_name} under {parent:?}");
         }
 
         data.0
-    }
-}
-
-pub fn kill(wanted_process_name: &str) {
-    unsafe {
-        let current_pid = GetCurrentProcessId();
-        let mut entry = PROCESSENTRY32W {
-            dwSize: mem::size_of::<PROCESSENTRY32W>() as u32,
-            ..Default::default()
-        };
-
-        let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0).unwrap();
-
-        let mut target_wide = [0u16; 64];
-        let mut target_len = 0;
-        for c in wanted_process_name.encode_utf16() {
-            target_wide[target_len] = c;
-            target_len += 1;
-        }
-        let target_slice = &target_wide[..target_len];
-
-        if Process32FirstW(snapshot, &mut entry).is_ok() {
-            loop {
-                let len = entry.szExeFile.iter().position(|&c| c == 0).unwrap_or(entry.szExeFile.len());
-                if entry.szExeFile[..len].windows(target_len).any(|w| w == target_slice)
-                    && entry.th32ProcessID != current_pid
-                    && let Ok(process) = OpenProcess(PROCESS_TERMINATE, false, entry.th32ProcessID)
-                {
-                    TerminateProcess(process, 0).ok();
-                    CloseHandle(process).ok();
-                }
-                if Process32NextW(snapshot, &mut entry).is_err() {
-                    break;
-                }
-            }
-        }
-        CloseHandle(snapshot).ok();
-    }
-}
-
-static LAST_THROTTLE_BITS: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(1.0f32.to_bits());
-
-pub fn set_cpu_throttling(webview: &ICoreWebView2, value: f32) {
-    // dedupe identical rates so we don't restart the webviews throttling thread unnecessarily
-    if LAST_THROTTLE_BITS.swap(value.to_bits(), std::sync::atomic::Ordering::Relaxed) == value.to_bits() {
-        return;
-    }
-    unsafe {
-        webview
-            .CallDevToolsProtocolMethod(
-                w!("Emulation.setCPUThrottlingRate"),
-                PCWSTR(create_utf_string(format!("{{\"rate\":{}}}", value)).as_ptr()),
-                None,
-            )
-            .ok();
     }
 }
 
@@ -198,6 +116,8 @@ macro_rules! debug_print {
     ($($arg:tt)*) => {
         if cfg!(feature = "verbose-logs") {
             let msg = format!($($arg)*);
+            // dev builds keep a console, so the same line also goes to stderr
+            eprintln!("{msg}");
             let wide: Vec<u16> = msg.encode_utf16().chain(Some(0)).collect();
             #[allow(unused_unsafe)]
             unsafe {

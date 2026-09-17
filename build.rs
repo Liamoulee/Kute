@@ -2,9 +2,7 @@ use std::{env, fs};
 extern crate embed_resource;
 extern crate toml;
 fn main() {
-    embed_resource::compile("./resources/client.rc", embed_resource::NONE)
-        .manifest_optional()
-        .ok();
+    embed_resource::compile("./resources/client.rc", embed_resource::NONE).manifest_optional().ok();
     if let Err(e) = embed_resource::compile("./resources/kute-manifest.rc", embed_resource::NONE).manifest_required() {
         eprintln!("{}", e)
     };
@@ -21,19 +19,17 @@ fn main() {
     let wxs_content = fs::read_to_string(wxs_path).unwrap();
     let regex = regex::Regex::new(r#"Version="([^"]+)""#).unwrap();
 
-    let current_version = regex
-        .captures(&wxs_content)
-        .and_then(|cap| cap.get(1))
-        .map(|m| m.as_str());
+    let current_version = regex.captures(&wxs_content).and_then(|cap| cap.get(1)).map(|m| m.as_str());
 
     if current_version != Some(package_version) {
-        let updated_wxs = regex
-            .replace(&wxs_content, format!(r#"Version="{}""#, package_version))
-            .to_string();
+        let updated_wxs = regex.replace(&wxs_content, format!(r#"Version="{}""#, package_version)).to_string();
         fs::write(wxs_path, updated_wxs).unwrap();
     }
 
     println!("cargo:rerun-if-changed=Cargo.toml");
+    println!("cargo:rerun-if-changed=resources/kute.exe.manifest");
+    println!("cargo:rerun-if-changed=resources/kute-manifest.rc");
+    println!("cargo:rerun-if-changed=resources/client.rc");
     println!("cargo:rerun-if-changed=resources/installer_script.wxs");
     println!("cargo:rerun-if-changed=target/bundle.js");
 }

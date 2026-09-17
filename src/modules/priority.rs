@@ -4,16 +4,35 @@ use windows::Win32::{
     System::{Diagnostics::ToolHelp::*, Threading::*},
 };
 
-pub fn set(level: impl AsRef<str>) {
-    let priority_class = match level.as_ref() {
+use crate::utils::config;
+
+fn priority_class(level: &str) -> PROCESS_CREATION_FLAGS {
+    match level {
         "High" => HIGH_PRIORITY_CLASS,
         "Above Normal" => ABOVE_NORMAL_PRIORITY_CLASS,
         "Below Normal" => BELOW_NORMAL_PRIORITY_CLASS,
         "Idle" => IDLE_PRIORITY_CLASS,
         _ => NORMAL_PRIORITY_CLASS,
-    };
+    }
+}
+
+// subprocesses call this on startup so later spawned renderers and utilities get it too
+pub fn apply_to_self() {
+    let level = config("webviewPriority", "Normal".to_string());
+    if level == "Normal" {
+        return;
+    }
+    unsafe {
+        SetPriorityClass(GetCurrentProcess(), priority_class(&level)).ok();
+    }
+}
+
+// the browser process plus every CEF subprocess it spawned
+pub fn set(level: impl AsRef<str>) {
+    let priority_class = priority_class(level.as_ref());
 
     unsafe {
+        let current_pid = GetCurrentProcessId();
         let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0).unwrap();
         let mut entry = PROCESSENTRY32W {
             dwSize: mem::size_of::<PROCESSENTRY32W>() as u32,
@@ -22,20 +41,9 @@ pub fn set(level: impl AsRef<str>) {
 
         if Process32FirstW(snapshot, &mut entry).is_ok() {
             loop {
-                let pid = entry.th32ProcessID;
-                let len = entry.szExeFile.iter().position(|&char| char == 0).unwrap_or(entry.szExeFile.len());
-                let exe_slice = &entry.szExeFile[..len];
-
-                const TARGET: &[u16] = &['w' as u16, 'e' as u16, 'b' as u16, 'v' as u16, 'i' as u16, 'e' as u16, 'w' as u16, '2' as u16];
-
-                let contains_target = exe_slice.windows(TARGET.len()).any(|window| {
-                    window
-                        .iter()
-                        .zip(TARGET.iter())
-                        .all(|(&process_char, &target_char)| (process_char as u8).to_ascii_lowercase() == target_char as u8)
-                });
-
-                if contains_target && let Ok(handle) = OpenProcess(PROCESS_ALL_ACCESS, false, pid) {
+                if entry.th32ParentProcessID == current_pid
+                    && let Ok(handle) = OpenProcess(PROCESS_SET_INFORMATION | PROCESS_QUERY_INFORMATION, false, entry.th32ProcessID)
+                {
                     SetPriorityClass(handle, priority_class).ok();
                     CloseHandle(handle).ok();
                 }

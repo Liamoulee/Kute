@@ -1,11 +1,10 @@
 use regex::Regex;
-use std::{env, fs, io::Read, sync::LazyLock};
-use webview2_com::Microsoft::Web::WebView2::Win32::*;
-use windows::core::*;
-static METADATA_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)\A\s*\/\/ ==UserScript==.*?\/\/ ==\/UserScript=="#).unwrap());
-static IIFE_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)^\s*(?:['\"]use strict['\"];?\s*)?\(.*\)\s*\(\s*\)\s*;?\s*$"#).unwrap());
+use std::{fs, sync::LazyLock};
 
 use crate::utils;
+
+static METADATA_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)\A\s*\/\/ ==UserScript==.*?\/\/ ==\/UserScript=="#).unwrap());
+static IIFE_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"(?s)^\s*(?:['\"]use strict['\"];?\s*)?\(.*\)\s*\(\s*\)\s*;?\s*$"#).unwrap());
 
 // TODO: everything
 fn parse_metadata(content: &mut String) {
@@ -30,13 +29,15 @@ fn parse(mut content: String) -> String {
     format!("(function() {{\n{}\n}})();", content)
 }
 
-pub fn load(webview: &ICoreWebView2, social: bool) -> Result<()> {
+// every parsed script of the (social) scripts folder, ready to run on document created
+pub fn load(social: bool) -> Vec<String> {
     let scripts_dir = if social {
-        env::var("USERPROFILE").unwrap() + "\\Documents\\kute\\scripts\\social"
+        utils::settings_dir().join("scripts").join("social")
     } else {
-        env::var("USERPROFILE").unwrap() + "\\Documents\\kute\\scripts"
+        utils::settings_dir().join("scripts")
     };
 
+    let mut scripts = Vec::new();
     if let Ok(entries) = fs::read_dir(scripts_dir) {
         for entry in entries.flatten() {
             if !match entry.path().extension() {
@@ -46,15 +47,12 @@ pub fn load(webview: &ICoreWebView2, social: bool) -> Result<()> {
                 continue;
             }
 
-            let mut file = fs::File::open(entry.path())?;
-            let mut content = String::new();
-            file.read_to_string(&mut content)?;
-
-            let parsed = parse(content);
-
-            unsafe { webview.AddScriptToExecuteOnDocumentCreated(PCWSTR(utils::create_utf_string(parsed).as_ptr()), None)? }
+            match fs::read_to_string(entry.path()) {
+                Ok(content) => scripts.push(parse(content)),
+                Err(e) => eprintln!("userscripts: can't read {}: {}", entry.path().display(), e),
+            }
         }
     }
 
-    Ok(())
+    scripts
 }

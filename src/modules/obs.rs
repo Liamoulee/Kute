@@ -1,6 +1,5 @@
-use crate::{debug_print, utils};
+use crate::{bridge, debug_print, utils};
 use std::{fs, path::PathBuf};
-use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2;
 use windows::{
     Win32::{UI::Shell::ShellExecuteW, UI::WindowsAndMessaging::SW_SHOWNORMAL},
     core::*,
@@ -19,7 +18,7 @@ pub fn obs_plugin_paths() -> Vec<PathBuf> {
     paths
 }
 
-pub fn set_plugin_installed(webview: &ICoreWebView2, install: bool) {
+pub fn set_plugin_installed(frame: &cef::Frame, install: bool) {
     let (ok, message) = match (|| -> std::io::Result<String> {
         let paths = obs_plugin_paths();
         let dest = paths
@@ -67,9 +66,7 @@ pub fn set_plugin_installed(webview: &ICoreWebView2, install: bool) {
 
     let payload = serde_json::json!({ "type": "obs-plugin", "ok": ok, "message": message });
     if let Ok(json) = serde_json::to_string(&payload) {
-        unsafe {
-            webview.PostWebMessageAsJson(PCWSTR(utils::create_utf_string(json).as_ptr())).ok();
-        }
+        bridge::post_json_to_frame(frame, &json);
     }
 }
 
