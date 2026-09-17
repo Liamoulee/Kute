@@ -268,5 +268,25 @@
         "defaultValue": "Normal",
         "needsRestart": true,
         "options": ["High", "Above Normal", "Normal", "Below Normal", "Low", "Idle"]
+    },
+    "angleBackend": {
+        "name": "Graphics Backend (ANGLE)",
+        "id": "angleBackend",
+        "description": "The backend Chromium renders WebGL through. Default is D3D11 on Windows. \nOpenGL and Vulkan bypass the DXGI swapchain, so the present FPS counter/limiter and OBS capture do not work with them",
+        "type": "select",
+        "category": "Tweaks",
+        "defaultValue": "Default",
+        "needsRestart": true,
+        "options": ["Default", "D3D11", "D3D11on12", "OpenGL", "Vulkan"]
+    },
+    "colorProfile": {
+        "name": "Color Profile",
+        "id": "colorProfile",
+        "description": "Forces the color profile Chromium renders with instead of the monitor's own. \nsRGB is the classic choice when colors look washed out or oversaturated",
+        "type": "select",
+        "category": "Tweaks",
+        "defaultValue": "Default",
+        "needsRestart": true,
+        "options": ["Default", "sRGB", "Display P3 D65", "Extended sRGB", "scRGB linear", "HDR10"]
     }
 }

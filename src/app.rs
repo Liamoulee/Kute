@@ -77,10 +77,38 @@ pub static DISCORD: Mutex<Option<DiscordIpcClient>> = Mutex::new(None);
 
 static FLAGS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
+// the select options of cSettings.json mapped to what chromium accepts
+fn angle_backend_switch(option: &str) -> Option<&'static str> {
+    match option {
+        "D3D11" => Some("d3d11"),
+        "D3D11on12" => Some("d3d11on12"),
+        "OpenGL" => Some("gl"),
+        "Vulkan" => Some("vulkan"),
+        _ => None,
+    }
+}
+
+fn color_profile_switch(option: &str) -> Option<&'static str> {
+    match option {
+        "sRGB" => Some("srgb"),
+        "Display P3 D65" => Some("display-p3-d65"),
+        "Extended sRGB" => Some("extended-srgb"),
+        "scRGB linear" => Some("scrgb-linear"),
+        "HDR10" => Some("hdr10"),
+        _ => None,
+    }
+}
+
 pub fn load_flags() {
     let mut flags = modules::flaglist::load();
     if config("uncapFps", true) {
         flags.push("--disable-frame-rate-limit".to_string());
+    }
+    if let Some(backend) = angle_backend_switch(&config("angleBackend", "Default".to_string())) {
+        flags.push(format!("--use-angle={backend}"));
+    }
+    if let Some(profile) = color_profile_switch(&config("colorProfile", "Default".to_string())) {
+        flags.push(format!("--force-color-profile={profile}"));
     }
     *FLAGS.lock().unwrap() = flags;
 }
