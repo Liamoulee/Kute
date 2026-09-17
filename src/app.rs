@@ -3,7 +3,7 @@ use crate::{constants, handlers, modules, renderer, utils, window};
 use cef::{rc::*, *};
 use discord_rich_presence::{DiscordIpc, DiscordIpcClient};
 use std::{
-    env, fs, io, path, result,
+    env, fs, io, result,
     sync::{
         Mutex,
         atomic::{AtomicU64, Ordering},
@@ -17,8 +17,6 @@ pub fn init_fs() -> result::Result<(), io::Error> {
     let client_dir = utils::settings_dir();
     let swap_dir = client_dir.join("swapper");
     let scripts_dir = client_dir.join("scripts").join("social");
-    let flaglist_path = client_dir.join("user_flags.json");
-    let blocklist_path = client_dir.join("user_blocklist.json");
 
     let resources_dir = utils::exe_dir().join("resources");
 
@@ -26,12 +24,8 @@ pub fn init_fs() -> result::Result<(), io::Error> {
     fs::create_dir_all(&scripts_dir)?;
     fs::create_dir_all(&resources_dir)?;
 
-    if !path::Path::new(&flaglist_path).exists() {
-        fs::write(&flaglist_path, constants::DEFAULT_FLAGS)?;
-    }
-    if !path::Path::new(&blocklist_path).exists() {
-        fs::write(&blocklist_path, constants::DEFAULT_BLOCKLIST)?;
-    }
+    // user_flags.json and user_blocklist.json are created with their example content by
+    // modules::flaglist and modules::blocklist when they are missing or empty
     Ok(())
 }
 
