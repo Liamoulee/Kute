@@ -16,6 +16,7 @@ import { getElement, getInput, checkCompMode } from "./utils.js";
  * @property {boolean} [needsRefresh]
  * @property {string} [button]
  * @property {string} [buttonAction] Inline JS; "{{kute}}" is replaced with a reference to the client object
+ * @property {boolean} [requiresLogin] The button is disabled while no account is logged in
  * @property {number} [min]
  * @property {number} [max]
  * @property {number} [step]
@@ -200,9 +201,14 @@ class SettingsManager {
         const value = kute.settings.data[option.id];
         // globalRef contains double quotes, which would end the onclick attribute
         const buttonAction = option.buttonAction?.replaceAll("{{kute}}", globalRef).replaceAll('"', "&quot;") ?? "";
-        const button = option.button
-            ? `<div class="settingsBtn" style="margin-right: 20px; width: auto" onclick="${buttonAction}">${option.button}</div>`
-            : "";
+        const locked = option.requiresLogin && document.querySelector("#signedInHeaderBar") === null;
+        let button = "";
+        if (option.button && locked){
+            button = `<div class="settingsBtn" style="margin-right: 20px; width: auto; opacity: 0.35; cursor: not-allowed" title="Log in first">${option.button}</div>`;
+        }
+        else if (option.button){
+            button = `<div class="settingsBtn" style="margin-right: 20px; width: auto" onclick="${buttonAction}">${option.button}</div>`;
+        }
         switch (option.type){
             case "checkbox":
                 return `<label class='switch'>
