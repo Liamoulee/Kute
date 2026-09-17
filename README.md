@@ -13,18 +13,22 @@
 
 ## :star: Features
 
+- [x] Runs on its own bundled Chromium (CEF), no browser or runtime install needed
+- [x] Uncapped FPS with a DXGI present hook: waitable flip swapchain, frame pacing, present FPS counter and limiter
 - [x] **Proper** Raw input
-- [x] Increased performance
-- [x] Hook DXGI parameters in an attempt of lowering latency
-- [x] Optimized URL blocklist (only ~50 entries, fully customizable)
+- [x] Selectable graphics backend (ANGLE: D3D11, D3D11on12, OpenGL, Vulkan) and color profile
+- [x] Optimized URL blocklist (only ~50 entries, fully customizable), custom Chromium flags
 - [x] Resource swapper
 - [x] Custom script support
+- [x] OBS capture plugin (shared texture game capture plus a dedicated audio window)
 - [x] Account Manager
 - [x] Queue ranked without the game open
 - [x] Find out your real ping to the servers
+- [x] Better chat, hardpoint enemy counter, rank progress
+- [x] Discord Rich Presence
 - [x] CPU Throttler
 - [x] Lightweight autoupdater
-- [x] Basic shortcuts (F11 - toggle fullscreen, F6 new lobby)
+- [x] Basic shortcuts (F11 - toggle fullscreen, F6 new lobby, F12 devtools)
 - [x] and more...
 
 <hr>
@@ -41,6 +45,7 @@ Consider using the CPU Throttler in such scenario
 - Prerequisites:
   - [Rust & Cargo](https://rustup.rs/)
   - [Microsoft Visual C++](https://visualstudio.microsoft.com/downloads/)
+  - [CMake](https://cmake.org/download/) and [Ninja](https://github.com/ninja-build/ninja/releases) (the CEF wrapper is built on the first build)
   - [Bun](https://bun.sh/)
   - [WiX 6 **(if packaging)**](https://github.com/wixtoolset/wix/releases)
 
