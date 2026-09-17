@@ -78,32 +78,43 @@ export class FrameRecorder {
 }
 
 /**
- * Counts how many other tasks the main thread gets to run while the frame loop is busy. A starved
- * main thread (the old aim freeze) shows up here long before it shows up in the frame times.
+ * How long other work waits on the main thread while the frame loop runs. A starved main thread (the old aim
+ * freeze) shows up here as delays of tens of milliseconds, long before it shows in the frame times.
+ * One probe every 10 ms: an earlier version posted tasks back to back to count them, and that flood of tasks
+ * delayed the frame callbacks it was running next to by up to 2 ms. A probe must not load what it measures.
  */
-export class TaskCounter {
+export class TaskProbe {
     constructor(){
-        this.count = 0;
-        this.running = false;
+        /** @type {number[]} */
+        this.delays = [];
+        this.timer = 0;
+        this.sent = 0;
         this.channel = new MessageChannel();
-        this.channel.port1.onmessage = () => {
-            if (!this.running) return;
-            this.count++;
-            this.channel.port2.postMessage(0);
+        this.channel.port1.onmessage = (event) => {
+            this.delays.push(performance.now() - event.data);
         };
     }
 
     start(){
-        this.count = 0;
-        this.running = true;
-        this.channel.port2.postMessage(0);
+        this.delays = [];
+        this.sent = 0;
+        this.timer = setInterval(() => {
+            this.sent++;
+            this.channel.port2.postMessage(performance.now());
+        }, 10);
     }
 
     /**
-     * @return {number} Tasks that ran since start()
+     * @return {{sent: number, ran: number, p99: number, max: number}} Delays in ms
      */
     stop(){
-        this.running = false;
-        return this.count;
+        clearInterval(this.timer);
+        const sorted = [...this.delays].sort((a, b) => a - b);
+        return {
+            sent: this.sent,
+            ran: sorted.length,
+            p99: sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.99))] ?? 0,
+            max: sorted[sorted.length - 1] ?? 0,
+        };
     }
 }

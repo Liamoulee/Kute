@@ -1,5 +1,5 @@
 import { createScene, cpuChecksum, DEFAULT_LOAD } from "./scene.js";
-import { FrameRecorder, TaskCounter } from "./metrics.js";
+import { FrameRecorder, TaskProbe } from "./metrics.js";
 
 // Page side of `kute.exe --bench=...` (src/modules/bench.rs): runs the synthetic scene in the window,
 // measures one settle and one sample window and hands the numbers to the host, which writes them out
@@ -54,7 +54,7 @@ function run(){
     scene.resize(window.innerWidth * devicePixelRatio, window.innerHeight * devicePixelRatio);
 
     const recorder = new FrameRecorder();
-    const tasks = new TaskCounter();
+    const tasks = new TaskProbe();
     const start = performance.now();
     let sampling = false;
     let nextSlot = start;
@@ -74,6 +74,7 @@ function run(){
 
         if (!sampling && now - start >= settleMs){
             sampling = true;
+            window.chrome.webview.postMessage("bench-sample-start");
             tasks.start();
         }
         if (sampling) recorder.frame(now);
@@ -85,7 +86,7 @@ function run(){
             finish({
                 ok: true,
                 stats,
-                otherTasksPerSec: stats ? otherTasks / stats.seconds : 0,
+                otherTasks,
                 load,
                 width: canvas.width,
                 height: canvas.height,
