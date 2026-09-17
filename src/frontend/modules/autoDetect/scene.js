@@ -58,6 +58,47 @@ void main() {
     outColor = vec4(0.3 + 0.2 * w, 0.2, 0.4 - 0.2 * w, 0.08);
 }`;
 
+const LABEL_VS = `#version 300 es
+layout(location=0) in vec2 aPos;
+uniform vec2 uScale;
+out vec2 vUv;
+void main() { vUv = vec2(aPos.x * 0.5 + 0.5, 0.5 - aPos.y * 0.5); gl_Position = vec4(aPos * uScale, 0.0, 1.0); }`;
+
+const LABEL_FS = `#version 300 es
+precision mediump float;
+in vec2 vUv;
+uniform sampler2D uLabel;
+out vec4 outColor;
+void main() { outColor = texture(uLabel, vUv); }`;
+
+/**
+ * Text for the player, painted once into a bitmap. It is drawn as part of the scene: an HTML element over
+ * the canvas would make the browser composite two layers per frame, which costs a good tenth of the frame
+ * rate and would end up in the measurement.
+ *
+ * @param {string[]} lines The first one is the headline
+ * @return {HTMLCanvasElement}
+ */
+function paintLabel(lines){
+    const bitmap = document.createElement("canvas");
+    bitmap.width = 640;
+    bitmap.height = 60 + lines.length * 34;
+    const context = bitmap.getContext("2d");
+    if (!context) return bitmap;
+    context.fillStyle = "rgba(30, 30, 30, 0.92)";
+    context.beginPath();
+    context.roundRect(0, 0, bitmap.width, bitmap.height, 18);
+    context.fill();
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    lines.forEach((line, index) => {
+        context.font = index === 0 ? "26px Consolas, monospace" : "18px Consolas, monospace";
+        context.fillStyle = index === 0 ? "#35e0e8" : "#bbbbbb";
+        context.fillText(line, bitmap.width / 2, 48 + index * 34);
+    });
+    return bitmap;
+}
+
 /**
  * @param {WebGL2RenderingContext} gl
  * @param {number} type
@@ -196,9 +237,10 @@ function cpuWork(iterations){
 /**
  * @param {HTMLCanvasElement} canvas
  * @param {SceneLoad} [load]
+ * @param {string[]} [labelLines] Shown in the middle of the scene for the whole run
  * @return {Scene}
  */
-export function createScene(canvas, load = DEFAULT_LOAD){
+export function createScene(canvas, load = DEFAULT_LOAD, labelLines = []){
     const gl = canvas.getContext("webgl2", {
         antialias: false,
         alpha: false,
@@ -237,6 +279,26 @@ export function createScene(canvas, load = DEFAULT_LOAD){
     gl.enableVertexAttribArray(0);
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
     gl.bindVertexArray(null);
+
+    // the label: one textured quad, the same single draw call in every configuration
+    const labelBitmap = labelLines.length > 0 ? paintLabel(labelLines) : null;
+    const labelProgram = labelBitmap ? link(gl, LABEL_VS, LABEL_FS) : null;
+    const uLabelScale = labelProgram ? gl.getUniformLocation(labelProgram, "uScale") : null;
+    const labelVao = gl.createVertexArray();
+    if (labelBitmap){
+        gl.bindVertexArray(labelVao);
+        gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(0);
+        gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+        gl.bindVertexArray(null);
+        gl.bindTexture(gl.TEXTURE_2D, gl.createTexture());
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, labelBitmap);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    }
 
     // fixed seed: the same objects on every run and every machine
     let seed = 1337;
@@ -302,6 +364,15 @@ export function createScene(canvas, load = DEFAULT_LOAD){
             for (let layer = 0; layer < load.overdraw; layer++){
                 gl.uniform1f(uLayer, layer);
                 gl.drawArrays(gl.TRIANGLES, 0, 3);
+            }
+
+            if (labelBitmap && labelProgram){
+                // at its own pixel size whatever the canvas measures
+                gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+                gl.useProgram(labelProgram);
+                gl.bindVertexArray(labelVao);
+                gl.uniform2f(uLabelScale, labelBitmap.width / canvas.width, labelBitmap.height / canvas.height);
+                gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
             }
             gl.bindVertexArray(null);
         },
