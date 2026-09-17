@@ -726,6 +726,10 @@ class AutoDetect {
         if (frameCapBefore > 0) game.write(game.GAME_FRAME_CAP, "0");
         // the first seconds of a match still stream assets and compile shaders
         await sleep(2500);
+        // again: taking the pointer lock makes the client post its in-game throttle, and that can land after the
+        // "off" above. a run measured 532 instead of 1500 frames per second that way
+        window.chrome.webview.postMessage("throttle, off");
+        await sleep(300);
 
         panel.progress("Measuring your current settings", 0.15);
         // (the first call only starts a fresh window in the hook, the second one reads the baseline's presents)
@@ -735,8 +739,18 @@ class AutoDetect {
         const presentIntervals = (await request("get-present-intervals", "presentIntervals")) || null;
         const presentFps = Number(await request("get-present", "presentFps")) || 0;
         const base = first;
-        const baseFps = Math.max(...repeats);
-        const noise = (Math.max(...repeats) - Math.min(...repeats)) / Math.max(1, baseFps);
+        const noise = (Math.max(...repeats) - Math.min(...repeats)) / Math.max(1, Math.max(...repeats));
+        // every sample of the unchanged settings, from the first second to the last. what the PC holds is their
+        // median: the first seconds of a match run below it (the game is still warming up, 1340 against 1900
+        // at the end of one run), a laptop's last ones run below it too (heat), and a single sample is luck
+        const baselines = [...repeats];
+        /**
+         * @return {number}
+         */
+        const baselineFps = () => {
+            const sorted = [...baselines].sort((a, b) => a - b);
+            return sorted[Math.floor(sorted.length / 2)];
+        };
         if (this.cancelled) return null;
 
         // every measurement sits between two samples of the unchanged settings and is compared with their
@@ -756,6 +770,7 @@ class AutoDetect {
             await sleep(SETTLE_MS);
             const after = (await measure()).fps;
             reference = after;
+            baselines.push(after);
             const mean = (before + after) / 2;
             return {
                 ratio: changed.fps / Math.max(1, mean),
@@ -800,7 +815,7 @@ class AutoDetect {
 
         // one measurement is enough for the diagnostics, not for changing something: a setting that is about
         // to be switched gets measured a second time, and the lower of the two numbers counts
-        if (baseFps < hz * TARGET_REFRESH_MULTIPLE * HEADROOM){
+        if (baselineFps() < hz * TARGET_REFRESH_MULTIPLE * HEADROOM){
             for (const row of settings){
                 if (row.gain === null || !row.steady || row.current === row.cheap || row.gain < SIGNIFICANT_SETTING) continue;
                 if (this.cancelled) return null;
@@ -821,6 +836,7 @@ class AutoDetect {
         // half the pixels cannot be slower, a number like that caught a hiccup
         const halfResolutionGain = half.steady && half.ratio > 0.92 ? half.ratio : null;
         const drift = reference / Math.max(1, repeats[0]);
+        const baseFps = baselineFps();
         if (this.cancelled) return null;
 
         const plan = decide(
@@ -939,7 +955,7 @@ class AutoDetect {
                         map: activity().map ?? "",
                     },
                     baseline: {
-                        samples: repeats,
+                        samples: baselines,
                         p50: base.p50,
                         p95: base.p95,
                         p99: base.p99,
