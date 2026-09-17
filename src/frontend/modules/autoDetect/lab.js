@@ -76,7 +76,7 @@ let carriedBaseline = null;
  * @param {string} id
  * @param {string} value
  * @param {string} before
- * @return {Promise<{id: string, value: string, before: string, fps: number, baseline: number, gain: number}>}
+ * @return {Promise<{id: string, value: string, before: string, fps: number, baseline: number, baselines: number[], gain: number}>}
  */
 async function probe(id, value, before){
     const first = carriedBaseline ?? (await measure())?.fps ?? 0;
@@ -89,7 +89,7 @@ async function probe(id, value, before){
     carriedBaseline = second;
     // a hiccup only ever makes a sample slower, so the better baseline is the honest one
     const baseline = Math.max(first, second);
-    return { id, value, before, fps, baseline, gain: baseline > 0 ? fps / baseline : 0 };
+    return { id, value, before, fps, baseline, baselines: [first, second], gain: baseline > 0 ? fps / baseline : 0 };
 }
 
 /**
@@ -139,6 +139,16 @@ async function run(){
         status("baseline");
         await sleep(SETTLE_MS);
         report.base = await measure();
+
+        // how much the same settings swing on their own. a probe result smaller than this means nothing.
+        // a live public match swings by a factor of two, a menu or an empty custom game by a few percent
+        const repeats = [report.base?.fps ?? 0];
+        for (let i = 0; i < 3; i++) repeats.push((await measure())?.fps ?? 0);
+        report.noise = { samples: repeats, spread: (Math.max(...repeats) - Math.min(...repeats)) / Math.max(1, Math.max(...repeats)) };
+        if (report.noise.spread > 0.15){
+            status(`the scene swings by ${Math.round(report.noise.spread * 100)} %, results will be unreliable. use the menu or stand still in an empty custom game`);
+            await sleep(4000);
+        }
 
         // the resolution curve: tells the regime and checks the pixel count law the resolution step relies on
         for (const factor of [0.5, 0.75, 1.5, 2]){
