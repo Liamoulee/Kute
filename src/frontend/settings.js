@@ -160,12 +160,9 @@ kute.settings.changeSetting = (id, rawValue, slider) => {
 
     const toggleFunctionName = /** @type {const} */ (`toggle${id.charAt(0).toUpperCase() + id.slice(1)}`);
     if (typeof kute.settings[toggleFunctionName] !== "function"){
-        try {
-            import(`./modules/${id}.js`);
-        }
-        catch {
-            /*  */
-        }
+        // most settings have no module of their own. the import is a promise, a try around it catches nothing:
+        // every such toggle was an unhandled rejection (and would now get reported as an error of the client)
+        import(`./modules/${id}.js`).catch(() => {});
     }
     else {
         kute.settings[toggleFunctionName](value);
@@ -252,7 +249,7 @@ class SettingsManager {
                     step="${option.step}" value="${value}" class="sliderM" oninput='${globalRef}.settings.changeSetting("${option.id}", this.value, true)'></div>`;
             case "select":
                 return `<select id="${option.id}" class="inputGrey2" onchange='${globalRef}.settings.changeSetting("${option.id}", this.value, false)'>
-                    ${(option.options ?? []).map((opt) => `<option value="${opt}" ${opt === value ? "selected" : ""}>${opt}</option>`)}</select>`;
+                    ${(option.options ?? []).map((opt) => `<option value="${opt}" ${opt === value ? "selected" : ""}>${opt}</option>`).join("")}</select>`;
             case "none":
                 return button;
             default:
@@ -277,9 +274,10 @@ class SettingsManager {
         let previousCategory = null;
 
         for (const setting of Object.values(settings)){
-            setting.html = this.generateHtml(setting);
-
+            // filter first: while searching, the controls of everything that does not match got built for nothing
             if (this.settingsWindow.settingSearch && !this.searchMatches(setting)) continue;
+
+            setting.html = this.generateHtml(setting);
 
             if (previousCategory !== setting.category){
                 if (previousCategory) tempHTML += "</div>";

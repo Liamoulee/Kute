@@ -51,7 +51,7 @@ window.showWindow = (...args) => {
         default:
             break;
     }
-    return originalshowWindow.apply(this, args);
+    return originalshowWindow(...args);
 };
 
 const originalclosWind = window.closWind;
@@ -64,7 +64,7 @@ const originalclosWind = window.closWind;
 window.closWind = (...args) => {
     window.chrome.webview.postMessage("drag, true");
     window.chrome.webview.postMessage("throttle, menu");
-    return originalclosWind.apply(this, args);
+    return originalclosWind(...args);
 };
 
 /**

@@ -7,6 +7,7 @@ class ShowPing {
     constructor(){
         /** @type {() => string} */
         this.originalGenList = window.windows[22].genList;
+        this.template = document.createElement("template");
 
         kute.settings.toggleShowPing = (enabled) => this.toggle(enabled);
 
@@ -29,9 +30,10 @@ class ShowPing {
     modifiedGenList(){
         const htmlString = this.originalGenList.call(this);
 
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(htmlString, "text/html");
-        const pingIcons = doc.querySelectorAll(".pListPing.material-icons");
+        // a template parses the markup into a fragment. DOMParser built a whole second document for every
+        // refresh of the player list
+        this.template.innerHTML = htmlString;
+        const pingIcons = this.template.content.querySelectorAll(".pListPing.material-icons");
 
         for (const icon of pingIcons){
             const pingValue = icon.getAttribute("title");
@@ -41,7 +43,7 @@ class ShowPing {
 
             icon.textContent = `${pingValue ? pingValue : "N/A"} `;
         }
-        return doc.body.innerHTML;
+        return this.template.innerHTML;
     }
 }
 

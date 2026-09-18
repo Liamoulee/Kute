@@ -58,14 +58,16 @@ document.addEventListener(
             }
         });
 
-        if (kute?.settings?.data?.cleanUI){
+        // the settings come from the host and may not be here yet when the document is
+        ready.then(() => {
+            if (!kute.settings.data.cleanUI) return;
             import("./components/clean.css").then((css) => {
                 const cleanCSS = document.createElement("style");
                 cleanCSS.id = "kute_cleanCSS";
                 cleanCSS.textContent = css.default;
                 document.head.append(cleanCSS);
             });
-        }
+        });
     },
     { once: true },
 );
@@ -93,9 +95,10 @@ Object.defineProperty(window, "gameLoaded", {
         window.windows[0].toggleType({ checked: true });
 
         // append ranked and mod button to comp host ui
-        getElement("#compBtnLst").innerHTML += `
+        // insertAdjacentHTML: "innerHTML +=" rebuilds the buttons that are already there, listeners and all
+        getElement("#compBtnLst").insertAdjacentHTML("beforeend", `
 		    <div class="compMenBtnS" onmouseenter='SOUND.play("tick_0",.1)' style="background-color: #f5479b" onclick="playSelect(),showWindow(4)"> <span class="material-icons" style="color:#fff;font-size:40px;vertical-align:middle;margin-bottom:12px">color_lens</span></div>
-		    <div class="compMenBtnS" onmouseenter='SOUND.play("tick_0",.1)' style="background-color: #5ce05a" onclick="playSelect(),window.openRankedMenu()"><span class="material-icons" style="color:#fff;font-size:40px;vertical-align:middle;margin-bottom:12px">star</span></div>`;
+		    <div class="compMenBtnS" onmouseenter='SOUND.play("tick_0",.1)' style="background-color: #5ce05a" onclick="playSelect(),window.openRankedMenu()"><span class="material-icons" style="color:#fff;font-size:40px;vertical-align:middle;margin-bottom:12px">star</span></div>`);
 
         // classic social button
         /** @type {string|undefined} */
@@ -180,10 +183,12 @@ Object.defineProperty(window, "gameLoaded", {
             /**
              * Enables spectating as soon as the game activity reports a map, unless the game is custom.
              */
+            let tries = 0;
             const trySetSpect = () => {
                 const activity = window.getGameActivity();
                 if (activity.map === null){
-                    setTimeout(trySetSpect, 100);
+                    // a minute, not forever: without a map this kept a 10 Hz timer alive for the whole session
+                    if (++tries < 600) setTimeout(trySetSpect, 100);
                     return;
                 }
                 if (!activity.custom) window.setSpect(true);

@@ -223,7 +223,7 @@ kute.parseArgs = async(args) => {
 };
 
 window.chrome.webview.addEventListener("message", async(event) => {
-    if (!event.data.args) return;
+    if (!event.data?.args) return;
     await kute.parseArgs(event.data.args);
 });
 

@@ -68,7 +68,7 @@ const originalshowWindow = window.showWindow;
 window.showWindow = (...args) => {
     const number = args[0];
     if (number === 6) queueMicrotask(() => addClaimAllButton());
-    return originalshowWindow.apply(this, args);
+    return originalshowWindow(...args);
 };
 
 export {};

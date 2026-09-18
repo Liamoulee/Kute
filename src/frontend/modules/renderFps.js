@@ -46,12 +46,17 @@ class RenderFps {
             this.applyFpsDisplay(ingameFPS);
             this.applyFpsDisplay(menuFPS);
 
+            let shown = "";
             this.listener = (event) => {
                 const fps = event.data?.fpsInfo;
                 if (fps === undefined) return;
 
-                ingameFPS.innerText = `${this.gameFPS} ${fps}`;
-                menuFPS.innerText = `${this.gameFPS} ${fps}`;
+                // ten of these arrive per second, often with the numbers that are already on screen
+                const text = `${this.gameFPS} ${fps}`;
+                if (text === shown) return;
+                shown = text;
+                ingameFPS.innerText = text;
+                menuFPS.innerText = text;
             };
 
             window.chrome.webview.addEventListener("message", this.listener);

@@ -49,9 +49,11 @@ class RealPing {
             }, 3000);
 
             this.listener = (event) => {
-                if (!event.data.pingInfo) return;
-                ingamePing.innerText = event.data.pingInfo;
-                menuPing.innerText = event.data.pingInfo;
+                const ping = event.data?.pingInfo;
+                if (!ping) return;
+                // innerText, because textContent is what the game writes to and is blocked on these two
+                ingamePing.innerText = ping;
+                menuPing.innerText = ping;
             };
             window.chrome.webview.addEventListener("message", this.listener);
         }
