@@ -81,5 +81,7 @@ window.importSettings = () => {
     importTxtElement.value = JSON.stringify(json);
     originalimportSettings();
     kute.bindShoot();
+    // an auto-detect undo would now restore values from before the import
+    kute.autoDetect?.dropUndo();
 };
 

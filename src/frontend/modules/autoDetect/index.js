@@ -530,6 +530,17 @@ class AutoDetect {
     }
 
     /**
+     * Forgets the undo of the last run. Called when the player imports Krunker settings: the snapshot from before
+     * the run would put old values over what they just imported.
+     */
+    dropUndo(){
+        const state = readState();
+        if (!state?.undoable) return;
+        state.undoable = false;
+        writeState(state);
+    }
+
+    /**
      * Shows the result of the last run again.
      */
     showLast(){

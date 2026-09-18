@@ -53,7 +53,7 @@ interface Kute {
     showNotification(message: string, reqUserInput: boolean, seconds: number): any;
     showChangelogPopup(version: string): Promise<void>;
     showAboutPopup(): Promise<void>;
-    autoDetect: { start(): Promise<void>; undo(): void; showLast(): void };
+    autoDetect: { start(): Promise<void>; undo(): void; showLast(): void; dropUndo(): void };
     clanColors: { apply(styles: unknown): void; toggle(enabled: boolean): void };
     bindShoot(): void;
 }
