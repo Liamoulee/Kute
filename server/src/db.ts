@@ -74,5 +74,13 @@ export function initDb(): void {
         );
     `);
 
+    // plain counters (the player numbers of /api/health), never rows about anybody
+    db.run(`
+        CREATE TABLE IF NOT EXISTS stats (
+            key    TEXT PRIMARY KEY,
+            value  TEXT NOT NULL
+        );
+    `);
+
     Log.done("Database initialized (" + file + ").");
 }
