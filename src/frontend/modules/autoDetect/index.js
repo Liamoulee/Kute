@@ -16,6 +16,8 @@ const SETTLE_MS = 450;
 // something else moved (a hitch, a shader compile) and the number is not used
 const STEADY_SPREAD = 0.08;
 const CLIENT_KEYS = ["gameFpsLimit", "throttle", "hardFlip"];
+/** how many present intervals the hook keeps (INTERVAL_SAMPLES in render-dll). a count that high means it overflowed */
+const PRESENT_RING = 16384;
 // the client configurations every run measures, the least restrictive first. "limit=auto" is a cap a bit
 // below what the first one reaches, the classic advice against a graphics card that cannot keep up
 const CLIENT_CONFIGS = [
@@ -704,13 +706,21 @@ class AutoDetect {
         window.chrome.webview.postMessage("throttle, off");
         await sleep(300);
 
+        // a window that is minimized or behind another one renders differently, or not at all
+        window.chrome.webview.postMessage("bring-to-front");
         panel.progress("Measuring your current settings", 0.15);
         // (the first call only starts a fresh window in the hook, the second one reads the baseline's presents)
         await request("get-present-intervals", "presentIntervals");
+        const presentsSince = performance.now();
         const first = await measure();
         const repeats = [first.fps, (await measure()).fps, (await measure()).fps];
         const presentIntervals = (await request("get-present-intervals", "presentIntervals")) || null;
-        const presentFps = Number(await request("get-present", "presentFps")) || 0;
+        // the presents the hook counted in exactly this window, per second. not "get-present": that is a moving
+        // average which one long pause drags down for a while and which stays frozen when the hook goes quiet
+        // (it once said 3 while the game ran at 1383). no answer, or a full ring that stopped counting: unknown
+        const presentSeconds = (performance.now() - presentsSince) / 1000;
+        const presentCount = Number(presentIntervals?.samples) || 0;
+        const presentFps = presentCount > 0 && presentCount < PRESENT_RING ? Math.round(presentCount / presentSeconds) : 0;
         const base = first;
         const noise = (Math.max(...repeats) - Math.min(...repeats)) / Math.max(1, Math.max(...repeats));
         // every sample of the unchanged settings, from the first second to the last. what the PC holds is their
@@ -964,8 +974,14 @@ class AutoDetect {
         }
         if (state) return;
 
-        setTimeout(() => {
-            if (this.running || document.pointerLockElement) return;
+        const offer = () => {
+            if (this.running || readState()) return;
+            // a player who is already in the match gets asked once they are back in the menu. giving up here
+            // meant that whoever clicked play within five seconds never saw this at all
+            if (document.pointerLockElement){
+                document.addEventListener("pointerlockchange", () => setTimeout(offer, 1500), { once: true });
+                return;
+            }
             writeState({ status: "prompted", at: Date.now(), snapshot: { client: {}, game: {} } });
             const canRun = loggedIn();
             new Panel().result(
@@ -979,7 +995,8 @@ class AutoDetect {
                 },
                 { onRun: canRun ? () => this.start() : undefined },
             );
-        }, 5000);
+        };
+        setTimeout(offer, 5000);
     }
 }
 

@@ -595,6 +595,9 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         ["restart"] => {
             modules::lifecycle::restart();
         }
+        ["bring-to-front"] => {
+            window::bring_to_front(browser);
+        }
         ["clear-cache"] => {
             modules::devtools::clear_cache(browser);
         }

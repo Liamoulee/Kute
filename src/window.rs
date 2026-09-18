@@ -168,6 +168,22 @@ pub fn set_browser_visible(browser: &Browser, visible: bool) {
     }
 }
 
+// an auto-detect run measures the window the player looks at: a minimized one gets restored, and it comes to the
+// front (windows allows that here, the player just clicked a button in this window). not maximized on purpose,
+// the run has to measure the size the player really plays in
+pub fn bring_to_front(browser: &Browser) {
+    let Some(hwnd) = root_hwnd(browser) else { return };
+    unsafe {
+        if IsIconic(hwnd).as_bool() {
+            let _ = ShowWindow(hwnd, SW_RESTORE);
+        }
+        let _ = SetForegroundWindow(hwnd);
+    }
+    if let Some(host) = browser.host() {
+        host.set_focus(1);
+    }
+}
+
 // left, top, right, bottom of the window's client area in screen pixels
 pub fn client_rect_on_screen(browser: &Browser) -> Option<[i32; 4]> {
     let hwnd = root_hwnd(browser)?;
