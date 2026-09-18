@@ -19,8 +19,8 @@ incremental = true
 codegen-units = 1
 lto = true
 opt-level = 3
-# needed for crash logging
-debug-assertions = true
+# no debug-assertions: the crash log (panic hook, panic location, backtrace) works without them. all the flag did
+# was compile debug_assert! and integer overflow checks into our code and every dependency
 strip = "symbols"
 
 [features]
