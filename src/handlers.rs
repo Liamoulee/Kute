@@ -476,7 +476,11 @@ pub fn open_documents_subpath(target: &str) {
 
 // links of the about popup. they open in the user's browser, where they are signed in to github
 pub fn open_in_default_browser(url: &str) {
-    if !url.starts_with(constants::GITHUB_URL) || url.chars().any(|c| c.is_whitespace() || c == '"') {
+    // "https://kute.lol" without the slash is the same place as with it
+    let allowed = constants::OPEN_URL_ALLOWED
+        .iter()
+        .any(|prefix| url.starts_with(prefix) || url == prefix.trim_end_matches('/'));
+    if !allowed || url.chars().any(|c| c.is_whitespace() || c == '"') {
         return;
     }
     use windows::Win32::UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOWNORMAL};
