@@ -169,15 +169,23 @@ pub fn installer_cleanup() -> io::Result<()> {
     Ok(())
 }
 
+const CRASH_TRACE_MARK: &str = "\nStack Trace:\n";
+
+// with the rest of the user's Kute files, where it can be found and where it can always be written
+fn crash_log_path() -> std::path::PathBuf {
+    utils::settings_dir().join("crash_log.txt")
+}
+
 pub fn set_panic_hook() -> io::Result<()> {
-    let current_dir = env::current_dir()?;
-    let log_file_path = current_dir.join("crash_log.txt");
+    let log_file_path = crash_log_path();
 
     panic::set_hook(Box::new(move |panic_info| {
         let crash_message = format!(
-            "Location: {}\n\
+            "Version: {}\n\
+            Location: {}\n\
             Message: {}\n\
             \nStack Trace:\n{}\n",
+            env!("CARGO_PKG_VERSION"),
             {
                 let loc_string = panic_info.location().map(|loc| loc.to_string()).unwrap_or_else(|| "Unknown".to_string());
                 loc_string.to_string()
@@ -191,6 +199,9 @@ pub fn set_panic_hook() -> io::Result<()> {
             backtrace::Backtrace::force_capture()
         );
 
+        if let Some(folder) = log_file_path.parent() {
+            fs::create_dir_all(folder).ok();
+        }
         fs::write(&log_file_path, &crash_message).ok();
 
         unsafe {
@@ -222,6 +233,51 @@ pub fn set_panic_hook() -> io::Result<()> {
         }
     }));
     Ok(())
+}
+
+// a path inside the user's folder names the Windows account. it has no place in a report.
+// None when the pattern does not compile (the regex crate is built without unicode case folding here, so no
+// (?i)): then nothing gets sent, and nothing on this path may ever panic, it runs on every start
+fn without_user_paths(text: &str) -> Option<String> {
+    static USER_PATH: std::sync::LazyLock<Option<regex::Regex>> =
+        std::sync::LazyLock::new(|| regex::Regex::new(r#"[A-Za-z]:[\\/]+[Uu][Ss][Ee][Rr][Ss][\\/]+[^\\/\s:"']+"#).ok());
+    Some(USER_PATH.as_ref()?.replace_all(text, "~").into_owned())
+}
+
+// a crash gets reported on the NEXT start, not from the process that is going down: what crashed, where, and the
+// stack, no more (the server keeps one row per distinct crash with a counter). crash_log.sent remembers which
+// log went out, so the file itself stays where the user can find it for an issue
+pub fn report_last_crash() {
+    let log_path = crash_log_path();
+    let Ok(modified) = fs::metadata(&log_path).and_then(|meta| meta.modified()) else {
+        return;
+    };
+    let stamp = format!("{:?}", modified);
+    let sent_path = log_path.with_extension("sent");
+    if fs::read_to_string(&sent_path).is_ok_and(|sent| sent == stamp) {
+        return;
+    }
+    fs::write(&sent_path, &stamp).ok();
+
+    let Ok(log) = fs::read_to_string(&log_path) else { return };
+    let log = log.replace("\r\n", "\n");
+    let (head, trace) = log.split_once(CRASH_TRACE_MARK).unwrap_or((log.as_str(), ""));
+    let field = |name: &str| head.lines().find_map(|line| line.strip_prefix(name)).unwrap_or("").trim().to_string();
+    let (Some(location), Some(message), Some(trace)) = (
+        without_user_paths(&field("Location:")),
+        without_user_paths(&field("Message:")),
+        without_user_paths(trace),
+    ) else {
+        return;
+    };
+    let report = serde_json::json!({
+        // the version that crashed, which is not always the one that is running now
+        "kute": field("Version:"),
+        "location": location,
+        "message": message,
+        "trace": trace.chars().take(6000).collect::<String>(),
+    });
+    send_telemetry("crash", report.to_string());
 }
 
 // an auto-detect report: hardware names and measurements, nothing about the player (see server/src/util/report.ts

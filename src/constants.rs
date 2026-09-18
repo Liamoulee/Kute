@@ -1,7 +1,7 @@
 pub const DISCORD_CLIENT_ID: &str = "1549875633276981249";
 pub const UPDATE_URL: &str = "https://api.github.com/repos/NullDev/Kute/releases/latest";
 pub const API_URL: &str = "https://kute.lol/api";
-pub const TELEMETRY_KINDS: [&str; 2] = ["autodetect", "autodetect-failure"];
+pub const TELEMETRY_KINDS: [&str; 4] = ["autodetect", "autodetect-failure", "crash", "client-error"];
 // the only place "open-url" may lead to, the page cannot send the user anywhere else
 pub const GITHUB_URL: &str = "https://github.com/";
 pub const JS_VERSION_URL: &str = "https://raw.githubusercontent.com/NullDev/Kute/master/target/bundle_version";
