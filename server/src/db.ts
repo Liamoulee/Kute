@@ -74,6 +74,24 @@ export function initDb(): void {
         );
     `);
 
+    // crashes and thrown errors, one row per distinct error and version with a counter, not one per report:
+    // a crash loop on many machines stays one line, and nothing in a row belongs to anybody
+    db.run(`
+        CREATE TABLE IF NOT EXISTS error_reports (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            kind          TEXT NOT NULL,
+            kute_version  TEXT NOT NULL,
+            bundle        TEXT NOT NULL,
+            location      TEXT NOT NULL,
+            message       TEXT NOT NULL,
+            trace         TEXT NOT NULL,
+            count         INTEGER NOT NULL DEFAULT 1,
+            first_day     TEXT NOT NULL,
+            last_day      TEXT NOT NULL,
+            UNIQUE (kind, kute_version, bundle, location, message)
+        );
+    `);
+
     // plain counters (the player numbers of /api/health), never rows about anybody
     db.run(`
         CREATE TABLE IF NOT EXISTS stats (

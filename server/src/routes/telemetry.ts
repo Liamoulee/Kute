@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { getDb } from "../db";
 import { createRateLimit } from "../util/rateLimit";
-import { parseFailure, parseReport } from "../util/report";
+import { parseErrorReport, parseFailure, parseReport, type ErrorReport } from "../util/report";
 
 // ========================= //
 // = Copyright (c) NullDev = //
@@ -22,7 +22,15 @@ export async function telemetryRoutes(app: FastifyInstance): Promise<void> {
         "INSERT INTO autodetect_failures (received_day, kute_version, stage, message, seconds) VALUES (?, ?, ?, ?, ?)",
     );
 
+    const upsertError = getDb().prepare(
+        `INSERT INTO error_reports (kind, kute_version, bundle, location, message, trace, first_day, last_day)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT (kind, kute_version, bundle, location, message)
+            DO UPDATE SET count = count + 1, last_day = excluded.last_day`,
+    );
+
     const limit = createRateLimit("autodetect", 6, 60 * 60 * 1000, "Rate limit exceeded. Max 6 reports per hour.");
+    const errorLimit = createRateLimit("errors", 10, 60 * 60 * 1000, "Rate limit exceeded. Max 10 error reports per hour.");
 
     app.post("/autodetect", { bodyLimit: 64 * 1024, onRequest: limit }, (req, reply) => {
         const report = parseReport(req.body);
@@ -69,4 +77,16 @@ export async function telemetryRoutes(app: FastifyInstance): Promise<void> {
         insertFailure.run(today(), failure.kute, failure.stage, failure.message, failure.seconds);
         return reply.code(204).send();
     });
+
+    // a crash of the client (sent on its next start) and an error thrown by its own script
+    for (const kind of ["crash", "client-error"] as ErrorReport["kind"][]){
+        app.post("/" + kind, { bodyLimit: 16 * 1024, onRequest: errorLimit }, (req, reply) => {
+            const report = parseErrorReport(req.body, kind);
+            if (typeof report === "string"){
+                return reply.code(400).send({ statusCode: 400, error: "Bad Request", message: report });
+            }
+            upsertError.run(report.kind, report.kute, report.bundle, report.location, report.message, report.trace, today(), today());
+            return reply.code(204).send();
+        });
+    }
 }

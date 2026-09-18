@@ -329,6 +329,56 @@ export function parseReport(body: unknown): Report | string {
     }
 }
 
+/** a crash of the client (a Rust panic) or an error thrown by the client's own script */
+export type ErrorReport = {
+    kind: "crash" | "client-error";
+    kute: string;
+    bundle: string;
+    location: string;
+    message: string;
+    trace: string;
+};
+
+/** like text(), but line breaks survive (a stack trace is lines) */
+function lines(value: unknown, what: string, max: number): string {
+    if (typeof value !== "string") throw new Invalid(what + " must be a string");
+    const kept = [...value].filter((char) => char === "\n" || (char.charCodeAt(0) >= 32 && char.charCodeAt(0) !== 127 && char !== "<" && char !== ">"));
+    return kept.join("").trim().slice(0, max);
+}
+
+/**
+ * The client takes the user's folder out of paths before it sends anything. Done again here, so a client that
+ * forgets cannot put a Windows user name into the database: C:\Users\name\..., /home/name/..., /Users/name/...
+ */
+function withoutUserPaths(value: string): string {
+    return value
+        .replace(/[A-Za-z]:[\\/]+Users[\\/]+[^\\/\s:"']+/gi, "~")
+        .replace(/\/(home|Users)\/[^/\s:"']+/g, "~");
+}
+
+/**
+ * A crash or a thrown error: where, what, and the stack. Nothing about the machine or the player.
+ *
+ * @returns The cleaned report, or a string that says what is wrong with it
+ */
+export function parseErrorReport(body: unknown, kind: ErrorReport["kind"]): ErrorReport | string {
+    try {
+        const raw = dict(body, "report");
+        return {
+            kind,
+            kute: text(raw.kute, "kute", 24),
+            bundle: text(raw.bundle ?? "", "bundle", 24),
+            location: withoutUserPaths(text(raw.location ?? "", "location", 200)),
+            message: withoutUserPaths(text(raw.message, "message", 400)),
+            trace: withoutUserPaths(lines(raw.trace ?? "", "trace", 6000)),
+        };
+    }
+    catch (error){
+        if (error instanceof Invalid) return error.message;
+        throw error;
+    }
+}
+
 /**
  * A run that did not get to a result: where it stopped and why.
  *
