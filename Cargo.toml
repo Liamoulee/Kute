@@ -6,7 +6,7 @@ authors = ["NullDev"]
 edition = "2024"
 
 [package.metadata]
-js_bundle_version = "0.1.21"
+js_bundle_version = "0.1.22"
 
 [workspace]
 members = ["crates/*"]
