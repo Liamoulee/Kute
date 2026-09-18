@@ -1,6 +1,8 @@
 import styles from "./components/base.css";
 import { kute, ready } from "./client.js";
 import { hook, getElement, checkCompMode } from "./utils.js";
+// first, so that whatever throws further down gets heard of
+import "./modules/errorReports.js";
 
 const isBenchPage = location.pathname === "/kute-bench";
 if (isBenchPage) import("./modules/autoDetect/bench.js");

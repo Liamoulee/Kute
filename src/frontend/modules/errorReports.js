@@ -1,0 +1,63 @@
+import { kute, ready } from "../client.js";
+import api from "./api.js";
+
+// Tells the Kute server when the client's own script throws (unless "Anonymous Telemetry" is off). A Krunker update
+// that moves an element is the usual cause, and without this nobody hears about it until a player complains.
+//
+// Only errors that come out of this bundle count: the host evaluates it under the name "bundle.js", so that name
+// is in the error's file or stack. Krunker's own errors and userscripts are none of our business.
+// What goes out: client and bundle version, the message, the position and the stack. Nothing about the player.
+// At most MAX_REPORTS per page load and each message once, so a throw inside a loop cannot flood anything, and the
+// server keeps one row per distinct error with a counter.
+
+const BUNDLE_NAME = "bundle.js";
+const MAX_REPORTS = 3;
+
+/** @type {Set<string>} */
+const seen = new Set();
+
+/**
+ * @param {string} text
+ * @param {number} max
+ * @return {string} Without the user's folder (it names the Windows account), cut to max
+ */
+function clean(text, max){
+    return text.replace(/[a-z]:[\\/]+users[\\/]+[^\\/\s:"']+/gi, "~").slice(0, max);
+}
+
+/**
+ * @param {string} message
+ * @param {string} location
+ * @param {string} stack
+ */
+async function report(message, location, stack){
+    try {
+        if (seen.size >= MAX_REPORTS || seen.has(message)) return;
+        seen.add(message);
+        await ready;
+        if (kute.settings.data.telemetry === false || !await api.available()) return;
+        const body = {
+            kute: kute.version,
+            bundle: KUTE_BUNDLE_VERSION,
+            location: clean(location, 200),
+            message: clean(message, 400),
+            trace: clean(stack, 3000),
+        };
+        window.chrome.webview.postMessage(`telemetry client-error ${JSON.stringify(body)}`);
+    }
+    catch {
+        // an error report must never be the reason for the next error
+    }
+}
+
+window.addEventListener("error", (event) => {
+    const stack = String(event.error?.stack ?? "");
+    if (!String(event.filename).includes(BUNDLE_NAME) && !stack.includes(BUNDLE_NAME)) return;
+    report(String(event.message), `${event.filename}:${event.lineno}:${event.colno}`, stack);
+});
+
+window.addEventListener("unhandledrejection", (event) => {
+    const stack = String(event.reason?.stack ?? "");
+    if (!stack.includes(BUNDLE_NAME)) return;
+    report(String(event.reason?.message ?? event.reason), "promise", stack);
+});
