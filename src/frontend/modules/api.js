@@ -12,8 +12,8 @@ const MAX_FAILURES = 3;
 
 class Api {
     constructor(){
-        /** can be pointed at a local server from CDP for testing, before the first request */
-        this.base = "https://kute.lol/api";
+        /** the host says where the server is (KUTE_API_URL points a development client at a local one) */
+        this.base = typeof kute.apiBase === "string" ? kute.apiBase : "https://kute.lol/api";
         /** @type {Promise<boolean> | null} */
         this.health = null;
         this.down = false;

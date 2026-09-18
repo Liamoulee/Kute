@@ -1,6 +1,6 @@
 pub const DISCORD_CLIENT_ID: &str = "1549875633276981249";
 pub const UPDATE_URL: &str = "https://api.github.com/repos/NullDev/Kute/releases/latest";
-pub const TELEMETRY_URL: &str = "https://kute.lol/api/telemetry/";
+pub const API_URL: &str = "https://kute.lol/api";
 pub const TELEMETRY_KINDS: [&str; 2] = ["autodetect", "autodetect-failure"];
 // the only place "open-url" may lead to, the page cannot send the user anywhere else
 pub const GITHUB_URL: &str = "https://github.com/";

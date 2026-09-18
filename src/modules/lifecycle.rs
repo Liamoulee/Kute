@@ -234,8 +234,7 @@ pub fn send_telemetry(kind: &str, report: String) {
     let kind = kind.to_string();
     std::thread::spawn(move || {
         let agent: ureq::Agent = ureq::Agent::config_builder().timeout_global(Some(std::time::Duration::from_secs(8))).build().into();
-        // KUTE_TELEMETRY_URL points a development client at a local server
-        let url = env::var("KUTE_TELEMETRY_URL").unwrap_or_else(|_| constants::TELEMETRY_URL.to_string()) + &kind;
+        let url = format!("{}/telemetry/{kind}", utils::api_url());
         let _result = agent.post(&url).header("content-type", "application/json").send(report);
         crate::debug_print!("telemetry: {:?}", _result.map(|response| response.status()));
     });

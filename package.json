@@ -10,7 +10,7 @@
     "packageManager": "bun@1.4.2",
     "scripts": {
         "esbuild": "bun esbuild.config.mjs",
-        "dev": "bun run esbuild && cargo build --workspace --features verbose-logs && bun postbuild.js debug && cross-env KUTE_TELEMETRY_URL=http://127.0.0.1:3030/api/telemetry/ cargo run --features editor-ignore,verbose-logs",
+        "dev": "bun run esbuild && cargo build --workspace --features verbose-logs && bun postbuild.js debug && cross-env KUTE_API_URL=http://127.0.0.1:3030/api cargo run --features editor-ignore,verbose-logs",
         "build": "bun run esbuild && cargo build --workspace --release --features packaged,editor-ignore && bun postbuild.js release",
         "build:auto-update": "bun run esbuild && cargo build --workspace --release --features packaged,auto-update,editor-ignore && bun postbuild.js release",
         "package": "bun run build:auto-update && wix build ./resources/installer_script.wxs -ext WixToolset.Util.wixext -o target/kute-setup-x86_64.msi",

@@ -32,6 +32,14 @@ pub fn settings_dir() -> path::PathBuf {
     path::PathBuf::from(env::var("USERPROFILE").unwrap()).join("Documents").join("kute")
 }
 
+// the Kute server. KUTE_API_URL points a development client at a local one (http://127.0.0.1:3030/api),
+// for the host's own requests and, through the get-info reply, for the page's
+pub fn api_url() -> String {
+    env::var("KUTE_API_URL")
+        .map(|url| url.trim_end_matches('/').to_string())
+        .unwrap_or_else(|_| crate::constants::API_URL.to_string())
+}
+
 pub fn exe_dir() -> path::PathBuf {
     env::current_exe().unwrap().parent().unwrap().to_path_buf()
 }
