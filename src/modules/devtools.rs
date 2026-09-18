@@ -28,7 +28,9 @@ pub fn clear_cache(browser: &Browser) {
 
     call(browser, "Network.clearBrowserCache", None);
     if let Some(params) = dictionary_value_create() {
-        params.set_string(Some(&CefString::from("origin")), Some(&CefString::from("*")));
+        // the game's origin. "*" is not a wildcard here: chromium parses it as a url, gets an opaque origin that
+        // owns nothing, reports success and clears nothing (it did exactly that for as long as this button exists)
+        params.set_string(Some(&CefString::from("origin")), Some(&CefString::from("https://krunker.io")));
         params.set_string(Some(&CefString::from("storageTypes")), Some(&CefString::from("all")));
         call(browser, "Storage.clearDataForOrigin", Some(params));
     }
