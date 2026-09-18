@@ -17,25 +17,31 @@
   - [x] Patched CEF: fixes the aim freeze and the GPU bottleneck stutter of uncapped clients
 - [x] Uncapped FPS with a DXGI present hook: waitable flip swapchain, frame pacing, present FPS counter and an exact FPS limiter that keeps the CPU idle
 - [x] **Proper** Raw input
-- [x] Increased performance tweaks
+- [x] Increased performance tweaks (chromium & CEF flags, game settings, system optimizations)
 - [x] Auto-Detect: measures your PC in a private test match (about a minute) and sets up the game and the client for it, with undo
 - [x] Selectable graphics backend (ANGLE: D3D11, D3D11on12, OpenGL, Vulkan) and color profile
 - [x] Optimized URL blocklist (only ~50 entries, fully customizable), custom Chromium flags
 - [x] Resource swapper
+- [x] All settings togglable
 - [x] Battle pass claim-all
 - [x] Custom script support
 - [x] OBS capture plugin (shared texture game capture plus a dedicated audio window)
-- [x] Account Manager
+- [x] Encrypted Account Manager
 - [x] Queue ranked without the game open
 - [x] Better ranked with ELO system
 - [x] Find out your real ping to the servers
-- [x] Better chat, hardpoint enemy counter, rank progress
+- [x] Better chat
+- [x] Hardpoint enemy counter
+- [x] Rank progress
 - [x] Clan colors
-- [x] Kute badge next to everyone in your match who runs Kute
+- [x] Kute badge
 - [x] Discord Rich Presence
 - [x] CPU throttler (a last resort, see below)
-- [x] Lightweight autoupdater
+- [x] Lightweight autoupdater & changelogs
 - [x] Basic shortcuts (F4/F6 new lobby, F5 reload, F11 fullscreen, F12 devtools)
+- [ ] Skin Swapper (coming soon)
+- [ ] BetterKDR™️ (coming soon)
+- [ ] Bloomberg-style trading terminal & market analysis (coming soon)
 - [x] and more...
 
 <hr>
@@ -46,16 +52,6 @@
   If you still see it: run Auto-Detect, open its Advanced view, copy the report and [open an issue](https://github.com/NullDev/Kute/issues/choose).
 - CPU Throttling pauses the game in short bursts and causes lag spikes. Leave it at 1 unless Auto-Detect sets it.
 - Auto-Detect needs a Krunker account, because it measures in a private match.
-
-<hr>
-
-## :bar_chart: Telemetry
-
-After an Auto-Detect run the client shares what it measured, so the detection can be tuned for hardware we do not own: GPU and CPU name, display refresh rate, the measured frame rates and frame times, which settings were tested and what was changed. <br>
-That is all. No account, no IP address, no install id, and only the day is kept as a time. The server code is in [`server/`](/server), the exact fields in [`server/src/util/report.ts`](/server/src/util/report.ts). <br>
-Turn it off any time under Settings, Client, About, "Anonymous Telemetry".
-
-The Kute badge works the same way: while logged in, the client tells the server which match it is in, as a hash of the game id and your name that is meaningless outside that match, and gets back who else in the match runs Kute. The server keeps that in memory for 90 seconds and writes nothing down. Nothing runs while logged out. "Show Cute Badge" only decides whether the badges get drawn.
 
 <hr>
 
