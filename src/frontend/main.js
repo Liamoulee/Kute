@@ -116,7 +116,7 @@ Object.defineProperty(window, "gameLoaded", {
         import("./modules/autoDetect/index.js");
         if (kute?.settings?.data?.clanColors !== false) import("./modules/clanColors.js");
         // always: the setting only decides whether badges get drawn, the client announces itself either way
-        import("./modules/cuteBadge.js");
+        import("./modules/badges.js");
         import("./modules/externalQueue.js");
         import("./modules/bpClaimAll.js");
         import("./modules/args.js");

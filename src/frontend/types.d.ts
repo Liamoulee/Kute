@@ -55,8 +55,12 @@ interface Kute {
     showAboutPopup(): Promise<void>;
     autoDetect: { start(): Promise<void>; undo(): void; showLast(): void; dropUndo(): void };
     clanColors: { apply(styles: unknown): void; toggle(enabled: boolean): void };
-    cuteBadge: { toggle(enabled: boolean): void };
-    /** the door to the Kute server, `base` can be pointed at a local one from CDP before the first request */
+    badges: { toggle(enabled: boolean): void };
+    /** the socket to the Kute server and who else in the lobby runs Kute */
+    presence: { game: string; roster: Set<string>; receive(data: unknown): void };
+    /** where the Kute server is, from the host (absent with an older exe) */
+    apiBase?: string;
+    /** the door to the Kute server */
     api: { base: string; down: boolean; available(): Promise<boolean> };
     bindShoot(): void;
 }

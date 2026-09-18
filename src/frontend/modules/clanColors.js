@@ -7,7 +7,7 @@ import api from "./api.js";
 //
 // Krunker renders every list entry as NAME<span style="color:..."> [clan]</span>. Only such a span, a direct
 // child of a name element in one of the four lists, with exactly "[tag]" as its text, gets restyled.
-// Nothing else on the page is touched.
+// Nothing else on the page is touched. The rows come from playerLists.js, the style is one object lookup by tag.
 
 // a tag keeps Krunker's font, size and spacing, only its paint changes: everything else in a style is dropped
 const PAINT_PROPERTIES = new Set([
@@ -43,7 +43,7 @@ function paintOnly(css){
         .join(";");
 }
 
-const TAG_SPANS = ".pListName > span, [class^=\"newLeaderName\"] > span, [class^=\"leaderName\"] > span, .endTableN > span";
+/** @typedef {import("./playerLists.js").Row} Row */
 
 class ClanColors {
     constructor(){
@@ -52,8 +52,8 @@ class ClanColors {
         /** @type {Record<string, string>} what the server sent, kept for switching back on without a fetch */
         this.fetched = {};
         this.watching = false;
-        /** @type {(list: Element) => void} */
-        this.handler = (list) => this.restyle(list);
+        /** @type {(row: Row) => void} */
+        this.decorator = (row) => this.restyle(row);
         kute.settings.toggleClanColors = (enabled) => this.toggle(enabled);
         this.load();
     }
@@ -67,7 +67,7 @@ class ClanColors {
             else this.load();
             return;
         }
-        playerLists.unsubscribe(this.handler);
+        playerLists.remove(this.decorator);
         this.watching = false;
         this.styles = {};
         // back to what Krunker had written into the span
@@ -103,16 +103,17 @@ class ClanColors {
         }
         if (Object.keys(this.styles).length === 0) return;
 
-        if (this.watching) playerLists.scan();
-        else playerLists.subscribe(this.handler);
+        if (this.watching) playerLists.refresh();
+        else playerLists.add(this.decorator);
         this.watching = true;
     }
 
     /**
-     * @param {Element} list
+     * @param {Row} row
      */
-    restyle(list){
-        for (const span of list.querySelectorAll(TAG_SPANS)){
+    restyle(row){
+        for (const span of row.element.children){
+            if (span.tagName !== "SPAN") continue;
             const text = span.textContent ?? "";
             const match = /^\s*\[(.+)\]\s*$/.exec(text);
             const css = match ? this.styles[match[1]] : undefined;
