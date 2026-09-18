@@ -325,7 +325,7 @@
     "telemetry": {
         "name": "Anonymous Telemetry",
         "id": "telemetry",
-        "description": "Sends client performance metrics and hardware specs, for example what an auto-detect run measured. \nNothing about you: no account, no IP address, no ids",
+        "description": "Sends client performance metrics and specs, for example what an auto-detect run measured. \nNothing about you: no account, no IP address, no ids",
         "type": "checkbox",
         "category": "About",
         "defaultValue": true
