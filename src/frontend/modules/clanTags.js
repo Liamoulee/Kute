@@ -9,6 +9,40 @@ import { kute } from "../client.js";
 
 const META_URL = "https://kute.lol/api/meta";
 
+// a tag keeps Krunker's font, size and spacing, only its paint changes: everything else in a style is dropped
+const PAINT_PROPERTIES = new Set([
+    "background",
+    "background-image",
+    "background-color",
+    "background-clip",
+    "-webkit-background-clip",
+    "background-size",
+    "background-position",
+    "color",
+    "-webkit-text-fill-color",
+    "-webkit-text-stroke",
+    "text-shadow",
+    "text-decoration",
+    "filter",
+    "opacity",
+    "animation",
+]);
+
+/**
+ * @param {string} css
+ * @return {string} The declarations of css whose property is about paint, nothing about layout or type
+ */
+function paintOnly(css){
+    return css
+        .split(";")
+        .map((declaration) => declaration.trim())
+        .filter((declaration) => {
+            const property = declaration.split(":")[0]?.trim().toLowerCase();
+            return Boolean(property) && declaration.includes(":") && PAINT_PROPERTIES.has(property);
+        })
+        .join(";");
+}
+
 // the alt list, the in-game scoreboard, the top right leaderboard and the end screen
 const LISTS = ["#playerListH", "#ingameTable", "#leaderboardHolder", "#endTable"];
 const TAG_SPANS = ".pListName > span, .newLeaderNameM > span, .leaderNameM > span, .endTableN > span";
@@ -46,7 +80,9 @@ class ClanTags {
         if (typeof styles !== "object" || styles === null) return;
         this.styles = {};
         for (const [tag, css] of Object.entries(styles)){
-            if (typeof css === "string" && tag.length > 0 && tag.length <= 16) this.styles[tag] = css;
+            if (typeof css !== "string" || tag.length === 0 || tag.length > 16) continue;
+            const paint = paintOnly(css);
+            if (paint) this.styles[tag] = paint;
         }
         if (Object.keys(this.styles).length === 0) return;
 
@@ -80,9 +116,7 @@ class ClanTags {
             const match = /^\s*\[(.+)\]\s*$/.exec(text);
             const css = match ? this.styles[match[1]] : undefined;
             if (!css || span.getAttribute("data-kute-clan") === match?.[1]) continue;
-            // the span's text starts with the space that separates it from the name. an inline-block would
-            // swallow that leading space, "pre" keeps it
-            span.setAttribute("style", `${css};white-space:pre`);
+            span.setAttribute("style", css);
             span.setAttribute("data-kute-clan", match?.[1] ?? "");
         }
     }
