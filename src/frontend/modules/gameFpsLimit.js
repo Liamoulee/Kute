@@ -1,4 +1,4 @@
-import { kute } from "../client.js";
+import { kute, ready } from "../client.js";
 
 // The FPS limit is enforced by the host: the present hook sleeps in the GPU process and the patched
 // compositor only lets the renderer run one frame ahead, so the game loop follows at the exact rate
@@ -7,17 +7,28 @@ import { kute } from "../client.js";
 //
 // Skipping a frame by re-arming requestAnimationFrame is not an option: a frame that draws nothing
 // makes the compositor wait out the full 16.6ms deadline, so every limit above 60 collapses.
+//
+// This is the only code of the client that sits on every frame, so it is written for the frame: measured with a
+// CPU profile in a match, the old version (a closure, a settings lookup and a performance.now() per frame, limit
+// or not) was 0.89 % of the main thread and all of the bundle's cost. Without a limit nothing of ours runs in
+// the frame now, and with one the check uses the timestamp the browser hands over anyway.
 
 const nativeRAF = window.requestAnimationFrame;
 
 const CHECK_WINDOW_MS = 2000;
 const TOLERANCE = 1.15;
 
-let nextFrameTime = performance.now();
+/** @type {Record<string, any> | null} the settings, once the host sent them. read per frame, so no lookups through kute */
+let settingsData = null;
+ready.then(() => {
+    settingsData = kute.settings.data;
+});
+
+let nextFrameTime = 0;
 let lastFrameTimestamp = -1;
 let lastTarget = 0;
 let busyWait = false;
-let windowStart = performance.now();
+let windowStart = -1;
 let framesInWindow = 0;
 let windowsOverTarget = 0;
 
@@ -25,10 +36,12 @@ let windowsOverTarget = 0;
  * Counts frames and switches to the busy-wait once the game ran clearly over the limit for two windows in a row.
  *
  * @param {number} targetFps
+ * @param {number} timestamp The frame's own time, the same clock as performance.now()
  */
-function verifyHostLimiter(targetFps){
+function verifyHostLimiter(targetFps, timestamp){
+    if (windowStart < 0) windowStart = timestamp;
     framesInWindow++;
-    const elapsed = performance.now() - windowStart;
+    const elapsed = timestamp - windowStart;
     if (elapsed < CHECK_WINDOW_MS) return;
 
     const fps = framesInWindow / (elapsed / 1000);
@@ -36,7 +49,7 @@ function verifyHostLimiter(targetFps){
     if (windowsOverTarget >= 2) busyWait = true;
 
     framesInWindow = 0;
-    windowStart = performance.now();
+    windowStart = timestamp;
 }
 
 /**
@@ -56,6 +69,7 @@ function waitForFrameSlot(targetFps){
 
     const now = performance.now();
 
+    // also true for the first frame after a limit got set: the slot starts from now
     if (now - nextFrameTime > targetInterval){
         nextFrameTime = now + targetInterval;
     }
@@ -70,26 +84,30 @@ function waitForFrameSlot(targetFps){
  * @return {number}
  */
 window.requestAnimationFrame = function(callback){
-    return nativeRAF(function(timestamp){
-        const targetFps = kute?.settings?.data?.gameFpsLimit ?? 0;
+    // a number, or the string a slider leaves behind. the comparison takes either
+    const limit = settingsData === null ? 0 : settingsData.gameFpsLimit;
 
+    // no limit, the usual way to play: the game's callback goes straight to the browser
+    if (!(limit > 0)){
+        lastTarget = 0;
+        return nativeRAF(callback);
+    }
+
+    const targetFps = Number(limit);
+    return nativeRAF(function(timestamp){
         if (targetFps !== lastTarget){
             // give the host limiter a fresh chance whenever the limit changes
             lastTarget = targetFps;
             busyWait = false;
             framesInWindow = 0;
             windowsOverTarget = 0;
-            windowStart = performance.now();
+            windowStart = -1;
         }
 
         if (timestamp !== lastFrameTimestamp){
             lastFrameTimestamp = timestamp;
-
-            if (targetFps > 0){
-                if (busyWait) waitForFrameSlot(targetFps);
-                else verifyHostLimiter(targetFps);
-            }
-            else nextFrameTime = performance.now();
+            if (busyWait) waitForFrameSlot(targetFps);
+            else verifyHostLimiter(targetFps, timestamp);
         }
 
         callback(timestamp);
