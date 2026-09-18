@@ -1,4 +1,5 @@
 import { kute } from "../client.js";
+import playerLists from "./playerLists.js";
 
 // The "Show clan colors" setting: styled clan tags in the player lists. The styles come from the Kute server once per page load
 // (GET /api/meta, `clanTagColors`: clan tag -> CSS text), so a clan can get its colors without a client update.
@@ -43,9 +44,7 @@ function paintOnly(css){
         .join(";");
 }
 
-// the alt list, the in-game scoreboard, the top right leaderboard and the end screen
-const LISTS = ["#playerListH", "#ingameTable", "#leaderboardHolder", "#endTable"];
-const TAG_SPANS = ".pListName > span, .newLeaderNameM > span, .leaderNameM > span, .endTableN > span";
+const TAG_SPANS = ".pListName > span, [class^=\"newLeaderName\"] > span, [class^=\"leaderName\"] > span, .endTableN > span";
 
 class ClanColors {
     constructor(){
@@ -53,9 +52,9 @@ class ClanColors {
         this.styles = {};
         /** @type {Record<string, string>} what the server sent, kept for switching back on without a fetch */
         this.fetched = {};
-        /** @type {Map<Element, MutationObserver>} */
-        this.observers = new Map();
-        this.timer = 0;
+        this.watching = false;
+        /** @type {(list: Element) => void} */
+        this.handler = (list) => this.restyle(list);
         kute.settings.toggleClanColors = (enabled) => this.toggle(enabled);
         this.load();
     }
@@ -69,10 +68,8 @@ class ClanColors {
             else this.load();
             return;
         }
-        clearInterval(this.timer);
-        this.timer = 0;
-        for (const observer of this.observers.values()) observer.disconnect();
-        this.observers.clear();
+        playerLists.unsubscribe(this.handler);
+        this.watching = false;
         this.styles = {};
         // back to what Krunker had written into the span
         for (const span of document.querySelectorAll("[data-kute-clan]")){
@@ -113,25 +110,9 @@ class ClanColors {
         }
         if (Object.keys(this.styles).length === 0) return;
 
-        // the lists come and go with the match state (the alt list only exists while alt is held), so the ones
-        // that exist get looked up and observed twice a second: four querySelector calls
-        this.watch();
-        if (!this.timer) this.timer = setInterval(() => this.watch(), 500);
-    }
-
-    /**
-     * Restyles the tags in every list that exists and observes it for the next rebuild.
-     */
-    watch(){
-        for (const selector of LISTS){
-            const list = document.querySelector(selector);
-            if (!list) continue;
-            this.restyle(list);
-            if (this.observers.has(list)) continue;
-            const observer = new MutationObserver(() => this.restyle(list));
-            observer.observe(list, { childList: true, subtree: true });
-            this.observers.set(list, observer);
-        }
+        if (this.watching) playerLists.scan();
+        else playerLists.subscribe(this.handler);
+        this.watching = true;
     }
 
     /**
