@@ -30,7 +30,8 @@
 - [x] Better ranked with ELO system
 - [x] Find out your real ping to the servers
 - [x] Better chat, hardpoint enemy counter, rank progress
-- [x] Clan color
+- [x] Clan colors
+- [x] Kute badge next to everyone in your match who runs Kute
 - [x] Discord Rich Presence
 - [x] CPU throttler (a last resort, see below)
 - [x] Lightweight autoupdater
@@ -53,6 +54,8 @@
 After an Auto-Detect run the client shares what it measured, so the detection can be tuned for hardware we do not own: GPU and CPU name, display refresh rate, the measured frame rates and frame times, which settings were tested and what was changed. <br>
 That is all. No account, no IP address, no install id, and only the day is kept as a time. The server code is in [`server/`](/server), the exact fields in [`server/src/util/report.ts`](/server/src/util/report.ts). <br>
 Turn it off any time under Settings, Client, About, "Anonymous Telemetry".
+
+The Kute badge works the same way: while logged in, the client tells the server which match it is in, as a hash of the game id and your name that is meaningless outside that match, and gets back who else in the match runs Kute. The server keeps that in memory for 90 seconds and writes nothing down. Nothing runs while logged out. "Show Cute Badge" only decides whether the badges get drawn.
 
 <hr>
 

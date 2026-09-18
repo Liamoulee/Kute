@@ -55,6 +55,7 @@ interface Kute {
     showAboutPopup(): Promise<void>;
     autoDetect: { start(): Promise<void>; undo(): void; showLast(): void; dropUndo(): void };
     clanColors: { apply(styles: unknown): void; toggle(enabled: boolean): void };
+    cuteBadge: { toggle(enabled: boolean): void; url: string };
     bindShoot(): void;
 }
 
@@ -62,6 +63,10 @@ interface KrunkerGameActivity {
     mode: string;
     map: string | null;
     custom: boolean;
+    /** the game id, "FRA:4c2f8", also the ?game= parameter */
+    id?: string;
+    /** the own name, the account name when logged in */
+    user?: string;
 }
 
 interface KrunkerSound {

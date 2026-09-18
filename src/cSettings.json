@@ -176,6 +176,14 @@
         "category": "Interface",
         "defaultValue": true
     },
+    "cuteBadge": {
+        "name": "Show Cute Badge",
+        "id": "cuteBadge",
+        "description": "A Kute badge next to everyone in the match who runs Kute",
+        "type": "checkbox",
+        "category": "Interface",
+        "defaultValue": true
+    },
     "renderStats": {
         "name": "Present FPS Counter",
         "id": "renderStats",
