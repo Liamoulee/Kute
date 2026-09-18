@@ -2,7 +2,7 @@
     "name": "kute",
     "private": true,
     "type": "module",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "High performance krunker client made by [cute]",
     "keywords": ["browser-game", "cute", "krunker", "krunker-client", "krunkerio", "kute", "nulldev"],
     "author": "NullDev",
