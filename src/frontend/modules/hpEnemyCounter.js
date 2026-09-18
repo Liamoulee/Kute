@@ -10,7 +10,7 @@ class HpEnemyCounter {
         this.numberDisplay = document.createElement("div");
         this.numberDisplay.id = "hpEnemyCounter";
         this.numberDisplay.classList.add("statIcon");
-        this.numberDisplay.style.cssText = "inline-block; transform: translate(0, -2.7px);";
+        this.numberDisplay.style.cssText = "transform: translate(0, -2.7px);";
         this.numberDisplay.innerHTML = `
             <div class="greyInner" style="display: flex">
                 <span style="color:white; font-size:15px; margin-right: 4px;">on</span>
@@ -72,12 +72,15 @@ class HpEnemyCounter {
             if (team && !team.className.includes("you")){
                 const scoreElement = /** @type {HTMLElement|null} */ (team.nextElementSibling);
                 if (!scoreElement) continue;
-                const currentEnemyOBJ = Number.parseInt(scoreElement.innerText, 10);
+                // textContent, not innerText: reading innerText makes the browser lay the page out first,
+                // and this runs on every score change in the middle of a match
+                const currentEnemyOBJ = Number.parseInt(scoreElement.textContent ?? "", 10);
+                if (Number.isNaN(currentEnemyOBJ)) continue;
                 if (currentEnemyOBJ > this.enemyOBJ){
-                    pointCounter.innerText = String((currentEnemyOBJ - this.enemyOBJ) / 10);
+                    pointCounter.textContent = String((currentEnemyOBJ - this.enemyOBJ) / 10);
                     if (this.enemyTimeout) clearTimeout(this.enemyTimeout);
                     this.enemyTimeout = setTimeout(() => {
-                        pointCounter.innerText = "0";
+                        pointCounter.textContent = "0";
                         this.enemyTimeout = null;
                     }, 1600);
                 }

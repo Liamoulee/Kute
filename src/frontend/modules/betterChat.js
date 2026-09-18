@@ -94,22 +94,14 @@ class BetterChat {
                     node.remove();
                     continue;
                 }
-                if (
-                    !chatItem.textContent.includes("\u200E:") ||
-                    !this.teamModes.has(window.getGameActivity().mode) ||
-                    !node.dataset.tab
-                ){
-                    continue;
-                }
-                if (node.dataset.tab === "0"){
-                    const clone = this.channelA.cloneNode(true);
-                    chatMsg.insertBefore(clone, chatMsg.firstChild);
-                }
-                if (node.dataset.tab === "1"){
-                    const clone = this.channelT.cloneNode(true);
-                    chatMsg.insertBefore(clone, chatMsg.firstChild);
-                }
-                this.chatList.scrollTop = this.chatList.scrollHeight;
+                // cheapest check first: kill feed lines have no tab, and they are most of what arrives here
+                const { tab } = node.dataset;
+                if (!tab || !chatItem.textContent.includes("\u200E:") || !this.teamModes.has(window.getGameActivity().mode)) continue;
+                if (tab === "0") chatMsg.insertBefore(this.channelA.cloneNode(true), chatMsg.firstChild);
+                else if (tab === "1") chatMsg.insertBefore(this.channelT.cloneNode(true), chatMsg.firstChild);
+                // to the bottom. not scrollHeight: reading it right after an insert makes the browser lay the
+                // page out on the spot, in the middle of a frame. a value past the end gets clamped to the end
+                this.chatList.scrollTop = 1e9;
             }
         }
     }
