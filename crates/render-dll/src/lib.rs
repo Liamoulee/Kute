@@ -6,7 +6,7 @@ use std::{
     mem,
     sync::{
         LazyLock, RwLock,
-        atomic::{AtomicBool, AtomicU64, Ordering},
+        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
     },
     thread,
 };
@@ -56,6 +56,16 @@ struct SharedState {
 }
 const SHARED_STATE_SIZE: usize = std::mem::size_of::<SharedState>();
 const INTERVAL_SAMPLES: usize = 16384;
+
+// waiting on the swap chain's frame latency object: the regular timeout, how many timeouts in a row pause the
+// waiting, for how long, and the shorter timeout of the single wait that probes afterwards (long enough for a
+// GPU bound game at 20 FPS, short enough to cost nothing while nobody looks at the window)
+const WAIT_TIMEOUT_MS: u32 = 100;
+const WAIT_TIMEOUTS_BEFORE_PAUSE: u32 = 3;
+const WAIT_PAUSE: std::time::Duration = std::time::Duration::from_secs(2);
+const WAIT_PROBE_MS: u32 = 50;
+// a gap this long between two presents is a pause (window hidden, a load), not a frame time
+const PAUSE_NS: u64 = 250_000_000;
 
 struct Intervals {
     ns: Vec<u32>,
@@ -175,7 +185,40 @@ static SHARED_MEM_PTR: AtomicU64 = AtomicU64::new(0);
 static MISSING_TIMING_MAPPING_LOGGED: AtomicBool = AtomicBool::new(false);
 
 static GLOBAL_LIMIT_CLOCK: LazyLock<RwLock<Option<std::time::Instant>>> = LazyLock::new(|| RwLock::new(None));
-static MAIN_SWAPCHAIN_CREATED: AtomicBool = AtomicBool::new(false);
+// Which swap chain is the game's. chromium does not keep one: it makes a new one whenever the window changes
+// size and whenever it comes back from being minimized or hidden (then even two in a row), and "the first big
+// one, once" left all of those untouched, so after a single minimize or resize the stats, the FPS limiter and
+// the OBS capture were gone until a restart. So every big swap chain gets prepared when it is created, and
+// which one is the game's gets decided where the truth is, at present time: the one that holds the title keeps
+// it as long as it presents, and when it has gone quiet the next big chain that presents takes over. A game
+// that is shown presents every few milliseconds, so a popup (social) next to a running game never takes over.
+static MAIN_SWAPCHAIN: AtomicUsize = AtomicUsize::new(0);
+// when the game's swap chain last presented, in ms since PROCESS_START. one store per frame
+static MAIN_LAST_PRESENT_MS: AtomicU64 = AtomicU64::new(0);
+static PROCESS_START: LazyLock<std::time::Instant> = LazyLock::new(std::time::Instant::now);
+// this long without a present and the title is up for grabs. long enough that a hitch of the game does not hand
+// it to a popup, short enough that the game runs without its limiter for a moment only after a resize
+const MAIN_SILENT_MS: u64 = 300;
+
+fn main_presented_within(ms: u64) -> bool {
+    let now = PROCESS_START.elapsed().as_millis() as u64;
+    now.saturating_sub(MAIN_LAST_PRESENT_MS.load(Ordering::Relaxed)) < ms
+}
+
+// whether this (prepared) swap chain is the game's, taking the title when the holder has gone quiet
+fn is_main_swapchain(swapchain: *mut c_void) -> bool {
+    let this = swapchain as usize;
+    let main = MAIN_SWAPCHAIN.load(Ordering::Relaxed);
+    if main == this {
+        return true;
+    }
+    if main != 0 && main_presented_within(MAIN_SILENT_MS) {
+        return false;
+    }
+    debug_print!("render: swap chain {swapchain:?} is the game's now (was {main:#x})");
+    MAIN_SWAPCHAIN.store(this, Ordering::Relaxed);
+    true
+}
 
 fn attach() {
     debug_print!("render: attach started, pid={}", unsafe { GetCurrentProcessId() });
@@ -239,7 +282,8 @@ unsafe extern "system" fn create_swapchain_hk(
     ppswapchain: *mut *mut c_void,
 ) -> HRESULT {
     unsafe {
-        if (*pdesc).Width < 600 || (*pdesc).Height < 600 || MAIN_SWAPCHAIN_CREATED.load(Ordering::Acquire) {
+        // small ones are chromium's own little surfaces. every big one is a window's, see MAIN_SWAPCHAIN
+        if (*pdesc).Width < 600 || (*pdesc).Height < 600 {
             let original_fn = ORIGINAL_CREATE_SWAPCHAIN.unwrap();
             let result = original_fn(this, pdevice, pdesc, prestricttooutput, ppswapchain);
 
@@ -274,7 +318,6 @@ unsafe extern "system" fn create_swapchain_hk(
             debug_print!("Failed to create swap chain: {:#X} - {}", result.0, e);
             panic!("h");
         } else {
-            MAIN_SWAPCHAIN_CREATED.store(true, Ordering::Release);
             debug_print!("render: swap chain created pointer={:?}", *ppswapchain);
             let swap_chain = IDXGISwapChain1::from_raw(*ppswapchain);
             // Learn the real D3D11 device from this swap chain and hand it to the capture module
@@ -299,6 +342,7 @@ unsafe extern "system" fn create_swapchain_hk(
                 debug_print!("render: frame-latency waitable object={waitable_obj:?}");
                 {
                     let mut guard = WAIT_HANDLE.write().unwrap();
+                    // a new swap chain can land on the address of a destroyed one, whose handle is stale then
                     if let Some(old_handle) = guard.insert(*ppswapchain as usize, SendHandle(waitable_obj))
                         && !old_handle.0.is_invalid()
                     {
@@ -354,6 +398,7 @@ unsafe extern "system" fn present_hk(
         static CACHED_WAIT_HANDLES: std::cell::RefCell<HashMap<usize, SendHandle>> = std::cell::RefCell::new(HashMap::new());
         static CACHED_WAIT_GENERATION: cell::Cell<u64> = const { cell::Cell::new(0) };
         static WAIT_TIMEOUT_STREAK: cell::Cell<u32> = const { cell::Cell::new(0) };
+        static WAIT_PAUSED_UNTIL: cell::Cell<Option<std::time::Instant>> = const { cell::Cell::new(None) };
 
         // per-thread perf accounting for wall-clock time matching help me debug, but can be removed
         static PERF_WINDOW_START: cell::Cell<Option<std::time::Instant>> = const { cell::Cell::new(None) };
@@ -393,10 +438,13 @@ unsafe extern "system" fn present_hk(
             }
         });
 
+        let is_main = handle_opt.is_some() && is_main_swapchain(p_this);
+
         // track main swapchain only so the EMA and Present FPS aren't polluted
-        if handle_opt.is_some() {
+        if is_main {
             LAST_PRESENT.with(|last| {
                 let now = std::time::Instant::now();
+                MAIN_LAST_PRESENT_MS.store(now.duration_since(*PROCESS_START).as_millis() as u64, Ordering::Relaxed);
                 ARRIVALS.with_borrow_mut(|arrivals| arrivals.mark(now));
                 if let Some(prev) = last.get() {
                     let frame_ns = now.duration_since(prev).as_nanos() as u64;
@@ -404,6 +452,13 @@ unsafe extern "system" fn present_hk(
                         DIAGNOSTIC_MAX_FRAME_NS.set(DIAGNOSTIC_MAX_FRAME_NS.get().max(frame_ns));
                     }
                     FRAME_NS_EMA.with(|avg| {
+                        // a pause is not a frame time: averaged in, one 16 s gap reads as "2 FPS" and takes a
+                        // hundred frames to fade (an auto-detect run once capped a PC at 5 FPS because of it).
+                        // the average starts over with the next frame instead
+                        if frame_ns > PAUSE_NS {
+                            avg.set(0);
+                            return;
+                        }
                         let next = if avg.get() == 0 { frame_ns } else { (avg.get() * 31 + frame_ns) / 32 };
                         avg.set(next);
                         let shared = &mut *(ptr as *mut SharedState);
@@ -447,26 +502,43 @@ unsafe extern "system" fn present_hk(
 
         let wait_started = std::time::Instant::now();
         if let Some(h) = handle_opt {
-            // drop handle if the wait fails or times out repeatedly
-            let wait_result = WaitForSingleObjectEx(h.0, 100, false);
-            let drop_handle = if wait_result == WAIT_FAILED {
-                true
-            } else if wait_result == WAIT_TIMEOUT {
-                if cfg!(feature = "verbose-logs") {
-                    PERF_TIMEOUTS.set(PERF_TIMEOUTS.get() + 1);
+            // a window that is not being shown (minimized, hidden, covered) never signals its wait object, and
+            // every present would sit out the full timeout. so after a few timeouts in a row the waiting gets
+            // paused, NOT the handle dropped: having a handle is what makes this the game's swap chain, and
+            // dropping it used to switch off the stats and the FPS limiter for the rest of the session, after
+            // nothing more than one minimize. after the pause a single shorter wait probes whether the window
+            // is back, and the pacing resumes by itself
+            let paused_until = WAIT_PAUSED_UNTIL.get();
+            let probing = paused_until.is_some();
+            if paused_until.is_none_or(|until| wait_started >= until) {
+                let wait_result = WaitForSingleObjectEx(h.0, if probing { WAIT_PROBE_MS } else { WAIT_TIMEOUT_MS }, false);
+                if wait_result == WAIT_FAILED {
+                    // the handle itself is broken, waiting on it will never work again
+                    debug_print!("render: dropping broken wait handle for swapchain {p_this:?}");
+                    WAIT_TIMEOUT_STREAK.set(0);
+                    WAIT_PAUSED_UNTIL.set(None);
+                    WAIT_HANDLE.write().unwrap().remove(&(p_this as usize));
+                    WAIT_HANDLE_GENERATION.fetch_add(1, Ordering::Release);
+                } else if wait_result == WAIT_TIMEOUT {
+                    if cfg!(feature = "verbose-logs") {
+                        PERF_TIMEOUTS.set(PERF_TIMEOUTS.get() + 1);
+                    }
+                    let streak = WAIT_TIMEOUT_STREAK.get() + 1;
+                    WAIT_TIMEOUT_STREAK.set(streak);
+                    if probing || streak >= WAIT_TIMEOUTS_BEFORE_PAUSE {
+                        if !probing {
+                            debug_print!("render: wait object of swapchain {p_this:?} is not signaling, pausing the wait");
+                        }
+                        WAIT_TIMEOUT_STREAK.set(0);
+                        WAIT_PAUSED_UNTIL.set(Some(wait_started + WAIT_PAUSE));
+                    }
+                } else {
+                    if probing {
+                        debug_print!("render: wait object of swapchain {p_this:?} signals again, waiting resumed");
+                    }
+                    WAIT_TIMEOUT_STREAK.set(0);
+                    WAIT_PAUSED_UNTIL.set(None);
                 }
-                let streak = WAIT_TIMEOUT_STREAK.get() + 1;
-                WAIT_TIMEOUT_STREAK.set(streak);
-                streak >= 3
-            } else {
-                WAIT_TIMEOUT_STREAK.set(0);
-                false
-            };
-            if drop_handle {
-                debug_print!("render: dropping unresponsive wait handle for swapchain {p_this:?} result={wait_result:?}");
-                WAIT_TIMEOUT_STREAK.set(0);
-                WAIT_HANDLE.write().unwrap().remove(&(p_this as usize));
-                WAIT_HANDLE_GENERATION.fetch_add(1, Ordering::Release);
             }
         }
         let wait_ns = if cfg!(feature = "verbose-logs") {
@@ -477,9 +549,7 @@ unsafe extern "system" fn present_hk(
 
         // limiter (main swapchain only)
         let target_fps = (*(ptr as *const SharedState)).target_fps;
-        if handle_opt.is_some()
-            && let Some(nanos) = 1_000_000_000u64.checked_div(target_fps)
-        {
+        if is_main && let Some(nanos) = 1_000_000_000u64.checked_div(target_fps) {
             let target_frame_time = std::time::Duration::from_nanos(nanos);
             let now = std::time::Instant::now();
             let prev_opt = { *GLOBAL_LIMIT_CLOCK.read().unwrap() };
@@ -522,7 +592,7 @@ unsafe extern "system" fn present_hk(
             present_flags |= DXGI_PRESENT_ALLOW_TEARING;
         }
         let present_started = std::time::Instant::now();
-        if handle_opt.is_some() {
+        if is_main {
             PRESENTS.with_borrow_mut(|presents| presents.mark(present_started));
             let shared = &mut *(ptr as *mut SharedState);
             if shared.stats_request != shared.stats_ack {
@@ -547,7 +617,9 @@ unsafe extern "system" fn present_hk(
 
         // OBS capture (producer side): run after the original present so the back buffer is
         // stable before the CopyResource — gated internally on READER_ACTIVE.
-        capture::capture_on_present(p_this);
+        if is_main {
+            capture::capture_on_present(p_this);
+        }
 
         if cfg!(feature = "verbose-logs") {
             let present_ns = present_started.elapsed().as_nanos() as u64;
