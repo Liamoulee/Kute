@@ -99,8 +99,9 @@ jobs:
           path: target/kute-setup-x86_64.msi
           retention-days: 7
 
-      # created through the API so the commit is signed by GitHub. expectedHeadOid makes it fail
-      # instead of overwriting anything when master moved during the build
+      # created through the API so the commit is signed by GitHub. the build takes a while, so master may have
+      # moved: the bump goes on top of the current head as long as the version files are the same there,
+      # and expectedHeadOid makes it fail instead of overwriting anything otherwise
       - name: Commit the version bump
         id: commit
         if: inputs.mode != 'build only'
@@ -115,6 +116,18 @@ jobs:
           }
 
           $files = "Cargo.toml", "Cargo.lock", "package.json", "resources/installer_script.wxs"
+
+          git fetch --quiet origin master
+          $remote = git rev-parse origin/master
+          if ($remote -ne $head) {
+            git diff --quiet $head $remote -- $files
+            if ($LASTEXITCODE -ne 0) {
+              throw "master moved during the build and changed the version files, run the workflow again"
+            }
+            Write-Host "master moved from $head to $remote during the build, the version files are unchanged there"
+            $head = $remote
+          }
+
           $additions = @($files | ForEach-Object {
             @{ path = $_; contents = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Resolve-Path $_))) }
           })
