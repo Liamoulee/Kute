@@ -8,6 +8,7 @@ import { createRateLimit } from "./util/rateLimit";
 import { initDb } from "./db";
 import { metaRoutes } from "./routes/meta";
 import { telemetryRoutes } from "./routes/telemetry";
+import { presenceRoutes } from "./routes/presence";
 import { config, meta } from "../config/config";
 import sheduleCrons from "./util/cron";
 import { envName, envWasSet, isDevelopment } from "./util/env";
@@ -72,6 +73,7 @@ app.register(fastifyStatic, {
 
 app.register(metaRoutes, { prefix: "/api" });
 app.register(telemetryRoutes, { prefix: "/api/telemetry" });
+app.register(presenceRoutes, { prefix: "/api/presence" });
 
 const port = parseInt(config.server.port ?? "3030", 10);
 await app.listen({ port, host: "127.0.0.1" });
