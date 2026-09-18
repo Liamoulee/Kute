@@ -115,6 +115,7 @@ Object.defineProperty(window, "gameLoaded", {
         import("./modules/changelog.js");
         import("./modules/about.js");
         import("./modules/autoDetect/index.js");
+        import("./modules/clanTags.js");
         import("./modules/externalQueue.js");
         import("./modules/bpClaimAll.js");
         import("./modules/args.js");

@@ -1,0 +1,93 @@
+import { kute } from "../client.js";
+
+// Styled clan tags in the player lists. The styles come from the Kute server once per page load
+// (GET /api/meta, `clanTagColors`: clan tag -> CSS text), so a clan can get its colors without a client update.
+//
+// Krunker renders every list entry as NAME<span style="color:..."> [clan]</span>. Only such a span, a direct
+// child of a name element in one of the four lists, with exactly "[tag]" as its text, gets restyled.
+// Nothing else on the page is touched.
+
+const META_URL = "https://kute.lol/api/meta";
+
+// the alt list, the in-game scoreboard, the top right leaderboard and the end screen
+const LISTS = ["#playerListH", "#ingameTable", "#leaderboardHolder", "#endTable"];
+const TAG_SPANS = ".pListName > span, .newLeaderNameM > span, .leaderNameM > span, .endTableN > span";
+
+class ClanTags {
+    constructor(){
+        /** @type {Record<string, string>} clan tag -> CSS text */
+        this.styles = {};
+        /** @type {WeakMap<Element, MutationObserver>} */
+        this.observers = new WeakMap();
+        this.load();
+    }
+
+    /**
+     * Fetches the styles once and starts watching the lists.
+     */
+    async load(){
+        try {
+            const response = await fetch(META_URL, { cache: "default" });
+            if (!response.ok) return;
+            const meta = await response.json();
+            this.apply(meta?.clanTagColors);
+        }
+        catch {
+            // no server, no styled tags
+        }
+    }
+
+    /**
+     * Uses a set of styles (also the entry point for trying styles out by hand).
+     *
+     * @param {unknown} styles Clan tag -> CSS text
+     */
+    apply(styles){
+        if (typeof styles !== "object" || styles === null) return;
+        this.styles = {};
+        for (const [tag, css] of Object.entries(styles)){
+            if (typeof css === "string" && tag.length > 0 && tag.length <= 16) this.styles[tag] = css;
+        }
+        if (Object.keys(this.styles).length === 0) return;
+
+        // the lists come and go with the match state (the alt list only exists while alt is held), so the ones
+        // that exist get looked up and observed twice a second: four querySelector calls
+        this.watch();
+        setInterval(() => this.watch(), 500);
+    }
+
+    /**
+     * Restyles the tags in every list that exists and observes it for the next rebuild.
+     */
+    watch(){
+        for (const selector of LISTS){
+            const list = document.querySelector(selector);
+            if (!list) continue;
+            this.restyle(list);
+            if (this.observers.has(list)) continue;
+            const observer = new MutationObserver(() => this.restyle(list));
+            observer.observe(list, { childList: true, subtree: true });
+            this.observers.set(list, observer);
+        }
+    }
+
+    /**
+     * @param {Element} list
+     */
+    restyle(list){
+        for (const span of list.querySelectorAll(TAG_SPANS)){
+            const text = span.textContent ?? "";
+            const match = /^\s*\[(.+)\]\s*$/.exec(text);
+            const css = match ? this.styles[match[1]] : undefined;
+            if (!css || span.getAttribute("data-kute-clan") === match?.[1]) continue;
+            // the span's text starts with the space that separates it from the name. an inline-block would
+            // swallow that leading space, "pre" keeps it
+            span.setAttribute("style", `${css};white-space:pre`);
+            span.setAttribute("data-kute-clan", match?.[1] ?? "");
+        }
+    }
+}
+
+const clanTags = new ClanTags();
+kute.clanTags = clanTags;
+export default clanTags;
