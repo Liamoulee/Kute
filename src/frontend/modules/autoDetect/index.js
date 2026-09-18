@@ -1,6 +1,6 @@
 import panelHtml from "../../components/autoDetect.html";
 import { kute } from "../../client.js";
-import { checkCompMode } from "../../utils.js";
+import { checkCompMode, request } from "../../utils.js";
 import { FrameRecorder } from "./metrics.js";
 import { decide, decideClient, HEADROOM, MIN_RESOLUTION, SIGNIFICANT_SETTING, TARGET_REFRESH_MULTIPLE } from "./decide.js";
 import * as game from "./gameSettings.js";
@@ -110,35 +110,6 @@ function writeState(state){
  */
 export function loggedIn(){
     return document.querySelector("#signedInHeaderBar") !== null;
-}
-
-/**
- * Posts a message to the host and resolves with the reply's field.
- *
- * @param {string} message
- * @param {string} key
- * @param {number} [timeoutMs]
- * @return {Promise<any>} null when the host does not answer (an older exe)
- */
-function request(message, key, timeoutMs = 2000){
-    return new Promise((resolve) => {
-        const pending = { timer: 0 };
-        /**
-         * @param {MessageEvent} event
-         */
-        const handler = (event) => {
-            if (event.data?.[key] === undefined) return;
-            clearTimeout(pending.timer);
-            window.chrome.webview.removeEventListener("message", handler);
-            resolve(event.data[key]);
-        };
-        pending.timer = setTimeout(() => {
-            window.chrome.webview.removeEventListener("message", handler);
-            resolve(null);
-        }, timeoutMs);
-        window.chrome.webview.addEventListener("message", handler);
-        window.chrome.webview.postMessage(message);
-    });
 }
 
 /**

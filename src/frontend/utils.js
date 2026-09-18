@@ -79,3 +79,31 @@ export const checkCompMode = () => {
     return false;
 };
 
+/**
+ * Posts a message to the host and resolves with the reply's field.
+ *
+ * @param {string} message
+ * @param {string} key
+ * @param {number} [timeoutMs]
+ * @return {Promise<any>} null when the host does not answer (an older exe)
+ */
+export function request(message, key, timeoutMs = 2000){
+    return new Promise((resolve) => {
+        const pending = { timer: 0 };
+        /**
+         * @param {MessageEvent} event
+         */
+        const handler = (event) => {
+            if (event.data?.[key] === undefined) return;
+            clearTimeout(pending.timer);
+            window.chrome.webview.removeEventListener("message", handler);
+            resolve(event.data[key]);
+        };
+        pending.timer = setTimeout(() => {
+            window.chrome.webview.removeEventListener("message", handler);
+            resolve(null);
+        }, timeoutMs);
+        window.chrome.webview.addEventListener("message", handler);
+        window.chrome.webview.postMessage(message);
+    });
+}
