@@ -4,6 +4,7 @@ import { checkCompMode, request } from "../../utils.js";
 import { FrameRecorder } from "./metrics.js";
 import { decide, decideClient, HEADROOM, MIN_RESOLUTION, SIGNIFICANT_SETTING, TARGET_REFRESH_MULTIPLE } from "./decide.js";
 import * as game from "./gameSettings.js";
+import api from "../api.js";
 
 const STORAGE_KEY = "kute_autodetect";
 // how many runs finished on this install. shared with a report so that first runs can be told from repeats,
@@ -593,7 +594,7 @@ class AutoDetect {
             // shared unless the player switched it off: the measurements, no account, no ids (the host checks the setting too)
             const run = (Number(localStorage.getItem(RUNS_KEY)) || 0) + 1;
             localStorage.setItem(RUNS_KEY, String(run));
-            if (kute.settings.data.telemetry !== false){
+            if (kute.settings.data.telemetry !== false && await api.available()){
                 window.chrome.webview.postMessage(`telemetry autodetect ${JSON.stringify({ kute: kute.version, run, ...outcome.report })}`);
             }
             panel.progress("Leaving the test match", 1);
@@ -606,7 +607,7 @@ class AutoDetect {
             const message = error instanceof Error ? error.message : String(error);
             kute.showNotification(`Auto-detect stopped: ${message}`, false, 7);
             // a run that breaks is the one we need to hear about: it is how a changed host window gets noticed
-            if (kute.settings.data.telemetry !== false){
+            if (kute.settings.data.telemetry !== false && await api.available()){
                 const failure = { kute: kute.version, stage: venue.stage, message: message.slice(0, 200), seconds: (performance.now() - startedAt) / 1000 };
                 window.chrome.webview.postMessage(`telemetry autodetect-failure ${JSON.stringify(failure)}`);
             }

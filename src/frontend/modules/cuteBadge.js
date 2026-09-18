@@ -1,5 +1,6 @@
 import { kute } from "../client.js";
 import playerLists, { NAME_ELEMENTS, nameOf } from "./playerLists.js";
+import api from "./api.js";
 import badge from "../components/badge.webp";
 
 // The Kute badge next to the names of everybody in the match who runs Kute. Every client tells the Kute server
@@ -9,7 +10,6 @@ import badge from "../components/badge.webp";
 // The announce runs whenever the account is logged in (guests have random names, so nothing runs for them).
 // The "Show Cute Badge" setting is cosmetic: off means no badges get drawn, the client still announces itself.
 
-const PRESENCE_URL = "https://kute.lol/api/presence";
 /** the server sends its own interval with every answer, this is the value until the first one */
 const DEFAULT_INTERVAL_S = 30;
 /** a name in the lists that has no badge yet makes the client ask again, but not more often than this */
@@ -62,7 +62,6 @@ class CuteBadge {
         this.hashes = new Map();
         /** @type {Set<string>} names the server was already asked about in this match */
         this.asked = new Set();
-        this.url = PRESENCE_URL;
         this.intervalS = DEFAULT_INTERVAL_S;
         this.lastPost = 0;
         this.posting = false;
@@ -72,10 +71,16 @@ class CuteBadge {
         /** @type {(list: Element) => void} */
         this.handler = (list) => this.decorate(list);
 
+        this.timer = 0;
+
         kute.settings.toggleCuteBadge = (enabled) => this.toggle(enabled);
-        playerLists.subscribe(this.handler);
-        setInterval(() => this.tick(), 1000);
-        this.tick();
+        // without a server there is nobody to announce to and nothing to draw: no timer, no list watching
+        api.available().then((available) => {
+            if (!available) return;
+            playerLists.subscribe(this.handler);
+            this.timer = setInterval(() => this.tick(), 1000);
+            this.tick();
+        });
     }
 
     /**
@@ -94,6 +99,13 @@ class CuteBadge {
      * Once a second: announces every interval, sooner when a new name appeared in the lists.
      */
     tick(){
+        if (api.down){
+            // the server went away during this page load: the badges go, and so does this module until the next load
+            clearInterval(this.timer);
+            playerLists.unsubscribe(this.handler);
+            this.forget();
+            return;
+        }
         if (this.posting) return;
         const game = loggedIn() ? currentGame() : null;
         if (!game){
@@ -110,9 +122,7 @@ class CuteBadge {
         if (now < due && !join) return;
         this.wantRefresh = false;
         this.lastPost = now;
-        this.announce(game).catch(() => {
-            // no server, no badges
-        });
+        this.announce(game);
     }
 
     /**
@@ -135,15 +145,13 @@ class CuteBadge {
         this.posting = true;
         try {
             const hash = await this.hashOf(game.id, game.user);
-            const response = await fetch(this.url, {
+            const answer = await api.request("/presence", {
                 method: "POST",
                 headers: { "content-type": "application/json" },
                 body: JSON.stringify({ game: game.id, hash }),
             });
-            if (!response.ok) return;
-            const answer = await response.json();
-            // the match may have changed while the request was out
-            if (game.id !== this.game) return;
+            // no answer, or the match changed while the request was out
+            if (answer === null || game.id !== this.game) return;
             if (Array.isArray(answer?.players)) this.present = new Set(answer.players.filter((/** @type {unknown} */ player) => typeof player === "string"));
             // whoever is in the lists now has been asked about with this answer
             for (const name of this.hashes.keys()) this.asked.add(name);

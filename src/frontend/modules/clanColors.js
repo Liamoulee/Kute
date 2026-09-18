@@ -1,5 +1,6 @@
 import { kute } from "../client.js";
 import playerLists from "./playerLists.js";
+import api from "./api.js";
 
 // The "Show clan colors" setting: styled clan tags in the player lists. The styles come from the Kute server once per page load
 // (GET /api/meta, `clanTagColors`: clan tag -> CSS text), so a clan can get its colors without a client update.
@@ -7,8 +8,6 @@ import playerLists from "./playerLists.js";
 // Krunker renders every list entry as NAME<span style="color:..."> [clan]</span>. Only such a span, a direct
 // child of a name element in one of the four lists, with exactly "[tag]" as its text, gets restyled.
 // Nothing else on the page is touched.
-
-const META_URL = "https://kute.lol/api/meta";
 
 // a tag keeps Krunker's font, size and spacing, only its paint changes: everything else in a style is dropped
 const PAINT_PROPERTIES = new Set([
@@ -83,16 +82,10 @@ class ClanColors {
      * Fetches the styles once and starts watching the lists.
      */
     async load(){
-        try {
-            const response = await fetch(META_URL, { cache: "default" });
-            if (!response.ok) return;
-            const meta = await response.json();
-            if (typeof meta?.clanTagColors === "object" && meta.clanTagColors !== null) this.fetched = meta.clanTagColors;
-            if (kute.settings.data.clanColors !== false) this.apply(this.fetched);
-        }
-        catch {
-            // no server, no styled tags
-        }
+        // null without a server: no styled tags then
+        const meta = await api.request("/meta");
+        if (typeof meta?.clanTagColors === "object" && meta.clanTagColors !== null) this.fetched = meta.clanTagColors;
+        if (kute.settings.data.clanColors !== false) this.apply(this.fetched);
     }
 
     /**

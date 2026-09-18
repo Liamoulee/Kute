@@ -55,7 +55,9 @@ interface Kute {
     showAboutPopup(): Promise<void>;
     autoDetect: { start(): Promise<void>; undo(): void; showLast(): void; dropUndo(): void };
     clanColors: { apply(styles: unknown): void; toggle(enabled: boolean): void };
-    cuteBadge: { toggle(enabled: boolean): void; url: string };
+    cuteBadge: { toggle(enabled: boolean): void };
+    /** the door to the Kute server, `base` can be pointed at a local one from CDP before the first request */
+    api: { base: string; down: boolean; available(): Promise<boolean> };
     bindShoot(): void;
 }
 
