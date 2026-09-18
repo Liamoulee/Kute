@@ -348,10 +348,7 @@ function advancedHtml(report){
         <p>${report.clientNote ?? ""}</p>
         <div class="adButton" id="adCopy" style="margin: 1em 0">Copy this report</div>
         <p>${report.seconds.toFixed(0)} s. Settings that need a reload or only cost something in a fight cannot be measured in an empty
-        test match. They were not tested and not changed.</p>
-        <p>${kute.settings.data.telemetry === false
-        ? "Sharing is off, these numbers stayed on this PC."
-        : "These numbers (and nothing else) were shared to improve auto-detect. Settings, About, Anonymous Telemetry turns that off."}</p>`;
+        test match. They were not tested and not changed.</p>`;
 }
 
 class Panel {
@@ -974,8 +971,8 @@ class AutoDetect {
                 {
                     title: "Set Kute up for this PC?",
                     line: canRun
-                        ? "Auto-detect measures your PC in a private test match for about a minute and then sets up the game for it. You can undo it, and run it any time from Settings, Client, Auto-Detect Best Settings. The measurements (hardware names and numbers, nothing about you) are shared to improve it, which you can switch off under About."
-                        : "Auto-detect measures your PC in a private test match and then sets up the game for it. It needs an account: log in, then open Settings, Client and press Auto-Detect Best Settings. The measurements (hardware names and numbers, nothing about you) are shared to improve it, which you can switch off under About.",
+                        ? "Auto-detect measures your PC in a private test match for about a minute and then sets up the game for it. You can undo it, and run it any time from Settings, Client, Auto-Detect Best Settings. If you have a settings.txt from another client, import that first."
+                        : "Auto-detect measures your PC in a private test match and then sets up the game for it. It needs an account: log in, then open Settings, Client and press Auto-Detect Best Settings. If you have a settings.txt from another client, import that first.",
                     details: [],
                     changed: false,
                 },

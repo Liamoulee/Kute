@@ -1,6 +1,5 @@
 pub const DISCORD_CLIENT_ID: &str = "1549875633276981249";
 pub const UPDATE_URL: &str = "https://api.github.com/repos/NullDev/Kute/releases/latest";
-// where auto-detect results go when the player did not switch "telemetry" off (server/ in this repo)
 pub const TELEMETRY_URL: &str = "https://kute.lol/api/telemetry/";
 pub const TELEMETRY_KINDS: [&str; 2] = ["autodetect", "autodetect-failure"];
 // the only place "open-url" may lead to, the page cannot send the user anywhere else

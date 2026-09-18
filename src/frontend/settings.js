@@ -52,6 +52,7 @@ kute.settings.changeSetting = (id, rawValue, slider) => {
             paragraphs: [
                 "When we say anonymous telemetry, we literally mean anonymous telemetry.",
                 "Nothing except client performance metrics and hardware specs is sent, for example when you use Auto-Detect Best Settings. No account, no IP address, no ids.",
+                "If this is off, we are basically blind to how the client performs AND we also do not receive any error reports.",
                 "This helps us IMMENSELY to improve the client further. Please please please consider keeping this enabled. Pretty please?",
             ],
             stay: "Okay fine, keep it on",
