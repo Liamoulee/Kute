@@ -35,7 +35,7 @@ function openExtQueue(){
     const windowHeight = 350;
     const left = (screenWidth - windowWidth) / 2;
     const top = (screenHeight - windowHeight) / 2;
-    /** @type {(Window & { info?: { allRegions: boolean, token: string, region: string } })|null} */
+    /** @type {(Window & { info?: { allRegions: boolean, token: string, region: string, sound: string } })|null} */
     const queueWindow = window.open(
         "about:blank",
         "_blank",
@@ -61,25 +61,23 @@ function openExtQueue(){
     token = token.replace(/"/g, "");
     token = token.replace("/", "");
     const allRegions = localStorage.getItem("s_rankedAllRegions") === "true";
-    queueWindow.info = {
-        allRegions,
-        token,
-        region,
-    };
+    // the window is about:blank, so it cannot load anything of ours: markup, script and sound get handed over.
+    // all three only get touched when somebody opens the queue
+    Promise.all([
+        import("../components/queue/index.html"),
+        import("popup-script:../components/queue/queue.js"),
+        import("../components/queue/match-found.ogg"),
+    ]).then(([html, code, sound]) => {
+        queueWindow.info = { allRegions, token, region, sound: sound.default };
 
-    import("../components/queue/index.html").then((html) => {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html.default, "text/html");
-        for (const child of doc.body.children) queueWindow.document.body.appendChild(child.cloneNode(true));
+        const doc = new DOMParser().parseFromString(html.default, "text/html");
+        queueWindow.document.head.append(...Array.from(doc.head.children, (child) => queueWindow.document.importNode(child, true)));
+        queueWindow.document.body.append(...Array.from(doc.body.children, (child) => queueWindow.document.importNode(child, true)));
 
-        for (const child of doc.head.children){
-            if (child.tagName === "SCRIPT"){
-                const script = document.createElement("script");
-                script.textContent = child.textContent;
-                queueWindow.document.head.appendChild(script);
-            }
-            else queueWindow.document.head.appendChild(child.cloneNode(true));
-        }
+        // last, the script looks its elements up as it starts. made by the popup's own document so it runs there
+        const script = queueWindow.document.createElement("script");
+        script.textContent = code.default;
+        queueWindow.document.head.append(script);
     });
 }
 

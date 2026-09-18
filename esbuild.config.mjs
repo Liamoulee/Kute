@@ -1,3 +1,4 @@
+import path from "node:path";
 import { readFile } from "node:fs/promises";
 import { build, transform } from "esbuild";
 
@@ -57,6 +58,28 @@ export const textMinifyPlugin = {
     },
 };
 
+/**
+ * Esbuild plugin for scripts that do not run in the game page but get injected somewhere else as text (the queue
+ * popup): `import code from "popup-script:./queue.js"` gives the minified source as a string. The file itself
+ * stays a normal .js file, so eslint and tsc see it.
+ *
+ * @type {import("esbuild").Plugin}
+ */
+export const popupScriptPlugin = {
+    name: "popupScriptPlugin",
+    setup(pluginBuild){
+        pluginBuild.onResolve({ filter: /^popup-script:/ }, (args) => ({
+            path: path.resolve(args.resolveDir, args.path.slice("popup-script:".length)),
+            namespace: "popup-script",
+        }));
+        pluginBuild.onLoad({ filter: /.*/, namespace: "popup-script" }, async(args) => {
+            const source = await readFile(args.path, "utf8");
+            const result = await transform(source, { loader: "js", minify: true });
+            return { loader: "text", contents: result.code, watchFiles: [args.path] };
+        });
+    },
+};
+
 // the bundle reports its own version with an error (it is hot updated, so the client version says nothing about it)
 const cargoToml = await readFile("./Cargo.toml", "utf8");
 const bundleVersion = /js_bundle_version\s*=\s*"([^"]+)"/.exec(cargoToml)?.[1] ?? "0.0.0";
@@ -77,9 +100,10 @@ await build({
     loader: {
         ".html": "text",
         ".webp": "dataurl",
+        ".ogg": "base64",
     },
     outfile: "./target/bundle.js",
-    plugins: [textMinifyPlugin, minifyCSS],
+    plugins: [textMinifyPlugin, minifyCSS, popupScriptPlugin],
 })
     .then(() => {
         console.log("Build completed successfully!");

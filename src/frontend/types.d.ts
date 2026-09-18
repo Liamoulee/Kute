@@ -8,6 +8,18 @@ declare module "*.html" {
     export default content;
 }
 
+/** Imported as base64. */
+declare module "*.ogg" {
+    const content: string;
+    export default content;
+}
+
+/** The minified source of a script that gets injected somewhere else, see popupScriptPlugin in esbuild.config.mjs. */
+declare module "popup-script:*" {
+    const content: string;
+    export default content;
+}
+
 /** Imported as a data URL. */
 declare module "*.webp" {
     const content: string;
