@@ -201,7 +201,8 @@ class CuteBadge {
 
     /**
      * Puts the badge in as the first icon of the row: right after the rank in the leaderboards, first in the
-     * alt list cell, before the name link on the end screen. The box is the one Krunker gives its own badges there.
+     * alt list cell, and on the end screen, where the icons follow the name, right after the name link.
+     * The box is the one Krunker gives its own badges there.
      *
      * @param {Element} element A name element
      */
@@ -223,11 +224,12 @@ class CuteBadge {
             row.insertBefore(img, row.querySelector(".newLeaderCounter")?.nextSibling ?? element);
         }
         else if (className === "endTableN"){
-            img.style.cssText = "vertical-align:middle;width:26px;margin-right:2px";
-            row.insertBefore(img, element);
+            img.style.cssText = "margin-top:-12px;vertical-align:middle;width:26px;margin-left:2px";
+            row.insertBefore(img, element.nextSibling);
         }
         else {
-            img.style.cssText = "vertical-align:middle;height:21px;margin-right:2px";
+            // the alt list has no icons to copy from: the pixel font sits high in its line box, so middle is 0.35em up
+            img.style.cssText = "vertical-align:middle;height:21px;margin-right:6px;position:relative;top:-0.35em";
             element.insertBefore(img, element.firstChild);
         }
         element.setAttribute("data-kute-badged", "");
