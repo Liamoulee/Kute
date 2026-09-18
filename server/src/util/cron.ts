@@ -1,7 +1,6 @@
 import cron from "node-cron";
 import LogHandler from "./logHandler";
 import { cleanupRateLimits } from "./rateLimit";
-import { cleanupPresence } from "./presence";
 import Log from "./log";
 
 // ========================= //
@@ -18,10 +17,6 @@ const sheduleCrons = async function(): Promise<void> {
 
     cron.schedule("*/15 * * * *", () => {
         cleanupRateLimits();
-    });
-
-    cron.schedule("* * * * *", () => {
-        cleanupPresence();
     });
 
     const cronCount = cron.getTasks().size;

@@ -3,9 +3,11 @@ import path from "node:path";
 import Fastify from "fastify";
 import fastifyStatic from "@fastify/static";
 import cors from "@fastify/cors";
+import websocket from "@fastify/websocket";
 import helmet from "@fastify/helmet";
 import { createRateLimit } from "./util/rateLimit";
 import { initDb } from "./db";
+import { loadPlayerStats } from "./util/playerStats";
 import { metaRoutes } from "./routes/meta";
 import { telemetryRoutes } from "./routes/telemetry";
 import { presenceRoutes } from "./routes/presence";
@@ -59,10 +61,12 @@ const app = Fastify({
 });
 
 initDb();
+loadPlayerStats();
 sheduleCrons();
 
 app.register(cors, { origin: "*" });
 app.register(helmet);
+app.register(websocket);
 
 app.addHook("onRequest", createRateLimit("global", 10, 1000, "Rate limit exceeded. Max 10 requests per second."));
 
@@ -73,7 +77,7 @@ app.register(fastifyStatic, {
 
 app.register(metaRoutes, { prefix: "/api" });
 app.register(telemetryRoutes, { prefix: "/api/telemetry" });
-app.register(presenceRoutes, { prefix: "/api/presence" });
+app.register(presenceRoutes, { prefix: "/api" });
 
 const port = parseInt(config.server.port ?? "3030", 10);
 await app.listen({ port, host: "127.0.0.1" });

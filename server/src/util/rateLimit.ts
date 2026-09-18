@@ -12,8 +12,15 @@ const salt = randomBytes(32);
 type Window = { hits: number; resetAt: number };
 const windows = new Map<string, Window>();
 
+/**
+ * Stands for an address without being one: hashed with a salt that only exists in this process.
+ */
+export function sourceKey(ip: string): string {
+    return createHash("sha256").update(salt).update(ip).digest("base64url");
+}
+
 function keyFor(name: string, ip: string): string {
-    return name + ":" + createHash("sha256").update(salt).update(ip).digest("base64url");
+    return name + ":" + sourceKey(ip);
 }
 
 export function cleanupRateLimits(): number {
