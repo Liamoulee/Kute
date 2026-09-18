@@ -3,8 +3,7 @@ pub const UPDATE_URL: &str = "https://api.github.com/repos/NullDev/Kute/releases
 pub const API_URL: &str = "https://kute.lol/api";
 pub const TELEMETRY_KINDS: [&str; 4] = ["autodetect", "autodetect-failure", "crash", "client-error"];
 // the only places "open-url" may lead to (the links of the about popup). any script on the page can post that
-// command and the host hands the url to the shell, so this stays a short list. every entry ends with a slash:
-// a bare "https://kute.lol" as a prefix would also let "https://kute.lol.evil.com" through
+// command and the host hands the url to the shell, so this stays a short list. every entry ends with a slash
 pub const OPEN_URL_ALLOWED: [&str; 3] = ["https://github.com/", "https://kute.lol/", "https://discord.com/invite/"];
 pub const JS_VERSION_URL: &str = "https://raw.githubusercontent.com/NullDev/Kute/master/target/bundle_version";
 pub const JS_BUNDLE_URL: &str = "https://raw.githubusercontent.com/NullDev/Kute/master/target/bundle.js";
