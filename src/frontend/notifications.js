@@ -113,4 +113,3 @@ kute.showNotification = (message, reqUserInput, seconds) => {
 
     return notification;
 };
-

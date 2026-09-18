@@ -2,7 +2,6 @@ import styles from "./components/base.css";
 import { kute, ready } from "./client.js";
 import { hook, getElement, checkCompMode } from "./utils.js";
 
-// the stub page of a bench run (src/modules/bench.rs): only the synthetic scene runs there
 const isBenchPage = location.pathname === "/kute-bench";
 if (isBenchPage) import("./modules/autoDetect/bench.js");
 

@@ -15,23 +15,26 @@
 
 - [x] Runs on its own bundled Chromium (CEF), no browser or runtime install needed
   - [x] Patched CEF: fixes the aim freeze and the GPU bottleneck stutter of uncapped clients
-- [x] Uncapped FPS with a DXGI present hook: waitable flip swapchain, frame pacing, present FPS counter and limiter
+- [x] Uncapped FPS with a DXGI present hook: waitable flip swapchain, frame pacing, present FPS counter and an exact FPS limiter that keeps the CPU idle
 - [x] **Proper** Raw input
 - [x] Increased performance tweaks
 - [x] Auto-Detect: measures your PC in a private test match (about a minute) and sets up the game and the client for it, with undo
 - [x] Selectable graphics backend (ANGLE: D3D11, D3D11on12, OpenGL, Vulkan) and color profile
 - [x] Optimized URL blocklist (only ~50 entries, fully customizable), custom Chromium flags
 - [x] Resource swapper
+- [x] Battle pass claim-all
 - [x] Custom script support
 - [x] OBS capture plugin (shared texture game capture plus a dedicated audio window)
 - [x] Account Manager
 - [x] Queue ranked without the game open
+- [x] Better ranked with ELO system
 - [x] Find out your real ping to the servers
 - [x] Better chat, hardpoint enemy counter, rank progress
+- [x] Clan color
 - [x] Discord Rich Presence
-- [x] CPU Throttler
+- [x] CPU throttler (a last resort, see below)
 - [x] Lightweight autoupdater
-- [x] Basic shortcuts (F11 - toggle fullscreen, F6 new lobby, F12 devtools)
+- [x] Basic shortcuts (F4/F6 new lobby, F5 reload, F11 fullscreen, F12 devtools)
 - [x] and more...
 
 <hr>

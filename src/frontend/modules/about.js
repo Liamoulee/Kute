@@ -65,5 +65,4 @@ async function showAboutPopup(){
     document.body.append(overlay);
 }
 
-// the about button in the settings calls this
 kute.showAboutPopup = showAboutPopup;

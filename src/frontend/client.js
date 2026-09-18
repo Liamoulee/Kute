@@ -39,8 +39,7 @@ export const ready = new Promise((resolve) => {
     window.chrome.webview.postMessage("get-info");
 });
 
-// inline handlers in generated HTML can only reach the client through a global,
-// so it is registered under a random, non-enumerable name that changes every page load
+// just in case krunker decideds to pull a bs move like with idkr
 const globalKey = randomKey(12);
 Object.defineProperty(window, globalKey, {
     value: kute,

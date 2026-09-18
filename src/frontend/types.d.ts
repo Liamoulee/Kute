@@ -1,6 +1,3 @@
-// Ambient types for the injected frontend bundle.
-// Krunker's own globals are typed as loosely as needed, since they change with every game update.
-
 declare module "*.css" {
     const content: string;
     export default content;
