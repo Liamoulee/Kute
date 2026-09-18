@@ -22,7 +22,8 @@ const MAX_MESSAGES = 10;
 const MESSAGE_WINDOW_MS = 10 * 1000;
 const MAX_SOCKETS_PER_SOURCE = isDevelopment ? 400 : 4;
 const PING_INTERVAL_MS = 25 * 1000;
-const ORIGIN = "https://krunker.io";
+/** the game page, on the main domain or one of Krunker's subdomains */
+const ORIGIN = /^https:\/\/([a-z0-9-]+\.)?krunker\.io$/;
 
 type Connection = { socket: WebSocket; alive: boolean };
 
@@ -60,7 +61,7 @@ setInterval(() => {
 export async function presenceRoutes(app: FastifyInstance): Promise<void> {
     app.get("/ws", { websocket: true }, (socket: WebSocket, req) => {
         // keeps scripts that are not the game page out. not a security boundary, a header is easy to fake
-        if (!isDevelopment && req.headers.origin !== ORIGIN){
+        if (!isDevelopment && !ORIGIN.test(req.headers.origin ?? "")){
             socket.close(1008);
             return;
         }
