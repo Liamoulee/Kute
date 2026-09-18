@@ -14,6 +14,7 @@ mod renderer;
 mod utils;
 mod window;
 pub mod modules {
+    pub mod accounts;
     pub mod bench;
     pub mod blocklist;
     pub mod devtools;

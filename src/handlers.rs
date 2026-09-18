@@ -427,6 +427,43 @@ wrap_client! {
     }
 }
 
+// "list", "add <json>", "remove <json>", "login <json>", "migrate <json array>". every command answers with
+// {accounts: [{username, color}]} so the page always shows what the store holds
+fn handle_accounts_message(browser: &Browser, message: &str) {
+    let (command, payload) = message.split_once(' ').unwrap_or((message, ""));
+    if payload.len() > 64 * 1024 {
+        return;
+    }
+    match command {
+        "list" => {}
+        "add" => {
+            if let Ok(credentials) = serde_json::from_str::<modules::accounts::Credentials>(payload) {
+                modules::accounts::add(&credentials);
+            }
+        }
+        "migrate" => {
+            if let Ok(list) = serde_json::from_str::<Vec<modules::accounts::Credentials>>(payload) {
+                for credentials in &list {
+                    modules::accounts::add(credentials);
+                }
+            }
+        }
+        "remove" | "login" => {
+            let Ok(value) = serde_json::from_str::<serde_json::Value>(payload) else {
+                return;
+            };
+            let Some(username) = value["username"].as_str() else { return };
+            if command == "remove" {
+                modules::accounts::remove(username);
+            } else {
+                modules::accounts::login(browser, username);
+            }
+        }
+        _ => return,
+    }
+    bridge::post_json(browser, &serde_json::json!({ "accounts": modules::accounts::list() }).to_string());
+}
+
 pub fn open_documents_subpath(target: &str) {
     let path_to_open = match target {
         "blocklist" => utils::settings_dir().join("user_blocklist.json"),
@@ -459,6 +496,11 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         {
             modules::lifecycle::send_telemetry(kind, report.to_string());
         }
+        return;
+    }
+    // the account manager: JSON payloads, replies with the list (names and colors, never a password)
+    if let Some(rest) = message_string.strip_prefix("accounts-") {
+        handle_accounts_message(browser, rest);
         return;
     }
     if message_string == "bench-sample-start" {

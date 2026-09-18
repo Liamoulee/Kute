@@ -49,6 +49,14 @@ pub fn click(browser: &Browser, x: i32, y: i32) {
     }
 }
 
+// runs an expression in the page's main world. nothing on the page can see a CDP call, so this is how
+// a secret gets into the page without crossing the bridge (the account manager's login)
+pub fn evaluate(browser: &Browser, expression: &str) {
+    let Some(params) = dictionary_value_create() else { return };
+    params.set_string(Some(&CefString::from("expression")), Some(&CefString::from(expression)));
+    call(browser, "Runtime.evaluate", Some(params));
+}
+
 pub fn enable_network(browser: &Browser) {
     call(browser, "Network.enable", None);
 }
