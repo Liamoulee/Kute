@@ -1,9 +1,5 @@
-// Synthetic WebGL2 load shaped like a Krunker frame: many small draw calls with per object uniform
-// uploads (three.js does not instance), a few screen covering translucent passes and a fixed chunk
-// of JS work. Deterministic, so two runs of the same configuration are comparable.
-
 /**
- * @typedef {object} SceneLoad
+ * @typedef {object} SceneLoad - Synthetic WebGL2 load shaped like a Krunker frame
  * @property {number} draws Draw calls per frame
  * @property {number} meshSegments Sphere resolution, 10 gives 200 triangles per object
  * @property {number} overdraw Screen covering translucent passes per frame (the GPU fill cost)

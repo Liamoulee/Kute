@@ -1,10 +1,6 @@
 import { createScene, cpuChecksum, DEFAULT_LOAD } from "./scene.js";
 import { FrameRecorder, TaskProbe } from "./metrics.js";
 
-// Page side of `kute.exe --bench=...` (src/modules/bench.rs): runs the synthetic scene in the window,
-// measures one settle and one sample window and hands the numbers to the host, which writes them out
-// and closes the process. The query string carries the run parameters.
-
 const query = new URLSearchParams(location.search);
 
 /**
@@ -20,7 +16,6 @@ function numberParam(key, fallback){
 const settleMs = numberParam("settle", 700);
 const sampleMs = numberParam("ms", 2000);
 const hitchMs = numberParam("hitch", 8);
-// frames per second the page holds itself by spinning, like gameFpsLimit.js does when the hook cannot limit
 const cap = numberParam("cap", 0);
 const step = numberParam("step", 0);
 const steps = numberParam("steps", 0);
@@ -47,7 +42,6 @@ function run(){
     canvas.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;display:block";
     document.body.append(canvas);
 
-    // started by auto-detect: the window takes no input, so it has to say what it is
     const labelLines = steps > 0 ? ["Kute is testing this PC", `client test ${step} of ${steps}`, "this takes a moment, nothing to do for you"] : [];
 
     const scene = createScene(canvas, load, labelLines);

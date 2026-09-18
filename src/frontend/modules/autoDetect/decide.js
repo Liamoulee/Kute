@@ -1,7 +1,3 @@
-// The decision of auto-detect, free of DOM and game access so it can change through the hot update
-// channel on its own. It knows no presets and no kinds of PC: every game setting it changes is one that
-// was measured to help on this PC. Background and the data behind the constants: _docs/auto-detect-plan.md.
-
 /** Frames per second the game should hold, as a multiple of the display's refresh rate. */
 export const TARGET_REFRESH_MULTIPLE = 3;
 /**
@@ -208,10 +204,11 @@ export function decide(measured, facts){
         changes.push({ scope: "game", id: "updateRate", label: "Frame Cap (game)", value: "0", reason: "replaced by Kute's FPS limit" });
         if (fpsLimit === 0) fpsLimit = roundToStep(facts.gameFrameCap);
     }
-    // everything above the goal only drains the battery
+
     if (facts.onBattery && (fpsLimit === 0 || fpsLimit > goal)) fpsLimit = roundToStep(goal);
-    // rescue for a pipeline that still floods: hold the loop a bit below what actually gets presented
+
     if (!healthy && fpsLimit === 0) fpsLimit = roundToStep((measured.presentFps || measured.baseFps) * 0.9);
+    
     if (fpsLimit !== facts.gameFpsLimit){
         let reason = "moved over from the game's frame cap";
         if (!healthy) reason = "frames were piling up";
@@ -219,7 +216,6 @@ export function decide(measured, facts){
         changes.push({ scope: "client", id: "gameFpsLimit", label: "FPS Limit", value: fpsLimit, reason });
     }
 
-    // the client configuration that measured clearly better on this PC than the one in use
     if (facts.client){
         const reason = `slowest frames measured at ${facts.client.p99.toFixed(1)} ms`;
         if (facts.client.hook !== facts.hardFlip){

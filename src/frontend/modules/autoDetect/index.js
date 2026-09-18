@@ -5,13 +5,6 @@ import { FrameRecorder } from "./metrics.js";
 import { decide, decideClient, HEADROOM, MIN_RESOLUTION, SIGNIFICANT_SETTING, TARGET_REFRESH_MULTIPLE } from "./decide.js";
 import * as game from "./gameSettings.js";
 
-// One click auto-detect. The same run on every PC. First the client itself: the host starts one bench
-// process per client configuration (swapchain hook, FPS cap, CPU throttle) while the game page is hidden.
-// Then the game: an empty private test match (it needs an account), a baseline, every live render setting
-// flipped and measured on this PC, the resolution scale probed. decide.js applies what was measured to help. Everything that gets touched is snapshotted first
-// and can be undone, and every number ends up in the Advanced view. Nothing runs on its own: a first
-// start only tells the player where the button is.
-
 const STORAGE_KEY = "kute_autodetect";
 // how many runs finished on this install. shared with a report so that first runs can be told from repeats,
 // which a server without any kind of client id could not do otherwise

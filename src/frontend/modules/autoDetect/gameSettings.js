@@ -1,15 +1,10 @@
-// Krunker's own render settings, changed only through the game's setSetting() and read from where the
-// game stores them. Auto-detect measures each of them on the player's PC, nothing here says what they cost.
-
 /**
  * @typedef {object} GameSetting
  * @property {string} id Krunker's setting id
  * @property {string} label
  * @property {string|boolean} cheap The value that costs the least
- * @property {boolean} [needsReload] Krunker only applies it after the page reloads (marked * in its settings),
- * so it cannot be measured inside one test match
- * @property {boolean} [fightOnly] Only costs something while it is on screen (shots, explosions), which an
- * empty test match never shows. Not measured and never changed
+ * @property {boolean} [needsReload] Krunker only applies it after the page reloads (marked * in its settings), so it cannot be measured inside one test match
+ * @property {boolean} [fightOnly] Only costs something while it is on screen (shots, explosions), which an empty test match never shows. Not measured and never changed
  */
 
 /**
@@ -40,10 +35,9 @@ export const SETTINGS = [
 ];
 
 export const RESOLUTION = "resolution";
-// Krunker's own frame cap is a busy-wait inside the frame loop, Kute's limiter replaces it
 export const GAME_FRAME_CAP = "updateRate";
 
-/** Every game setting a run may touch, for the undo snapshot. */
+/** Every game setting a run may touch for the undo snapshot. */
 export const ALL_IDS = [...SETTINGS.map((setting) => setting.id), RESOLUTION, GAME_FRAME_CAP];
 
 /** @type {Document|null} */
