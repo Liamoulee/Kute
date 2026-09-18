@@ -11,6 +11,10 @@ export const SIGNIFICANT_SETTING = 1.05;
 export const SIGNIFICANT_RESOLUTION = 1.1;
 /** Auto-detect never lowers the resolution scale below this. */
 export const MIN_RESOLUTION = 0.75;
+/** no limit this module sets goes below this or below the refresh rate */
+const LOWEST_LIMIT = 60;
+/** a present count below this share of the game's frame rate is a broken reading, not a measurement */
+const IMPLAUSIBLE_PRESENT_SHARE = 0.1;
 
 /** One client configuration has to beat another by this much in its slowest frames before it replaces it. */
 export const SIGNIFICANT_CLIENT = 1.1;
@@ -155,6 +159,19 @@ function roundToStep(fps){
 }
 
 /**
+ * An FPS limit this module may set. Never below what the display shows: whatever a measurement says, a cap under
+ * the refresh rate is never the cure, and a broken reading must not be able to turn the game into a slideshow
+ * (a stale present counter once read 3, and the run set a limit of 5).
+ *
+ * @param {number} fps
+ * @param {number} hz
+ * @return {number}
+ */
+function limitFor(fps, hz){
+    return roundToStep(Math.max(fps, hz, LOWEST_LIMIT));
+}
+
+/**
  * @param {Measurements} measured
  * @param {Facts} facts
  * @return {Plan}
@@ -169,8 +186,12 @@ export function decide(measured, facts){
     if (measured.halfResolutionGain !== null) regime = measured.halfResolutionGain >= SIGNIFICANT_RESOLUTION ? "gpu" : "cpu";
 
     // the signature of frames piling up behind the swap chain: the loop counts far more frames than get
-    // presented, or they arrive in bursts with a stall after each (p99 many times the median)
-    const flooding = measured.presentFps > 0 && measured.presentFps < measured.baseFps * 0.6;
+    // presented, or they arrive in bursts with a stall after each (p99 many times the median).
+    // presentFps is 0 when the hook gave no count for the measured window (off, or not answering), and a count
+    // that is a tiny fraction of the game's rate is a broken reading, not a PC: the worst real case measured
+    // was 43 presents for 255 frames, a sixth
+    const plausible = measured.presentFps >= measured.baseFps * IMPLAUSIBLE_PRESENT_SHARE;
+    const flooding = plausible && measured.presentFps < measured.baseFps * 0.6;
     const bursting = measured.p99 > measured.p50 * 8 && measured.p99 > 1000 / facts.hz;
     const healthy = !flooding && !bursting;
 
@@ -202,12 +223,12 @@ export function decide(measured, facts){
     let fpsLimit = facts.gameFpsLimit;
     if (facts.gameFrameCap > 0){
         changes.push({ scope: "game", id: "updateRate", label: "Frame Cap (game)", value: "0", reason: "replaced by Kute's FPS limit" });
-        if (fpsLimit === 0) fpsLimit = roundToStep(facts.gameFrameCap);
+        if (fpsLimit === 0) fpsLimit = limitFor(facts.gameFrameCap, facts.hz);
     }
 
     if (facts.onBattery && (fpsLimit === 0 || fpsLimit > goal)) fpsLimit = roundToStep(goal);
 
-    if (!healthy && fpsLimit === 0) fpsLimit = roundToStep((measured.presentFps || measured.baseFps) * 0.9);
+    if (!healthy && fpsLimit === 0) fpsLimit = limitFor((flooding ? measured.presentFps : measured.baseFps) * 0.9, facts.hz);
 
     if (fpsLimit !== facts.gameFpsLimit){
         let reason = "moved over from the game's frame cap";
@@ -222,7 +243,7 @@ export function decide(measured, facts){
             changes.push({ scope: "client", id: "hardFlip", label: "DXGI Swapchain Hook", value: facts.client.hook, reason: `${reason}, needs a restart` });
         }
         if (facts.client.capped && fpsLimit === 0){
-            changes.push({ scope: "client", id: "gameFpsLimit", label: "FPS Limit", value: roundToStep(predictedFps * 0.9), reason });
+            changes.push({ scope: "client", id: "gameFpsLimit", label: "FPS Limit", value: limitFor(predictedFps * 0.9, facts.hz), reason });
         }
         if (facts.client.throttled !== facts.throttle > 1){
             changes.push({ scope: "client", id: "throttle", label: "CPU Throttling", value: facts.client.throttled ? 1.5 : 1, reason });
