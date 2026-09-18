@@ -1,14 +1,69 @@
 import { kute } from "../client.js";
-import { getElement, getInput, checkCompMode, waitForElement } from "../utils.js";
+import { getElement, getInput, checkCompMode, waitForElement, request } from "../utils.js";
 
 /**
- * Stored account credentials. Username and password are obfuscated with {@link AccountManager#encode}.
+ * An entry as the page knows it: the host keeps the credentials (DPAPI encrypted in Documents\kute\accounts.json)
+ * and only ever sends names and colors. A login is filled into Krunker's form by the host over CDP, so no
+ * password crosses the bridge, which every script on the page could listen to.
  *
  * @typedef {object} Account
+ * @property {string} username
+ * @property {string} color
+ */
+
+/**
+ * What the bundle stored before the host took over: obfuscated with {@link legacyDecode}'s inverse in localStorage.
+ *
+ * @typedef {object} LegacyAccount
  * @property {string} username
  * @property {string} password
  * @property {string} color
  */
+
+const LEGACY_KEY = "accounts";
+
+/**
+ * Reverses the old obfuscation (every char code shifted by the string length, then URL encoded).
+ *
+ * @param {string} encoded
+ * @return {string}
+ */
+function legacyDecode(encoded){
+    const text = decodeURIComponent(encoded);
+    const key = text.length;
+    return text
+        .split("")
+        .map((char) => String.fromCharCode(char.charCodeAt(0) - key))
+        .join("");
+}
+
+/**
+ * The old obfuscation, only for an exe that does not know the account commands yet.
+ *
+ * @param {string} decoded
+ * @return {string}
+ */
+function legacyEncode(decoded){
+    const key = decoded.length;
+    const encoded = decoded
+        .split("")
+        .map((char) => String.fromCharCode(char.charCodeAt(0) + key))
+        .join("");
+    return encodeURIComponent(encoded);
+}
+
+/**
+ * @return {LegacyAccount[]}
+ */
+function legacyAccounts(){
+    try {
+        const list = JSON.parse(localStorage.getItem(LEGACY_KEY) || "[]");
+        return Array.isArray(list) ? list : [];
+    }
+    catch {
+        return [];
+    }
+}
 
 /**
  * Adds an "Accounts" button that lets the user save and switch between login credentials.
@@ -39,11 +94,54 @@ class AccountManager {
         /** @type {HTMLDivElement} */
         this.container = document.createElement("div");
         /** @type {Account[]} */
-        this.accounts = JSON.parse(localStorage.getItem("accounts") || "[]");
+        this.accounts = [];
+        /** true once the host turned out to be an older exe without the account commands: localStorage as before */
+        this.legacy = false;
 
         kute.settings.toggleAccountManager = (enabled) => this.toggle(enabled);
 
         this.toggle(true);
+        this.load();
+    }
+
+    /**
+     * Gets the list from the host. The first time, the entries the bundle used to keep in localStorage go to the
+     * host and are deleted here once it confirms. An exe without the commands keeps the old localStorage way.
+     */
+    async load(){
+        const legacy = legacyAccounts();
+        let accounts = null;
+        if (legacy.length > 0){
+            const migrated = legacy
+                .filter((account) => typeof account?.username === "string" && typeof account?.password === "string")
+                .map((account) => ({ username: legacyDecode(account.username), password: legacyDecode(account.password), color: account.color }));
+            accounts = await request(`accounts-migrate ${JSON.stringify(migrated)}`, "accounts", 5000);
+            if (accounts !== null) localStorage.removeItem(LEGACY_KEY);
+        }
+        else {
+            accounts = await request("accounts-list", "accounts");
+        }
+        if (accounts === null){
+            this.legacy = true;
+            this.accounts = legacy.map((account) => ({ username: legacyDecode(account.username), color: account.color }));
+        }
+        else {
+            this.accounts = accounts;
+        }
+        if (document.contains(this.container)) this.updateAccounts();
+    }
+
+    /**
+     * Sends an account command and takes the list the host answers with.
+     *
+     * @param {string} command "add", "remove" or "login"
+     * @param {object} payload
+     */
+    async send(command, payload){
+        const accounts = await request(`accounts-${command} ${JSON.stringify(payload)}`, "accounts");
+        if (accounts === null) return;
+        this.accounts = accounts;
+        if (document.contains(this.container)) this.updateAccounts();
     }
 
     /**
@@ -156,67 +254,42 @@ class AccountManager {
     };
 
     /**
-     * Obfuscates a string by shifting every char code by the string length.
-     *
-     * @param {string} decoded
-     * @return {string}
-     */
-    encode(decoded){
-        const key = decoded.length;
-        const encoded = decoded
-            .split("")
-            .map((char) => String.fromCharCode(char.charCodeAt(0) + key))
-            .join("");
-        return encodeURIComponent(encoded);
-    }
-
-    /**
      * Stores the credentials from the creator form, unless empty or already known.
      */
     createNewAccount(){
-        let username = getInput("#username").value;
-        let password = getInput("#password").value;
+        const username = getInput("#username").value;
+        const password = getInput("#password").value;
         const color = getInput("#color-picker").value;
 
         if (username.replace(/\s/, "") === "" || password.replace(/\s/, "") === ""){
             this.switchTabs();
             return;
         }
-        if (this.accounts.some((account) => this.decode(account.username) === username)) return;
+        if (this.accounts.some((account) => account.username === username)) return;
 
-        username = this.encode(username);
-        password = this.encode(password);
-
-        this.accounts.push({ username, password, color });
-        localStorage.setItem("accounts", JSON.stringify(this.accounts));
+        if (this.legacy){
+            const list = legacyAccounts();
+            list.push({ username: legacyEncode(username), password: legacyEncode(password), color });
+            localStorage.setItem(LEGACY_KEY, JSON.stringify(list));
+            this.accounts.push({ username, color });
+            this.updateAccounts();
+        }
+        else {
+            this.send("add", { username, password, color });
+        }
         this.resetForm();
-        this.updateAccounts();
         this.switchTabs();
     }
 
     /**
-     * Reverses {@link AccountManager#encode}.
-     *
-     * @param {string} encoded
-     * @return {string}
-     */
-    decode(encoded){
-        const username = decodeURIComponent(encoded);
-        const key = username.length;
-        return username
-            .split("")
-            .map((char) => String.fromCharCode(char.charCodeAt(0) - key))
-            .join("");
-    }
-
-    /**
-     * Fills Krunker's login form with the selected account and submits it. Logs the current account out first.
+     * Opens Krunker's login form in username mode, then has the host fill and submit it. Logs the current
+     * account out first.
      *
      * @param {HTMLElement} element The clicked account entry
      * @return {Promise<void>}
      */
     async handleAccountSelection(element){
-        const account = this.accounts.find((acc) => this.decode(acc.username) === element.textContent);
+        const account = this.accounts.find((acc) => acc.username === element.textContent);
         if (!account) return;
 
         this.removeWindow();
@@ -231,16 +304,32 @@ class AccountManager {
             if (authToggle.textContent?.includes("username")) authToggle.click();
 
             queueMicrotask(() => {
-                const nameInput = getInput("#accName");
-                const passInput = getInput("#accPass");
-                nameInput.value = this.decode(account.username);
-                passInput.value = this.decode(account.password);
-                // send input otherwise it thinks its empty
-                nameInput.dispatchEvent(new Event("input", { bubbles: true }));
-                passInput.dispatchEvent(new Event("input", { bubbles: true }));
-                getElement(".io-button").click();
+                if (this.legacy){
+                    this.legacyLogin(account.username);
+                    return;
+                }
+                // the form exists now, the host fills it over CDP
+                this.send("login", { username: account.username });
             });
         });
+    }
+
+    /**
+     * The old way, for an exe without the account commands: the password from localStorage into the form.
+     *
+     * @param {string} username
+     */
+    legacyLogin(username){
+        const stored = legacyAccounts().find((account) => legacyDecode(account.username) === username);
+        if (!stored) return;
+        const nameInput = getInput("#accName");
+        const passInput = getInput("#accPass");
+        nameInput.value = username;
+        passInput.value = legacyDecode(stored.password);
+        // send input otherwise it thinks its empty
+        nameInput.dispatchEvent(new Event("input", { bubbles: true }));
+        passInput.dispatchEvent(new Event("input", { bubbles: true }));
+        getElement(".io-button").click();
     }
 
     /**
@@ -275,7 +364,7 @@ class AccountManager {
             const accountHolder = document.createElement("div");
             accountHolder.classList.add("accountHolder");
             accountHolder.style.color = account.color;
-            accountHolder.textContent = this.decode(account.username);
+            accountHolder.textContent = account.username;
             accountContainer.append(accountHolder);
         }
     }
@@ -314,11 +403,16 @@ class AccountManager {
         event.preventDefault();
         const clickedElement = /** @type {HTMLElement} */ (event.target);
         if (clickedElement.classList.contains("accountHolder")){
-            const index = this.accounts.findIndex((account) => this.decode(account.username) === clickedElement.textContent);
-            if (index > -1){
+            const username = clickedElement.textContent ?? "";
+            const index = this.accounts.findIndex((account) => account.username === username);
+            if (index === -1) return;
+            if (this.legacy){
+                localStorage.setItem(LEGACY_KEY, JSON.stringify(legacyAccounts().filter((account) => legacyDecode(account.username) !== username)));
                 this.accounts.splice(index, 1);
-                localStorage.setItem("accounts", JSON.stringify(this.accounts));
                 this.updateAccounts();
+            }
+            else {
+                this.send("remove", { username });
             }
         }
     };
