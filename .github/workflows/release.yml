@@ -3,13 +3,14 @@ name: release
 on:
   workflow_dispatch:
     inputs:
+      # a draft only: the release notes get written by hand before publishing, and the updater
+      # only sees a release once it is published
       mode:
         description: What to do with the built installer
         type: choice
         default: draft release
         options:
           - draft release
-          - published release
           - build only
       bump:
         description: Version bump, committed to master once the build passed (ignored for build only)
@@ -146,6 +147,6 @@ jobs:
           tag_name: ${{ steps.version.outputs.version }}
           target_commitish: ${{ steps.commit.outputs.oid }}
           name: ${{ steps.version.outputs.version }}
-          draft: ${{ inputs.mode == 'draft release' }}
+          draft: true
           generate_release_notes: true
           files: target/kute-setup-x86_64.msi
