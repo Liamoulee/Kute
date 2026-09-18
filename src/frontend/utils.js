@@ -21,25 +21,37 @@ export const hook = (target, method, wrapper) => {
 /**
  * Resolves once an element matching the selector exists in the document.
  *
+ * While it waits it observes the whole body and looks the selector up on every change anywhere in the page. That
+ * is fine for the second it normally takes, and expensive forever: an element that never shows up (a Krunker
+ * update renamed it) would leave that running through every match. So it gives up after timeoutMs and rejects,
+ * which also gets the missing element reported (errorReports.js).
+ *
  * @template {Element} [T=HTMLElement]
  * @param {string} selector
+ * @param {number} [timeoutMs]
  * @return {Promise<T>}
  */
-export const waitForElement = (selector) => {
-    return new Promise((resolve) => {
+export const waitForElement = (selector, timeoutMs = 30000) => {
+    return new Promise((resolve, reject) => {
         const existing = document.querySelector(selector);
         if (existing){
             resolve(/** @type {T} */ (existing));
             return;
         }
 
+        const pending = { timer: 0 };
         const observer = new MutationObserver(() => {
             const element = document.querySelector(selector);
             if (element){
-                resolve(/** @type {T} */ (element));
+                clearTimeout(pending.timer);
                 observer.disconnect();
+                resolve(/** @type {T} */ (element));
             }
         });
+        pending.timer = setTimeout(() => {
+            observer.disconnect();
+            reject(new Error(`element never showed up: ${selector}`));
+        }, timeoutMs);
         observer.observe(document.body, { childList: true, subtree: true });
     });
 };
