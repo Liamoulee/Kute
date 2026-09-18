@@ -92,7 +92,9 @@ The first build downloads the official CEF distribution (about 900 MB) and compi
 
 | Command | Does |
 |---|---|
-| `bun run dev` | Bundle, debug build with verbose logs, run |
+| `bun run start:dev` | Bundle, debug build with verbose logs, run |
+| `bun run start:dev:realapi` | Debug build with verbose logs, run with the real API URL |
+| `bun run start:prod` | Build and run with production settings |
 | `bun run build` | Release build in `target/release` |
 | `bun run package` | Release build with the auto-updater plus the MSI (`target/kute-setup-x86_64.msi`) |
 | `bun run esbuild` | Only the JS bundle |
