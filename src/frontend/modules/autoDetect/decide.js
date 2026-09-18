@@ -208,7 +208,7 @@ export function decide(measured, facts){
     if (facts.onBattery && (fpsLimit === 0 || fpsLimit > goal)) fpsLimit = roundToStep(goal);
 
     if (!healthy && fpsLimit === 0) fpsLimit = roundToStep((measured.presentFps || measured.baseFps) * 0.9);
-    
+
     if (fpsLimit !== facts.gameFpsLimit){
         let reason = "moved over from the game's frame cap";
         if (!healthy) reason = "frames were piling up";
