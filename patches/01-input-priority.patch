@@ -1,0 +1,73 @@
+diff --git a/third_party/blink/renderer/platform/scheduler/main_thread/main_thread_scheduler_impl.cc b/third_party/blink/renderer/platform/scheduler/main_thread/main_thread_scheduler_impl.cc
+index 6ff8280cbb..4dc0608949 100644
+--- a/third_party/blink/renderer/platform/scheduler/main_thread/main_thread_scheduler_impl.cc
++++ b/third_party/blink/renderer/platform/scheduler/main_thread/main_thread_scheduler_impl.cc
+@@ -2656,7 +2656,15 @@ TaskPriority MainThreadSchedulerImpl::ComputePriority(
+     case MainThreadTaskQueue::QueueTraits::PrioritisationType::kCompositor:
+       return main_thread_only().compositor_priority;
+     case MainThreadTaskQueue::QueueTraits::PrioritisationType::kInput:
+-      return TaskPriority::kHighestPriority;
++      // Lowered from kHighestPriority to kNormalPriority to prevent input
++      // tasks from starving WebSocket/Worker message dispatch when
++      // --disable-frame-rate-limit is active. Without cross-priority
++      // anti-starvation in the task queue selector, ANY priority above
++      // kNormalPriority causes starvation during continuous mouse input.
++      // Testing shows kNormalPriority actually improves both frame rate
++      // and input throughput vs kHighestPriority, because it prevents the
++      // input→compositor priority cascade from monopolizing the thread.
++      return TaskPriority::kNormalPriority;
+     case MainThreadTaskQueue::QueueTraits::PrioritisationType::kBestEffort:
+       return TaskPriority::kBestEffortPriority;
+     case MainThreadTaskQueue::QueueTraits::PrioritisationType::kRegular:
+@@ -2724,31 +2732,29 @@ TaskPriority MainThreadSchedulerImpl::ComputeCompositorPriority() const {
+       ComputeCompositorPriorityForMainFrame();
+   std::optional<TaskPriority> use_case_priority =
+       ComputeCompositorPriorityFromUseCase();
++
++  TaskPriority result;
+   if (!targeted_main_frame_priority && !use_case_priority) {
+-    return TaskPriority::kNormalPriority;
++    result = TaskPriority::kNormalPriority;
+   } else if (!use_case_priority) {
+-    return *targeted_main_frame_priority;
++    result = *targeted_main_frame_priority;
+   } else if (!targeted_main_frame_priority) {
+-    return *use_case_priority;
+-  }
+-
+-  // Both are set, so some reconciliation is needed.
+-  CHECK(targeted_main_frame_priority && use_case_priority);
+-  // If either votes for the highest priority, use that to simplify the
+-  // remaining case.
+-  if (*targeted_main_frame_priority == TaskPriority::kHighestPriority ||
+-      *use_case_priority == TaskPriority::kHighestPriority) {
+-    return TaskPriority::kHighestPriority;
+-  }
+-  // Otherwise, this must be a combination of UseCase::kCompositorGesture and
+-  // rendering starvation since all other use cases set the priority to highest.
+-  CHECK(current_use_case() == UseCase::kCompositorGesture &&
+-        (main_thread_only().main_frame_prioritization_state ==
+-             RenderingPrioritizationState::kRenderingStarved ||
+-         main_thread_only().main_frame_prioritization_state ==
+-             RenderingPrioritizationState::kRenderingStarvedByRenderBlocking));
+-  CHECK_LE(*targeted_main_frame_priority, *use_case_priority);
+-  return *targeted_main_frame_priority;
++    result = *use_case_priority;
++  } else {
++    // Both are set - take the higher priority (lower numeric value).
++    result = std::min(*targeted_main_frame_priority, *use_case_priority);
++  }
++
++  // Cap compositor priority to kNormalPriority. Without this cap,
++  // back-to-back BeginFrame tasks at kHighestPriority (triggered by
++  // continuous mouse input + --disable-frame-rate-limit) create a tight
++  // compositor loop that permanently starves kNormalPriority tasks
++  // (WebSocket onmessage, Worker postMessage). The task queue selector
++  // has no cross-priority anti-starvation, so any priority above kNormal
++  // causes indefinite deferral of lower-priority work. Rendering starvation
++  // detection in ComputeCompositorPriorityForMainFrame() is sufficient to
++  // protect against actual frame drops when compositor priority is capped.
++  return std::max(result, TaskPriority::kNormalPriority);
+ }
+ 
+ void MainThreadSchedulerImpl::UpdateCompositorTaskQueuePriority() {

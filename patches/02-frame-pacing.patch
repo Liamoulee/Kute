@@ -1,0 +1,60 @@
+diff --git a/cc/scheduler/scheduler_state_machine.cc b/cc/scheduler/scheduler_state_machine.cc
+index ce6e121c9b..d86080db59 100644
+--- a/cc/scheduler/scheduler_state_machine.cc
++++ b/cc/scheduler/scheduler_state_machine.cc
+@@ -7,7 +7,9 @@
+ #include <algorithm>
+ 
+ #include "base/check_op.h"
++#include "base/feature_list.h"
+ #include "base/format_macros.h"
++#include "base/metrics/field_trial_params.h"
+ #include "base/metrics/histogram_macros.h"
+ #include "base/notreached.h"
+ #include "base/rand_util.h"
+@@ -30,7 +32,25 @@ namespace cc {
+ 
+ namespace {
+ // Surfaces and CompositorTimingHistory don't support more than 1 pending swap.
+-constexpr int kMaxPendingSubmitFrames = 1;
++constexpr int kMaxPendingSubmitFrames = 1;  // unchanged - safe default
++
++// KCC: expose the frame-queue depth as a runtime-tunable feature param.
++// Feature params propagate to the renderer process automatically (field
++// trials), which is required because this scheduler runs in the renderer,
++// not the browser. The "Higher Max FPS" toggle in the client sets:
++//   --enable-features=CustomMaxPendingFrames:count/2
++BASE_FEATURE(kCustomMaxPendingFrames,
++             "CustomMaxPendingFrames",
++             base::FEATURE_ENABLED_BY_DEFAULT);
++constexpr base::FeatureParam<int> kMaxPendingFramesCount{
++    &kCustomMaxPendingFrames, "count", kMaxPendingSubmitFrames};  // default 1
++
++// Read once and cache. Floor of 1 - 0/negative would disable throttling and
++// reintroduce the unbounded-queue flood the patch exists to prevent.
++int MaxPendingSubmitFrames() {
++  static const int value = std::max(1, kMaxPendingFramesCount.Get());
++  return value;
++}
+ 
+ constexpr float kFrameThrottlingSlackFactor = 0.9;
+ 
+@@ -1507,8 +1527,7 @@ bool SchedulerStateMachine::IsDrawThrottled() const {
+   if (base::FeatureList::IsEnabled(features::kNoCompositorFrameAcks)) {
+     return false;
+   }
+-  return pending_submit_frames_ >= kMaxPendingSubmitFrames &&
+-         !settings_.disable_frame_rate_limit;
++  return pending_submit_frames_ >= MaxPendingSubmitFrames();
+ }
+ 
+ void SchedulerStateMachine::SetVisible(bool visible) {
+@@ -1577,7 +1596,7 @@ void SchedulerStateMachine::DidSubmitCompositorFrame() {
+     // We should remove or change this once VRR support is implemented for
+     // Windows and other platforms potentially.
+     if (!settings_.disable_frame_rate_limit) {
+-      DCHECK_LT(pending_submit_frames_, kMaxPendingSubmitFrames);
++      DCHECK_LT(pending_submit_frames_, MaxPendingSubmitFrames());
+     }
+ 
+     pending_submit_frames_++;
