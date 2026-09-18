@@ -43,8 +43,6 @@ catch {
 }
 
 const configBase = (await import("./config.template.ts")).default;
-// the custom file is not in the repository (see .gitignore), so a checkout without one (CI) must still type check:
-// imported through a variable, the compiler does not look for the file, and the template supplies the type
 const customPath = "./config.custom.ts";
 const configCustom = (await import(customPath)).default as Partial<typeof configBase>;
 const packageJSON = JSON.parse(await fs.readFile("./package.json", "utf-8"));
@@ -53,7 +51,6 @@ export const meta = {
     getVersion: (): string => packageJSON.version,
     getName: (): string => packageJSON.name,
     getAuthor: (): string => packageJSON.author,
-
 };
 
 export const config = {

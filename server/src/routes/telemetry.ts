@@ -8,7 +8,6 @@ import { parseFailure, parseReport } from "../util/report";
 // =     - SPDX: MIT -     = //
 // ========================= //
 
-// the day is all the time that is kept
 const today = (): string => new Date().toISOString().slice(0, 10);
 
 export async function telemetryRoutes(app: FastifyInstance): Promise<void> {
@@ -23,11 +22,8 @@ export async function telemetryRoutes(app: FastifyInstance): Promise<void> {
         "INSERT INTO autodetect_failures (received_day, kute_version, stage, message, seconds) VALUES (?, ?, ?, ?, ?)",
     );
 
-    // A run takes a minute, so a handful per hour is already generous. One limiter for both routes.
     const limit = createRateLimit("autodetect", 6, 60 * 60 * 1000, "Rate limit exceeded. Max 6 reports per hour.");
 
-    // The result of one auto-detect run, sent by clients that did not opt out. The columns are what gets
-    // filtered and grouped by, everything else (every single measurement) is in the report JSON next to them.
     app.post("/autodetect", { bodyLimit: 64 * 1024, onRequest: limit }, (req, reply) => {
         const report = parseReport(req.body);
         if (typeof report === "string"){
@@ -65,7 +61,6 @@ export async function telemetryRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(204).send();
     });
 
-    // A run that stopped before it had a result. This is how a changed Krunker host window gets noticed.
     app.post("/autodetect-failure", { bodyLimit: 4 * 1024, onRequest: limit }, (req, reply) => {
         const failure = parseFailure(req.body);
         if (typeof failure === "string"){

@@ -3,15 +3,6 @@
 // =     - SPDX: MIT -     = //
 // ========================= //
 
-// What the client may send after an auto-detect run, and nothing else. The endpoint is open to the internet,
-// so a report is not stored as it arrives: it is rebuilt from the fields below, with every string cut to a
-// length, every number checked, and every unknown key dropped. Anything that does not fit is rejected.
-// The shape mirrors `Report` in src/frontend/modules/autoDetect/index.js of the client.
-//
-// Everything in here describes a machine and a measurement. Nothing describes a person: no names, no paths,
-// no addresses, no ids. Keep it that way when adding fields (flag VALUES, for one, can hold a user's path,
-// which is why the client only sends flag names).
-
 export type MeasuredSetting = {
     id: string;
     current: string;
@@ -35,7 +26,7 @@ export type ClientResult = {
     p50: number;
     p99: number;
     max: number;
-    // the hook's own present intervals, null without the hook
+    // the hooks own present intervals, null without the hook
     present: Intervals | null;
     taskDelayP99: number;
     limit: number;
@@ -82,8 +73,6 @@ export type Details = {
 
 export type Report = {
     kute: string;
-    // the how-manieth auto-detect run on that install, 0 when the client did not say. not an id: it only tells
-    // first runs from repeats
     run: number;
     gpu: string;
     cpu: string;
@@ -110,7 +99,6 @@ export type Report = {
         predictedFps: number;
         changes: Change[];
     };
-    // older clients do not send them
     details: Details | null;
 };
 
@@ -132,7 +120,6 @@ function dict(value: unknown, what: string): Dict {
 
 function text(value: unknown, what: string, max: number): string {
     if (typeof value !== "string") throw new Invalid(what + " must be a string");
-    // printable characters only: this ends up in a database and maybe one day in a table on a page
     const printable = [...value].filter((char) => char.charCodeAt(0) >= 32 && char.charCodeAt(0) !== 127 && char !== "<" && char !== ">");
     return printable.join("").trim().slice(0, max);
 }
@@ -182,7 +169,6 @@ function intervals(value: unknown, what: string): Intervals | null {
     };
 }
 
-// the client settings that touch performance. a fixed list: whatever else a client sends is not kept
 const CLIENT_SETTINGS = ["hardFlip", "uncapFps", "gameFpsLimit", "throttle", "inMenuThrottle", "webviewPriority", "angleBackend", "colorProfile", "rawInput"];
 
 function parseDetails(value: unknown): Details | null {

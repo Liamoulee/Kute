@@ -2,6 +2,7 @@
 target/*
 !target/!bundle.js
 !target/!bundle_version
+_docs/
 
 # Client Node
 node_modules/

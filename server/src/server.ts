@@ -50,12 +50,10 @@ else Log.done("Data dir exists!");
 const app = Fastify({
     logger: {
         level: isDevelopment ? "debug" : "info",
-        // the default request log carries the caller's address. nothing this server writes down may
         serializers: {
             req: (req) => ({ method: req.method, url: req.url }),
         },
     },
-    // behind nginx: the address for the rate limit comes from X-Forwarded-For
     trustProxy: true,
 });
 
@@ -67,7 +65,6 @@ app.register(helmet);
 
 app.addHook("onRequest", createRateLimit("global", 10, 1000, "Rate limit exceeded. Max 10 requests per second."));
 
-// the root: a page that says hello, nothing more
 app.register(fastifyStatic, {
     root: path.join(import.meta.dir, "../public"),
     prefix: "/",

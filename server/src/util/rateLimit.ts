@@ -7,8 +7,6 @@ import { isDevelopment } from "./env";
 // =     - SPDX: MIT -     = //
 // ========================= //
 
-// Rate limits live in memory and are keyed by a salted hash of the address. The salt is made up at start
-// and never stored, so there is no list of IP addresses anywhere, not on disk and not in a usable form in RAM.
 const salt = randomBytes(32);
 
 type Window = { hits: number; resetAt: number };
@@ -38,7 +36,6 @@ export function cleanupRateLimits(): number {
  * @param message - Error message when limit exceeded
  */
 export function createRateLimit(name: string, max: number, windowMs: number, message: string) {
-    // testing means sending the same report over and over, a development server does not get in the way
     const allowed = isDevelopment ? max * 100 : max;
 
     return async(req: FastifyRequest, reply: FastifyReply): Promise<void> => {

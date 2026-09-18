@@ -21,15 +21,11 @@ function ensureColumn(table: string, column: string, def: string): void {
 }
 
 export function initDb(): void {
-    // a development server gets its own file, test reports never end up next to real ones
     const file = isDevelopment ? "data/kute.dev.db" : "data/kute.db";
     db = new Database(file, { create: true });
 
     db.run("PRAGMA journal_mode = WAL;");
 
-    // One row per auto-detect run a client chose to share. Nothing in here identifies a person or an install:
-    // no IP, no account, no install id, and the time is only kept as a day.
-    // The columns are what gets filtered and grouped by, the whole (validated) report sits next to them as JSON.
     db.run(`
         CREATE TABLE IF NOT EXISTS autodetect_reports (
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,7 +49,6 @@ export function initDb(): void {
     `);
 
     ensureColumn("autodetect_reports", "run_index", "INTEGER NOT NULL DEFAULT 0");
-    // added with the detailed report. all nullable: older clients do not send the details
     for (const [column, def] of [
         ["renderer", "TEXT"],
         ["os_build", "TEXT"],

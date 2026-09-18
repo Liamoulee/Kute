@@ -7,10 +7,6 @@ import { exec } from "node:child_process";
 // =     - SPDX: MIT -     = //
 // ========================= //
 
-// Run on the server by the "deploy server" workflow: bun server/scripts/pull-and-restart.ts [PM2_HOME]
-// Pulls, installs what the lockfile says and reloads the PM2 app. The repo also holds the client, whose
-// 285 MB libcef.dll lives in Git LFS. The server never needs it, so LFS downloads stay switched off here.
-
 const serverDir = path.resolve(import.meta.dir, "..");
 const ecosystemPath = path.resolve(serverDir, "pm2.ecosystem.json");
 const customPm2Home = process.argv[2];
@@ -33,7 +29,6 @@ try {
     await run("git pull");
     console.log("[pull-and-restart] Done.");
 
-    // quick when nothing changed, and it fails loudly when package.json and the lockfile disagree
     console.log("[pull-and-restart] Installing dependencies...");
     await run("bun install --frozen-lockfile --production");
     console.log("[pull-and-restart] Done.");
