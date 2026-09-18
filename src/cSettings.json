@@ -168,6 +168,14 @@
         "category": "Interface",
         "defaultValue": false
     },
+    "clanColors": {
+        "name": "Show Clan Colors",
+        "id": "clanColors",
+        "description": "Colors the clan tags of some clans in the player lists",
+        "type": "checkbox",
+        "category": "Interface",
+        "defaultValue": true
+    },
     "renderStats": {
         "name": "Present FPS Counter",
         "id": "renderStats",

@@ -57,7 +57,7 @@ interface Kute {
     showChangelogPopup(version: string): Promise<void>;
     showAboutPopup(): Promise<void>;
     autoDetect: { start(): Promise<void>; undo(): void; showLast(): void };
-    clanTags: { apply(styles: unknown): void };
+    clanColors: { apply(styles: unknown): void; toggle(enabled: boolean): void };
     bindShoot(): void;
 }
 

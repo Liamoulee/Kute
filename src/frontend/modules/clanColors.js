@@ -1,6 +1,6 @@
 import { kute } from "../client.js";
 
-// Styled clan tags in the player lists. The styles come from the Kute server once per page load
+// The "Show clan colors" setting: styled clan tags in the player lists. The styles come from the Kute server once per page load
 // (GET /api/meta, `clanTagColors`: clan tag -> CSS text), so a clan can get its colors without a client update.
 //
 // Krunker renders every list entry as NAME<span style="color:..."> [clan]</span>. Only such a span, a direct
@@ -47,13 +47,39 @@ function paintOnly(css){
 const LISTS = ["#playerListH", "#ingameTable", "#leaderboardHolder", "#endTable"];
 const TAG_SPANS = ".pListName > span, .newLeaderNameM > span, .leaderNameM > span, .endTableN > span";
 
-class ClanTags {
+class ClanColors {
     constructor(){
         /** @type {Record<string, string>} clan tag -> CSS text */
         this.styles = {};
-        /** @type {WeakMap<Element, MutationObserver>} */
-        this.observers = new WeakMap();
+        /** @type {Record<string, string>} what the server sent, kept for switching back on without a fetch */
+        this.fetched = {};
+        /** @type {Map<Element, MutationObserver>} */
+        this.observers = new Map();
+        this.timer = 0;
+        kute.settings.toggleClanColors = (enabled) => this.toggle(enabled);
         this.load();
+    }
+
+    /**
+     * @param {boolean} enabled
+     */
+    toggle(enabled){
+        if (enabled){
+            if (Object.keys(this.fetched).length > 0) this.apply(this.fetched);
+            else this.load();
+            return;
+        }
+        clearInterval(this.timer);
+        this.timer = 0;
+        for (const observer of this.observers.values()) observer.disconnect();
+        this.observers.clear();
+        this.styles = {};
+        // back to what Krunker had written into the span
+        for (const span of document.querySelectorAll("[data-kute-clan]")){
+            span.setAttribute("style", span.getAttribute("data-kute-style") ?? "");
+            span.removeAttribute("data-kute-clan");
+            span.removeAttribute("data-kute-style");
+        }
     }
 
     /**
@@ -64,7 +90,8 @@ class ClanTags {
             const response = await fetch(META_URL, { cache: "default" });
             if (!response.ok) return;
             const meta = await response.json();
-            this.apply(meta?.clanTagColors);
+            if (typeof meta?.clanTagColors === "object" && meta.clanTagColors !== null) this.fetched = meta.clanTagColors;
+            if (kute.settings.data.clanColors !== false) this.apply(this.fetched);
         }
         catch {
             // no server, no styled tags
@@ -89,7 +116,7 @@ class ClanTags {
         // the lists come and go with the match state (the alt list only exists while alt is held), so the ones
         // that exist get looked up and observed twice a second: four querySelector calls
         this.watch();
-        setInterval(() => this.watch(), 500);
+        if (!this.timer) this.timer = setInterval(() => this.watch(), 500);
     }
 
     /**
@@ -116,12 +143,13 @@ class ClanTags {
             const match = /^\s*\[(.+)\]\s*$/.exec(text);
             const css = match ? this.styles[match[1]] : undefined;
             if (!css || span.getAttribute("data-kute-clan") === match?.[1]) continue;
+            if (!span.hasAttribute("data-kute-style")) span.setAttribute("data-kute-style", span.getAttribute("style") ?? "");
             span.setAttribute("style", css);
             span.setAttribute("data-kute-clan", match?.[1] ?? "");
         }
     }
 }
 
-const clanTags = new ClanTags();
-kute.clanTags = clanTags;
-export default clanTags;
+const clanColors = new ClanColors();
+kute.clanColors = clanColors;
+export default clanColors;
