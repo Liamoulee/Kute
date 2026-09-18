@@ -4,8 +4,8 @@
 //
 // The lists come and go, but they live inside containers that are part of Krunker's page from the start, so
 // those containers get observed once and a rebuild is noticed the moment it happens. A list that turns up
-// somewhere else (the alt list, or wherever a Krunker update moves things) is found by one id lookup per second
-// and then observed itself. What the decorators insert is a mutation too, those records get dropped right after
+// somewhere else (wherever a Krunker update moves things) is found by one id lookup per second and then
+// observed itself. What the decorators insert is a mutation too, those records get dropped right after
 // a walk, otherwise every rebuild would be handled twice.
 // Measured in a live match: about one rebuild every two seconds, about five microseconds per walk.
 
@@ -20,11 +20,9 @@
 
 /** @typedef {(row: Row) => void} Decorator */
 
-/** the lists, what kind each is, and the permanent container it was seen in (verified live where noted) */
+/** the lists, what kind each is, and the permanent container it lives in (all four verified in the live game) */
 const LISTS = /** @type {{ list: string, kind: ListKind, root: string }[]} */ ([
-    // verified
     { list: "leaderContainer", kind: "leader", root: "leaderboardHolder" },
-    // verified
     { list: "ingameTable", kind: "ingame", root: "centerLeaderDisplay" },
     { list: "endTable", kind: "end", root: "endUI" },
     { list: "playerListH", kind: "alt", root: "menuWindow" },

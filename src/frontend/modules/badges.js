@@ -27,9 +27,10 @@ const PLACEMENT = {
     ingame: "margin-top:3px;vertical-align:middle;height:21px;margin-left:2px",
     // <td> pfp, name link, [icons]
     end: "margin-top:-12px;vertical-align:middle;width:26px;margin-left:2px",
-    // <td.pListName> [material icon], name: Krunker has no badge image here. the pixel font sits high in its
-    // line box, so the middle of the text is 0.35em above where vertical-align puts the image
-    alt: "vertical-align:middle;height:21px;margin-right:6px;position:relative;top:-0.35em",
+    // <td.pListName> [ping], [material icon], name, clan: Krunker has no badge image here, and the front of the
+    // cell is where the ping goes, so ours follows the clan tag. the pixel font sits high in its line box, so
+    // the middle of the text is 0.35em above where vertical-align puts the image
+    alt: "vertical-align:middle;height:21px;margin-left:6px;position:relative;top:-0.35em",
 };
 
 /**
@@ -120,8 +121,9 @@ class Badges {
     }
 
     /**
-     * Puts the badge in as the first icon of the row: right after the rank in the leaderboards, first in the
-     * alt list cell, and on the end screen, where the icons follow the name, right after the name link.
+     * Puts the badge in as the first icon of the row: right after the rank in the leaderboards, and where the
+     * icons follow the name, right behind it: after the name link on the end screen, after the clan tag in the
+     * alt list.
      *
      * @param {Row} row
      */
@@ -135,7 +137,7 @@ class Badges {
         img.alt = "";
         img.title = "Kute";
         img.style.cssText = PLACEMENT[kind];
-        if (kind === "alt") element.insertBefore(img, element.firstChild);
+        if (kind === "alt") element.append(img);
         else if (kind === "end") parent.insertBefore(img, element.nextSibling);
         else parent.insertBefore(img, parent.firstElementChild?.nextSibling ?? element);
         if (img.nextElementSibling?.tagName === "I") img.style.marginRight = ICON_GAP;
