@@ -423,6 +423,20 @@ pub fn create_popup_window(
     }
 }
 
+// kute.ico carries simplified art for 16 to 32 px and the detailed logo above that (resources/make-ico.py).
+// the class icon is one handle at the 32 px class, so the title bar icon would be whatever windows derives from
+// it. asking for the exact sizes the system uses (they grow with the display scale) gets the entry made for them
+unsafe fn set_window_icons(hwnd: HWND, hinstance: HINSTANCE) {
+    unsafe {
+        for (kind, width, height) in [(ICON_SMALL, SM_CXSMICON, SM_CYSMICON), (ICON_BIG, SM_CXICON, SM_CYICON)] {
+            let (width, height) = (GetSystemMetrics(width), GetSystemMetrics(height));
+            if let Ok(icon) = LoadImageW(Some(hinstance), w!("icon"), IMAGE_ICON, width, height, LR_SHARED) {
+                SendMessageW(hwnd, WM_SETICON, Some(WPARAM(kind as usize)), Some(LPARAM(icon.0 as isize)));
+            }
+        }
+    }
+}
+
 pub fn create_window(start_mode: &str, is_subwindow: bool, init_state: Option<WindowState>) -> HWND {
     unsafe {
         let hinstance: HINSTANCE = GetModuleHandleW(None).unwrap().into();
@@ -551,6 +565,7 @@ pub fn create_window(start_mode: &str, is_subwindow: bool, init_state: Option<Wi
             Some((is_subwindow as isize) as *mut c_void),
         )
         .unwrap();
+        set_window_icons(hwnd, hinstance);
 
         if state.fullscreen {
             SetWindowLongPtrW(hwnd, GWL_STYLE, (WS_VISIBLE.0) as _);
