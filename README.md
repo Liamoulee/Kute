@@ -44,6 +44,7 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] CPU throttler (a last resort, see below)
 - [x] Lightweight autoupdater & changelogs
 - [x] Basic shortcuts (F4 new lobby, F6 matchmaker, F5 reload, F11 fullscreen, F12 devtools)
+- [x] Matchmaker
 - [ ] Skin Swapper (coming soon)
 - [ ] BetterKDR™️ (coming soon)
 - [ ] Bloomberg-style trading terminal & market analysis (coming soon)
@@ -132,5 +133,6 @@ Only needed when you work on the server itself.
 - [KraXen72/crankshaft](https://github.com/KraXen72/crankshaft) - menu timer css
 - [idkr-client/idkr](https://github.com/idkr-client/idkr) - tweaks
 - [bigjakk/Electron-Websocket-Fix](https://github.com/bigjakk/Electron-Websocket-Fix) - aim-freeze fix
+- [bigjakk/Krunker-Civilian-Client](https://github.com/bigjakk/Krunker-Civilian-Client) - matchmaker
 
 <hr>
