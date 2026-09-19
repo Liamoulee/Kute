@@ -93,6 +93,43 @@
 	cursor: pointer;
 }
 
+[hidden] {
+	display: none !important;
+}
+
+#mmPriorityBox {
+	margin-top: 0.3em;
+	padding: 0.6em;
+	border-radius: 10px;
+	background: #252525;
+}
+
+#mmPriorityHint {
+	margin-top: 0.5em;
+	color: #888;
+	font-size: 0.9em;
+}
+
+.mmRank {
+	cursor: grab;
+	touch-action: none;
+}
+
+.mmRank.dragging {
+	cursor: grabbing;
+	opacity: 0.6;
+}
+
+.mmNum {
+	min-width: 1.3em;
+	padding: 0.05em 0.3em;
+	border-radius: 5px;
+	background: #35e0e8;
+	color: #111;
+	font-weight: bold;
+	text-align: center;
+}
+
 #mmActions {
 	display: flex;
 	gap: 0.7em;
@@ -132,6 +169,11 @@
 	<div class="mmGrid" id="mmModes"></div>
 	<h3>Maps</h3>
 	<div class="mmGrid" id="mmMaps"></div>
+	<label class="mmRow" id="mmPriorityRow">Prefer maps in this order <input type="checkbox" id="mmMapPriority"></label>
+	<div id="mmPriorityBox">
+		<div class="mmGrid" id="mmPriority"></div>
+		<div id="mmPriorityHint">Drag to reorder, click to move to the top. F6 joins the first map that has a lobby</div>
+	</div>
 	<h3>Lobby</h3>
 	<label class="mmRow">Min players <input type="number" id="mmMinPlayers" min="0" max="7"></label>
 	<label class="mmRow">Max players <input type="number" id="mmMaxPlayers" min="0" max="7"></label>

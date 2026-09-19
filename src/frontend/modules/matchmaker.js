@@ -76,7 +76,8 @@ const NOT_FOUND_HOLD_MS = 1100;
  * @typedef {object} MatchmakerFilter
  * @property {string[]} regions Region codes (the prefix of a game id)
  * @property {string[]} modes
- * @property {string[]} maps
+ * @property {string[]} maps In the order they were picked
+ * @property {boolean} mapPriority The first map of `maps` that has a lobby wins, before ping and players
  * @property {number} minPlayers
  * @property {number} maxPlayers
  * @property {number} minTime Seconds left in the round
@@ -90,6 +91,7 @@ const DEFAULT_FILTER = {
     regions: [],
     modes: [],
     maps: [],
+    mapPriority: false,
     minPlayers: 1,
     maxPlayers: 6,
     minTime: 120,
@@ -444,12 +446,17 @@ class Matchmaker {
 
         /** @param {Lobby} lobby */
         const ping = (lobby) => pings[lobby.server] ?? 999;
+        // with map priority on, the map's place in the list comes before ping and players
+        const mapRanks = new Map(filter.mapPriority ? filter.maps.map((map, index) => [normalizeMap(map), index]) : []);
+        /** @param {Lobby} lobby */
+        const rank = (lobby) => mapRanks.get(normalizeMap(lobby.map)) ?? 0;
         const passing = lobbies.filter((lobby) => lobby.passes);
         passing.sort((a, b) => {
+            const byRank = rank(a) - rank(b);
             const byPing = ping(a) - ping(b);
             const byPlayers = b.players - a.players;
-            if (filter.sortByPlayers) return byPlayers || byPing;
-            return byPing || byPlayers;
+            if (filter.sortByPlayers) return byRank || byPlayers || byPing;
+            return byRank || byPing || byPlayers;
         });
         this.candidates = passing;
 
@@ -458,7 +465,9 @@ class Matchmaker {
         let best;
         if (passing.length > 0){
             const top = passing[0];
-            const pool = passing.filter((lobby) => Math.abs(ping(lobby) - ping(top)) <= 20 && top.players - lobby.players <= 2);
+            const pool = passing.filter(
+                (lobby) => rank(lobby) === rank(top) && Math.abs(ping(lobby) - ping(top)) <= 20 && top.players - lobby.players <= 2,
+            );
             best = pool[Math.floor(Math.random() * pool.length)];
         }
 
@@ -521,8 +530,9 @@ class Matchmaker {
          * @param {string} gridId
          * @param {{value: string, label: string, icon?: string|null}[]} items
          * @param {string[]} picked Changed in place
+         * @param {() => void} [onChange]
          */
-        const chips = (gridId, items, picked) => {
+        const chips = (gridId, items, picked, onChange) => {
             const grid = element(gridId);
             grid.replaceChildren();
             for (const item of items){
@@ -542,15 +552,87 @@ class Matchmaker {
                     if (index === -1) picked.push(item.value);
                     else picked.splice(index, 1);
                     chip.classList.toggle("on", index === -1);
+                    onChange?.();
                 };
                 grid.append(chip);
             }
         };
 
+        /**
+         * The picked maps as a ranked row: drag a chip to reorder, click it to move it to the top. Pointer events
+         * instead of HTML5 drag and drop, the host refuses every drag that enters the browser window.
+         */
+        const renderPriority = () => {
+            const list = element("mmPriority");
+            element("mmPriorityRow").hidden = filter.maps.length < 2;
+            element("mmPriorityBox").hidden = filter.maps.length < 2 || !element("mmMapPriority").checked;
+            list.replaceChildren();
+            const renumber = () => list.querySelectorAll(".mmNum").forEach((num, index) => (num.textContent = String(index + 1)));
+
+            for (const value of filter.maps){
+                const chip = document.createElement("div");
+                chip.className = "mmChip on mmRank";
+                chip.append(span("mmNum", ""));
+                const icon = mapIconUrl(value);
+                if (icon){
+                    const img = document.createElement("img");
+                    img.src = icon;
+                    img.alt = "";
+                    img.draggable = false;
+                    img.onerror = () => img.remove();
+                    chip.append(img);
+                }
+                chip.append(MAP_NAMES[value] ?? value);
+
+                /** @type {{x: number, y: number, moved: boolean}|null} */
+                let drag = null;
+                chip.onpointerdown = (event) => {
+                    chip.setPointerCapture(event.pointerId);
+                    drag = { x: event.clientX, y: event.clientY, moved: false };
+                };
+                chip.onpointermove = (event) => {
+                    if (!drag) return;
+                    if (!drag.moved && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 5) return;
+                    drag.moved = true;
+                    chip.classList.add("dragging");
+                    const children = [...list.children];
+                    const target = children.findIndex((child) => {
+                        const rect = child.getBoundingClientRect();
+                        return event.clientX >= rect.left && event.clientX <= rect.right && event.clientY >= rect.top && event.clientY <= rect.bottom;
+                    });
+                    const from = children.indexOf(chip);
+                    if (target === -1 || target === from) return;
+                    filter.maps.splice(target, 0, ...filter.maps.splice(from, 1));
+                    chip.remove();
+                    list.insertBefore(chip, list.children[target] ?? null);
+                    renumber();
+                };
+                chip.onpointerup = () => {
+                    chip.classList.remove("dragging");
+                    if (drag && !drag.moved){
+                        filter.maps.unshift(...filter.maps.splice(filter.maps.indexOf(value), 1));
+                        window.SOUND?.play("tick_0", 0.1);
+                        renderPriority();
+                    }
+                    drag = null;
+                };
+                chip.onpointercancel = chip.onpointerup;
+                list.append(chip);
+            }
+            renumber();
+        };
+
         const fill = () => {
             chips("mmRegions", Object.entries(REGIONS).map(([value, label]) => ({ value, label })), filter.regions);
             chips("mmModes", MODE_FILTER.map((value) => ({ value, label: value })), filter.modes);
-            chips("mmMaps", MAP_FILTER.map((value) => ({ value, label: MAP_NAMES[value] ?? value, icon: mapIconUrl(value) })), filter.maps);
+            chips(
+                "mmMaps",
+                MAP_FILTER.map((value) => ({ value, label: MAP_NAMES[value] ?? value, icon: mapIconUrl(value) })),
+                filter.maps,
+                renderPriority,
+            );
+            element("mmMapPriority").checked = filter.mapPriority;
+            renderPriority();
             element("mmMinPlayers").value = String(filter.minPlayers);
             element("mmMaxPlayers").value = String(filter.maxPlayers);
             element("mmMinTime").value = String(filter.minTime);
@@ -585,12 +667,14 @@ class Matchmaker {
                 minPlayers: number("mmMinPlayers", 0, 7, DEFAULT_FILTER.minPlayers),
                 maxPlayers: number("mmMaxPlayers", 0, 7, DEFAULT_FILTER.maxPlayers),
                 minTime: number("mmMinTime", 0, 480, DEFAULT_FILTER.minTime),
+                mapPriority: element("mmMapPriority").checked,
                 sortByPlayers: element("mmSortByPlayers").checked,
                 serverBrowser: element("mmServerBrowser").checked,
                 animation: element("mmAnimation").checked,
             });
         };
         element("mmDone").onclick = close;
+        element("mmMapPriority").onchange = renderPriority;
         element("mmReset").onclick = () => {
             Object.assign(filter, DEFAULT_FILTER, { regions: [], modes: [], maps: [] });
             fill();
