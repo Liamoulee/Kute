@@ -1,3 +1,13 @@
+/* Windows and macOS render the headings in their own Arial Black. Everything else (Android, Linux) gets this
+   look-alike, otherwise the tight letter spacing makes the outlined letters overlap */
+@font-face {
+  font-family: "Archivo Black";
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url("./assets/archivo-black.woff2") format("woff2");
+}
+
 :root {
   --ink: #020707;
   --panel: #071011;
@@ -13,7 +23,7 @@
   --gutter: clamp(1rem, 4vw, 4rem);
   --mono: "Consolas", "SFMono-Regular", ui-monospace, Menlo, monospace;
   --sans: "Segoe UI", Inter, system-ui, -apple-system, Helvetica, Arial, sans-serif;
-  --display: "Arial Narrow", "Roboto Condensed", Impact, sans-serif;
+  --display: "Arial Black", "Archivo Black", sans-serif;
   color-scheme: dark;
   font-synthesis: none;
 }
