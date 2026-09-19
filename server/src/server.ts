@@ -68,7 +68,12 @@ app.register(cors, { origin: "*" });
 app.register(helmet);
 app.register(websocket);
 
-app.addHook("onRequest", createRateLimit("global", 10, 1000, "Rate limit exceeded. Max 10 requests per second."));
+// the API only: one visit of the website alone loads more than 10 files
+const globalLimit = createRateLimit("global", 10, 1000, "Rate limit exceeded. Max 10 requests per second.");
+app.addHook("onRequest", async(req, reply) => {
+    if (req.url.startsWith("/api")) await globalLimit(req, reply);
+    return reply.sent ? reply : undefined;
+});
 
 app.register(fastifyStatic, {
     root: path.join(import.meta.dir, "../public"),
