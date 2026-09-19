@@ -4,15 +4,21 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#020707" />
-    <meta name="description" content="Kute is a high-performance Krunker client with uncapped FPS, proper raw input, smart auto-detection, OBS capture, custom scripts, and more."
-    />
-    <title>Kute - High-performance Krunker client</title>
-    <link rel="icon" type="image/png" href="./assets/kute-icon.png" />
+    <meta name="description" content="Kute is a Krunker client for Windows: bundled and patched Chromium, uncapped FPS with an exact limiter, raw input, Auto-Detect, matchmaker, OBS capture and more." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://kute.lol/" />
+    <meta property="og:title" content="Kute - Krunker client" />
+    <meta property="og:description" content="Krunker client for Windows. Uncapped FPS, raw input, Auto-Detect, matchmaker, OBS capture and more." />
+    <meta property="og:image" content="https://kute.lol/assets/kute-icon-512.png" />
+    <meta name="twitter:card" content="summary" />
+    <title>Kute - Krunker client</title>
+    <link rel="icon" type="image/png" href="./assets/favicon.png" />
+    <link rel="apple-touch-icon" href="./assets/apple-touch-icon.png" />
 
     <!-- // ============================== // -->
     <!-- // = Copyright (c) 2026 NullDev = // -->
     <!-- // ============================== // -->
-    <!--        
+    <!--
 
 ⠀⠀⠀⢠⣾⣷⣦⡀
 ⠀⠀⣰⣿⣿⣿⣿⣷⡀
@@ -47,62 +53,60 @@
     <div class="page-grid" aria-hidden="true"></div>
 
     <header class="topbar">
-      <a class="brand" href="#top" aria-label="Kute home">
-        <img src="./assets/kute-icon.png" alt="" />
+      <a class="brand" href="#top" aria-label="Kute, back to top">
+        <img src="./assets/favicon.png" alt="" width="32" height="32" />
         <span>KUTE<span class="cursor-mark">_</span></span>
       </a>
-      <div class="build-stamp" aria-label="Current version">
+      <div class="build-stamp" data-status aria-live="polite">
         <span class="signal-dot"></span>
-        BUILD 0.1.1 / ONLINE
+        <span data-status-text>CONNECTING</span>
       </div>
-      <nav aria-label="Primary navigation">
-        <a href="#systems">Systems</a>
-        <a href="#interface">Interface</a>
-        <a href="#manifest">Manifest</a>
+      <nav aria-label="Sections">
+        <a href="#performance">Performance</a>
+        <a href="#screenshots">Screenshots</a>
+        <a href="#features">Features</a>
+        <a href="#about">About</a>
       </nav>
-      <a class="top-cta" href="https://github.com/NullDev/Kute/releases" target="_blank" rel="noreferrer">
-        <span>GET KUTE</span>
-        <span aria-hidden="true">↗</span>
+      <a class="top-cta" href="https://github.com/NullDev/Kute/releases/latest" target="_blank" rel="noreferrer">
+        <span>DOWNLOAD</span>
+        <span aria-hidden="true">↓</span>
       </a>
     </header>
 
     <main id="main">
       <section class="hero" id="top">
         <div class="hero-copy">
-          <p class="eyebrow reveal">[ CLIENT / PERFORMANCE / CONTROL ]</p>
+          <p class="eyebrow reveal">[ KRUNKER CLIENT / WINDOWS ]</p>
           <h1 class="reveal">
             KUTE<br />
             <span class="outline">CLIENT.</span>
           </h1>
-          <p class="hero-tagline reveal">
-            A high-performance Krunker client with enhanced features
-          </p>
-          <div class="hero-actions launch-panel reveal" aria-label="Kute links and downloads">
-            <a class="launch-action launch-primary" href="https://github.com/NullDev/Kute/releases" target="_blank" rel="noreferrer">
-              <span class="launch-index">01 / WIN</span>
+          <p class="hero-tagline reveal">A high-performance Krunker client with enhanced features</p>
+          <div class="launch-panel reveal">
+            <a class="launch-action launch-primary" href="https://github.com/NullDev/Kute/releases/latest" target="_blank" rel="noreferrer">
+              <span class="launch-index">01 / WINDOWS</span>
               <b>Download <em>(Windows)</em></b>
               <span class="launch-icon" aria-hidden="true">↓</span>
             </a>
             <span class="launch-action launch-disabled" aria-disabled="true">
               <span class="launch-index">02 / LINUX</span>
               <b>Download <em>(Linux)</em></b>
-              <span class="launch-icon" aria-hidden="true">×</span>
-              <small>Soon™</small>
+              <span class="launch-soon">SOON™</span>
             </span>
-            <a class="launch-action" href="https://discord.com/invite/MUJbP3fXrS" target="_blank" rel="noreferrer" data-needs-discord-url>
-              <span class="launch-index">03 / COMMS</span>
+            <a class="launch-action" href="https://discord.com/invite/MUJbP3fXrS" target="_blank" rel="noreferrer">
+              <span class="launch-index">03 / COMMUNITY</span>
               <b>Discord</b>
               <span class="launch-icon" aria-hidden="true">↗</span>
             </a>
             <a class="launch-action" href="https://github.com/NullDev/Kute" target="_blank" rel="noreferrer">
-              <span class="launch-index">04 / CODE</span>
+              <span class="launch-index">04 / GITHUB</span>
               <b>Source Code</b>
               <span class="launch-icon" aria-hidden="true">↗</span>
             </a>
           </div>
         </div>
 
-        <div class="hero-machine reveal" aria-label="Kute client system status">
+        <div class="hero-machine reveal" aria-hidden="true">
           <div class="machine-corner corner-tl"></div>
           <div class="machine-corner corner-tr"></div>
           <div class="machine-corner corner-bl"></div>
@@ -113,26 +117,26 @@
             <span>CEF / DXGI</span>
           </div>
 
-          <div class="reticle" aria-hidden="true">
+          <div class="reticle">
             <div class="reticle-ring ring-one"></div>
             <div class="reticle-ring ring-two"></div>
             <div class="reticle-tick tick-x"></div>
             <div class="reticle-tick tick-y"></div>
             <div class="logo-plate">
-              <img src="./assets/kute-icon.png" alt="" />
+              <img src="./assets/kute-icon.webp" alt="" width="512" height="512" />
             </div>
           </div>
 
           <div class="machine-readout readout-a">
             <b>INPUT</b>
-            <span>RAW / DIRECT</span>
+            <span>RAW</span>
           </div>
           <div class="machine-readout readout-b">
-            <b>FRAME PATH</b>
+            <b>SWAP CHAIN</b>
             <span>WAITABLE FLIP</span>
           </div>
 
-          <div class="telemetry" aria-hidden="true">
+          <div class="telemetry">
             <div class="telemetry-grid"></div>
             <div class="telemetry-line">
               <i style="--h: 24%"></i><i style="--h: 46%"></i><i style="--h: 38%"></i><i style="--h: 72%"></i>
@@ -141,214 +145,263 @@
               <i style="--h: 48%"></i><i style="--h: 52%"></i><i style="--h: 42%"></i><i style="--h: 45%"></i>
             </div>
           </div>
-        </div>
-
-        <div class="hero-index" aria-hidden="true">
-          <span>01</span>
-          <i></i>
-          <span>06</span>
+          <div class="machine-foot">BUNDLED CHROMIUM</div>
         </div>
       </section>
 
-      <section class="signal-band" aria-label="Core characteristics">
-        <div><span>01</span><b>BUNDLED CEF</b><small>Zero browser install</small></div>
-        <div><span>02</span><b>PROPER RAW INPUT</b><small>Clean pointer path</small></div>
-        <div><span>03</span><b>EXACT FPS CONTROL</b><small>CPU stays idle</small></div>
-        <div><span>04</span><b>FULLY TOGGLABLE</b><small>Your client, your call</small></div>
+      <section class="signal-band" aria-label="Highlights">
+        <div><span>01</span><b>BUNDLED CHROMIUM</b><small>Nothing else to install</small></div>
+        <div><span>02</span><b>PATCHED CEF</b><small>No aim freeze, no GPU stutter</small></div>
+        <div><span>03</span><b>EXACT FPS LIMIT</b><small>The CPU idles between frames</small></div>
+        <div><span>04</span><b>OPEN SOURCE</b><small>GPL-3.0 on GitHub</small></div>
       </section>
 
-      <section class="systems section-shell" id="systems">
-        <div class="section-heading reveal">
-          <p class="eyebrow">[ CORE SYSTEMS ]</p>
+      <section class="section-shell performance" id="performance">
+        <div class="section-head reveal">
+          <p class="eyebrow">[ 01 ]</p>
+          <h2>Performance</h2>
         </div>
 
-        <div class="systems-grid">
-          <article class="system-card system-card-wide reveal">
-            <div class="card-topline"><span>SYS.01 / FRAME DELIVERY</span><span class="live">ACTIVE</span></div>
-            <div class="frame-visual" aria-hidden="true">
-              <div class="frame-axis"><span>CPU</span><span>GPU</span><span>DISPLAY</span></div>
-              <div class="frame-path">
-                <i></i><b></b><i></i><b></b><i></i>
+        <div class="perf-grid">
+          <article class="perf-card reveal">
+            <div class="perf-visual">
+              <div class="card-topline"><span>FRAMES</span><span class="live">DXGI HOOK</span></div>
+              <div class="frame-visual" aria-hidden="true">
+                <div class="frame-path"><i></i><b></b><i></i><b></b><i></i></div>
+                <div class="frame-pulse"></div>
+                <div class="frame-axis"><span>CPU</span><span>GPU</span><span>DISPLAY</span></div>
               </div>
-              <div class="frame-pulse"></div>
             </div>
-            <div class="card-copy">
-              <h3>Uncapped, but controlled.</h3>
-              <p>A DXGI present hook, waitable flip swapchain, clean frame pacing, live FPS telemetry, and an exact limiter that does not burn CPU cycles while it waits.</p>
-              <ul>
-                <li>Patched CEF aim-freeze fix</li>
-                <li>GPU bottleneck stutter fix</li>
-                <li>Present FPS counter</li>
+            <div class="perf-body">
+              <h3>Uncapped FPS</h3>
+              <p>A hook on the game's swap chain holds any FPS limit exactly while the CPU idles, and counts the frames that actually reach your screen. The bundled Chromium is patched against the aim freeze and the stutter other uncapped clients get when the GPU is the limit.</p>
+              <ul class="tags">
+                <li>D3D11</li><li>D3D11on12</li><li>OpenGL</li><li>Vulkan</li>
               </ul>
             </div>
           </article>
 
-          <article class="system-card system-card-auto reveal">
-            <div class="card-topline"><span>SYS.02 / AUTO-DETECT</span><span>≈ 01:00</span></div>
-            <div class="auto-orbit" aria-hidden="true">
-              <span class="orbit orbit-a"></span>
-              <span class="orbit orbit-b"></span>
-              <b>SCAN</b>
-              <i class="node node-a"></i><i class="node node-b"></i><i class="node node-c"></i>
+          <article class="perf-card reveal">
+            <div class="perf-visual">
+              <div class="card-topline"><span>AUTO-DETECT</span><span class="live">≈ 1 MIN</span></div>
+              <div class="auto-orbit" aria-hidden="true">
+                <span class="orbit orbit-a"></span>
+                <span class="orbit orbit-b"></span>
+                <b>SCAN</b>
+                <i class="node node-a"></i><i class="node node-b"></i><i class="node node-c"></i>
+              </div>
             </div>
-            <div class="card-copy">
-              <p>A private test match measures the machine, tunes both client and game, and keeps a clean undo path.</p>
-            </div>
-          </article>
-
-          <article class="system-card system-card-stack reveal">
-            <div class="card-topline"><span>SYS.03 / GRAPHICS</span><span>04 PATHS</span></div>
-            <div class="backend-list" aria-label="Selectable graphics backends">
-              <span><i>01</i>D3D11</span>
-              <span><i>02</i>D3D11on12</span>
-              <span><i>03</i>OpenGL</span>
-              <span><i>04</i>Vulkan</span>
+            <div class="perf-body">
+              <h3>Auto-Detect</h3>
+              <p>Plays a private test match and measures what each graphics setting costs on your PC. Only the settings that make a real difference get lowered. A PC that is already fast enough keeps its settings.</p>
+              <ul class="tags">
+                <li>Client and game settings</li><li>Undo</li><li>Needs an account</li>
+              </ul>
             </div>
           </article>
 
-          <article class="system-card system-card-input reveal">
-            <div class="card-topline"><span>SYS.04 / SIGNAL</span><span>DIRECT</span></div>
-            <div class="input-crosshair" aria-hidden="true"><i></i><b></b><span></span></div>
-            <div class="card-copy">
-              <h3>Input means input.</h3>
-              <p>Proper raw input, plus shared-texture OBS capture and a dedicated audio window-clean control on both sides of the game.</p>
+          <article class="perf-card reveal">
+            <div class="perf-visual">
+              <div class="card-topline"><span>INPUT</span><span class="live">RAW</span></div>
+              <div class="input-crosshair" aria-hidden="true"><i></i><b></b><span></span></div>
+            </div>
+            <div class="perf-body">
+              <h3>Raw input</h3>
+              <p>Mouse movement comes straight from the device, without Windows pointer acceleration. Scrolling can jump for easier ramp boosts, and that turns itself off in competitive.</p>
+              <ul class="tags">
+                <li>No acceleration</li><li>Ramp boost</li>
+              </ul>
             </div>
           </article>
         </div>
       </section>
 
-      <section class="marquee-section" aria-label="Kute feature list">
-        <div class="marquee-label"><span>FEATURE STREAM</span><span>AUTO / LOOP</span></div>
-        <div class="marquee" data-direction="left">
+      <section class="marquee-section" aria-label="Feature overview">
+        <div class="marquee">
           <div class="marquee-track">
-            <span>UNCAPPED FPS</span><span>RAW INPUT</span><span>RESOURCE SWAPPER</span><span>ACCOUNT MANAGER</span>
-            <span>OBS CAPTURE</span><span>CUSTOM SCRIPTS</span><span>RANKED QUEUE</span><span>REAL SERVER PING</span>
-            <span aria-hidden="true">UNCAPPED FPS</span><span aria-hidden="true">RAW INPUT</span><span aria-hidden="true">RESOURCE SWAPPER</span><span aria-hidden="true">ACCOUNT MANAGER</span>
-            <span aria-hidden="true">OBS CAPTURE</span><span aria-hidden="true">CUSTOM SCRIPTS</span><span aria-hidden="true">RANKED QUEUE</span><span aria-hidden="true">REAL SERVER PING</span>
+            <span>UNCAPPED FPS</span><span>RAW INPUT</span><span>AUTO-DETECT</span><span>MATCHMAKER</span>
+            <span>REAL PING</span><span>RANKED QUEUE</span><span>RANK PROGRESS</span><span>OBS CAPTURE</span>
           </div>
         </div>
-        <div class="marquee marquee-secondary" data-direction="right">
+        <div class="marquee marquee-secondary">
           <div class="marquee-track">
-            <span>BETTER CHAT</span><span>HARDPOINT COUNTER</span><span>RANK PROGRESS</span><span>CLAN COLORS</span>
-            <span>RICH PRESENCE</span><span>AUTOUPDATER</span><span>URL BLOCKLIST</span><span>BATTLE PASS CLAIM-ALL</span>
-            <span aria-hidden="true">BETTER CHAT</span><span aria-hidden="true">HARDPOINT COUNTER</span><span aria-hidden="true">RANK PROGRESS</span><span aria-hidden="true">CLAN COLORS</span>
-            <span aria-hidden="true">RICH PRESENCE</span><span aria-hidden="true">AUTOUPDATER</span><span aria-hidden="true">URL BLOCKLIST</span><span aria-hidden="true">BATTLE PASS CLAIM-ALL</span>
+            <span>RESOURCE SWAPPER</span><span>USERSCRIPTS</span><span>ACCOUNT MANAGER</span><span>BETTER CHAT</span>
+            <span>HARDPOINT COUNTER</span><span>CLAN COLORS</span><span>KUTE BADGE</span><span>DISCORD PRESENCE</span>
           </div>
         </div>
       </section>
 
-      <section class="interface section-shell" id="interface">
-        <div class="section-heading section-heading-side reveal">
-          <div>
-            <p class="eyebrow">[ CLIENT / IN FRAME ]</p>
-            <h2>A control surface,<br /><span>not a settings maze.</span></h2>
-          </div>
-          <p>Every switch remains yours. Open a captured view to inspect the client UI at full size.</p>
+      <section class="section-shell screenshots" id="screenshots">
+        <div class="section-head reveal">
+          <p class="eyebrow">[ 02 ]</p>
+          <h2>Screenshots</h2>
+          <p>Click one to see it full size.</p>
         </div>
 
         <div class="screen-gallery">
-          <button class="screen-card screen-main reveal" type="button" data-view="full">
-            <span class="screen-number">VIEW.01</span>
-            <span class="screen-image screen-image-full">
-              <img src="./assets/kute-client-screen.png" alt="Kute client settings with the About dialog open" />
+          <button class="screen-card screen-main reveal" type="button" data-src="./assets/kute-settings.webp" data-title="Client settings">
+            <span class="screen-number">01</span>
+            <span class="screen-image">
+              <img src="./assets/kute-settings.webp" alt="Kute's settings in Krunker's settings menu, with the About dialog open" width="1890" height="1329" />
             </span>
-            <span class="screen-caption"><b>CONTROL SURFACE</b><small>Full client context</small><i>EXPAND ↗</i></span>
+            <span class="screen-caption"><b>CLIENT SETTINGS</b><small>Kute's settings sit in Krunker's own menu</small><i>VIEW ↗</i></span>
           </button>
-          <button class="screen-card screen-detail reveal" type="button" data-view="identity">
-            <span class="screen-number">VIEW.02</span>
-            <span class="screen-image screen-image-identity">
-              <img src="./assets/kute-1.webp" alt="Detail of Kute's About dialog" />
+          <button class="screen-card reveal" type="button" data-src="./assets/kute-autodetect.mp4" data-poster="./assets/kute-autodetect.webp" data-title="Auto-Detect">
+            <span class="screen-number">02</span>
+            <span class="screen-image">
+              <video src="./assets/kute-autodetect.mp4" poster="./assets/kute-autodetect.webp" autoplay muted loop playsinline preload="auto" aria-label="Auto-Detect testing the client, then the game, then showing its report"></video>
             </span>
-            <span class="screen-caption"><b>BUILD IDENTITY</b><small>Compact client info</small><i>EXPAND ↗</i></span>
+            <span class="screen-caption"><b>AUTO-DETECT</b><small>Tests the client, then the game</small><i>VIEW ↗</i></span>
           </button>
-          <button class="screen-card screen-credit reveal" type="button" data-view="credits">
-            <span class="screen-number">VIEW.03</span>
-            <span class="screen-image screen-image-credits">
-              <img src="./assets/kute-2.webp" alt="Detail of the Kute credits list" />
+          <button class="screen-card reveal" type="button" data-src="./assets/kute-matchmaker.mp4" data-poster="./assets/kute-matchmaker.webp" data-title="Matchmaker">
+            <span class="screen-number">03</span>
+            <span class="screen-image">
+              <video src="./assets/kute-matchmaker.mp4" poster="./assets/kute-matchmaker.webp" autoplay muted loop playsinline preload="auto" aria-label="The matchmaker scanning lobbies and finding one"></video>
             </span>
-            <span class="screen-caption"><b>OPEN LINEAGE</b><small>Credits kept visible</small><i>EXPAND ↗</i></span>
+            <span class="screen-caption"><b>MATCHMAKER</b><small>F6 finds the best lobby for your filters</small><i>VIEW ↗</i></span>
           </button>
         </div>
       </section>
 
-      <section class="manifest section-shell" id="manifest">
-        <div class="manifest-intro reveal">
-          <p class="eyebrow">[ FULL MANIFEST ]</p>
-          <h2>Small client.<br />Long feature list.</h2>
-          <p>Performance work, practical tools, and competitive details-without locking you into someone else’s setup.</p>
+      <section class="section-shell features" id="features">
+        <div class="features-side reveal">
+          <p class="eyebrow">[ 03 ]</p>
+          <h2>All features</h2>
+          <p>Nearly all of them are settings in Krunker's settings menu and can be turned off.</p>
+          <nav class="feature-index" aria-label="Feature groups">
+            <a href="#f-performance">Performance <i></i></a>
+            <a href="#f-gameplay">Gameplay <i></i></a>
+            <a href="#f-lobbies">Lobbies and ranked <i></i></a>
+            <a href="#f-interface">Interface <i></i></a>
+            <a href="#f-custom">Customization <i></i></a>
+            <a href="#f-client">Client <i></i></a>
+          </nav>
         </div>
-        <div class="manifest-list reveal">
-          <div><span>01</span><b>Bundled Chromium</b><p>No external browser or runtime required.</p></div>
-          <div><span>02</span><b>Performance tuning</b><p>Chromium flags, game settings, and system-level optimizations.</p></div>
-          <div><span>03</span><b>Resource swapper</b><p>Replace game resources from inside your client setup.</p></div>
-          <div><span>04</span><b>Encrypted accounts</b><p>Account management with encrypted local storage.</p></div>
-          <div><span>05</span><b>Ranked tools</b><p>Queue outside the game, ELO, real ping, and rank progress.</p></div>
-          <div><span>06</span><b>Match awareness</b><p>Better chat and a live hardpoint enemy counter.</p></div>
-          <div><span>07</span><b>Personalization</b><p>Custom scripts, clan colors, resource swaps, and a Kute badge.</p></div>
-          <div><span>08</span><b>Capture ready</b><p>Shared-texture game capture with dedicated window audio.</p></div>
-          <div><span>09</span><b>Lightweight updates</b><p>Autoupdater and changelogs without a heavyweight launcher.</p></div>
-          <div><span>10</span><b>Escape hatches</b><p>Custom blocklist, custom Chromium flags, and a last-resort CPU throttler.</p></div>
-        </div>
-      </section>
 
-      <!--
-      <section class="roadmap section-shell">
-        <div class="roadmap-title reveal">
-          <p class="eyebrow">[ NEXT IN QUEUE ]</p>
-          <h2>Still shipping.</h2>
-        </div>
-        <div class="roadmap-track reveal">
-          <div><span>01 / SOON</span><b>Skin Swapper</b><i></i></div>
-          <div><span>02 / SOON</span><b>BetterKDR™</b><i></i></div>
-          <div><span>03 / OBVIOUSLY</span><b>Bloomberg-style market terminal</b><i></i></div>
-        </div>
-      </section>
-      -->
+        <div class="feature-list">
+          <div class="feature-group" id="f-performance">
+            <h3>Performance</h3>
+            <div><span></span><b>Bundled Chromium</b><p>Kute ships its own Chromium (CEF). Nothing else to install.</p></div>
+            <div><span></span><b>Patched Chromium</b><p>Two patches: no aim freeze with uncapped FPS, no stutter when the GPU is the limit.</p></div>
+            <div><span></span><b>Uncapped FPS</b><p>Removes the refresh rate cap.</p></div>
+            <div><span></span><b>Exact FPS limit</b><p>Held by the swap chain hook, so the CPU idles between frames.</p></div>
+            <div><span></span><b>Present FPS counter</b><p>A second counter for the frames that reach your screen.</p></div>
+            <div><span></span><b>Auto-Detect</b><p>Measures your PC in a private match and sets the client and the game up for it. Can be undone.</p></div>
+            <div><span></span><b>Graphics backend</b><p>D3D11, D3D11on12, OpenGL or Vulkan, plus a color profile setting.</p></div>
+            <div><span></span><b>Chromium flags</b><p>A tested default set. Add your own in <code>user_flags.json</code>.</p></div>
+            <div><span></span><b>URL blocklist</b><p>About 50 entries against ads and trackers. Add your own.</p></div>
+            <div><span></span><b>Priority and CPU throttle</b><p>Process priority, and a CPU throttle for PCs where nothing else helps.</p></div>
+          </div>
 
-      <section class="lineage section-shell">
-        <div class="lineage-mark reveal">
-          <img src="./assets/kute-icon.png" alt="Kute cat reticle logo" />
-          <div class="lineage-rings" aria-hidden="true"></div>
-        </div>
-        <div class="lineage-copy reveal">
-          <p class="eyebrow">[ PROVENANCE ]</p>
-          <h2>Made by <a href="https://github.com/NullDev" target="_blank" rel="noreferrer">[cute]</a>.</h2>
-          <p>Built by the same developer who co-developed <a href="https://github.com/idkr-client/idkr" target="_blank" rel="noreferrer">idkr</a> and contributed to <a href="https://github.com/slavcp/glorp" target="_blank" rel="noreferrer">glorp</a>.</p>
-          <div class="lineage-links">
-            <a href="https://github.com/NullDev/Kute" target="_blank" rel="noreferrer">SOURCE ↗</a>
-            <a href="https://github.com/NullDev/Kute/issues" target="_blank" rel="noreferrer">REPORT A PROBLEM ↗</a>
+          <div class="feature-group" id="f-gameplay">
+            <h3>Gameplay</h3>
+            <div><span></span><b>Raw input</b><p>Mouse input without acceleration.</p></div>
+            <div><span></span><b>Ramp boosting</b><p>Scrolling jumps. Off in competitive.</p></div>
+            <div><span></span><b>Real Ping</b><p>Pings the lobby server and shows your actual latency.</p></div>
+            <div><span></span><b>Player list ping</b><p>Everyone's ping as a number.</p></div>
+            <div><span></span><b>Hardpoint enemy counter</b><p>How many enemies are on the point in competitive.</p></div>
+            <div><span></span><b>Headshot sound</b><p>The headshot sound on every kill.</p></div>
+            <div><span></span><b>Auto spectate</b><p>Joins public matches as a spectator.</p></div>
+          </div>
+
+          <div class="feature-group" id="f-lobbies">
+            <h3>Lobbies and ranked</h3>
+            <div><span></span><b>Matchmaker</b><p>F6 joins the lowest ping lobby that fits your filters: region, mode, map, players, time left.</p></div>
+            <div><span></span><b>Ranked queue</b><p>Queue for ranked from a small window without the game open.</p></div>
+            <div><span></span><b>Rank progress</b><p>Elo progress to the next rank and the rank distribution.</p></div>
+            <div><span></span><b>Shortcuts</b><p>F4 new lobby, F5 reload, F11 fullscreen, F12 devtools.</p></div>
+          </div>
+
+          <div class="feature-group" id="f-interface">
+            <h3>Interface</h3>
+            <div><span></span><b>Better chat</b><p>Team and all chat in one view, Tab switches where you send. Chat text can be selected.</p></div>
+            <div><span></span><b>Menu timer</b><p>The match timer in the menu.</p></div>
+            <div><span></span><b>Cleaner menu</b><p>Hides menu clutter and store popups, adds an exit button.</p></div>
+            <div><span></span><b>Clan colors</b><p>Colored clan tags in the player lists.</p></div>
+            <div><span></span><b>Kute badge</b><p>Shows who else in the match runs Kute. The server only sees hashes, never names.</p></div>
+            <div><span></span><b>Battle pass claim-all</b><p>Claims every open reward at once.</p></div>
+            <div><span></span><b>Discord Rich Presence</b><p>Shows your mode and map on Discord.</p></div>
+          </div>
+
+          <div class="feature-group" id="f-custom">
+            <h3>Customization</h3>
+            <div><span></span><b>Resource swapper</b><p>Replaces game files with the ones in your swapper folder.</p></div>
+            <div><span></span><b>Userscripts</b><p>Runs the <code>.js</code> files in your scripts folder, the social page included.</p></div>
+            <div><span></span><b>Settings import</b><p>Pick which parts to import: keybinds, sensitivity, sound.</p></div>
+          </div>
+
+          <div class="feature-group" id="f-client">
+            <h3>Client</h3>
+            <div><span></span><b>Account manager</b><p>Saved accounts, encrypted by Windows. Passwords never reach the page.</p></div>
+            <div><span></span><b>OBS capture</b><p>An OBS source that takes the frames straight from the game, plus a separate audio window.</p></div>
+            <div><span></span><b>Auto-updater</b><p>Updates the client, and script fixes arrive without a reinstall. Shows a changelog.</p></div>
+            <div><span></span><b>Anonymous telemetry</b><p>Auto-Detect results, crashes and errors. No account, IP or ids. Can be turned off.</p></div>
           </div>
         </div>
       </section>
 
-      <section class="final-cta">
+      <section class="section-shell about" id="about">
+        <div class="about-mark reveal" aria-hidden="true">
+          <img src="./assets/kute-icon.webp" alt="" width="512" height="512" />
+          <div class="about-rings"></div>
+        </div>
+        <div class="about-copy reveal">
+          <p class="eyebrow">[ 04 ]</p>
+          <h2>Made by <a href="https://github.com/NullDev" target="_blank" rel="noreferrer">NullDev</a></h2>
+          <p>
+            NullDev co-developed <a href="https://github.com/idkr-client/idkr" target="_blank" rel="noreferrer">idkr</a> and contributed to
+            <a href="https://github.com/slavcp/glorp" target="_blank" rel="noreferrer">glorp</a>.
+            <a href="https://krunker.io/social.html?p=clan&amp;q=cute" target="_blank" rel="noreferrer">[cute]</a> is NullDev's Krunker clan.
+          </p>
+
+          <h3>Built on</h3>
+          <ul class="credits">
+            <li><a href="https://github.com/slavcp/glorp" target="_blank" rel="noreferrer">slavcp/glorp</a><span>base</span></li>
+            <li><a href="https://github.com/6ct/clientpp" target="_blank" rel="noreferrer">6ct/client-pp</a><span>flags</span></li>
+            <li><a href="https://github.com/KraXen72/crankshaft" target="_blank" rel="noreferrer">KraXen72/crankshaft</a><span>menu timer CSS</span></li>
+            <li><a href="https://github.com/idkr-client/idkr" target="_blank" rel="noreferrer">idkr-client/idkr</a><span>tweaks</span></li>
+            <li><a href="https://github.com/bigjakk/Electron-Websocket-Fix" target="_blank" rel="noreferrer">bigjakk/Electron-Websocket-Fix</a><span>aim freeze fix</span></li>
+            <li><a href="https://github.com/bigjakk/Krunker-Civilian-Client" target="_blank" rel="noreferrer">bigjakk/Krunker-Civilian-Client</a><span>matchmaker</span></li>
+          </ul>
+
+          <div class="about-links">
+            <a href="https://github.com/NullDev/Kute" target="_blank" rel="noreferrer">SOURCE ↗</a>
+            <a href="https://github.com/NullDev/Kute/issues/choose" target="_blank" rel="noreferrer">REPORT A PROBLEM ↗</a>
+            <a href="https://discord.com/invite/MUJbP3fXrS" target="_blank" rel="noreferrer">DISCORD ↗</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="final-cta" id="download">
         <div class="cta-grid" aria-hidden="true"></div>
-        <p class="eyebrow">[ READY WHEN YOU ARE ]</p>
-        <a class="button button-primary button-large" href="https://github.com/NullDev/Kute/releases" target="_blank" rel="noreferrer">
+        <p class="eyebrow" data-version-label>[ LATEST RELEASE ]</p>
+        <a class="button button-primary button-large" href="https://github.com/NullDev/Kute/releases/latest" target="_blank" rel="noreferrer">
           Download Kute <span aria-hidden="true">↓</span>
         </a>
-        <div class="cta-meta"><span>WINDOWS</span><span>BUNDLED CEF</span><span>OPEN SOURCE</span></div>
+        <div class="cta-meta"><span>WINDOWS 10 / 11</span><span>64-BIT</span><span>UPDATES ITSELF</span></div>
       </section>
     </main>
 
     <footer>
       <a class="brand" href="#top" aria-label="Back to top">
-        <img src="./assets/kute-icon.png" alt="" />
+        <img src="./assets/favicon.png" alt="" width="32" height="32" />
         <span>KUTE</span>
       </a>
-      <p>High-performance Krunker client by <a href="https://github.com/NullDev" target="_blank" rel="noreferrer">[cute]</a>.</p>
-      <a href="#top">RETURN TO TOP ↑</a>
+      <p>By <a href="https://github.com/NullDev" target="_blank" rel="noreferrer">NullDev</a> <a href="https://krunker.io/social.html?p=clan&amp;q=cute" target="_blank" rel="noreferrer">[cute]</a>. Not affiliated with Krunker.</p>
+      <a href="#top">BACK TO TOP ↑</a>
     </footer>
 
-    <dialog class="lightbox" aria-label="Expanded Kute client screenshot">
+    <dialog class="lightbox" aria-label="Screenshot viewer">
       <div class="lightbox-head">
-        <span>CLIENT CAPTURE / BUILD 0.1.1</span>
-        <button type="button" aria-label="Close expanded screenshot">CLOSE ×</button>
+        <span data-lightbox-title></span>
+        <span class="lightbox-count" data-lightbox-count></span>
+        <button type="button" data-lightbox-close aria-label="Close">CLOSE ×</button>
       </div>
-      <div class="lightbox-stage">
-        <img src="./assets/kute-client-screen.png" alt="Kute client settings and About dialog at full size" />
+      <div class="lightbox-stage" data-lightbox-stage>
+        <button class="lightbox-nav lightbox-prev" type="button" data-lightbox-prev aria-label="Previous">‹</button>
+        <button class="lightbox-nav lightbox-next" type="button" data-lightbox-next aria-label="Next">›</button>
       </div>
-      <p>Use the mouse wheel to inspect. Press Esc to close.</p>
+      <p class="lightbox-hint">← → to switch, mouse wheel zooms screenshots, Esc closes</p>
     </dialog>
   </body>
 </html>
