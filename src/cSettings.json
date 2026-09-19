@@ -187,7 +187,7 @@
         "defaultValue": true
     },
     "cuteBadge": {
-        "name": "Show Cute Badge",
+        "name": "Show Kute Badge",
         "id": "cuteBadge",
         "description": "A Kute badge next to everyone in the match who runs Kute",
         "type": "checkbox",
