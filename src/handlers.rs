@@ -142,6 +142,7 @@ wrap_request_context_handler! {
 const VK_F4: i32 = 0x73;
 const VK_F5: i32 = 0x74;
 const VK_F6: i32 = 0x75;
+const VK_F8: i32 = 0x77;
 const VK_F11: i32 = 0x7A;
 const VK_F12: i32 = 0x7B;
 
@@ -163,6 +164,9 @@ wrap_keyboard_handler! {
             }
             if matches!(event.windows_key_code, VK_F4 | VK_F5 | VK_F6 | VK_F11 | VK_F12) {
                 window::handle_accelerator_key(browser, event.windows_key_code as u16);
+            }
+            if event.windows_key_code == VK_F8 {
+                modules::perf_recorder::capture(browser);
             }
             0
         }
@@ -500,6 +504,10 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         {
             modules::lifecycle::send_telemetry(kind, report.to_string());
         }
+        return;
+    }
+    if let Some(json) = message_string.strip_prefix("perf-context ") {
+        modules::perf_recorder::set_page_context(json);
         return;
     }
     // a setting whose value is an object (the matchmaker filters): "set-config-json <id> <json>"

@@ -22,6 +22,7 @@ pub mod modules {
     pub mod input;
     pub mod lifecycle;
     pub mod obs;
+    pub mod perf_recorder;
     pub mod ping;
     pub mod priority;
     pub mod render_hook;

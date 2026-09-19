@@ -323,7 +323,7 @@ pub fn wait_for_previous_instance() {
 }
 
 pub fn is_internal_arg(arg: &str) -> bool {
-    arg.starts_with(WAIT_PID_ARG)
+    arg.starts_with(WAIT_PID_ARG) || super::perf_recorder::is_arg(arg)
 }
 
 pub fn register_instance() {
