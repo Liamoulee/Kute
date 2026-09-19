@@ -92,11 +92,20 @@ jobs:
       - name: Build installer
         run: bun run package
 
+      # the updater takes the first asset of the release, so the name is free to carry the version
+      - name: Name the installer after the version
+        id: msi
+        shell: pwsh
+        run: |
+          $path = "target/kute-setup-x86_64-v${{ steps.version.outputs.version }}.msi"
+          Move-Item -Force target/kute-setup-x86_64.msi $path
+          Add-Content $env:GITHUB_OUTPUT "path=$path"
+
       - name: Upload installer artifact
         uses: actions/upload-artifact@v7
         with:
           name: kute-setup-x86_64-msi-${{ steps.version.outputs.version }}-${{ github.sha }}
-          path: target/kute-setup-x86_64.msi
+          path: ${{ steps.msi.outputs.path }}
           retention-days: 7
 
       # created through the API so the commit is signed by GitHub. the build takes a while, so master may have
@@ -162,4 +171,4 @@ jobs:
           name: ${{ steps.version.outputs.version }}
           draft: true
           generate_release_notes: true
-          files: target/kute-setup-x86_64.msi
+          files: ${{ steps.msi.outputs.path }}
