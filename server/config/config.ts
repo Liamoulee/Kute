@@ -46,11 +46,16 @@ const configBase = (await import("./config.template.ts")).default;
 const customPath = "./config.custom.ts";
 const configCustom = (await import(customPath)).default as Partial<typeof configBase>;
 const packageJSON = JSON.parse(await fs.readFile("./package.json", "utf-8"));
+// the client's version, from the repo root the server is started in. The release workflow bumps it there
+const clientVersion: string | null = await fs.readFile("../package.json", "utf-8")
+    .then((text) => JSON.parse(text).version ?? null)
+    .catch(() => null);
 
 export const meta = {
     getVersion: (): string => packageJSON.version,
     getName: (): string => packageJSON.name,
     getAuthor: (): string => packageJSON.author,
+    getClientVersion: (): string | null => clientVersion,
 };
 
 export const config = {
