@@ -19,13 +19,19 @@ const CLIENT_KEYS = ["gameFpsLimit", "throttle", "hardFlip"];
 /** how many present intervals the hook keeps (INTERVAL_SAMPLES in render-dll). a count that high means it overflowed */
 const PRESENT_RING = 16384;
 // the client configurations every run measures, the least restrictive first. "limit=auto" is a cap a bit
-// below what the first one reaches, the classic advice against a graphics card that cannot keep up
+// below what the first one reaches, the classic advice against a graphics card that cannot keep up.
+//
+// No CPU throttle in here, on purpose. The throttle pauses the main thread for a share of the time, so it makes
+// every long task longer by its factor (measured: the same task 91.9 ms at 1, 143.3 ms at 1.5). The bench scene
+// has no long tasks, so there the throttle only acts like a crude limiter and wins (p99 1.0 ms against 3.3 ms
+// on the owner's PC), and the run used to switch players with default settings onto it. In a real match that
+// stretches every hitch, most of all the one when a player joins and Krunker builds their model. The FPS cap
+// smooths the same way without that price
 const CLIENT_CONFIGS = [
     { config: "hook=1", label: "Hook on, uncapped" },
     { config: "hook=0", label: "Hook off, uncapped" },
     { config: "hook=1,limit=auto", label: "Hook on, FPS cap" },
     { config: "hook=0,limit=auto", label: "Hook off, FPS cap" },
-    { config: "hook=1,throttle=1.5", label: "Hook on, CPU throttle" },
 ];
 // the private test match: Burg, small and the same for everyone
 const LOBBY_MAP = "gameMap0";
