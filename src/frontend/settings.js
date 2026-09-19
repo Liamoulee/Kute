@@ -160,9 +160,16 @@ kute.settings.changeSetting = (id, rawValue, slider) => {
 
     const toggleFunctionName = /** @type {const} */ (`toggle${id.charAt(0).toUpperCase() + id.slice(1)}`);
     if (typeof kute.settings[toggleFunctionName] !== "function"){
-        // most settings have no module of their own. the import is a promise, a try around it catches nothing:
-        // every such toggle was an unhandled rejection (and would now get reported as an error of the client)
-        import(`./modules/${id}.js`).catch(() => {});
+        // most settings have no module of their own. esbuild turns this import into a lookup over the files in
+        // modules/, which throws "Module not found in bundle" right away for an id without one, before any promise
+        // exists: the try catches that, the .catch a module that fails while loading. without both, every toggle
+        // of such a setting was reported as an error of the client
+        try {
+            import(`./modules/${id}.js`).catch(() => {});
+        }
+        catch {
+            // no module for this setting
+        }
     }
     else {
         kute.settings[toggleFunctionName](value);
