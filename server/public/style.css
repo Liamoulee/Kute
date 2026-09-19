@@ -491,7 +491,7 @@ code {
 
 .ring-one {
   inset: 0;
-  border: 1px dashed rgba(0, 243, 239, 0.42);
+  border: 2px dashed rgba(0, 243, 239, 0.42);
   animation: spin 28s linear infinite;
 }
 
@@ -852,7 +852,7 @@ h2 {
 .orbit {
   position: absolute;
   inset: 0;
-  border: 1px dashed var(--line-strong);
+  border: 2px dashed var(--line-strong);
   border-radius: 50%;
 }
 
@@ -877,7 +877,7 @@ h2 {
   left: 50%;
   width: 140px;
   height: 140px;
-  border: 1px solid var(--line-strong);
+  border: 1.5px solid var(--line-strong);
   border-radius: 50%;
   transform: translate(-50%, -50%);
 }
@@ -1221,7 +1221,7 @@ h2 {
 .about-rings::before,
 .about-rings::after {
   position: absolute;
-  border: 1px solid var(--line);
+  border: 4px solid var(--line);
   border-radius: 50%;
 }
 
