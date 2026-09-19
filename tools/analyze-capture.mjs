@@ -1,5 +1,5 @@
 // Reads a flight recorder capture (src/modules/perf_recorder.rs) and says what happened in its long frames.
-// usage: bun tools/analyze-capture.mjs [capture dir] [--frames N]
+// usage: bun tools/analyze-capture.mjs [capture dir] [--frames N] [--around <seconds from F8>]
 // without a dir it takes the newest one in Documents\kute\captures. The trace can be hundreds of MB, so it is streamed
 // event by event instead of parsed in one piece.
 import fs from "node:fs";
@@ -268,8 +268,32 @@ function describe(g){
     }
 }
 
-// the long frames closest before F8 are what the player reacted to, then the worst of the rest
-const reacted = long.filter((g) => g.from <= f8 && g.from >= f8 - 10e6).sort((a, b) => b.from - a.from);
+// what the player reacted to sits in the seconds before F8, and a "small stutter" can be far under the 25 ms above:
+// the worst frames of that stretch whatever their size, next to a second by second view of it
+const near = gaps.filter((g) => g.from <= f8 + 1e6 && g.from >= f8 - 12e6);
+console.log("\nthe 12 s before F8, per second: frames, median, worst (ms)");
+for (let second = -12; second <= 0; second++){
+    const inSecond = near.filter((g) => g.from >= f8 + second * 1e6 && g.from < f8 + (second + 1) * 1e6).map((g) => g.ms).sort((a, b) => a - b);
+    if (!inSecond.length) continue;
+    const worst = inSecond.at(-1) ?? 0;
+    console.log(`  ${String(second).padStart(3)} s  ${String(inSecond.length).padStart(6)}  ${inSecond[Math.floor(inSecond.length / 2)].toFixed(2).padStart(6)}  ${worst.toFixed(1).padStart(6)}${worst >= median * 10 ? "  <" : ""}`);
+}
+// --around <seconds from F8>: everything of 1 ms and more on the threads that make a frame, in order
+const aroundArg = args.indexOf("--around");
+if (aroundArg >= 0){
+    const center = f8 + Number(args[aroundArg + 1]) * 1e6;
+    const wanted = /^(CrRendererMain|Compositor|CrGpuMain|VizCompositorThread|DedicatedWorker thread)$/;
+    console.log(`\ntimeline around ${args[aroundArg + 1]} s (±200 ms), events of 1 ms and more:`);
+    const rows = timed.filter((e) => e.ts > center - 2e5 && e.ts < center + 2e5 && e.dur >= 1000 && wanted.test(threadNames.get(e.pid + ":" + e.tid) ?? ""))
+        .sort((a, b) => a.ts - b.ts);
+    for (const e of rows.slice(0, 250)){
+        const detail = e.args?.data?.functionName || e.args?.data?.url?.split("/").pop() || "";
+        console.log(`  ${at(e.ts)} ${(e.dur / 1000).toFixed(2).padStart(7)} ms  ${(threadNames.get(e.pid + ":" + e.tid) ?? "").padEnd(22)} ${e.name}${detail ? " (" + detail + ")" : ""}`);
+    }
+}
+
+const reacted = near.slice().sort((a, b) => b.ms - a.ms);
+console.log("worst frames there: " + reacted.slice(0, 10).map((g) => `${g.ms.toFixed(1)} ms at ${at(g.from).trim()}`).join(", "));
 const chosen = [...new Set([...reacted.slice(0, Math.ceil(frameCount / 2)), ...long])].slice(0, frameCount);
 for (const g of chosen) describe(g);
 if (!chosen.length) console.log("\nno long frames in this capture");
