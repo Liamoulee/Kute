@@ -1,7 +1,5 @@
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-// ---------- reveal on scroll ----------
-
 const reveals = /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll(".reveal"));
 
 if (reduceMotion || !("IntersectionObserver" in window)){
@@ -25,8 +23,6 @@ else {
     });
 }
 
-// ---------- hero parallax ----------
-
 const machine = document.querySelector(".hero-machine");
 
 if (machine instanceof HTMLElement && !reduceMotion && window.matchMedia("(pointer: fine)").matches){
@@ -44,8 +40,6 @@ if (machine instanceof HTMLElement && !reduceMotion && window.matchMedia("(point
     });
 }
 
-// ---------- marquee: a second copy makes the loop seamless ----------
-
 document.querySelectorAll(".marquee-track").forEach((track) => {
     [...track.children].forEach((item) => {
         const copy = /** @type {HTMLElement} */ (item.cloneNode(true));
@@ -53,8 +47,6 @@ document.querySelectorAll(".marquee-track").forEach((track) => {
         track.append(copy);
     });
 });
-
-// ---------- feature list: numbers and group counts ----------
 
 let featureNumber = 0;
 document.querySelectorAll(".feature-group").forEach((group) => {
@@ -68,7 +60,6 @@ document.querySelectorAll(".feature-group").forEach((group) => {
     if (count) count.textContent = String(rows.length);
 });
 
-// highlights the group that is on screen in the side index
 const indexLinks = document.querySelectorAll(".feature-index a");
 if (indexLinks.length > 0 && "IntersectionObserver" in window){
     const groupObserver = new IntersectionObserver(
@@ -82,8 +73,6 @@ if (indexLinks.length > 0 && "IntersectionObserver" in window){
     );
     document.querySelectorAll(".feature-group").forEach((group) => groupObserver.observe(group));
 }
-
-// ---------- live status from the Kute server ----------
 
 const statusBox = document.querySelector("[data-status]");
 const statusText = document.querySelector("[data-status-text]");
@@ -119,8 +108,6 @@ updateStatus();
 setInterval(() => {
     if (document.visibilityState === "visible") updateStatus();
 }, 60_000);
-
-// ---------- screenshot viewer ----------
 
 const lightbox = /** @type {HTMLDialogElement | null} */ (document.querySelector(".lightbox"));
 const stage = lightbox?.querySelector("[data-lightbox-stage]");
@@ -200,7 +187,6 @@ lightbox?.addEventListener("close", () => {
     media = null;
 });
 
-// wheel zoom, for screenshots only (a video keeps its controls usable)
 stage?.addEventListener(
     "wheel",
     (event) => {
@@ -217,3 +203,37 @@ stage?.addEventListener(
     },
     { passive: false },
 );
+
+const greeter = () => {
+    const W = 38;
+    /**
+     * @param {string} s
+     * @return {string}
+     */
+    const center = (s) => {
+        const pad = Math.max(0, W - s.length);
+        const l = Math.floor(pad / 2);
+        return " ".repeat(l) + s + " ".repeat(pad - l);
+    };
+
+    const padRight = (/** @type {string | any[]} */ s, /** @type {number} */ w) => s + " ".repeat(Math.max(0, w - s.length - 2));
+    const padLeft = (/** @type {string | any[]} */ s, /** @type {number} */ w) => " ".repeat(Math.max(0, w - s.length)) + s;
+
+    const welcome = center("★ Hellow curious cat! ★");
+    const leftW = Math.floor(W / 2);
+    const rightW = W - leftW;
+    const bugLeft = padRight("  Stay fresh & cute!", leftW);
+    const bugRight = padLeft("You are loved  ", rightW);
+
+    const baseFont = "font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;line-height:1.25;";
+
+    console.log(
+        `%c${welcome}%c\n%c${bugLeft}%c${bugRight}`,
+        `${baseFont}color: #1a1a1a;background: #83fffc;font-weight:bold;padding:6px 0;border:1px solid #83fffc;border-bottom:none;border-radius:6px 6px 0 0;`,
+        `${baseFont}border:none;background:transparent;padding:0;`,
+        `${baseFont}color: #fff;background: #1a1a1a;padding:6px 0;border:1px solid #83fffc;border-top:none;border-right:none;border-radius:0 0 0 6px;`,
+        `${baseFont}color: #83fffc;background: #1a1a1a;font-weight:bold;padding:6px 0;border:1px solid #83fffc;border-top:none;border-left:none;border-radius:0 0 6px 0;`,
+    );
+};
+
+(() => greeter())();

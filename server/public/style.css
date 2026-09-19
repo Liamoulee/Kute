@@ -135,8 +135,6 @@ code {
   text-transform: uppercase;
 }
 
-/* ---------- top bar ---------- */
-
 .topbar {
   position: relative;
   z-index: 30;
@@ -254,8 +252,6 @@ code {
   background: var(--paper);
   box-shadow: 0 0 36px rgba(0, 243, 239, 0.22);
 }
-
-/* ---------- hero ---------- */
 
 .hero {
   position: relative;
@@ -395,8 +391,6 @@ code {
   letter-spacing: 0.08em;
   transform: translateY(-50%);
 }
-
-/* the radar */
 
 .hero-machine {
   --mouse-x: 0px;
@@ -604,8 +598,6 @@ code {
 .telemetry-line i:nth-child(3n) { animation-delay: -0.8s; }
 .telemetry-line i:nth-child(4n) { animation-delay: -1.6s; }
 
-/* ---------- highlight band ---------- */
-
 .signal-band {
   width: 100%;
   display: grid;
@@ -644,8 +636,6 @@ code {
   font: 500 0.75rem/1.3 var(--mono);
 }
 
-/* ---------- sections ---------- */
-
 .section-shell {
   width: min(calc(100% - (2 * var(--gutter))), var(--max));
   margin: 0 auto;
@@ -671,8 +661,6 @@ h2 {
   margin: 0.6rem 0 0;
   color: var(--muted);
 }
-
-/* ---------- performance ---------- */
 
 .performance {
   padding: clamp(4rem, 8vw, 7rem) 0 clamp(4.5rem, 8vw, 7rem);
@@ -761,8 +749,6 @@ h2 {
   letter-spacing: 0.04em;
 }
 
-/* frame path animation */
-
 .frame-visual {
   position: absolute;
   top: 3.2rem;
@@ -833,8 +819,6 @@ h2 {
   letter-spacing: 0.1em;
 }
 
-/* scan animation */
-
 .auto-orbit {
   position: absolute;
   top: calc(50% + 0.8rem);
@@ -876,8 +860,6 @@ h2 {
 .node-a { top: 6%; left: 44%; }
 .node-b { right: 7%; bottom: 31%; }
 .node-c { bottom: 12%; left: 18%; }
-
-/* crosshair animation */
 
 .input-crosshair {
   position: absolute;
@@ -929,8 +911,6 @@ h2 {
   animation: crosshair-drift 3.5s cubic-bezier(0.65, 0, 0.35, 1) infinite alternate;
 }
 
-/* ---------- marquee ---------- */
-
 .marquee-section {
   position: relative;
   overflow: hidden;
@@ -976,8 +956,6 @@ h2 {
   margin: 0 clamp(1.1rem, 3vw, 3rem);
   font-size: 0.6em;
 }
-
-/* ---------- screenshots ---------- */
 
 .screenshots {
   padding: clamp(4.5rem, 8vw, 7rem) 0 clamp(3rem, 6vw, 5rem);
@@ -1094,8 +1072,6 @@ h2 {
   letter-spacing: 0.08em;
 }
 
-/* ---------- feature list ---------- */
-
 .features {
   display: grid;
   grid-template-columns: minmax(240px, 0.6fr) minmax(0, 1.4fr);
@@ -1204,8 +1180,6 @@ h2 {
   color: var(--muted);
   font-size: 0.92rem;
 }
-
-/* ---------- about ---------- */
 
 .about {
   display: grid;
@@ -1348,8 +1322,6 @@ footer > a:focus-visible {
   color: var(--paper);
 }
 
-/* ---------- download ---------- */
-
 .final-cta {
   position: relative;
   padding: 4.5rem var(--gutter);
@@ -1429,8 +1401,6 @@ footer > a:focus-visible {
   letter-spacing: 0.11em;
 }
 
-/* ---------- footer ---------- */
-
 footer {
   width: min(calc(100% - (2 * var(--gutter))), var(--max));
   min-height: 110px;
@@ -1460,8 +1430,6 @@ footer p a:hover {
   margin-left: 1rem;
   white-space: nowrap;
 }
-
-/* ---------- legal pages ---------- */
 
 .topbar-legal {
   grid-template-columns: auto auto;
@@ -1577,8 +1545,6 @@ footer p a:hover {
   font-style: normal;
 }
 
-/* ---------- viewer ---------- */
-
 .lightbox {
   width: min(1200px, calc(100vw - 2rem));
   max-width: none;
@@ -1684,8 +1650,6 @@ footer p a:hover {
   font: 500 0.65rem/1 var(--mono);
 }
 
-/* ---------- reveal ---------- */
-
 .reveal {
   opacity: 0;
   transform: translateY(32px);
@@ -1696,8 +1660,6 @@ footer p a:hover {
   opacity: 1;
   transform: translateY(0);
 }
-
-/* ---------- keyframes ---------- */
 
 @keyframes blink {
   0%, 48% { opacity: 1; }
@@ -1763,8 +1725,6 @@ footer p a:hover {
   from { background-position: 0 0, 0 0; }
   to { background-position: 48px 48px, 48px 48px; }
 }
-
-/* ---------- smaller screens ---------- */
 
 @media (max-width: 1100px) {
   .topbar {
