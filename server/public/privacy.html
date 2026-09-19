@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#020707" />
+    <meta name="description" content="What data the Kute client and kute.lol process, and why." />
+    <title>Privacy Policy - Kute</title>
+    <link rel="icon" type="image/png" href="./assets/favicon.png" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="noise" aria-hidden="true"></div>
+    <div class="page-grid" aria-hidden="true"></div>
+
+    <header class="topbar topbar-legal">
+      <a class="brand" href="./" aria-label="Kute home">
+        <img src="./assets/favicon.png" alt="" width="32" height="32" />
+        <span>KUTE<span class="cursor-mark">_</span></span>
+      </a>
+      <a class="legal-back" href="./">← BACK TO THE SITE</a>
+    </header>
+
+    <main class="legal">
+      <p class="eyebrow">[ PRIVACY POLICY ]</p>
+      <h1>Privacy Policy</h1>
+      <p class="legal-date">Last updated: 19 September 2026</p>
+
+      <div class="legal-summary">
+        <p><b>Short version.</b> Kute needs no account with us, shows no ads and sells nothing. What the client sends to our server is data-minimized and pseudonymized: no names, no account data, no IP addresses, no ids, and times only to the day. Telemetry is on by default and can be turned off at any time.</p>
+      </div>
+
+      <h2>1. Who is responsible</h2>
+      <p>Kute is developed by NullDev. Controller under the GDPR: <span class="legal-todo">[full name, postal address]</span>, e-mail: <span class="legal-todo">[contact e-mail]</span>.</p>
+
+      <h2>2. This website</h2>
+      <p>kute.lol is served by our own server behind Cloudflare. To deliver the pages, Cloudflare and our server process your IP address and the usual request data (URL, browser, time). This is technically necessary (Art. 6(1)(f) GDPR). Our server's application log records the requested path, not your IP address, and is deleted after 31 days.</p>
+      <p>The website sets no cookies and uses no analytics or tracking. It loads the current player count from our own server.</p>
+
+      <h2>3. The Kute client</h2>
+
+      <h3>Telemetry (opt-out)</h3>
+      <p>Unless you turn off the telemetry setting (Settings, About), the client sends us:</p>
+      <ul>
+        <li><b>Auto-Detect results</b> after a run: GPU and CPU model, thread count, RAM, Windows build, display resolution and refresh rate, whether the PC runs on battery, the client and game graphics settings, and the measured frame rates.</li>
+        <li><b>Crash reports</b>: client version, where the crash happened, the error message and stack trace. Paths of your user folder are removed before sending.</li>
+        <li><b>Script errors</b> of the client itself (not of Krunker or your userscripts), at most three per page load.</li>
+      </ul>
+      <p>The server rebuilds every report from a fixed list of fields and drops everything else. Reports are stored with the day only, without IP address, account or any id. Hardware details can still describe a PC, which is why we call this pseudonymized and not anonymous. Legal basis: our legitimate interest in fixing and tuning the client (Art. 6(1)(f) GDPR). You can object at any time by turning the setting off. We keep reports while they help development and delete them when they no longer do.</p>
+
+      <h3>Kute badge and player count</h3>
+      <p>While the client runs, it keeps a connection to our server. When you are logged in to Krunker, it sends a hash of the lobby id and your in-game display name, so that other Kute users in the same match can see the Kute badge next to you. The hash is only held in memory while you are connected and is never stored. The server also counts open connections (current number and peak) and how many clients were started for the first time. The client remembers itself that it was counted, the server keeps no list.</p>
+      <p>This is part of how the client works, so the telemetry setting does not affect it. If you do not want any contact with our server, add <code>*://kute.lol/*</code> to <code>user_blocklist.json</code> in <code>Documents\kute</code>. The client plays the same without it.</p>
+
+      <h3>Rate limiting</h3>
+      <p>To protect the server from abuse, request counts are kept per IP address. The address is replaced by a salted hash in memory. The salt is never stored and changes on every restart. Entries are deleted within 75 minutes. The same hash keeps a first start from being counted twice on one day and is dropped the next day.</p>
+
+      <h3>Other services</h3>
+      <ul>
+        <li><b>Updates</b>: the client checks GitHub (<code>api.github.com</code>, <code>raw.githubusercontent.com</code>) for new versions. GitHub's privacy statement applies to these requests.</li>
+        <li><b>Krunker</b>: the game itself is run by its operator. Their privacy policy applies. Kute does not change what Krunker collects.</li>
+        <li><b>Discord</b>: with Rich Presence on, the client tells the Discord app on your PC your current mode and map. Discord's privacy policy applies.</li>
+      </ul>
+
+      <h3>Stored only on your PC</h3>
+      <p>Settings, userscripts, swapped files, the browser cache and saved accounts stay in <code>Documents\kute</code>. Saved account passwords are encrypted with Windows (DPAPI) and are never sent to us.</p>
+
+      <h2>4. Your rights</h2>
+      <p>You have the right to access, rectification, erasure, restriction of processing, data portability and to object (Art. 15 to 21 GDPR), and to lodge a complaint with a data protection authority. Because we store no ids, names or IP addresses, we usually cannot tell which reports came from you (Art. 11 GDPR). If you can point us to data that is yours, contact us at the address above.</p>
+
+      <h2>5. Changes</h2>
+      <p>We update this policy when the client or the website changes what they process. The date at the top shows the current version.</p>
+    </main>
+
+    <footer>
+      <a class="brand" href="./" aria-label="Kute home">
+        <img src="./assets/favicon.png" alt="" width="32" height="32" />
+        <span>KUTE</span>
+      </a>
+      <p>Not affiliated with Krunker.<span class="footer-legal"><a href="./privacy.html">Privacy</a> · <a href="./terms.html">Terms</a></span></p>
+      <a href="#">BACK TO TOP ↑</a>
+    </footer>
+  </body>
+</html>

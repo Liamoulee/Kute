@@ -1456,6 +1456,125 @@ footer p a:hover {
   color: var(--paper);
 }
 
+.footer-legal {
+  margin-left: 1rem;
+  white-space: nowrap;
+}
+
+/* ---------- legal pages ---------- */
+
+.topbar-legal {
+  grid-template-columns: auto auto;
+  justify-content: space-between;
+}
+
+.legal-back {
+  color: var(--cyan);
+  font: 700 0.7rem/1 var(--mono);
+  letter-spacing: 0.09em;
+}
+
+.legal-back:hover {
+  color: var(--paper);
+}
+
+.legal {
+  width: min(calc(100% - (2 * var(--gutter))), 760px);
+  margin: 0 auto;
+  padding: clamp(2.5rem, 6vw, 4.5rem) 0 clamp(3.5rem, 7vw, 5.5rem);
+}
+
+.legal h1 {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 2.8rem);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+.legal .legal-date {
+  margin: 0.6rem 0 0;
+  color: var(--dim);
+  font: 600 0.72rem/1.4 var(--mono);
+  letter-spacing: 0.06em;
+}
+
+.legal h2 {
+  margin: 2.6rem 0 0.8rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--line);
+  font-size: 1.2rem;
+  letter-spacing: -0.01em;
+}
+
+.legal h3 {
+  margin: 1.8rem 0 0.5rem;
+  color: var(--cyan);
+  font: 700 0.72rem/1.3 var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.legal p:not(.eyebrow, .legal-date),
+.legal li {
+  color: #b4c3c4;
+  font-size: 0.97rem;
+  line-height: 1.7;
+}
+
+.legal p:not(.eyebrow, .legal-date) {
+  margin: 0 0 0.9rem;
+}
+
+.legal ul {
+  margin: 0 0 0.9rem;
+  padding-left: 1.2rem;
+}
+
+.legal li + li {
+  margin-top: 0.4rem;
+}
+
+.legal li::marker {
+  color: var(--cyan);
+}
+
+.legal b {
+  color: var(--paper);
+}
+
+.legal a {
+  color: var(--paper);
+  box-shadow: inset 0 -1px var(--cyan);
+}
+
+.legal a:hover {
+  color: var(--cyan);
+}
+
+.legal code {
+  overflow-wrap: anywhere;
+}
+
+.legal-summary {
+  margin-top: 2rem;
+  padding: 1.1rem 1.2rem;
+  border: 1px solid var(--line-strong);
+  border-left: 2px solid var(--cyan);
+  background: rgba(0, 243, 239, 0.035);
+}
+
+.legal-summary p {
+  margin: 0;
+}
+
+.legal-todo {
+  padding: 0 0.3em;
+  color: var(--ink);
+  background: #ffcf4a;
+  font-family: var(--mono);
+  font-size: 0.9em;
+}
+
 /* ---------- viewer ---------- */
 
 .lightbox {
@@ -1842,6 +1961,11 @@ footer p a:hover {
     grid-column: 1 / -1;
     grid-row: 2;
     justify-self: start;
+  }
+
+  .footer-legal {
+    display: block;
+    margin: 0.4rem 0 0;
   }
 
   .lightbox {
