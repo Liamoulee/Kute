@@ -97,14 +97,42 @@
 	display: none !important;
 }
 
-#mmPriorityBox {
-	margin-top: 0.3em;
+.mmSub {
+	margin-left: 0.5em;
+	color: #777;
+	font-size: 0.85em;
+	font-weight: normal;
+}
+
+.mmStar {
+	margin-left: 0.1em;
+	color: #666;
+	opacity: 0;
+}
+
+.mmChip:hover .mmStar {
+	opacity: 1;
+}
+
+.mmStar:hover,
+.mmChip.preferred .mmStar {
+	color: #ffd54a;
+	opacity: 1;
+}
+
+#mmPreferredBox {
+	margin-top: 0.6em;
 	padding: 0.6em;
 	border-radius: 10px;
 	background: #252525;
 }
 
-#mmPriorityHint {
+#mmPreferredTitle {
+	margin-bottom: 0.5em;
+	color: #ccc;
+}
+
+#mmPreferredHint {
 	margin-top: 0.5em;
 	color: #888;
 	font-size: 0.9em;
@@ -167,12 +195,12 @@
 	<div class="mmGrid" id="mmRegions"></div>
 	<h3>Modes</h3>
 	<div class="mmGrid" id="mmModes"></div>
-	<h3>Maps</h3>
+	<h3>Maps <span class="mmSub">★ on a map to prefer it</span></h3>
 	<div class="mmGrid" id="mmMaps"></div>
-	<label class="mmRow" id="mmPriorityRow">Prefer maps in this order <input type="checkbox" id="mmMapPriority"></label>
-	<div id="mmPriorityBox">
-		<div class="mmGrid" id="mmPriority"></div>
-		<div id="mmPriorityHint">Drag to reorder, click to move to the top. F6 joins the first map that has a lobby</div>
+	<div id="mmPreferredBox">
+		<div id="mmPreferredTitle">Preferred first, then any other map</div>
+		<div class="mmGrid" id="mmPreferred"></div>
+		<div id="mmPreferredHint">Drag to reorder, click to move to the top</div>
 	</div>
 	<h3>Lobby</h3>
 	<label class="mmRow">Min players <input type="number" id="mmMinPlayers" min="0" max="7"></label>

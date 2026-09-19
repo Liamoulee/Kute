@@ -76,8 +76,8 @@ const NOT_FOUND_HOLD_MS = 1100;
  * @typedef {object} MatchmakerFilter
  * @property {string[]} regions Region codes (the prefix of a game id)
  * @property {string[]} modes
- * @property {string[]} maps In the order they were picked
- * @property {boolean} mapPriority The first map of `maps` that has a lobby wins, before ping and players
+ * @property {string[]} maps
+ * @property {string[]} preferredMaps Tried first, in this order, before ping and players. Then any other allowed map
  * @property {number} minPlayers
  * @property {number} maxPlayers
  * @property {number} minTime Seconds left in the round
@@ -91,7 +91,7 @@ const DEFAULT_FILTER = {
     regions: [],
     modes: [],
     maps: [],
-    mapPriority: false,
+    preferredMaps: [],
     minPlayers: 1,
     maxPlayers: 6,
     minTime: 120,
@@ -446,10 +446,10 @@ class Matchmaker {
 
         /** @param {Lobby} lobby */
         const ping = (lobby) => pings[lobby.server] ?? 999;
-        // with map priority on, the map's place in the list comes before ping and players
-        const mapRanks = new Map(filter.mapPriority ? filter.maps.map((map, index) => [normalizeMap(map), index]) : []);
+        // preferred maps come first in their order, every other map shares the last rank
+        const mapRanks = new Map(filter.preferredMaps.map((map, index) => [normalizeMap(map), index]));
         /** @param {Lobby} lobby */
-        const rank = (lobby) => mapRanks.get(normalizeMap(lobby.map)) ?? 0;
+        const rank = (lobby) => mapRanks.get(normalizeMap(lobby.map)) ?? mapRanks.size;
         const passing = lobbies.filter((lobby) => lobby.passes);
         passing.sort((a, b) => {
             const byRank = rank(a) - rank(b);
@@ -530,9 +530,8 @@ class Matchmaker {
          * @param {string} gridId
          * @param {{value: string, label: string, icon?: string|null}[]} items
          * @param {string[]} picked Changed in place
-         * @param {() => void} [onChange]
          */
-        const chips = (gridId, items, picked, onChange) => {
+        const chips = (gridId, items, picked) => {
             const grid = element(gridId);
             grid.replaceChildren();
             for (const item of items){
@@ -552,24 +551,22 @@ class Matchmaker {
                     if (index === -1) picked.push(item.value);
                     else picked.splice(index, 1);
                     chip.classList.toggle("on", index === -1);
-                    onChange?.();
                 };
                 grid.append(chip);
             }
         };
 
         /**
-         * The picked maps as a ranked row: drag a chip to reorder, click it to move it to the top. Pointer events
+         * The preferred maps as a ranked row: drag a chip to reorder, click it to move it to the top. Pointer events
          * instead of HTML5 drag and drop, the host refuses every drag that enters the browser window.
          */
-        const renderPriority = () => {
-            const list = element("mmPriority");
-            element("mmPriorityRow").hidden = filter.maps.length < 2;
-            element("mmPriorityBox").hidden = filter.maps.length < 2 || !element("mmMapPriority").checked;
+        const renderPreferred = () => {
+            const list = element("mmPreferred");
+            element("mmPreferredBox").hidden = filter.preferredMaps.length === 0;
             list.replaceChildren();
             const renumber = () => list.querySelectorAll(".mmNum").forEach((num, index) => (num.textContent = String(index + 1)));
 
-            for (const value of filter.maps){
+            for (const value of filter.preferredMaps){
                 const chip = document.createElement("div");
                 chip.className = "mmChip on mmRank";
                 chip.append(span("mmNum", ""));
@@ -602,7 +599,7 @@ class Matchmaker {
                     });
                     const from = children.indexOf(chip);
                     if (target === -1 || target === from) return;
-                    filter.maps.splice(target, 0, ...filter.maps.splice(from, 1));
+                    filter.preferredMaps.splice(target, 0, ...filter.preferredMaps.splice(from, 1));
                     chip.remove();
                     list.insertBefore(chip, list.children[target] ?? null);
                     renumber();
@@ -610,9 +607,9 @@ class Matchmaker {
                 chip.onpointerup = () => {
                     chip.classList.remove("dragging");
                     if (drag && !drag.moved){
-                        filter.maps.unshift(...filter.maps.splice(filter.maps.indexOf(value), 1));
+                        filter.preferredMaps.unshift(...filter.preferredMaps.splice(filter.preferredMaps.indexOf(value), 1));
                         window.SOUND?.play("tick_0", 0.1);
-                        renderPriority();
+                        renderPreferred();
                     }
                     drag = null;
                 };
@@ -622,17 +619,59 @@ class Matchmaker {
             renumber();
         };
 
+        /**
+         * The map chips: a click allows the map, the star prefers it. Kept true after every change: with any map
+         * picked, every preferred map is picked too, so a preference never points at a map the filter keeps out.
+         */
+        const renderMaps = () => {
+            const grid = element("mmMaps");
+            grid.replaceChildren();
+            for (const value of MAP_FILTER){
+                const preferred = filter.preferredMaps.includes(value);
+                const chip = document.createElement("div");
+                chip.className = `mmChip${filter.maps.includes(value) ? " on" : ""}${preferred ? " preferred" : ""}`;
+                const icon = mapIconUrl(value);
+                if (icon){
+                    const img = document.createElement("img");
+                    img.src = icon;
+                    img.alt = "";
+                    img.loading = "lazy";
+                    img.onerror = () => img.remove();
+                    chip.append(img);
+                }
+                chip.append(MAP_NAMES[value] ?? value);
+                const star = span("mmStar", "★");
+                star.title = preferred ? "Preferred, click to remove" : "Prefer this map";
+                star.onclick = (event) => {
+                    event.stopPropagation();
+                    if (preferred) filter.preferredMaps.splice(filter.preferredMaps.indexOf(value), 1);
+                    else {
+                        filter.preferredMaps.push(value);
+                        if (filter.maps.length > 0 && !filter.maps.includes(value)) filter.maps.push(value);
+                    }
+                    renderMaps();
+                };
+                chip.append(star);
+                chip.onclick = () => {
+                    const index = filter.maps.indexOf(value);
+                    if (index !== -1){
+                        filter.maps.splice(index, 1);
+                        if (preferred) filter.preferredMaps.splice(filter.preferredMaps.indexOf(value), 1);
+                    }
+                    // the first pick turns "all maps" into a list, which has to keep the preferred ones
+                    else if (filter.maps.length === 0) filter.maps.push(...new Set([...filter.preferredMaps, value]));
+                    else filter.maps.push(value);
+                    renderMaps();
+                };
+                grid.append(chip);
+            }
+            renderPreferred();
+        };
+
         const fill = () => {
             chips("mmRegions", Object.entries(REGIONS).map(([value, label]) => ({ value, label })), filter.regions);
             chips("mmModes", MODE_FILTER.map((value) => ({ value, label: value })), filter.modes);
-            chips(
-                "mmMaps",
-                MAP_FILTER.map((value) => ({ value, label: MAP_NAMES[value] ?? value, icon: mapIconUrl(value) })),
-                filter.maps,
-                renderPriority,
-            );
-            element("mmMapPriority").checked = filter.mapPriority;
-            renderPriority();
+            renderMaps();
             element("mmMinPlayers").value = String(filter.minPlayers);
             element("mmMaxPlayers").value = String(filter.maxPlayers);
             element("mmMinTime").value = String(filter.minTime);
@@ -644,6 +683,7 @@ class Matchmaker {
         filter.regions = [...filter.regions];
         filter.modes = [...filter.modes];
         filter.maps = [...filter.maps];
+        filter.preferredMaps = [...filter.preferredMaps];
         fill();
 
         /**
@@ -667,16 +707,14 @@ class Matchmaker {
                 minPlayers: number("mmMinPlayers", 0, 7, DEFAULT_FILTER.minPlayers),
                 maxPlayers: number("mmMaxPlayers", 0, 7, DEFAULT_FILTER.maxPlayers),
                 minTime: number("mmMinTime", 0, 480, DEFAULT_FILTER.minTime),
-                mapPriority: element("mmMapPriority").checked,
                 sortByPlayers: element("mmSortByPlayers").checked,
                 serverBrowser: element("mmServerBrowser").checked,
                 animation: element("mmAnimation").checked,
             });
         };
         element("mmDone").onclick = close;
-        element("mmMapPriority").onchange = renderPriority;
         element("mmReset").onclick = () => {
-            Object.assign(filter, DEFAULT_FILTER, { regions: [], modes: [], maps: [] });
+            Object.assign(filter, DEFAULT_FILTER, { regions: [], modes: [], maps: [], preferredMaps: [] });
             fill();
         };
         overlay.addEventListener("mousedown", (event) => {
