@@ -14,6 +14,8 @@
         "start:dev:realapi": "bun run esbuild && cargo build --workspace --features verbose-logs && bun postbuild.js debug && cross-env KUTE_API_URL=https://kute.lol/api cargo run --features editor-ignore,verbose-logs",
         "start:prod": "bun run esbuild && cargo build --workspace --release --features packaged,editor-ignore && bun postbuild.js release && cargo run --features editor-ignore",
         "build": "bun run esbuild && cargo build --workspace --release --features packaged,editor-ignore && bun postbuild.js release",
+        "start:perf": "bun run build && cross-env KUTE_PERF_RECORDER=1 target/release/kute.exe",
+        "perf:analyze": "bun tools/analyze-capture.mjs",
         "build:auto-update": "bun run esbuild && cargo build --workspace --release --features packaged,auto-update,editor-ignore && bun postbuild.js release",
         "package": "bun run build:auto-update && wix build ./resources/installer_script.wxs -ext WixToolset.Util.wixext -o target/kute-setup-x86_64.msi",
         "lint": "eslint .",
