@@ -121,6 +121,16 @@
         "defaultValue": false,
         "needsRestart": true
     },
+    "matchmaker": {
+        "name": "Matchmaker (F6)",
+        "id": "matchmaker",
+        "description": "F6 joins the lowest ping lobby that fits your filters instead of a random one",
+        "type": "checkbox",
+        "category": "Game",
+        "defaultValue": true,
+        "button": "Filters",
+        "buttonAction": "{{kute}}.matchmaker.showFilters()"
+    },
     "exitButton": {
         "name": "Exit Button",
         "id": "exitButton",

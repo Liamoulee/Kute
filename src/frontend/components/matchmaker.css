@@ -1,0 +1,160 @@
+@keyframes kuteMmSlideDown {
+	0% { transform: translate(-50%, -500%); }
+	100% { transform: translate(-50%, 0%); }
+}
+
+#kuteMatchmaker {
+	position: absolute;
+	top: 8em;
+	left: 50%;
+	z-index: 2147482000;
+	box-sizing: border-box;
+	width: 24em;
+	padding: 18px 22px;
+	border-radius: 14px;
+	overflow: hidden;
+	pointer-events: all;
+	background: rgba(18, 18, 22, 0.6);
+	backdrop-filter: blur(14px) saturate(120%);
+	box-shadow: 0 8px 48px #000c;
+	display: flex;
+	flex-direction: column;
+	color: #fff;
+	animation: kuteMmSlideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+#kuteMmStatus {
+	font-size: 1.4em;
+	color: #35e0e8;
+	margin-bottom: 0.6em;
+	text-align: center;
+}
+
+#kuteMmStatus.mm-fail {
+	color: #eb5656;
+}
+
+#kuteMmFeed {
+	display: flex;
+	flex-direction: column;
+	gap: 0.15em;
+	overflow: hidden;
+	min-height: 5.6em;
+	margin-bottom: 0.6em;
+}
+
+#kuteMmFeed.mm-result {
+	justify-content: center;
+}
+
+@keyframes kuteMmFeedIn {
+	from { opacity: 0; transform: translateX(1em); }
+	to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes kuteMmGrow {
+	0% { opacity: 0; transform: scale(0.55); }
+	65% { opacity: 1; transform: scale(1.05); }
+	100% { opacity: 1; transform: scale(1); }
+}
+
+.mm-entry {
+	display: flex;
+	gap: 0.8em;
+	padding: 0.2em 0.5em;
+	font-size: 0.95em;
+	font-family: "GameFont", monospace;
+	border-radius: 0.2em;
+	animation: kuteMmFeedIn 0.12s ease forwards;
+}
+
+.mm-entry:last-child::before {
+	content: "\25B8";
+	color: #ffc147;
+}
+
+.mm-entry.mm-pass { background: rgba(76, 175, 80, 0.1); }
+.mm-entry.mm-pass .mm-region { color: #35e0e8; }
+.mm-entry.mm-pass .mm-map { color: rgba(255, 255, 255, 0.9); }
+.mm-entry.mm-pass .mm-players { color: #4caf50; }
+.mm-entry.mm-skip { background: rgba(255, 255, 255, 0.02); }
+.mm-entry.mm-skip .mm-region { color: rgba(255, 255, 255, 0.3); }
+.mm-entry.mm-skip .mm-map { color: rgba(255, 255, 255, 0.5); }
+.mm-entry.mm-skip .mm-players { color: #eb5656; }
+.mm-entry.mm-skip .mm-icon { opacity: 0.45; }
+
+.mm-region { min-width: 2.5em; font-weight: bold; }
+.mm-map { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mm-players { min-width: 3em; text-align: right; font-weight: 600; }
+
+.mm-icon {
+	width: 1.7em;
+	height: 1.7em;
+	flex: none;
+	object-fit: cover;
+	border-radius: 0.25em;
+	align-self: center;
+	background: rgba(255, 255, 255, 0.06);
+}
+
+.mm-entry.mm-landed {
+	box-shadow: inset 0 0 0 2px #35e0e8;
+}
+
+.mm-entry.mm-found,
+.mm-entry.mm-none {
+	justify-content: center;
+	transform-origin: center;
+	animation: kuteMmGrow 0.34s cubic-bezier(0.2, 0.85, 0.3, 1.25) forwards;
+}
+
+.mm-entry.mm-found {
+	font-size: 1.25em;
+	gap: 0.7em;
+}
+
+.mm-entry.mm-found .mm-icon {
+	width: 2.4em;
+	height: 2.4em;
+	border-radius: 0.3em;
+}
+
+.mm-entry.mm-none {
+	font-size: 1.2em;
+	color: rgba(255, 255, 255, 0.55);
+	background: rgba(255, 255, 255, 0.03);
+}
+
+.mm-entry.mm-found::before,
+.mm-entry.mm-none::before {
+	content: none;
+}
+
+#kuteMmCounter {
+	font-size: 0.85em;
+	color: #ffc147;
+	text-align: center;
+	margin-bottom: 0.5em;
+}
+
+#kuteMmCancel {
+	text-align: center;
+	border: 0.2em solid #eb5656;
+	border-radius: 0.3em;
+	font-size: 1.1em;
+	background: rgba(0, 0, 0, 0.3);
+	padding: 0.2em 1.2em;
+	cursor: pointer;
+	margin: 0 auto;
+	width: fit-content;
+	transition: all 0.08s;
+}
+
+#kuteMmCancel:hover {
+	border-color: #fff;
+	transform: scale(0.95);
+}
+
+#kuteMmCancel:active {
+	transform: scale(0.85);
+}

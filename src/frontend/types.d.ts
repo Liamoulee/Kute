@@ -75,6 +75,9 @@ interface Kute {
     /** the door to the Kute server */
     api: { base: string; down: boolean; available(): Promise<boolean> };
     bindShoot(): void;
+    /** what the exe supports beyond the basics (absent with an older exe) */
+    hostFeatures?: string[];
+    matchmaker: { showFilters(): Promise<void> };
 }
 
 interface KrunkerGameActivity {
@@ -121,5 +124,6 @@ declare var setSetting: (key: string, value: any) => void;
 declare var loginOrRegister: () => void;
 declare var logoutAcc: () => void;
 declare var playSelect: (volume?: number) => void;
+declare var openServerWindow: (tab: number) => void;
 declare var switchChat: (element: Element | null) => void;
 declare var changeCont: (name: string, index: number, value: any) => void;

@@ -34,6 +34,7 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] Queue ranked without the game open
 - [x] Better ranked with ELO system
 - [x] Find out your real ping to the servers
+- [x] Matchmaker: F6 joins the lowest ping lobby that fits your filters (region, mode, map, players, time left)
 - [x] Better chat
 - [x] Hardpoint enemy counter
 - [x] Rank progress
@@ -42,7 +43,7 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] Discord Rich Presence
 - [x] CPU throttler (a last resort, see below)
 - [x] Lightweight autoupdater & changelogs
-- [x] Basic shortcuts (F4/F6 new lobby, F5 reload, F11 fullscreen, F12 devtools)
+- [x] Basic shortcuts (F4 new lobby, F6 matchmaker, F5 reload, F11 fullscreen, F12 devtools)
 - [ ] Skin Swapper (coming soon)
 - [ ] BetterKDR™️ (coming soon)
 - [ ] Bloomberg-style trading terminal & market analysis (coming soon)

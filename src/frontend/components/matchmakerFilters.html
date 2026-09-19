@@ -1,0 +1,146 @@
+<style>
+#mmFilters {
+	box-sizing: border-box;
+	width: 720px;
+	max-width: 92vw;
+	max-height: 88vh;
+	overflow-y: auto;
+	padding: 1.8em 2.2em 1.4em 2.2em;
+	background: #1e1e1e;
+	color: #fff;
+	border-radius: 14px;
+	box-shadow: 0 8px 48px #000c;
+	font-family: Consolas, monospace;
+}
+
+#mmFilters h2 {
+	margin: 0 0 0.3em 0;
+	font-size: 1.6em;
+	letter-spacing: 1px;
+	color: #35e0e8;
+	text-align: center;
+}
+
+#mmHint {
+	margin-bottom: 1em;
+	color: #999;
+	text-align: center;
+}
+
+#mmFilters h3 {
+	margin: 1.1em 0 0.5em 0;
+	font-size: 1.05em;
+	color: #ccc;
+}
+
+.mmGrid {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4em;
+}
+
+.mmChip {
+	display: flex;
+	align-items: center;
+	gap: 0.4em;
+	padding: 0.35em 0.7em;
+	border-radius: 8px;
+	background: #2a2a2a;
+	color: #aaa;
+	cursor: pointer;
+	user-select: none;
+}
+
+.mmChip:hover {
+	background: #333;
+}
+
+.mmChip.on {
+	background: #1b5e63;
+	color: #fff;
+}
+
+.mmChip img {
+	width: 1.6em;
+	height: 1.6em;
+	object-fit: cover;
+	border-radius: 4px;
+}
+
+.mmRow {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin: 0.4em 0;
+	color: #ccc;
+}
+
+.mmRow input[type="number"] {
+	width: 5em;
+	padding: 0.3em 0.5em;
+	border: none;
+	border-radius: 6px;
+	background: #2a2a2a;
+	color: #fff;
+	font-family: inherit;
+	text-align: right;
+}
+
+.mmRow input[type="checkbox"] {
+	width: 1.2em;
+	height: 1.2em;
+	accent-color: #35e0e8;
+	cursor: pointer;
+}
+
+#mmActions {
+	display: flex;
+	gap: 0.7em;
+	margin-top: 1.4em;
+}
+
+.mmButton {
+	flex: 1 1 0;
+	padding: 0.7em 0.5em;
+	border-radius: 8px;
+	background: #2a2a2a;
+	color: #999;
+	text-align: center;
+	cursor: pointer;
+	user-select: none;
+}
+
+.mmButton:hover {
+	background: #333;
+}
+
+#mmDone {
+	background: #1b5e63;
+	color: #fff;
+}
+
+#mmDone:hover {
+	background: #23777d;
+}
+</style>
+<div id="mmFilters">
+	<h2>Matchmaker Filters</h2>
+	<div id="mmHint">F6 joins the best lobby for these. Nothing picked in a group means all of it</div>
+	<h3>Regions</h3>
+	<div class="mmGrid" id="mmRegions"></div>
+	<h3>Modes</h3>
+	<div class="mmGrid" id="mmModes"></div>
+	<h3>Maps</h3>
+	<div class="mmGrid" id="mmMaps"></div>
+	<h3>Lobby</h3>
+	<label class="mmRow">Min players <input type="number" id="mmMinPlayers" min="0" max="7"></label>
+	<label class="mmRow">Max players <input type="number" id="mmMaxPlayers" min="0" max="7"></label>
+	<label class="mmRow">Min time left (seconds) <input type="number" id="mmMinTime" min="0" max="480" step="10"></label>
+	<label class="mmRow">Most players first (otherwise lowest ping first) <input type="checkbox" id="mmSortByPlayers"></label>
+	<label class="mmRow">Open the server browser when nothing matches <input type="checkbox" id="mmServerBrowser"></label>
+	<label class="mmRow">Show the search <input type="checkbox" id="mmAnimation"></label>
+	<div id="mmActions">
+		<div class="mmButton" id="mmReset">Reset</div>
+		<div class="mmButton" id="mmDone">Done</div>
+	</div>
+</div>
