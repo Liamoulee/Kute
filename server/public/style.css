@@ -1567,12 +1567,14 @@ footer p a:hover {
   margin: 0;
 }
 
-.legal-todo {
-  padding: 0 0.3em;
-  color: var(--ink);
-  background: #ffcf4a;
-  font-family: var(--mono);
-  font-size: 0.9em;
+.legal-address {
+  margin: 0 0 0.9rem;
+  padding: 0.9rem 1.1rem;
+  color: var(--paper);
+  border-left: 2px solid var(--cyan);
+  background: rgba(0, 243, 239, 0.035);
+  font: 0.86rem/1.7 var(--mono);
+  font-style: normal;
 }
 
 /* ---------- viewer ---------- */
