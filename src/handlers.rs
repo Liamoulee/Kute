@@ -502,6 +502,16 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         }
         return;
     }
+    // a setting whose value is an object (the matchmaker filters): "set-config-json <id> <json>"
+    if let Some(rest) = message_string.strip_prefix("set-config-json ") {
+        if let Some((setting, value)) = rest.split_once(' ')
+            && value.len() <= 16 * 1024
+            && let Ok(value) = serde_json::from_str::<serde_json::Value>(value)
+        {
+            crate::CONFIG.lock().unwrap().set(setting, value);
+        }
+        return;
+    }
     // the account manager: JSON payloads, replies with the list (names and colors, never a password)
     if let Some(rest) = message_string.strip_prefix("accounts-") {
         handle_accounts_message(browser, rest);

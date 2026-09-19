@@ -40,6 +40,8 @@ pub fn send_info(frame: &Frame) {
     info_map.insert("settings".to_string(), serde_json::json!(&*crate::CONFIG.lock().unwrap()));
     info_map.insert("version".to_string(), serde_json::Value::String(version.to_string()));
     info_map.insert("apiBase".to_string(), serde_json::Value::String(crate::utils::api_url()));
+    // what this exe can do for a newer bundle: the matchmaker needs F6 left to the page and the region pings
+    info_map.insert("hostFeatures".to_string(), serde_json::json!(["matchmaker"]));
 
     let launch_args = crate::LAUNCH_ARGS.lock().unwrap();
     if !launch_args.is_empty() {

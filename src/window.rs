@@ -285,6 +285,8 @@ pub fn close_all() {
 
 pub fn handle_accelerator_key(browser: &Browser, key: u16) {
     match VIRTUAL_KEY(key) {
+        // the page's matchmaker picks the lobby (modules/matchmaker.js)
+        VK_F6 if utils::config("matchmaker", true) => {}
         VK_F4 | VK_F6 => {
             modules::devtools::set_cpu_throttling(browser, 1.0);
             if let Some(frame) = browser.main_frame() {
