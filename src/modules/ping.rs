@@ -1,6 +1,7 @@
 use cef::{rc::*, *};
 use std::{
     cell::RefCell,
+    collections::HashMap,
     net::{IpAddr, Ipv4Addr},
     sync::{LazyLock, Mutex},
     time,
@@ -67,4 +68,56 @@ pub fn ping(browser_id: i32) {
             bridge::post_json_later(browser_id, format!("{{\"pingInfo\":{}}}", reply.rtt));
         }
     });
+}
+
+// the last region pings as a JSON object and when they were taken
+static REGION_PINGS: Mutex<Option<(time::Instant, String)>> = Mutex::new(None);
+const REGION_PINGS_MAX_AGE: time::Duration = time::Duration::from_secs(60);
+
+// the matchmaker sorts lobbies by the ping to their region: one ICMP ping to a lobby server of every region,
+// the list of them comes from krunker's matchmaker. replies {regionPings: {"de-fra": 30, ...}}, keyed like the
+// region field of the game list. cached for a minute, a search is one key press
+pub fn ping_regions(browser_id: i32) {
+    std::thread::spawn(move || {
+        let cached = REGION_PINGS.lock().unwrap().as_ref().filter(|(at, _)| at.elapsed() < REGION_PINGS_MAX_AGE).map(|(_, json)| json.clone());
+        let json = cached.unwrap_or_else(|| {
+            let json = measure_region_pings();
+            if json != "{}" {
+                *REGION_PINGS.lock().unwrap() = Some((time::Instant::now(), json.clone()));
+            }
+            json
+        });
+        bridge::post_json_later(browser_id, format!("{{\"regionPings\":{json}}}"));
+    });
+}
+
+fn measure_region_pings() -> String {
+    let agent: ureq::Agent = ureq::Agent::config_builder().timeout_global(Some(time::Duration::from_secs(5))).build().into();
+    let servers: HashMap<String, String> = agent
+        .get("https://matchmaker.krunker.io/ping-list?hostname=krunker.io")
+        .call()
+        .ok()
+        .and_then(|response| response.into_body().read_to_string().ok())
+        .and_then(|body| serde_json::from_str(&body).ok())
+        .unwrap_or_default();
+
+    // every region at once, so the slowest one decides how long this takes
+    let pings: Vec<_> = servers
+        .into_iter()
+        .map(|(region, address)| {
+            std::thread::spawn(move || {
+                let host = address.split(':').next()?;
+                let ip = dns_lookup::lookup_host(host).ok()?.find(IpAddr::is_ipv4)?;
+                // a second try, a single lost packet would sort the region last
+                (0..2).find_map(|_| {
+                    ping_rs::send_ping(&ip, time::Duration::from_millis(1500), Default::default(), Some(&ping_rs::PingOptions { ttl: 128, dont_fragment: true }))
+                        .ok()
+                        .map(|reply| (region.clone(), serde_json::Value::from(reply.rtt)))
+                })
+            })
+        })
+        .collect();
+
+    let pings: serde_json::Map<String, serde_json::Value> = pings.into_iter().filter_map(|ping| ping.join().ok().flatten()).collect();
+    serde_json::Value::Object(pings).to_string()
 }

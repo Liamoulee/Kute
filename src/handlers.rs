@@ -626,6 +626,9 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         ["ping"] => {
             modules::ping::ping(browser.identifier());
         }
+        ["ping-regions"] => {
+            modules::ping::ping_regions(browser.identifier());
+        }
         _ => {}
     }
 }
