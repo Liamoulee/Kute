@@ -5,7 +5,7 @@ import api from "./api.js";
 // that moves an element is the usual cause, and without this nobody hears about it until a player complains.
 //
 // Only errors that come out of this bundle count: the host evaluates it under the name "bundle.js", so that name
-// is in the error's file or stack. Krunker's own errors and userscripts are none of our business.
+// is the error's file or the top frame of its stack. Krunker's own errors and userscripts are none of our business.
 // What goes out: client and bundle version, the message, the position and the stack. Nothing about the player.
 // At most MAX_REPORTS per page load and each message once, so a throw inside a loop cannot flood anything, and the
 // server keeps one row per distinct error with a counter.
@@ -50,14 +50,26 @@ async function report(message, location, stack){
     }
 }
 
+/**
+ * Our wrappers of Krunker's UI functions (showWindow, ...) sit in the middle of Krunker's own call stacks, so
+ * "bundle.js is somewhere in the stack" also caught Krunker's errors (PureJSCarousel). Ours is what threw: the top frame.
+ *
+ * @param {string} stack
+ * @return {boolean}
+ */
+function thrownByBundle(stack){
+    const top = stack.split("\n").find((line) => line.trimStart().startsWith("at "));
+    return top?.includes(BUNDLE_NAME) ?? false;
+}
+
 window.addEventListener("error", (event) => {
     const stack = String(event.error?.stack ?? "");
-    if (!String(event.filename).includes(BUNDLE_NAME) && !stack.includes(BUNDLE_NAME)) return;
+    if (!String(event.filename).includes(BUNDLE_NAME) && !thrownByBundle(stack)) return;
     report(String(event.message), `${event.filename}:${event.lineno}:${event.colno}`, stack);
 });
 
 window.addEventListener("unhandledrejection", (event) => {
     const stack = String(event.reason?.stack ?? "");
-    if (!stack.includes(BUNDLE_NAME)) return;
+    if (!thrownByBundle(stack)) return;
     report(String(event.reason?.message ?? event.reason), "promise", stack);
 });
