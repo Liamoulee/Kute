@@ -166,8 +166,6 @@ pub fn finish(page_json: &str) {
     });
 }
 
-// ---- the client side: auto-detect runs a list of configurations, one bench process after the other ----
-
 static MATRIX_RUNNING: AtomicBool = AtomicBool::new(false);
 // a bench process takes under four seconds, anything beyond this hangs and gets killed
 const BENCH_TIMEOUT: Duration = Duration::from_secs(15);

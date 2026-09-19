@@ -1,11 +1,3 @@
-//! OBS source plugin — "Kute Capture" (consumer side of the shared-texture capture pair).
-//!
-//! Loaded by OBS into `obs64.exe`. In `obs_module_load` we register an input video source that:
-//!   1. discovers the producer (the CEF GPU process running `render.dll`)
-//!   2. opens the producer's named shared texture on OBS's own D3D11 device
-//!      (`gs_get_device_obj` -> `ID3D11Device1::OpenSharedResourceByName` -> `gs_texture_wrap_obj`),
-//!   3. renders it each video frame with the stock draw effect (zero-copy, GPU-only).
-
 #![allow(non_snake_case, unsafe_op_in_unsafe_fn)]
 
 mod capture;
@@ -28,9 +20,6 @@ use windows::{
 const DISCOVER_RETRY: Duration = Duration::from_millis(500);
 const STALL_RETRY: Duration = Duration::from_secs(1);
 
-/// Cache of whether the OBS graphics backend is D3D11 (-1 unknown, 0 no, 1 yes).
-/// This is only meaningful once a gs context is active, i.e. from `video_tick`/`video_render` —
-/// NOT from `obs_module_load`, where the main thread has no gs context yet.
 static BACKEND_OK: AtomicI8 = AtomicI8::new(-1);
 
 #[macro_export]
@@ -57,9 +46,6 @@ fn backend_supported(api: &ObsApi) -> bool {
     let ok = unsafe { (api.gs_get_device_type)() } == obsabi::GS_DEVICE_DIRECT3D_11;
     BACKEND_OK.store(if ok { 1 } else { 0 }, Ordering::Relaxed);
     if !ok {
-        debug_print!("capture: only D3D11 backend supported");
-    }
-    ok
 }
 
 struct KuteSource {
@@ -117,7 +103,6 @@ impl KuteSource {
             if dev_raw.is_null() {
                 return;
             }
-            // Borrowed pointer — do NOT release what we don't own.
             let Some(dev) = ID3D11Device::from_raw_borrowed(&dev_raw) else {
                 return;
             };
@@ -145,8 +130,6 @@ impl KuteSource {
         }
     }
 }
-
-// ---- OBS callbacks ----
 
 unsafe extern "C" fn get_name(_data: *mut c_void) -> *const c_char {
     c"Kute Capture".as_ptr()
@@ -216,8 +199,6 @@ unsafe extern "C" fn video_tick(data: *mut c_void, _seconds: f32) {
 
     s.last_counter = frame_counter;
     s.last_attempt = Instant::now();
-    // Texture (re)open happens in video_render, which has an active gs context — necessary for
-    // gs_get_device_obj()/OpenSharedResourceByName/gs_texture_wrap_obj.
 }
 
 unsafe extern "C" fn video_render(data: *mut c_void, effect: *mut gs_effect_t) {
@@ -245,17 +226,12 @@ unsafe extern "C" fn video_render(data: *mut c_void, effect: *mut gs_effect_t) {
     (api.gs_draw_sprite)(s.gs_tex, 0, s.width, s.height);
 }
 
-// ---- plugin entry ----
-
 #[unsafe(no_mangle)]
 pub extern "C" fn obs_module_load() -> bool {
     let Some(api) = OBS.as_ref() else {
         debug_print!("capture: obs.dll API not resolvable");
         return false;
     };
-    // NOTE: no gs backend check here — the main thread has no gs context while loading modules,
-    // so gs_get_device_type() is unreliable here. backend_supported() is validated lazily on the
-    // render thread (in open_texture) before the first device/texture work.
 
     let info = obs_source_info {
         id: c"kute_capture".as_ptr(),

@@ -18,11 +18,8 @@ use windows::{
     core::*,
 };
 
-/// "GCRP" little-endian — validates the control block in the consumer.
 const MAGIC: u32 = 0x5052_4347;
 const VERSION: u32 = 1;
-/// Control block layout — see docs/obs-shared-capture.md §4.
-/// MUST remain byte-for-byte compatible with what the consumer reads.
 #[repr(C, packed)]
 struct KuteCaptureInfo {
     magic: u32,
@@ -99,7 +96,6 @@ fn wide(s: &str) -> Vec<u16> {
     s.encode_utf16().chain(Some(0)).collect()
 }
 
-/// Control block bit0 — set by the reader while a capture session is active.
 const READER_ACTIVE: u32 = 0x1;
 /// Control block mapping size (fixed; struct is 48 bytes).
 const INFO_SIZE: usize = 64;
@@ -259,14 +255,13 @@ fn ensure_shared_tex(c: &mut Capture, w: u32, h: u32, format: u32) {
     }
 }
 
-/// Called from `present_hk` (after the original present, so the buffer is stable). Gated on
-/// READER_ACTIVE: when no reader is attached this returns almost immediately.
+// Called from `present_hk` (after the original present, so the buffer is stable). Gated on
+// READER_ACTIVE: when no reader is attached this returns almost immediately.
 pub fn capture_on_present(swapchain: *mut c_void) {
     let info_ptr = INFO_PTR.load(Ordering::Acquire);
     if info_ptr == 0 {
         return;
     }
-    // Fast path — no reader attached: zero capture work.
     unsafe {
         if (*(info_ptr as *const KuteCaptureInfo)).flags & READER_ACTIVE == 0 {
             return;

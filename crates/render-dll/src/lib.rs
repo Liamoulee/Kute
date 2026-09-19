@@ -615,8 +615,6 @@ unsafe extern "system" fn present_hk(
             debug_print!("render: Present fallback result={:#X}", hr.0);
         }
 
-        // OBS capture (producer side): run after the original present so the back buffer is
-        // stable before the CopyResource — gated internally on READER_ACTIVE.
         if is_main {
             capture::capture_on_present(p_this);
         }

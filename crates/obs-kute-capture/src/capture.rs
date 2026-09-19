@@ -99,8 +99,6 @@ fn try_attach(pid: u32) -> Option<Session> {
 
         crate::debug_print!("capture: producer discovered (pid {pid})");
 
-        // Frame event is optional for correctness (we poll frame_counter), so a failure here is
-        // non-fatal — pass a null/invalid handle.
         let event_name = wide(&format!("KuteCaptureFrame_{pid}"));
         let frame_event = OpenEventW(SYNCHRONIZATION_ACCESS_RIGHTS(SYNCHRONIZE), false, PCWSTR(event_name.as_ptr())).unwrap_or_default();
 

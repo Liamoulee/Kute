@@ -1,8 +1,3 @@
-//! Minimal, bindings to the OBS (libobs) public C API surface.
-//!
-//! OBS ships **no import library and no installed headers**, so we resolve every function at
-//! runtime from the already-resident `obs.dll` via `GetProcAddress`. There is no link-time
-
 #![allow(non_camel_case_types, non_upper_case_globals, dead_code)]
 
 use std::{
@@ -15,12 +10,10 @@ use windows::{
     core::*,
 };
 
-// ---- constants (from obs.h / graphics.h) ----
 pub const OBS_SOURCE_TYPE_INPUT: u32 = 0;
 pub const OBS_SOURCE_VIDEO: u32 = 1 << 0;
 pub const GS_DEVICE_DIRECT3D_11: i32 = 2;
 
-// ---- opaque handles (never dereferenced here) ----
 #[repr(C)]
 pub struct gs_texture_t {
     _p: [u8; 0],
@@ -42,7 +35,6 @@ pub struct obs_source_t {
     _p: [u8; 0],
 }
 
-// ---- callback typedefs ----
 pub type GetNameFn = unsafe extern "C" fn(data: *mut c_void) -> *const c_char;
 pub type CreateFn = unsafe extern "C" fn(settings: *mut obs_data_t, source: *mut obs_source_t) -> *mut c_void;
 pub type DestroyFn = unsafe extern "C" fn(data: *mut c_void);
@@ -50,9 +42,6 @@ pub type GetSizeFn = unsafe extern "C" fn(data: *mut c_void) -> u32;
 pub type VideoTickFn = unsafe extern "C" fn(data: *mut c_void, seconds: f32);
 pub type VideoRenderFn = unsafe extern "C" fn(data: *mut c_void, effect: *mut gs_effect_t);
 
-/// `struct obs_source_info` from obs-source.h — a faithful, sorted slice of the real struct
-/// through `video_render`. We register with `obs_register_source_s(info, sizeof)` and OBS only
-/// reads up to `sizeof`, so everything after `video_render` can be omitted.
 #[repr(C)]
 pub struct obs_source_info {
     pub id: *const c_char,
