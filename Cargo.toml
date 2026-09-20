@@ -1,6 +1,6 @@
 [package]
 name = "kute"
-version = "0.1.6"
+version = "0.1.7"
 description = "High performance krunker client made by [cute]"
 authors = ["NullDev"]
 edition = "2024"
