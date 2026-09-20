@@ -1,5 +1,6 @@
 import panelHtml from "../../components/autoDetect.html";
 import { kute } from "../../client.js";
+import { activity, hostLobby, spawn } from "../privateMatch.js";
 import { checkCompMode, request } from "../../utils.js";
 import { FrameRecorder } from "./metrics.js";
 import { decide, decideClient, HEADROOM, MIN_RESOLUTION, SIGNIFICANT_SETTING, TARGET_REFRESH_MULTIPLE } from "./decide.js";
@@ -33,8 +34,6 @@ const CLIENT_CONFIGS = [
     { config: "hook=1,limit=auto", label: "Hook on, FPS cap" },
     { config: "hook=0,limit=auto", label: "Hook off, FPS cap" },
 ];
-// the private test match: Burg, small and the same for everyone
-const LOBBY_MAP = "gameMap0";
 const HOME = "https://krunker.io/";
 
 /**
@@ -186,76 +185,6 @@ function devOverrides(){
         if (key === "battery") overrides.battery = true;
     }
     return overrides;
-}
-
-/**
- * @return {Partial<KrunkerGameActivity> & {id?: string}}
- */
-function activity(){
-    try {
-        return window.getGameActivity?.() ?? {};
-    }
-    catch {
-        return {};
-    }
-}
-
-/**
- * Hosts a private match through Krunker's own host window. The game switches rooms inside the page,
- * so success shows up as a new custom game in the activity, not as a page load.
- *
- * @return {Promise<boolean>}
- */
-async function hostLobby(){
-    if (typeof window.openHostWindow !== "function" || typeof window.createPrivateRoom !== "function") return false;
-    const previousId = activity().id;
-    // the game does not always take the request, for one while the match behind the menu is ending
-    for (let attempt = 0; attempt < 4; attempt++){
-        window.openHostWindow(false, 0);
-        await sleep(800);
-        window.windows[7]?.switchTab?.(0);
-        await sleep(300);
-        const maps = /** @type {HTMLInputElement[]} */ ([...document.querySelectorAll("#windowHolder input[id^=gameMap]")]);
-        if (maps.length === 0) return false;
-        for (const map of maps){
-            if (map.checked !== (map.id === LOBBY_MAP)) map.click();
-        }
-        window.createPrivateRoom();
-        for (let i = 0; i < 32; i++){
-            await sleep(250);
-            const now = activity();
-            if (now.custom && now.id && now.id !== previousId && now.map) return true;
-        }
-        window.closWind?.();
-        await sleep(1500);
-    }
-    return false;
-}
-
-/**
- * @return {boolean}
- */
-function spawned(){
-    const instructions = document.querySelector("#instructions");
-    return Boolean(document.pointerLockElement) || (instructions !== null && getComputedStyle(instructions).display === "none");
-}
-
-/**
- * Clicks into the match. Pointer lock needs a trusted click, so the host sends it (a DOM click() does nothing).
- *
- * @return {Promise<boolean>}
- */
-async function spawn(){
-    for (let i = 0; i < 40 && !(activity().map && document.querySelector("#instructions")); i++) await sleep(250);
-    await sleep(500);
-    const x = Math.round(window.innerWidth / 2);
-    const y = Math.round(window.innerHeight / 2);
-    for (let attempt = 0; attempt < 3 && !spawned(); attempt++){
-        window.chrome.webview.postMessage(`click, ${x}, ${y}`);
-        await sleep(1200);
-    }
-    await sleep(800);
-    return spawned();
 }
 
 /**
