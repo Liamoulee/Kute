@@ -6,7 +6,8 @@
 
 ## :arrow_down: Download
 
-- [Latest Release](https://github.com/NullDev/Kute/releases/latest)
+- [Download the latest installer](https://github.com/NullDev/Kute/releases/latest/download/kute-setup-x86_64.msi)
+- [Release notes](https://github.com/NullDev/Kute/releases/latest)
 - [All Releases](https://github.com/NullDev/Kute/releases)
 
 <hr>
