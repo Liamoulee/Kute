@@ -7,7 +7,11 @@ use std::{
 use windows::{
     Win32::{
         Foundation::{HWND, LPARAM},
-        UI::WindowsAndMessaging::*,
+        System::Com::CoTaskMemFree,
+        UI::{
+            Shell::{FOLDERID_Downloads, KF_FLAG_DEFAULT, SHGetKnownFolderPath},
+            WindowsAndMessaging::*,
+        },
     },
     core::*,
 };
@@ -38,6 +42,50 @@ pub fn api_url() -> String {
     env::var("KUTE_API_URL")
         .map(|url| url.trim_end_matches('/').to_string())
         .unwrap_or_else(|_| crate::constants::API_URL.to_string())
+}
+
+// where a download goes. CEF puts it in the temp directory when the handler hands it an empty path
+// (download_manager_delegate_impl.cc), which is why an exported settings file never reached the player
+pub fn downloads_dir() -> path::PathBuf {
+    unsafe {
+        if let Ok(folder) = SHGetKnownFolderPath(&FOLDERID_Downloads, KF_FLAG_DEFAULT, None) {
+            let path = folder.to_string().unwrap_or_default();
+            CoTaskMemFree(Some(folder.0 as *const _));
+            if !path.is_empty() {
+                return path::PathBuf::from(path);
+            }
+        }
+    }
+    path::PathBuf::from(env::var("USERPROFILE").unwrap_or_default()).join("Downloads")
+}
+
+// the file name a download gets, free of anything that is not a name and of a name that is already taken
+pub fn download_target(suggested: &str) -> path::PathBuf {
+    let name: String = Path::new(suggested)
+        .file_name()
+        .map(|name| name.to_string_lossy().to_string())
+        .unwrap_or_default()
+        .chars()
+        .map(|c| if c.is_control() || "<>:\"/\\|?*".contains(c) { '_' } else { c })
+        .collect();
+    let name = if name.trim().is_empty() { "download".to_string() } else { name };
+
+    let dir = downloads_dir();
+    let target = dir.join(&name);
+    if !target.exists() {
+        return target;
+    }
+
+    // the same way Chromium does it: "settings (1).txt"
+    let stem = Path::new(&name).file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+    let extension = Path::new(&name).extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
+    for index in 1..1000 {
+        let candidate = dir.join(format!("{stem} ({index}){extension}"));
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+    target
 }
 
 pub fn exe_dir() -> path::PathBuf {

@@ -259,8 +259,12 @@ wrap_download_handler! {
             callback: Option<&mut BeforeDownloadCallback>,
         ) -> ::std::os::raw::c_int {
             let Some(callback) = callback else { return 0 };
-            // no path: chromium saves to its download folder under a uniquified suggested name
-            callback.cont(None, 0);
+            // the path has to be ours: handed an empty one, CEF writes the file into the temp directory, which
+            // is where every exported settings file went while the game said "Settings exported to Downloads!"
+            let suggested = suggested_name.map(|name| name.to_string()).unwrap_or_default();
+            let target = crate::utils::download_target(&suggested);
+            debug_print!("download: {} -> {}", suggested, target.display());
+            callback.cont(Some(&CefString::from(target.to_string_lossy().as_ref())), 0);
             1
         }
     }
