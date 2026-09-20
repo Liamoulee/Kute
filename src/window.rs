@@ -236,7 +236,11 @@ unsafe fn show_window(window: &Window) {
         }
         let _ = ShowWindow(
             window.hwnd,
-            if window.state.maximized && !window.state.fullscreen { SW_MAXIMIZE } else { SW_SHOW },
+            if window.state.maximized && !window.state.fullscreen {
+                SW_MAXIMIZE
+            } else {
+                SW_SHOW
+            },
         );
     }
 }
@@ -440,21 +444,33 @@ pub fn create_popup_window(
     client: Option<&mut Option<Client>>,
     settings: Option<&mut BrowserSettings>,
 ) {
+    // a page can set any of x, y, width and height. what it leaves out keeps the default size and stays centered,
+    // instead of the whole request being dropped because one of the four was missing
     let mut window_state = None;
     if let Some(features) = features
-        && features.x_set != 0
-        && features.y_set != 0
-        && features.width_set != 0
-        && features.height_set != 0
+        && (features.x_set != 0 || features.y_set != 0 || features.width_set != 0 || features.height_set != 0)
     {
+        let (screen_width, screen_height) = unsafe { (GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN)) };
+        let width = if features.width_set != 0 {
+            features.width
+        } else {
+            (screen_width as f32 * 0.8) as i32
+        };
+        let height = if features.height_set != 0 {
+            features.height
+        } else {
+            (screen_height as f32 * 0.8) as i32
+        };
+        let left = if features.x_set != 0 { features.x } else { (screen_width - width) / 2 };
+        let top = if features.y_set != 0 { features.y } else { (screen_height - height) / 2 };
         window_state = Some(WindowState {
             fullscreen: false,
             maximized: false,
             position: Position {
-                left: features.x,
-                top: features.y,
-                right: features.x + features.width,
-                bottom: features.y + features.height,
+                left,
+                top,
+                right: left + width,
+                bottom: top + height,
             },
         });
     }
