@@ -83,4 +83,6 @@ window.importSettings = () => {
     kute.bindShoot();
     // an auto-detect undo would now restore values from before the import
     kute.autoDetect?.dropUndo();
+    // the first start setup offers this import as its settings step, and continues once it went through
+    kute.autoDetect?.afterImport();
 };

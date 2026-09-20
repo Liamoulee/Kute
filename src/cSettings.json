@@ -6,7 +6,7 @@
         "type": "none",
         "category": "General",
         "button": "Run",
-        "buttonAction": "{{kute}}.autoDetect.start()",
+        "buttonAction": "{{kute}}.autoDetect.setUp()",
         "requiresLogin": true
     },
     "autoDetectResult": {

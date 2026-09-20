@@ -1,7 +1,7 @@
 /**
  * The HUD widgets the editor knows about, in panel order.
  *
- * Every id was read off live matches (FFA, deposit and hardpoint private lobbies, see _docs/hud-editor-plan.md).
+ * Every id was read off live matches (FFA, deposit and hardpoint private lobbies
  * A widget whose element is missing is skipped, so a renamed id costs that one row and nothing else.
  *
  * @typedef {object} HudElement

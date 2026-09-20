@@ -65,7 +65,7 @@ interface Kute {
     showNotification(message: string, reqUserInput: boolean, seconds: number): any;
     showChangelogPopup(version: string): Promise<void>;
     showAboutPopup(): Promise<void>;
-    autoDetect: { start(): Promise<void>; undo(): void; showLast(): void; dropUndo(): void };
+    autoDetect: { start(): Promise<void>; setUp(): void; undo(): void; showLast(): void; dropUndo(): void; afterImport(): void };
     clanColors: { apply(styles: unknown): void; toggle(enabled: boolean): void };
     badges: { toggle(enabled: boolean): void };
     /** the socket to the Kute server and who else in the lobby runs Kute (devs: hash -> their clan tag) */

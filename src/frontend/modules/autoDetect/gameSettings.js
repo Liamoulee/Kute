@@ -34,11 +34,50 @@ export const SETTINGS = [
     { id: "lowSpec", label: "Low Spec", cheap: true },
 ];
 
+/**
+ * A performance baseline for a player who has never set the game up. Krunker's defaults are not made for a
+ * shooter, and the first start is the moment to fix that.
+ *
+ * What may be in here is narrow on purpose, because nothing in the client ever raises quality again: either the
+ * run can never measure the setting (`needsReload`, `fightOnly`), or its cheap value is not something a player
+ * misses. Everything that really makes the game look worse (shadows, textures, map details, the weapon and the
+ * hands, old shading) stays out and is left to the run, which only sacrifices it on a PC that was measured to
+ * need it. Personal settings (sensitivity, keybinds, crosshair, FOV, volumes, HUD) are never touched.
+ *
+ * @type {Record<string, string|boolean>}
+ */
+export const PRESET = {
+    // all three, and Krunker starts with it on: a colour pass that costs frames and washes the image out
+    postProcessing: false,
+    // all three. fightOnly, so the run can never measure these four
+    particles: false,
+    showExplo: false,
+    bulletCasings: false,
+    impactHoles: false,
+    // needsReload, same reason: the run can never touch them
+    reflection: "1",
+    lighting: "0",
+    // the expensive shadow variants go, the shadows themselves stay
+    softShad: false,
+    highResShad: false,
+    noPaintAnim: true,
+};
+
 export const RESOLUTION = "resolution";
 export const GAME_FRAME_CAP = "updateRate";
 
-/** Every game setting a run may touch for the undo snapshot. */
+/** Every game setting a run or the preset may touch, for the undo snapshot. */
 export const ALL_IDS = [...SETTINGS.map((setting) => setting.id), RESOLUTION, GAME_FRAME_CAP];
+
+/**
+ * The name a setting has in the game, for the list of what changed.
+ *
+ * @param {string} id
+ * @return {string}
+ */
+export function label(id){
+    return SETTINGS.find((setting) => setting.id === id)?.label ?? id;
+}
 
 /** @type {Document|null} */
 let settingsDocument = null;

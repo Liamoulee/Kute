@@ -11,6 +11,16 @@ const STORAGE_KEY = "kute_autodetect";
 // how many runs finished on this install. shared with a report so that first runs can be told from repeats,
 // which a server without any kind of client id could not do otherwise
 const RUNS_KEY = "kute_autodetect_runs";
+// "this client start already asked". sessionStorage, not localStorage: the bundle runs again on every F5, F4 and
+// lobby change, and "ask me later" means the next start, not the next page. the profile deletes its Sessions
+// folder on start (app.rs), so this dies with the client, which is exactly that meaning
+const ASKED_KEY = "kute_autodetect_asked";
+// the menu needs a moment before a panel over it makes sense
+const OFFER_DELAY_MS = 5000;
+// how long the setup waits for a login before it gives up and asks again another day
+const LOGIN_TIMEOUT_MS = 300000;
+// and how long it waits for Krunker to sign an account that is already on this PC back in, see `signedIn`
+const SIGN_IN_WAIT_MS = 20000;
 const SAMPLE_MS = 900;
 const SETTLE_MS = 450;
 // samples of the same settings right before and after a measurement may differ by this share. beyond it
@@ -82,6 +92,15 @@ const HOME = "https://krunker.io/";
  * @property {boolean} [showSummary] Set across the page load that ends a run
  * @property {boolean} [undoable] The snapshot holds values that differ from what is set now
  * @property {RunState|null} [previous] While running: the state to fall back to, it may still hold an undo
+ * @property {WizardStage} [wizard] Where the first start setup stands
+ * @property {string[]} [wizardDetails] What the setup already changed, shown in the summary of the run it starts
+ */
+
+/**
+ * The steps of the first start setup. "later" and "declined" are answers, the rest are steps a page load can
+ * land in the middle of (a login reloads the page, and so does the preset, most of which only applies then).
+ *
+ * @typedef {"later"|"declined"|"login"|"settings"|"import"|"run"} WizardStage
  */
 
 /**
@@ -338,6 +357,31 @@ class Panel {
     }
 
     /**
+     * A question with its own buttons, for the first start setup. Each choice decides itself whether it closes
+     * the panel, a step that leads to the next one keeps it up.
+     *
+     * @param {string} title
+     * @param {string} line
+     * @param {{label: string, onPick: () => void}[]} choices
+     */
+    choose(title, line, choices){
+        this.element("adTitle").textContent = title;
+        this.element("adStatus").textContent = line;
+        this.element("adBar").style.display = "none";
+        this.element("adHint").style.display = "none";
+        const actions = this.element("adActions");
+        actions.style.display = "flex";
+        actions.innerHTML = "";
+        for (const choice of choices){
+            const button = document.createElement("div");
+            button.className = "adButton";
+            button.textContent = choice.label;
+            button.onclick = () => choice.onPick();
+            actions.append(button);
+        }
+    }
+
+    /**
      * Switches from the progress view to a message with buttons.
      *
      * @param {Summary} summary
@@ -475,9 +519,11 @@ class AutoDetect {
     }
 
     /**
+     * @param {{snapshot?: RunState["snapshot"], details?: string[]}} [options] What the setup before this run
+     * already changed, and the values from before it: Undo has to put those back too, and the summary lists them
      * @return {Promise<void>}
      */
-    async start(){
+    async start(options = {}){
         if (this.running) return;
         if (!loggedIn()){
             kute.showNotification("Log in first: auto-detect measures in a private test match, and hosting one needs an account", false, 6);
@@ -492,8 +538,14 @@ class AutoDetect {
         window.closWind?.();
 
         const previous = readState();
+        // the setup is over the moment a run starts. without this a cancelled run would put its last step back
+        // and the next page load would start the very same run again
+        if (previous){
+            delete previous.wizard;
+            delete previous.wizardDetails;
+        }
         /** @type {RunState} */
-        const state = { status: "running", at: Date.now(), snapshot: this.snapshot(), previous };
+        const state = { status: "running", at: Date.now(), snapshot: options.snapshot ?? this.snapshot(), previous };
         writeState(state);
 
         const panel = new Panel();
@@ -523,7 +575,7 @@ class AutoDetect {
         };
 
         try {
-            const outcome = await this.run(panel, state, venue);
+            const outcome = await this.run(panel, state, venue, options.details ?? []);
             if (outcome === null){
                 abandon();
                 return;
@@ -578,9 +630,10 @@ class AutoDetect {
      * @param {Panel} panel
      * @param {RunState} state
      * @param {{inMatch: boolean, stage: string}} venue
+     * @param {string[]} earlier What the setup changed before the run, listed in the same summary
      * @return {Promise<{summary: Summary, report: Report}|null>} null when cancelled
      */
-    async run(panel, state, venue){
+    async run(panel, state, venue, earlier = []){
         const started = performance.now();
         const dev = devOverrides();
 
@@ -794,7 +847,7 @@ class AutoDetect {
         venue.stage = "apply";
         panel.progress("Applying", 0.88);
         /** @type {string[]} */
-        const details = [];
+        const details = [...earlier];
         /**
          * The client changes wait until the measuring below is done. An FPS limit or a CPU throttle applied here
          * would be what the final measurement reads, and the resolution loop compares that number with the goal
@@ -922,8 +975,222 @@ class AutoDetect {
     }
 
     /**
-     * Start of the page: finish or clean up what a previous page left. A first start (or cleared storage)
-     * only points the player to the button, nothing is measured or changed without being asked.
+     * Remembers where the setup stands, keeping what is already stored: the setup can be started from the
+     * settings long after a run, and the result of that run is what "Last Auto-Detect Result" shows.
+     *
+     * @param {WizardStage} wizard
+     * @param {RunState["snapshot"]} [snapshot]
+     * @param {string[]} [details] What the setup changed before the run it is about to start
+     */
+    remember(wizard, snapshot, details){
+        const state = readState() ?? { status: /** @type {const} */ ("prompted"), at: Date.now(), snapshot: { client: {}, game: {} } };
+        writeState({ ...state, at: Date.now(), wizard, ...(snapshot ? { snapshot } : {}), ...(details ? { wizardDetails: details } : {}) });
+    }
+
+    /**
+     * Step 1: the offer on a first start. Asked once per client start at most.
+     */
+    offer(){
+        if (this.running || sessionStorage.getItem(ASKED_KEY)) return;
+        // a player who is already in the match gets asked once they are back in the menu. giving up here
+        // meant that whoever clicked play within five seconds never saw this at all
+        if (document.pointerLockElement){
+            document.addEventListener("pointerlockchange", () => setTimeout(() => this.offer(), 1500), { once: true });
+            return;
+        }
+        sessionStorage.setItem(ASKED_KEY, "1");
+        const panel = new Panel();
+        panel.choose(
+            "Set Kute up for this PC?",
+            "Kute can set the game up for what this PC can do: it measures in a private test match for about a minute, and everything it changes can be undone. You have to be logged in for that.",
+            [
+                {
+                    label: "Yes",
+                    onPick: () => {
+                        this.setUp(panel);
+                    },
+                },
+                {
+                    label: "Ask later",
+                    onPick: () => {
+                        panel.close();
+                        this.remember("later");
+                    },
+                },
+                {
+                    label: "No",
+                    onPick: () => {
+                        panel.close();
+                        this.remember("declined");
+                        kute.showNotification("Got it. You can always start the setup from Settings, Client", false, 5);
+                    },
+                },
+            ],
+        );
+    }
+
+    /**
+     * Whether the player is signed in, giving Krunker the time it needs to do it.
+     *
+     * A page load shows the signed OUT header bar first and swaps it for the signed in one once the account is
+     * back, which was measured taking well over five seconds. Asking right after a load therefore says "logged
+     * out" for a player who is not, and the setup would send them to a login form they do not need. The token in
+     * localStorage is what says an account lives on this PC, so that decides whether there is anything to wait for.
+     *
+     * @return {Promise<boolean>}
+     */
+    async signedIn(){
+        if (loggedIn()) return true;
+        if (!localStorage.getItem("krunker_token")) return false;
+        const until = Date.now() + SIGN_IN_WAIT_MS;
+        while (Date.now() < until){
+            await sleep(250);
+            if (loggedIn()) return true;
+        }
+        return false;
+    }
+
+    /**
+     * The setup from here on, and what the button in the settings calls: the login step when it is needed, then
+     * the question where the game settings come from. A player who is signed in is never asked to sign in.
+     *
+     * @param {Panel} [panel] The panel to carry on in, so the steps do not flicker
+     * @return {Promise<void>}
+     */
+    async setUp(panel = new Panel()){
+        if (this.running){
+            panel.close();
+            return;
+        }
+        panel.choose("Setting Kute up", "Checking your account.", []);
+        if (!await this.signedIn()){
+            this.askLogin(panel);
+            return;
+        }
+        this.askSettings(panel);
+    }
+
+    /**
+     * Step 2: the login.
+     *
+     * @param {Panel} [panel]
+     */
+    askLogin(panel = new Panel()){
+        // a login reloads the page, so where the setup stands has to be on disk before the form opens
+        this.remember("login");
+        panel.choose("Log in to continue", "Kute measures in a private test match, and hosting one needs an account.", [
+            {
+                label: "Log in",
+                onPick: () => {
+                    panel.close();
+                    window.loginOrRegister();
+                    this.waitForLogin();
+                },
+            },
+            {
+                label: "Ask later",
+                onPick: () => {
+                    panel.close();
+                    this.remember("later");
+                },
+            },
+        ]);
+    }
+
+    /**
+     * Carries on once the player is signed in. The page usually reloads on a login and `resume` picks the setup
+     * back up, this is for the times it does not.
+     */
+    waitForLogin(){
+        const until = Date.now() + LOGIN_TIMEOUT_MS;
+        const timer = setInterval(() => {
+            if (loggedIn()){
+                clearInterval(timer);
+                this.askSettings();
+                return;
+            }
+            // one id lookup a second, and only in the menu. giving up leaves "login" behind, which asks again
+            // on the next start
+            if (Date.now() > until) clearInterval(timer);
+        }, 1000);
+    }
+
+    /**
+     * Step 3: where the game settings come from. Asked on a first start and on every run started from the
+     * settings, because the answer can be different today than it was last time.
+     *
+     * @param {Panel} [panel]
+     */
+    askSettings(panel = new Panel()){
+        this.remember("settings");
+        panel.choose(
+            "Where should your game settings come from?",
+            "Kute measures this PC either way and sets what it finds. This is only about the settings it starts from.",
+            [
+                {
+                    label: "Import a settings.txt",
+                    onPick: () => {
+                        panel.close();
+                        this.remember("import");
+                        window.importSettingsPopup();
+                    },
+                },
+                {
+                    label: "Kute's preset",
+                    onPick: () => {
+                        panel.close();
+                        this.applyPreset();
+                    },
+                },
+                {
+                    label: "Keep my settings",
+                    onPick: () => {
+                        panel.close();
+                        this.start();
+                    },
+                },
+            ],
+        );
+    }
+
+    /**
+     * Called by `importSettings.js` once an import went through, which is the point the setup continues from.
+     */
+    afterImport(){
+        if (readState()?.wizard !== "import") return;
+        // the snapshot is taken now, after the import: what the player just imported is theirs, Undo must not
+        // put the values from before it back. the same reason `importSettings.js` drops the undo of a run.
+        // an import may reload the page, so the step goes on disk first and both ways end in the same run
+        const snapshot = this.snapshot();
+        // nothing for the summary: an import is the player's own doing, and the list is what Kute changed
+        this.remember("run", snapshot, []);
+        setTimeout(() => {
+            if (readState()?.wizard === "run") this.start({ snapshot });
+        }, 1500);
+    }
+
+    /**
+     * Writes the preset and reloads. Most of it only applies after a reload, and measuring a half applied
+     * state would produce numbers nobody can read afterwards.
+     */
+    applyPreset(){
+        // before the first value is written: this is what Undo puts back
+        const snapshot = this.snapshot();
+        /** @type {string[]} */
+        const details = [];
+        for (const [id, value] of Object.entries(game.PRESET)){
+            if (String(snapshot.game[id]) === String(value)) continue;
+            game.write(id, value);
+            details.push(`<b>${game.label(id)}</b>: ${readable(snapshot.game[id])} → ${readable(value)} (Kute's preset)`);
+        }
+        this.remember("run", snapshot, details);
+        kute.showNotification("Applying Kute's preset, the game reloads once", false, 4);
+        setTimeout(() => location.reload(), 1200);
+    }
+
+    /**
+     * Start of the page: finish or clean up what a previous page left, or carry the setup on. A first start
+     * (or cleared storage) asks before anything is measured or changed.
      */
     resume(){
         const state = readState();
@@ -940,31 +1207,22 @@ class AutoDetect {
             new Panel().result(state.summary, { onUndo: () => this.undo(), report: state.report });
             return;
         }
-        if (state) return;
-
-        const offer = () => {
-            if (this.running || readState()) return;
-            // a player who is already in the match gets asked once they are back in the menu. giving up here
-            // meant that whoever clicked play within five seconds never saw this at all
-            if (document.pointerLockElement){
-                document.addEventListener("pointerlockchange", () => setTimeout(offer, 1500), { once: true });
-                return;
-            }
-            writeState({ status: "prompted", at: Date.now(), snapshot: { client: {}, game: {} } });
-            const canRun = loggedIn();
-            new Panel().result(
-                {
-                    title: "Set Kute up for this PC?",
-                    line: canRun
-                        ? "Auto-detect measures your PC in a private test match for about a minute and then sets up the game for it. You can undo it, and run it any time from Settings, Client, Auto-Detect Best Settings. If you have a settings.txt from another client, import that first."
-                        : "Auto-detect measures your PC in a private test match and then sets up the game for it. It needs an account: log in, then open Settings, Client and press Auto-Detect Best Settings. If you have a settings.txt from another client, import that first.",
-                    details: [],
-                    changed: false,
-                },
-                { onRun: canRun ? () => this.start() : undefined },
-            );
-        };
-        setTimeout(offer, 5000);
+        // the page load after the preset was written, or after an import that reloaded. the account is not
+        // back yet this early in a load, and the run refuses to start without one
+        if (state?.wizard === "run"){
+            setTimeout(async() => {
+                if (await this.signedIn()) this.start({ snapshot: state.snapshot, details: state.wizardDetails ?? [] });
+            }, OFFER_DELAY_MS);
+            return;
+        }
+        // a page load in the middle of the setup. "import" lands here when the popup was closed without
+        // importing, so it asks again instead of measuring something nobody asked for
+        if (state?.wizard === "login" || state?.wizard === "settings" || state?.wizard === "import"){
+            setTimeout(() => this.setUp(), OFFER_DELAY_MS);
+            return;
+        }
+        if (state && state.wizard !== "later") return;
+        setTimeout(() => this.offer(), OFFER_DELAY_MS);
     }
 }
 
