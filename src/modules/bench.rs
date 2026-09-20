@@ -233,14 +233,17 @@ pub fn run_matrix(browser: &Browser, configs: Vec<String>) {
     let exe = env::current_exe().unwrap_or_default();
     thread::spawn(move || {
         let mut results: Vec<serde_json::Value> = Vec::new();
+        // "limit=auto" means a bit below what this PC sustains without a cap, so it is the BEST uncapped result
+        // that sets it, not the first one. Taking the first capped a machine whose second configuration was a
+        // third faster at that slower configuration's rate, and a cap that far below what the PC can do reads as
+        // "much smoother" for no other reason than that it is much slower
+        let mut uncapped_fps: f64 = 0.0;
         for (index, config) in configs.iter().enumerate() {
-            // "limit=auto" means a bit below what the first configuration reached uncapped. without such a
-            // result (it failed, or this matrix starts with a capped configuration) there is nothing to derive
-            // it from, and the old minimum of 30 turned that case into a 30 FPS bench that loses against
-            // everything. the caller resolves the number itself when it replays a configuration
-            let first_fps = results.first().and_then(|first| first["page"]["stats"]["fps"].as_f64()).unwrap_or(0.0);
-            let config = if first_fps > 0.0 {
-                let auto_limit = (((first_fps * 0.9) / 5.0).round() * 5.0).max(30.0) as u64;
+            // without any uncapped result (it failed, or this matrix holds capped configurations only) there is
+            // nothing to derive a cap from, and the old minimum of 30 turned that case into a 30 FPS bench that
+            // loses against everything. the caller resolves the number itself when it replays a configuration
+            let config = if uncapped_fps > 0.0 {
+                let auto_limit = (((uncapped_fps * 0.9) / 5.0).round() * 5.0).max(30.0) as u64;
                 config.replace("limit=auto", &format!("limit={auto_limit}"))
             } else {
                 if config.contains("limit=auto") {
@@ -248,7 +251,12 @@ pub fn run_matrix(browser: &Browser, configs: Vec<String>) {
                 }
                 config.replace(",limit=auto", "").replace("limit=auto", "")
             };
-            results.push(run_one(&config, index + 1, configs.len(), rect, &exe));
+            let capped = config.contains("limit=");
+            let result = run_one(&config, index + 1, configs.len(), rect, &exe);
+            if !capped && let Some(fps) = result["page"]["stats"]["fps"].as_f64() {
+                uncapped_fps = f64::max(uncapped_fps, fps);
+            }
+            results.push(result);
         }
         let json = serde_json::json!({ "benchMatrix": results }).to_string();
         let mut task = MatrixDoneTask::new(browser_id, json);

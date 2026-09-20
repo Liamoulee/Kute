@@ -85,6 +85,12 @@ export function decideClient(results, settings, hz){
      * @return {boolean} Whether a is clearly better than b
      */
     const beats = (a, b) => {
+        // a cap buys evenness with frames, and it can only buy something that is missing: as long as the
+        // uncapped configuration already lands every frame inside one refresh interval, the same picture
+        // reaches the screen either way and the cap is pure loss. Without this rule a cap at 725 beat an
+        // uncapped 1063 FPS on a PC whose slowest frames were 2.8 ms out of 5.6, and the run then applied a
+        // completely different cap on top, because the one it measured came from the bench scene
+        if (a.capped && !b.capped && b.p99 <= 1000 / hz) return false;
         const smoother = a.p99 * SIGNIFICANT_CLIENT <= b.p99 && b.p99 - a.p99 >= significantMs;
         const notRougher = a.p99 <= b.p99 + significantMs;
         return smoother || (notRougher && a.fps >= b.fps * SIGNIFICANT_CLIENT_FPS);
