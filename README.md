@@ -37,6 +37,7 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] Matchmaker: F6 joins the lowest ping lobby that fits your filters (region, mode, map, players, time left)
 - [x] Better chat
 - [x] Hardpoint enemy counter
+- [x] Nuke counter: your career nuke total in game, with an optional goal
 - [x] Rank progress
 - [x] Clan colors
 - [x] Kute badge
@@ -133,6 +134,6 @@ Only needed when you work on the server itself.
 - [KraXen72/crankshaft](https://github.com/KraXen72/crankshaft) - menu timer css
 - [idkr-client/idkr](https://github.com/idkr-client/idkr) - tweaks
 - [bigjakk/Electron-Websocket-Fix](https://github.com/bigjakk/Electron-Websocket-Fix) - aim-freeze fix
-- [bigjakk/Krunker-Civilian-Client](https://github.com/bigjakk/Krunker-Civilian-Client) - matchmaker
+- [bigjakk/Krunker-Civilian-Client](https://github.com/bigjakk/Krunker-Civilian-Client) - matchmaker, nuke counter
 
 <hr>
