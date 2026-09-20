@@ -1,0 +1,180 @@
+<style>
+#nkOptions {
+	box-sizing: border-box;
+	width: 480px;
+	max-width: 92vw;
+	max-height: 88vh;
+	overflow-y: auto;
+	padding: 1.8em 2.2em 1.4em 2.2em;
+	background: #1e1e1e;
+	color: #fff;
+	border-radius: 14px;
+	box-shadow: 0 8px 48px #000c;
+	font-family: Consolas, monospace;
+}
+
+#nkOptions h2 {
+	margin: 0 0 0.3em 0;
+	font-size: 1.6em;
+	letter-spacing: 1px;
+	color: #35e0e8;
+	text-align: center;
+}
+
+#nkHint {
+	margin-bottom: 1em;
+	color: #999;
+	text-align: center;
+}
+
+#nkScreen {
+	position: relative;
+	aspect-ratio: 16 / 9;
+	overflow: hidden;
+	border: 1px solid #333;
+	border-radius: 10px;
+	background: #151515;
+	touch-action: none;
+}
+
+/* the crosshair of the fake screen, so the drag has something to line up with */
+#nkScreen::before,
+#nkScreen::after {
+	content: "";
+	position: absolute;
+	background: #ffffff10;
+}
+
+#nkScreen::before {
+	top: 50%;
+	left: 0;
+	width: 100%;
+	height: 1px;
+}
+
+#nkScreen::after {
+	top: 0;
+	left: 50%;
+	width: 1px;
+	height: 100%;
+}
+
+#nkGhost {
+	position: absolute;
+	display: flex;
+	align-items: center;
+	gap: 0.3em;
+	padding: 0.2em 0.5em;
+	border-radius: 0.25em;
+	font-size: 12px;
+	white-space: nowrap;
+	cursor: grab;
+	touch-action: none;
+	user-select: none;
+	text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+#nkGhost.nkDragging {
+	cursor: grabbing;
+}
+
+#nkGhost.nkBg {
+	background: rgba(0, 0, 0, 0.5);
+}
+
+#nkGhost .nkIcon {
+	color: #ffc147;
+}
+
+#nkGhost .nkGoal {
+	color: rgba(255, 255, 255, 0.6);
+}
+
+#nkScreenHint {
+	margin: 0.5em 0 0.2em 0;
+	color: #888;
+	font-size: 0.9em;
+	text-align: center;
+}
+
+.nkRow {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin: 0.4em 0;
+	color: #ccc;
+}
+
+.nkRow input[type="number"] {
+	width: 5em;
+	padding: 0.3em 0.5em;
+	border: none;
+	border-radius: 6px;
+	background: #2a2a2a;
+	color: #fff;
+	font-family: inherit;
+	text-align: right;
+}
+
+.nkRow input[type="checkbox"] {
+	width: 1.2em;
+	height: 1.2em;
+	accent-color: #35e0e8;
+	cursor: pointer;
+}
+
+.nkRow input[type="range"] {
+	width: 12em;
+	accent-color: #35e0e8;
+	cursor: pointer;
+}
+
+#nkActions {
+	display: flex;
+	gap: 0.7em;
+	margin-top: 1.4em;
+}
+
+.nkButton {
+	flex: 1 1 0;
+	padding: 0.7em 0.5em;
+	border-radius: 8px;
+	background: #2a2a2a;
+	color: #999;
+	text-align: center;
+	cursor: pointer;
+	user-select: none;
+}
+
+.nkButton:hover {
+	background: #333;
+}
+
+#nkDone {
+	background: #1b5e63;
+	color: #fff;
+}
+
+#nkDone:hover {
+	background: #23777d;
+}
+</style>
+<div id="nkOptions">
+	<h2>Nuke Counter</h2>
+	<div id="nkHint">Your nuke total, in game. It updates when a match ends</div>
+	<div id="nkScreen">
+		<div id="nkGhost">
+			<span class="nkIcon">☢</span>
+			<span class="nkCount">1,337</span>
+			<span class="nkGoal"></span>
+		</div>
+	</div>
+	<div id="nkScreenHint">Drag the counter to place it</div>
+	<label class="nkRow">Goal (0 hides it) <input type="number" id="nkGoalInput" min="0" max="1000000" step="1"></label>
+	<label class="nkRow">Background <input type="checkbox" id="nkBackground"></label>
+	<label class="nkRow">Size <input type="range" id="nkScale" min="0.5" max="2" step="0.05"></label>
+	<div id="nkActions">
+		<div class="nkButton" id="nkReset">Reset</div>
+		<div class="nkButton" id="nkDone">Done</div>
+	</div>
+</div>

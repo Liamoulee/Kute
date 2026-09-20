@@ -1,0 +1,48 @@
+#kuteNukeCounter {
+	position: absolute;
+	z-index: 10;
+	display: flex;
+	align-items: center;
+	gap: 0.3em;
+	font-family: "GameFont", monospace;
+	font-size: 26px;
+	color: #fff;
+	white-space: nowrap;
+	pointer-events: none;
+	text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+/* the counter belongs to the match, not to the menu that covers it */
+#uiBase.onMenu #kuteNukeCounter {
+	display: none;
+}
+
+#kuteNukeCounter.nukeBg {
+	padding: 0.2em 0.5em;
+	border-radius: 0.25em;
+	background: rgba(0, 0, 0, 0.35);
+}
+
+.nukeIcon {
+	color: #ffc147;
+}
+
+.nukeGoal {
+	color: rgba(255, 255, 255, 0.6);
+}
+
+#kuteNukeCounter.nukeGoalMet .nukeCount {
+	color: #9eeb56;
+}
+
+@keyframes kuteNukeGain {
+	0% { opacity: 0; transform: scale(0.6); }
+	12% { opacity: 1; transform: scale(1); }
+	80% { opacity: 1; }
+	100% { opacity: 0; }
+}
+
+.nukeGain {
+	color: #9eeb56;
+	animation: kuteNukeGain 8s ease forwards;
+}

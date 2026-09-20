@@ -80,6 +80,7 @@ interface Kute {
     /** true when this PC holds a Kute developer token (the token itself never leaves the host) */
     dev?: boolean;
     matchmaker: { showFilters(): Promise<void> };
+    nukeCounter: { showOptions(): Promise<void> };
 }
 
 interface KrunkerGameActivity {

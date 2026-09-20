@@ -194,6 +194,16 @@
         "category": "Interface",
         "defaultValue": true
     },
+    "nukeCounter": {
+        "name": "Nuke Counter",
+        "id": "nukeCounter",
+        "description": "Shows your nuke total in game. It updates when a match ends",
+        "type": "checkbox",
+        "category": "Interface",
+        "defaultValue": false,
+        "button": "Customize",
+        "buttonAction": "{{kute}}.nukeCounter.showOptions()"
+    },
     "renderStats": {
         "name": "Present FPS Counter",
         "id": "renderStats",

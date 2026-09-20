@@ -130,6 +130,8 @@ Object.defineProperty(window, "gameLoaded", {
         import("./modules/importSettings.js");
         // always: the setting is read on every F6, and the filter button needs the module
         import("./modules/matchmaker.js");
+        // always: the customize button needs the module, which draws nothing while the setting is off
+        import("./modules/nukeCounter.js");
         if (kute?.settings?.data?.hsSound) import("./modules/hsSound.js");
         if (kute?.settings?.data?.betterChat) import("./modules/betterChat.js");
         if (kute?.settings?.data?.hpEnemyCounter) import("./modules/hpEnemyCounter.js");
