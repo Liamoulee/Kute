@@ -1,5 +1,7 @@
 import { kute } from "../../client.js";
 import { HUD_ELEMENTS } from "./elements.js";
+import { confirmPopup } from "../confirmPopup.js";
+import { hostLobby, spawn } from "../privateMatch.js";
 
 /**
  * Applies the saved HUD layout and opens the editor.
@@ -9,16 +11,24 @@ import { HUD_ELEMENTS } from "./elements.js";
  * popups keep working, and a widget the game recreates between rounds is moved again by the same rule. Nothing
  * of this runs per frame: the stylesheet is written once per page load and whenever the editor changes something.
  *
- * Offsets are vw/vh, so a resolution change needs no work, and the editor converts a drag in screen pixels back
- * through the scale Krunker's UI scaling puts on the HUD.
+ * The editor cannot measure the HUD while it is open: the moment the pointer unlocks, Krunker lays the HUD out
+ * for the menu (the FPS counter wraps under the timer, the chat jumps down over the health card). So the geometry
+ * comes from a snapshot taken while the player is still in the match, and the editor draws that.
  *
  * @typedef {object} HudPlacement
  * @property {number} [x] Offset to the right, in vw
  * @property {number} [y] Offset down, in vh
  * @property {number} [s] Scale, 1 is untouched
+ *
+ * @typedef {object} HudGeometry
+ * @property {number} vw Viewport the snapshot was taken at
+ * @property {number} vh
+ * @property {number} factor The scale Krunker's UI scaling had on the HUD
+ * @property {Record<string, [number, number, number, number, number]>} rects key -> x, y, width, height, visible
  */
 
 const STYLE_ID = "kute_hudLayoutCSS";
+const GEOMETRY_KEY = "kute_hud_geometry";
 
 export class HudEditor {
     constructor(){
@@ -31,17 +41,6 @@ export class HudEditor {
 
         this.migrateNukeCounter();
         this.apply();
-
-        window.addEventListener(
-            "keydown",
-            (event) => {
-                if (event.key !== "F7" || event.repeat || this.open) return;
-                if (document.activeElement?.tagName === "INPUT") return;
-                event.preventDefault();
-                this.edit();
-            },
-            true,
-        );
     }
 
     /**
@@ -108,13 +107,162 @@ export class HudEditor {
     }
 
     /**
-     * Opens the editor. Its code and markup only load when it is actually used.
+     * Whether the game is showing the in-match HUD right now, which is the only moment it can be measured.
+     *
+     * @return {boolean}
      */
-    edit(){
+    inMatch(){
+        const hud = document.querySelector("#inGameUI");
+        return !!hud && window.getComputedStyle(hud).display !== "none";
+    }
+
+    /**
+     * Measures where every widget sits in the match, the ones this mode or a setting hides included, and keeps it
+     * for the editor. Runs while the player is still in the match, before anything unlocks the pointer.
+     *
+     * @return {HudGeometry|null}
+     */
+    snapshot(){
+        if (!this.inMatch()) return null;
+
+        /** @type {{def: import("./elements.js").HudElement, element: HTMLElement, visible: boolean}[]} */
+        const found = [];
+        for (const def of HUD_ELEMENTS){
+            const element = /** @type {HTMLElement|null} */ (document.querySelector(def.selector));
+            if (!element) continue;
+            found.push({ def, element, visible: window.getComputedStyle(element).display !== "none" });
+        }
+
+        /** @type {HudGeometry} */
+        const geometry = { vw: window.innerWidth, vh: window.innerHeight, factor: 1, rects: {} };
+
+        // what the player sees, with our own offsets taken out so the snapshot is the untouched layout
+        const layoutText = this.style?.textContent ?? "";
+        if (this.style) this.style.textContent = "";
+
+        for (const { def, element, visible } of found){
+            if (!visible) continue;
+            const rect = element.getBoundingClientRect();
+            if (rect.width <= 0) continue;
+            geometry.rects[def.key] = [rect.x, rect.y, rect.width, rect.height, 1];
+            // the scale Krunker's UI scaling puts on the HUD, taken off a widget wide enough to be exact
+            if (rect.width > 60 && element.offsetWidth > 0) geometry.factor = rect.width / element.offsetWidth;
+        }
+
+        // a second pass with the rest forced visible, for whatever this mode or a setting hides
+        const hidden = found.filter(({ def }) => !geometry.rects[def.key] && def.display);
+        if (hidden.length > 0){
+            const probe = document.createElement("style");
+            probe.textContent = hidden.map(({ def }) => `${def.selector}{display:${def.display}!important}`).join("");
+            document.head.append(probe);
+            for (const { def, element } of hidden){
+                const rect = element.getBoundingClientRect();
+                if (rect.width > 0) geometry.rects[def.key] = [rect.x, rect.y, rect.width, rect.height, 0];
+            }
+            probe.remove();
+        }
+
+        // what is left has no size even when shown (an idle kill feed): its anchor is enough, the editor sizes it
+        for (const { def, element } of found){
+            if (geometry.rects[def.key]) continue;
+            const rect = element.getBoundingClientRect();
+            geometry.rects[def.key] = [rect.x, rect.y, rect.width, rect.height, 0];
+        }
+
+        if (this.style) this.style.textContent = layoutText;
+
+        try {
+            window.localStorage.setItem(GEOMETRY_KEY, JSON.stringify(geometry));
+        }
+        catch {
+            // a full or blocked storage only costs the next editor open its geometry
+        }
+        return geometry;
+    }
+
+    /**
+     * The stored snapshot, but only while the window still has the size it was measured at. Krunker anchors its
+     * HUD to the screen edges and scales it in steps, so stretching an old snapshot to a new window size puts
+     * every box in the wrong place. A different size means measuring again, which is one private match away.
+     *
+     * @return {HudGeometry|null}
+     */
+    geometry(){
+        if (this.inMatch()) return this.snapshot();
+
+        /** @type {HudGeometry|null} */
+        let stored = null;
+        try {
+            stored = JSON.parse(window.localStorage.getItem(GEOMETRY_KEY) ?? "null");
+        }
+        catch {
+            stored = null;
+        }
+        if (!stored?.rects) return null;
+        if (stored.vw !== window.innerWidth || stored.vh !== window.innerHeight) return null;
+        return stored;
+    }
+
+    /**
+     * Opens the editor. In a match it measures right there, otherwise it offers to open a private match, because
+     * the HUD can only be measured while one is on screen.
+     *
+     * @return {Promise<void>}
+     */
+    async edit(){
         if (this.open) return;
+
+        if (this.inMatch()){
+            this.show(this.snapshot());
+            return;
+        }
+
+        const go = await confirmPopup({
+            title: "Set up your HUD",
+            paragraphs: [
+                "The editor places everything exactly where it sits in a match, so it needs a match to measure.",
+                "Kute opens a private one for you, nobody else can join it. If you are in a game right now, you leave it.",
+            ],
+            stay: "Not now",
+            leave: "Open a private match",
+        });
+        if (!go || this.open) return;
+
+        if (document.querySelector("#signedInHeaderBar") === null){
+            kute.showNotification?.("Log in first, a private match needs an account", false, 5);
+            return;
+        }
+
+        this.open = true;
+        kute.showNotification?.("Opening a private match", false, 4);
+        const joined = (await hostLobby()) && (await spawn());
+        if (!joined){
+            this.open = false;
+            kute.showNotification?.("Could not open a private match. Is a host slot free?", false, 6);
+            return;
+        }
+
+        // the HUD fills in over the first moments of a match (weapons, ammo, the leaderboard row)
+        await new Promise((resolve) => {
+            setTimeout(resolve, 1500);
+        });
+        this.open = false;
+        this.show(this.snapshot() ?? this.geometry());
+    }
+
+    /**
+     * Loads the editor and hands it the geometry to draw.
+     *
+     * @param {HudGeometry|null} geometry
+     */
+    show(geometry){
+        if (!geometry){
+            kute.showNotification?.("Could not measure the HUD, try again", false, 6);
+            return;
+        }
         this.open = true;
         import("./editor.js")
-            .then((module) => module.openEditor(this))
+            .then((module) => module.openEditor(this, geometry))
             .catch((error) => {
                 this.open = false;
                 console.error("[kute] hud editor:", error);

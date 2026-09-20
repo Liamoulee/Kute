@@ -197,11 +197,12 @@
     "hudLayout": {
         "name": "HUD Editor",
         "id": "hudLayout",
-        "description": "Move, resize and hide the in-game HUD. F7 opens it in a match too",
+        "description": "Move, resize and hide the in-game HUD. Opens a private match to measure it",
         "type": "none",
         "category": "Interface",
         "button": "Edit",
-        "buttonAction": "{{kute}}.hudEditor.edit()"
+        "buttonAction": "{{kute}}.hudEditor.edit()",
+        "requiresLogin": true
     },
     "nukeCounter": {
         "name": "Nuke Counter",

@@ -117,13 +117,6 @@
 	cursor: pointer;
 }
 
-#hpMaster {
-	margin-bottom: 0.4em;
-	padding: 0.4em;
-	border-radius: 6px;
-	background: rgba(255, 255, 255, 0.06);
-}
-
 #hpActions {
 	display: flex;
 	gap: 0.6em;
@@ -156,8 +149,7 @@
 </style>
 <div id="hpPanel">
 	<div id="hpHead">HUD Layout</div>
-	<div id="hpHint">Drag a box to move it, wheel over it to resize.<br>Arrow keys nudge, shift for 10 px</div>
-	<label class="hpRow" id="hpMaster"><span class="hpName">Show HUD</span><input type="checkbox" id="hpShowUI"></label>
+	<div id="hpHint">Boxes are where things sit in the match.<br>Drag to move, wheel to resize, arrows nudge</div>
 	<div id="hpList"></div>
 	<div id="hpActions">
 		<div class="hpButton" id="hpReset">Reset all</div>
