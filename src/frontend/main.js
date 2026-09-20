@@ -126,6 +126,7 @@ Object.defineProperty(window, "gameLoaded", {
         import("./modules/bpClaimAll.js");
         import("./modules/args.js");
         import("./modules/fixes.js");
+        import("./modules/versionTag.js");
         import("./modules/rankProgress.js");
         import("./modules/importSettings.js");
         // always: the setting is read on every F6, and the filter button needs the module
