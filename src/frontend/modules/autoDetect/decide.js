@@ -93,7 +93,14 @@ export function decideClient(results, settings, hz){
         if (a.capped && !b.capped && b.p99 <= 1000 / hz) return false;
         const smoother = a.p99 * SIGNIFICANT_CLIENT <= b.p99 && b.p99 - a.p99 >= significantMs;
         const notRougher = a.p99 <= b.p99 + significantMs;
-        return smoother || (notRougher && a.fps >= b.fps * SIGNIFICANT_CLIENT_FPS);
+        // more frames are only a reason while the display can still use them, so the same goal the rest of the
+        // run works towards decides that. Above it the frames are free of charge and paid for with everything
+        // the loser's configuration does besides counting frames: turning the hook off for 15 % of 1800 FPS on
+        // a 60 Hz screen costs the exact FPS limiter, the present statistics this run judges frame pacing by,
+        // and the OBS capture, and gives back nothing anybody can see. Below the goal frames are scarce and a
+        // quarter more is worth having
+        const framesMatter = b.fps < hz * TARGET_REFRESH_MULTIPLE;
+        return smoother || (framesMatter && notRougher && a.fps >= b.fps * SIGNIFICANT_CLIENT_FPS);
     };
     // the configuration in use defends its place: another one has to clearly beat it, and the best challenger wins
     let best = current ?? usable[0] ?? null;
