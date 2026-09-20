@@ -25,6 +25,7 @@ export class FrameRecorder {
         /** @type {Float32Array} */
         this.samples = new Float32Array(capacity);
         this.count = 0;
+        this.stored = 0;
         this.last = -1;
         this.first = -1;
     }
@@ -35,7 +36,12 @@ export class FrameRecorder {
      * @param {number} now
      */
     frame(now){
-        if (this.last >= 0 && this.count < this.samples.length) this.samples[this.count++] = now - this.last;
+        if (this.last >= 0){
+            // counted even once the buffer is full: the frame rate is frames over the whole duration, and
+            // counting only what fits while the duration keeps growing reports a slower PC than the real one
+            this.count++;
+            if (this.stored < this.samples.length) this.samples[this.stored++] = now - this.last;
+        }
         if (this.first < 0) this.first = now;
         this.last = now;
     }
@@ -45,8 +51,8 @@ export class FrameRecorder {
      * @return {FrameStats|null}
      */
     stats(hitchMs){
-        if (this.count === 0) return null;
-        const sorted = this.samples.slice(0, this.count).sort();
+        if (this.stored === 0) return null;
+        const sorted = this.samples.slice(0, this.stored).sort();
         const seconds = (this.last - this.first) / 1000;
         /**
          * @param {number} p
@@ -65,7 +71,7 @@ export class FrameRecorder {
             frames: this.count,
             seconds,
             fps: this.count / seconds,
-            meanMs: sum / this.count,
+            meanMs: sum / this.stored,
             p50: percentile(0.5),
             p95: percentile(0.95),
             p99: percentile(0.99),

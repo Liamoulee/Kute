@@ -7,7 +7,7 @@ export const TARGET_REFRESH_MULTIPLE = 3;
 export const HEADROOM = 1.25;
 /** Neighbouring samples agree within one to four percent in a test match. Less than five is not worth a visual loss either. */
 export const SIGNIFICANT_SETTING = 1.05;
-/** Half the pixels has to gain this much before the graphics card counts as the limit. */
+/** Half the resolution scale (a quarter of the pixels) has to gain this much before the graphics card counts as the limit. */
 export const SIGNIFICANT_RESOLUTION = 1.1;
 /** Auto-detect never lowers the resolution scale below this. */
 export const MIN_RESOLUTION = 0.75;
@@ -72,7 +72,9 @@ export const SIGNIFICANT_CLIENT_FPS = 1.25;
  */
 export function decideClient(results, settings, hz){
     const significantMs = Math.max(SIGNIFICANT_CLIENT_MIN_MS, (1000 / hz) * SIGNIFICANT_CLIENT_REFRESH_SHARE);
-    const usable = results.filter((result) => result.fps > 0);
+    // a row without frame times is not a smooth row, it is a row that failed to report: p99 defaults to 0 when
+    // the bench process wrote no stats, and 0 ms beats every real measurement in the comparison below
+    const usable = results.filter((result) => result.fps > 0 && result.p99 > 0 && Number.isFinite(result.p99));
     const current =
         usable.find((result) => result.hook === settings.hardFlip && result.capped === settings.capped && result.throttled === settings.throttled) ??
         usable.find((result) => result.hook === settings.hardFlip && !result.capped && !result.throttled) ??
@@ -110,10 +112,11 @@ export function decideClient(results, settings, hz){
 
 /**
  * @typedef {object} Measurements
- * @property {number} baseFps At the player's current settings
+ * @property {number} baseFps At the player's current settings, the median of every unchanged sample of the run
  * @property {number} p50 Median frame time, ms
  * @property {number} p99
  * @property {number} presentFps Frames reaching the swap chain, 0 without the hook
+ * @property {number} windowFps What the frame loop ran at in exactly the window presentFps was counted over
  * @property {number|null} halfResolutionGain Frame rate at half the resolution scale divided by the normal one
  * @property {MeasuredSetting[]} settings
  */
@@ -163,12 +166,16 @@ function roundToStep(fps){
  * the refresh rate is never the cure, and a broken reading must not be able to turn the game into a slideshow
  * (a stale present counter once read 3, and the run set a limit of 5).
  *
+ * Rounding to the limiter's step happens first and the floor is applied after it, never the other way round:
+ * 72 Hz rounds to 70, which is exactly the cap under the refresh rate this is meant to rule out.
+ *
  * @param {number} fps
  * @param {number} hz
  * @return {number}
  */
 function limitFor(fps, hz){
-    return roundToStep(Math.max(fps, hz, LOWEST_LIMIT));
+    const floor = Math.max(hz, LOWEST_LIMIT);
+    return Math.max(roundToStep(Math.max(fps, floor)), Math.ceil(floor / 5) * 5);
 }
 
 /**
@@ -189,9 +196,13 @@ export function decide(measured, facts){
     // presented, or they arrive in bursts with a stall after each (p99 many times the median).
     // presentFps is 0 when the hook gave no count for the measured window (off, or not answering), and a count
     // that is a tiny fraction of the game's rate is a broken reading, not a PC: the worst real case measured
-    // was 43 presents for 255 frames, a sixth
-    const plausible = measured.presentFps >= measured.baseFps * IMPLAUSIBLE_PRESENT_SHARE;
-    const flooding = plausible && measured.presentFps < measured.baseFps * 0.6;
+    // was 43 presents for 255 frames, a sixth.
+    // Both sides of this ratio have to come from the same window. baseFps is the median of samples taken over
+    // the whole run, and the game warms up inside it (1340 frames per second in the first seconds against 1900
+    // at the end of one run), so comparing the early present count with it reads as flooding on a healthy PC
+    const windowFps = measured.windowFps > 0 ? measured.windowFps : measured.baseFps;
+    const plausible = measured.presentFps >= windowFps * IMPLAUSIBLE_PRESENT_SHARE;
+    const flooding = plausible && measured.presentFps < windowFps * 0.6;
     const bursting = measured.p99 > measured.p50 * 8 && measured.p99 > 1000 / facts.hz;
     const healthy = !flooding && !bursting;
 

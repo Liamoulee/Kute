@@ -219,6 +219,22 @@ async function measureClient(configs){
 }
 
 /**
+ * The same configuration again, with "limit=auto" replaced by the cap that run really used.
+ *
+ * The host resolves "auto" to nine tenths of the FIRST result of the matrix it is given. In a second matrix that
+ * holds only the two configurations being confirmed, a capped one in first place has no uncapped result to read,
+ * so "auto" would fall back to the minimum of 30 and the confirmation would bench a 30 FPS cap against an
+ * uncapped client. Every player who already has an FPS limit set walks into that.
+ *
+ * @param {import("./decide.js").ClientResult} row
+ * @return {{config: string, label: string}}
+ */
+function replayConfig(row){
+    const limit = Number(row.limit) || 0;
+    return { config: limit > 0 ? row.config.replace("limit=auto", `limit=${limit}`) : row.config, label: row.label };
+}
+
+/**
  * The GPU the page really renders on. On a laptop with two that is not always the fast one.
  *
  * @return {string}
@@ -598,14 +614,15 @@ class AutoDetect {
         else if (clientPlan.change && clientPlan.best && clientPlan.current){
             // one measurement is not enough to change something: the two run against each other once more
             panel.progress("Confirming the client test", 0.04);
-            const [currentAgain, bestAgain] = await measureClient([clientPlan.current, clientPlan.best]);
+            const [currentAgain, bestAgain] = await measureClient([replayConfig(clientPlan.current), replayConfig(clientPlan.best)]);
             const confirmed = decideClient([currentAgain, bestAgain], settingsNow, hz);
             if (confirmed.change) clientNote = `"${clientPlan.best.label}" measured clearly better than "${clientPlan.current.label}", twice.`;
             else {
                 clientNote = `"${clientPlan.best.label}" looked better at first, but not when measured again. Nothing changed there.`;
                 clientPlan = { ...clientPlan, change: false };
             }
-            client = client.map((row) => (row.config === bestAgain.config && bestAgain.fps > 0 ? { ...row, p99: Math.max(row.p99, bestAgain.p99), low: Math.min(row.low, bestAgain.low) } : row));
+            // by label, not by config: the replay resolved "limit=auto" to the number that run used
+            client = client.map((row) => (row.label === bestAgain.label && bestAgain.fps > 0 ? { ...row, p99: Math.max(row.p99, bestAgain.p99), low: Math.min(row.low, bestAgain.low) } : row));
         }
         if (this.cancelled) return null;
 
@@ -656,6 +673,9 @@ class AutoDetect {
         const presentSeconds = (performance.now() - presentsSince) / 1000;
         const presentCount = Number(presentIntervals?.samples) || 0;
         const presentFps = presentCount > 0 && presentCount < PRESENT_RING ? Math.round(presentCount / presentSeconds) : 0;
+        // what the frame loop ran at while those presents were counted. the health check compares the two, and
+        // the run's baseline (the median over all of it) is a different window: the game is still warming up here
+        const windowFps = repeats.reduce((sum, fps) => sum + fps, 0) / repeats.length;
         const base = first;
         const noise = (Math.max(...repeats) - Math.min(...repeats)) / Math.max(1, Math.max(...repeats));
         // every sample of the unchanged settings, from the first second to the last. what the PC holds is their
@@ -751,14 +771,15 @@ class AutoDetect {
             () => game.write(game.RESOLUTION, String(Math.max(0.1, resolution * 0.5))),
             () => game.write(game.RESOLUTION, String(resolution)),
         );
-        // half the pixels cannot be slower, a number like that caught a hiccup
+        // the scale is linear, so half of it is a quarter of the pixels, and fewer pixels cannot be slower:
+        // a ratio below 1 is a hiccup during the measurement, not a result
         const halfResolutionGain = half.steady && half.ratio > 0.92 ? half.ratio : null;
         const drift = reference / Math.max(1, repeats[0]);
         const baseFps = baselineFps();
         if (this.cancelled) return null;
 
         const plan = decide(
-            { baseFps, p50: base.p50, p99: base.p99, presentFps, halfResolutionGain, settings },
+            { baseFps, p50: base.p50, p99: base.p99, presentFps, windowFps, halfResolutionGain, settings },
             {
                 hz,
                 onBattery: dev.battery ?? Boolean(specs.onBattery),
@@ -774,6 +795,16 @@ class AutoDetect {
         panel.progress("Applying", 0.88);
         /** @type {string[]} */
         const details = [];
+        /**
+         * The client changes wait until the measuring below is done. An FPS limit or a CPU throttle applied here
+         * would be what the final measurement reads, and the resolution loop compares that number with the goal
+         * the PC has to reach UNCAPPED: with a cap of 720 and a goal of 900 no resolution can ever satisfy it, so
+         * the scale walks down to its floor for nothing. What the client settings deliver is a separate question
+         * from what this PC can do.
+         *
+         * @type {import("./decide.js").Change[]}
+         */
+        const clientChanges = [];
         let limitChanged = false;
         let gameChanged = false;
         let needsRestart = false;
@@ -785,7 +816,7 @@ class AutoDetect {
             }
             else {
                 details.push(`<b>${change.label}</b>: ${readable(state.snapshot.client[change.id])} → ${readable(change.value)} (${change.reason})`);
-                applyClient(change.id, change.value);
+                clientChanges.push(change);
                 if (change.id === "gameFpsLimit") limitChanged = true;
                 if (change.id === "hardFlip") needsRestart = true;
             }
@@ -798,7 +829,7 @@ class AutoDetect {
             finalFps = (await measure()).fps;
         }
 
-        // the resolution scale only goes down when half the pixels measurably helped and the goal is still
+        // the resolution scale only goes down when fewer pixels measurably helped and the goal is still
         // missed. frame rate follows the pixel count then, so one estimate lands close and gets verified
         if (plan.tuneResolution && finalFps !== null){
             let scale = resolution;
@@ -814,6 +845,8 @@ class AutoDetect {
         }
         if (this.cancelled) return null;
 
+        // measuring is over, the client settings can take effect now
+        for (const change of clientChanges) applyClient(change.id, change.value);
         if (!limitChanged && fpsLimitBefore > 0) applyClient("gameFpsLimit", fpsLimitBefore);
         game.resetCache();
 
