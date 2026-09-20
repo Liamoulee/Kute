@@ -18,5 +18,9 @@ windows = { version = "0.62.2", features = [
     "Win32_System_Threading",
 ] }
 
+[build-dependencies]
+embed-resource = "3.0.*"
+toml = "1.1.*"
+
 [features]
 verbose-logs = []
