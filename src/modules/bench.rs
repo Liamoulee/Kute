@@ -154,9 +154,11 @@ pub fn finish(page_json: &str) {
         }
         utils::atomic_write(out, &result.to_string()).ok();
     }
-    window::close_all();
-    // the regular close can hang on a window that takes no input, and whoever started this process waits for
-    // it to end. the result is on disk and the profile is a throwaway, so there is nothing to lose
+    // the window is deliberately left alone: closing it here takes the page's GL context with it while the
+    // scene is still drawing its last frames (it keeps presenting until this call has the hook's numbers), and
+    // every draw in that gap logs "useProgram: program not valid" until Chromium stops reporting.
+    // the regular close can hang on a window that takes no input anyway, and whoever started this process waits
+    // for it to end. the result is on disk and the profile is a throwaway, so there is nothing to lose
     thread::spawn(|| {
         thread::sleep(Duration::from_millis(1200));
         std::process::exit(0);
