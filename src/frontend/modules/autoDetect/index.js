@@ -15,8 +15,13 @@ const RUNS_KEY = "kute_autodetect_runs";
 // lobby change, and "ask me later" means the next start, not the next page. the profile deletes its Sessions
 // folder on start (app.rs), so this dies with the client, which is exactly that meaning
 const ASKED_KEY = "kute_autodetect_asked";
-// the menu needs a moment before a panel over it makes sense
-const OFFER_DELAY_MS = 5000;
+// this module is imported when the game reports itself loaded, which is about 3.4 s into a page load and well
+// after the menu is up, so the offer has nothing left to wait for. It used to wait five seconds on top of that,
+// which put the first thing a new player ever sees eight and a half seconds into their first start
+const OFFER_DELAY_MS = 250;
+// a run is a different matter: it clicks its way through the menu to host a private match, so it lets the page
+// settle first
+const RESUME_RUN_DELAY_MS = 1500;
 // how long the setup waits for a login before it gives up and asks again another day
 const LOGIN_TIMEOUT_MS = 300000;
 // and how long it waits for Krunker to sign an account that is already on this PC back in, see `signedIn`
@@ -1212,7 +1217,7 @@ class AutoDetect {
         if (state?.wizard === "run"){
             setTimeout(async() => {
                 if (await this.signedIn()) this.start({ snapshot: state.snapshot, details: state.wizardDetails ?? [] });
-            }, OFFER_DELAY_MS);
+            }, RESUME_RUN_DELAY_MS);
             return;
         }
         // a page load in the middle of the setup. "import" lands here when the popup was closed without
