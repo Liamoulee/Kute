@@ -1,20 +1,16 @@
 import type { FastifyInstance } from "fastify";
 import type { WebSocket } from "ws";
+import { randomBytes } from "node:crypto";
 import { sourceKey } from "../util/rateLimit";
 import { isDevelopment } from "../util/env";
 import { isGameId, isPlayerHash, join, leave, type Member } from "../util/presence";
+import { developerOf } from "../util/developers";
 import { connectionClosed, connectionOpened, countFirstStart } from "../util/playerStats";
 
 // ========================= //
 // = Copyright (c) NullDev = //
 // =     - SPDX: MIT -     = //
 // ========================= //
-
-// The one WebSocket a Kute client keeps open. Messages from the client:
-//   {"t":"hi","first":true}                     once per connection, "first" until the server confirmed it once
-//   {"t":"join","game":"FRA:4c2f8","hash":".."} logged in and inside a lobby, again after a reconnect
-//   {"t":"leave"}                               logged out
-// and to the client: {"t":"counted"}, {"t":"roster","game":..,"players":[hash]}, {"t":"+","h":hash}, {"t":"-","h":hash}
 
 /** the ws layer of Bun ignores maxPayload, so the size gets checked by hand */
 const MAX_MESSAGE_BYTES = 512;
@@ -45,8 +41,7 @@ function mayCountFirstStart(source: string): boolean {
     return true;
 }
 
-// the server pings, not the client: a browser answers ping frames inside its network stack, so a keepalive
-// runs no JavaScript in the game, and a connection that died without a close frame gets noticed here
+// the server pings, not the client
 setInterval(() => {
     for (const connection of connections){
         if (!connection.alive){
@@ -81,7 +76,11 @@ export async function presenceRoutes(app: FastifyInstance): Promise<void> {
             send: (text) => { if (socket.readyState === socket.OPEN) socket.send(text); },
             game: "",
             hash: "",
+            dev: null,
         };
+        // this connection's half of a developer's proof, so a recorded proof cannot be replayed on another one
+        const nonce = randomBytes(16).toString("hex");
+        member.send(JSON.stringify({ t: "hello", nonce }));
         let counted = false;
         let windowStart = Date.now();
         let messages = 0;
@@ -116,7 +115,9 @@ export async function presenceRoutes(app: FastifyInstance): Promise<void> {
                 }
             }
             else if (message.t === "join"){
-                if (isGameId(message.game) && isPlayerHash(message.hash)) join(member, message.game, message.hash);
+                if (isGameId(message.game) && isPlayerHash(message.hash)){
+                    join(member, message.game, message.hash, developerOf(message.dev, nonce, message.game, message.hash));
+                }
             }
             else if (message.t === "leave") leave(member);
         });

@@ -1,12 +1,9 @@
+import type { Developer } from "./developers";
+
 // ========================= //
 // = Copyright (c) NullDev = //
 // =     - SPDX: MIT -     = //
 // ========================= //
-
-// Who runs Kute in which Krunker match, so clients can badge each other. Pushed, not polled: a client joins a
-// match over its WebSocket once, gets the roster, and from then on only hears who came and who went.
-// A player is only ever a per-game hash (sha256 of game id and name, made by the client), which means nothing
-// outside that match. Everything lives in memory: nothing is written, nothing is logged.
 
 const MAX_PLAYERS_PER_GAME = 64;
 const MAX_GAMES = 20000;
@@ -22,7 +19,12 @@ export type Member = {
     /** "" while the connection is in no game */
     game: string;
     hash: string;
+    /** what the proof said, null for everybody else */
+    dev: Developer | null;
 };
+
+/** what one player looks like to the others */
+type Entry = [string, 0] | [string, 1, { c: string }];
 
 const games = new Map<string, Set<Member>>();
 
@@ -34,14 +36,32 @@ export function isPlayerHash(value: unknown): value is string {
     return typeof value === "string" && PLAYER_HASH.test(value);
 }
 
+function entry(hash: string, dev: Developer | null): Entry {
+    return dev ? [hash, 1, { c: dev.clan }] : [hash, 0];
+}
+
 /**
- * Whether another connection in the same game stands for the same player (a reconnect overlapping its old socket).
+ * What the others should see for this hash right now, null when nobody in the game holds it. A developer
+ * wins over an ordinary member carrying the same hash.
  */
-function hasTwin(member: Member, players: Set<Member>): boolean {
+function entryOf(players: Set<Member>, hash: string): Entry | null {
+    let held = false;
     for (const other of players){
-        if (other !== member && other.hash === member.hash) return true;
+        if (other.hash !== hash) continue;
+        if (other.dev) return entry(hash, other.dev);
+        held = true;
     }
-    return false;
+    return held ? entry(hash, null) : null;
+}
+
+/** "+" is an upsert on the client: hash and flag, whether it is new or changed */
+function plus(value: Entry): object {
+    return value[1] === 1 ? { t: "+", h: value[0], d: 1, c: value[2].c } : { t: "+", h: value[0], d: 0 };
+}
+
+/** entries are two or three plain values, and this runs on a join or a leave, never in a loop over players */
+function same(a: Entry | null, b: Entry | null): boolean {
+    return JSON.stringify(a) === JSON.stringify(b);
 }
 
 function broadcast(players: Set<Member>, except: Member, message: object): void {
@@ -63,20 +83,24 @@ export function leave(member: Member): void {
         games.delete(game);
         return;
     }
-    if (!hasTwin(member, players)) broadcast(players, member, { t: "-", h: member.hash });
+    const after = entryOf(players, member.hash);
+    // gone for good, or a twin stays behind. a developer leaving a twin behind takes the flag with them
+    if (!after) broadcast(players, member, { t: "-", h: member.hash });
+    else if (member.dev) broadcast(players, member, plus(after));
 }
 
 /**
  * Puts the member into a game (leaving the one it was in), sends it the roster and tells the others.
  * A full game or a full server answers with a roster of one: the client works, it just sees nobody.
  */
-export function join(member: Member, game: string, hash: string): void {
+export function join(member: Member, game: string, hash: string, dev: Developer | null): void {
     if (member.game) leave(member);
     member.hash = hash;
+    member.dev = dev;
 
     let players = games.get(game);
     if (!players && games.size >= MAX_GAMES || players && players.size >= MAX_PLAYERS_PER_GAME){
-        member.send(JSON.stringify({ t: "roster", game, players: [hash] }));
+        member.send(JSON.stringify({ t: "roster", game, players: [entry(hash, dev)] }));
         return;
     }
     if (!players){
@@ -84,12 +108,16 @@ export function join(member: Member, game: string, hash: string): void {
         games.set(game, players);
     }
 
-    const known = hasTwin(member, players);
+    const before = entryOf(players, hash);
     players.add(member);
     member.game = game;
+    const after = entryOf(players, hash) as Entry;
 
-    const roster = new Set<string>();
-    for (const other of players) roster.add(other.hash);
-    member.send(JSON.stringify({ t: "roster", game, players: [...roster] }));
-    if (!known) broadcast(players, member, { t: "+", h: hash });
+    const roster = new Map<string, Entry>();
+    for (const other of players){
+        const known = roster.get(other.hash);
+        if (!known || known[1] === 0 && other.dev) roster.set(other.hash, entry(other.hash, other.dev));
+    }
+    member.send(JSON.stringify({ t: "roster", game, players: [...roster.values()] }));
+    if (!same(before, after)) broadcast(players, member, plus(after));
 }

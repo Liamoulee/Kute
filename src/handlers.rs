@@ -560,6 +560,17 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         ["get-info"] => {
             bridge::send_info(frame);
         }
+        // the developer badge: the page hands over the server's nonce and what it is about to announce, and
+        // gets the proof back. the token stays in this process (modules/dev.rs)
+        ["dev-proof", nonce, game, hash] => {
+            let sane = nonce.len() <= 64 && game.len() <= 32 && hash.len() == 32;
+            let proof = if sane { modules::dev::proof(nonce, game, hash) } else { None };
+            let reply = match proof {
+                Some((user, proof)) => serde_json::json!({ "devProof": { "nonce": nonce, "user": user, "proof": proof } }),
+                None => serde_json::json!({ "devProof": { "nonce": nonce } }),
+            };
+            bridge::post_json(browser, &reply.to_string());
+        }
         ["drag", value] => {
             // "drag, true" means the menu is open and the pointer is free
             let value = value.parse::<bool>().unwrap_or(false);

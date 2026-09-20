@@ -17,7 +17,9 @@ pub mod modules {
     pub mod accounts;
     pub mod bench;
     pub mod blocklist;
+    pub mod dev;
     pub mod devtools;
+    pub mod dpapi;
     pub mod flaglist;
     pub mod input;
     pub mod lifecycle;
@@ -39,7 +41,7 @@ fn main() {
     // CEF 151 uses a versioned C ABI, without this handshake every struct is rejected at runtime
     let _ = api_hash(sys::CEF_API_VERSION_LAST, 0);
 
-    if modules::obs::handle_cli_flags() {
+    if modules::obs::handle_cli_flags() || modules::dev::handle_cli_flags() {
         return;
     }
 

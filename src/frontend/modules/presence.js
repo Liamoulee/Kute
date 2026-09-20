@@ -1,22 +1,13 @@
 import { kute } from "../client.js";
 import api from "./api.js";
 
-// Who else in this match runs Kute. One WebSocket to the Kute server per page load: the client says once which
-// lobby it is in, gets the roster back, and from then on only hears who came and who went. Nothing is polled,
-// and the keepalive is the server's ping frame, which the browser answers without running any JavaScript.
-//
-// A player is only ever sha256(game id + "\n" + name), 16 bytes as hex: the server never sees a name, and the
-// hash means nothing outside that match. Not a secret (names can be guessed), it is there so the server holds
-// nothing about anybody.
-//
-// Logged out, the socket carries no join at all (guest names are random), it only counts as a running client.
-// The server being gone costs nothing: no health answer, no socket. A socket that keeps failing gives up.
-
 /** seconds until the next try after a lost connection, then it stays quiet until the next page load */
 const RECONNECT_S = [2, 4, 8, 16, 30];
 /** how often login and lobby get looked at. one id lookup and one call into the game, about a microsecond */
 const SYNC_MS = 2000;
 const STABLE_MS = 30000;
+/** how long the host gets to answer a developer proof before the join goes out without one */
+const PROOF_MS = 1000;
 
 /**
  * @return {string} The lobby this page is in while an account is logged in, otherwise ""
@@ -46,12 +37,49 @@ export async function playerHash(game, name){
     return Array.from(digest.subarray(0, 16), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+/**
+ * Asks the host for the proof that this PC holds a developer token. The token never enters the page, only the
+ * answer does, and only a reply carrying our own nonce counts. Resolves to null when there is nothing to prove.
+ *
+ * @param {string} nonce
+ * @param {string} game
+ * @param {string} hash
+ * @return {Promise<{user: string, proof: string} | null>}
+ */
+function devProof(nonce, game, hash){
+    return new Promise((resolve) => {
+        let timer = 0;
+        /**
+         * @param {MessageEvent} event
+         */
+        const listener = (event) => {
+            const reply = event?.data?.devProof;
+            // a reply to somebody else's request, or to one from an older connection
+            if (reply?.nonce !== nonce) return;
+            clearTimeout(timer);
+            window.chrome.webview.removeEventListener("message", listener);
+            resolve(typeof reply.user === "string" && typeof reply.proof === "string" ? { user: reply.user, proof: reply.proof } : null);
+        };
+        // an exe without the command never answers, and the join must not wait for it
+        timer = setTimeout(() => {
+            window.chrome.webview.removeEventListener("message", listener);
+            resolve(null);
+        }, PROOF_MS);
+        window.chrome.webview.addEventListener("message", listener);
+        window.chrome.webview.postMessage(`dev-proof, ${nonce}, ${game}, ${hash}`);
+    });
+}
+
 class Presence {
     constructor(){
         /** the lobby the roster belongs to, "" while not joined */
         this.game = "";
         /** @type {Set<string>} hashes of the Kute players in this lobby, the own one included */
         this.roster = new Set();
+        /** @type {Map<string, string>} the developers among them, hash -> the clan tag their row must show */
+        this.devs = new Map();
+        /** what the server opened this connection with, "" until its first frame arrived */
+        this.nonce = "";
         /** @type {Set<() => void>} called whenever the roster changed */
         this.listeners = new Set();
         /** @type {WebSocket | null} */
@@ -87,6 +115,7 @@ class Presence {
             clearInterval(this.timer);
             this.socket = null;
             this.joined = "";
+            this.nonce = "";
             this.setRoster("", []);
             const wait = RECONNECT_S[this.failures++];
             if (wait !== undefined) setTimeout(() => this.open(), wait * 1000);
@@ -109,7 +138,11 @@ class Presence {
         }
         const hash = await playerHash(game, name);
         // the login may have changed again while the hash was being made
-        if (this.joined === wanted) this.send({ t: "join", game, hash });
+        if (this.joined !== wanted) return;
+        // only a PC that holds a developer token has anything to prove, everybody else joins right away
+        const dev = kute.dev === true && this.nonce ? await devProof(this.nonce, game, hash) : null;
+        if (this.joined !== wanted) return;
+        this.send(dev ? { t: "join", game, hash, dev } : { t: "join", game, hash });
     }
 
     /**
@@ -130,16 +163,21 @@ class Presence {
         catch {
             return;
         }
-        if (message?.t === "roster" && typeof message.game === "string" && Array.isArray(message.players)){
+        if (message?.t === "hello" && typeof message.nonce === "string"){
+            this.nonce = message.nonce;
+        }
+        else if (message?.t === "roster" && typeof message.game === "string" && Array.isArray(message.players)){
             // an answer to a join that is not the current one anymore
             if (this.joined.startsWith(message.game + "\n")) this.setRoster(message.game, message.players);
         }
         else if (message?.t === "+" && typeof message.h === "string"){
-            this.roster.add(message.h);
+            // an upsert: the developer flag belongs to the hash and can change while it stays in the lobby
+            this.remember(message.h, message.d === 1 ? message.c : undefined);
             this.changed();
         }
         else if (message?.t === "-" && typeof message.h === "string"){
             this.roster.delete(message.h);
+            this.devs.delete(message.h);
             this.changed();
         }
         else if (message?.t === "counted"){
@@ -149,13 +187,30 @@ class Presence {
     }
 
     /**
+     * Puts a player into the roster, as a developer when clan is the tag their row shows.
+     *
+     * @param {string} hash
+     * @param {unknown} clan
+     */
+    remember(hash, clan){
+        this.roster.add(hash);
+        if (typeof clan === "string" && clan !== "") this.devs.set(hash, clan);
+        else this.devs.delete(hash);
+    }
+
+    /**
      * @param {string} game
      * @param {unknown[]} players
      */
     setRoster(game, players){
         if (game === this.game && players.length === 0 && this.roster.size === 0) return;
         this.game = game;
-        this.roster = new Set(players.filter((player) => typeof player === "string"));
+        this.roster = new Set();
+        this.devs = new Map();
+        // an entry is ["<hash>", 0], or ["<hash>", 1, {c: "<clan tag>"}] for a developer
+        for (const player of players){
+            if (Array.isArray(player) && typeof player[0] === "string") this.remember(player[0], player[1] === 1 ? player[2]?.c : undefined);
+        }
         this.changed();
     }
 

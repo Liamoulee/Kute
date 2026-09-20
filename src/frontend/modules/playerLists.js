@@ -1,14 +1,3 @@
-// The one place that looks at Krunker's four player lists (the top right leaderboard, the in-game scoreboard,
-// the alt list and the end screen). Decorators (clan colors, badges) get every row handed to them, so a rebuild
-// by Krunker costs one walk over the rows, no matter how many features draw into them.
-//
-// The lists come and go, but they live inside containers that are part of Krunker's page from the start, so
-// those containers get observed once and a rebuild is noticed the moment it happens. A list that turns up
-// somewhere else (wherever a Krunker update moves things) is found by one id lookup per second and then
-// observed itself. What the decorators insert is a mutation too, those records get dropped right after
-// a walk, otherwise every rebuild would be handled twice.
-// Measured in a live match: about one rebuild every two seconds, about five microseconds per walk.
-
 /** @typedef {"leader" | "ingame" | "alt" | "end"} ListKind */
 
 /**
@@ -19,6 +8,25 @@
  */
 
 /** @typedef {(row: Row) => void} Decorator */
+/** @typedef {(kind: ListKind) => void} WalkEnd */
+
+/** a clan tag as Krunker renders it: a span of its own next to the name, holding exactly "[tag]" */
+const CLAN_TAG = /^\s*\[(.+)\]\s*$/;
+
+/**
+ * The clan tag of a row, for the decorators that care (clan colors paint it, the developer badge is bound to it).
+ *
+ * @param {Element} nameElement
+ * @return {{ span: Element, tag: string } | null}
+ */
+export function clanTag(nameElement){
+    for (const span of nameElement.children){
+        if (span.tagName !== "SPAN") continue;
+        const match = CLAN_TAG.exec(span.textContent ?? "");
+        if (match) return { span, tag: match[1] };
+    }
+    return null;
+}
 
 /** the lists, what kind each is, and the permanent container it lives in (all four verified in the live game) */
 const LISTS = /** @type {{ list: string, kind: ListKind, root: string }[]} */ ([
@@ -47,20 +55,23 @@ function nameOf(nameElement){
 
 class PlayerLists {
     constructor(){
-        /** @type {Set<Decorator>} */
-        this.decorators = new Set();
+        /** @type {Map<Decorator, WalkEnd | undefined>} decorator -> what to call once a list is walked */
+        this.decorators = new Map();
         /** @type {{ observer: MutationObserver, target: Element, list: string, kind: ListKind }[]} */
         this.watched = [];
         this.timer = 0;
     }
 
     /**
-     * Starts handing every row to decorator, now and after every rebuild.
+     * Starts handing every row to decorator, now and after every rebuild. A decorator that has to decide
+     * something about a list as a whole (the developer badge needs to know whether a row is the only one of
+     * its kind) gets onWalkEnd called once per walked list, after its rows.
      *
      * @param {Decorator} decorator
+     * @param {WalkEnd} [onWalkEnd]
      */
-    add(decorator){
-        this.decorators.add(decorator);
+    add(decorator, onWalkEnd){
+        this.decorators.set(decorator, onWalkEnd);
         if (this.watched.length === 0) this.observe();
         this.refresh();
     }
@@ -129,8 +140,9 @@ class PlayerLists {
         if (list){
             for (const element of list.querySelectorAll(NAME_ELEMENTS)){
                 const row = { element, name: nameOf(element), kind: entry.kind };
-                for (const decorator of this.decorators) decorator(row);
+                for (const decorator of this.decorators.keys()) decorator(row);
             }
+            for (const onWalkEnd of this.decorators.values()) onWalkEnd?.(entry.kind);
         }
         // what the decorators just inserted must not come back as another walk
         entry.observer.takeRecords();

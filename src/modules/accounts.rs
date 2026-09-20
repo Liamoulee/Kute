@@ -3,12 +3,11 @@
 // a copied or synced file is noise. the page never holds the list, it gets names and colors, and a login
 // is filled into Krunker's form by this process over CDP so the password never crosses the bridge
 use crate::modules::devtools;
+use crate::modules::dpapi;
 use crate::utils;
 use cef::Browser;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use windows::Win32::Foundation::{HLOCAL, LocalFree};
-use windows::Win32::Security::Cryptography::{CRYPT_INTEGER_BLOB, CRYPTPROTECT_UI_FORBIDDEN, CryptProtectData, CryptUnprotectData};
 use windows::core::w;
 
 const FILE_VERSION: u32 = 1;
@@ -69,53 +68,12 @@ fn save(accounts: &[Stored]) {
     }
 }
 
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|byte| format!("{byte:02x}")).collect()
-}
-
-fn unhex(text: &str) -> Option<Vec<u8>> {
-    if !text.len().is_multiple_of(2) {
-        return None;
-    }
-    (0..text.len()).step_by(2).map(|i| u8::from_str_radix(&text[i..i + 2], 16).ok()).collect()
-}
-
-fn blob(bytes: &[u8]) -> CRYPT_INTEGER_BLOB {
-    CRYPT_INTEGER_BLOB {
-        cbData: bytes.len() as u32,
-        pbData: bytes.as_ptr() as *mut u8,
-    }
-}
-
-// the bytes of a blob DPAPI allocated, freed afterwards
-fn take(out: CRYPT_INTEGER_BLOB) -> Vec<u8> {
-    let bytes = unsafe { std::slice::from_raw_parts(out.pbData, out.cbData as usize).to_vec() };
-    unsafe { LocalFree(Some(HLOCAL(out.pbData as *mut _))) };
-    bytes
-}
-
 fn protect(text: &str) -> Option<String> {
-    let mut out = CRYPT_INTEGER_BLOB::default();
-    unsafe {
-        CryptProtectData(
-            &blob(text.as_bytes()),
-            w!("kute account"),
-            Some(&blob(ENTROPY)),
-            None,
-            None,
-            CRYPTPROTECT_UI_FORBIDDEN,
-            &mut out,
-        )
-    }
-    .ok()?;
-    Some(hex(&take(out)))
+    dpapi::protect(text, ENTROPY, w!("kute account"))
 }
 
 fn unprotect(text: &str) -> Option<String> {
-    let bytes = unhex(text)?;
-    let mut out = CRYPT_INTEGER_BLOB::default();
-    unsafe { CryptUnprotectData(&blob(&bytes), None, Some(&blob(ENTROPY)), None, None, CRYPTPROTECT_UI_FORBIDDEN, &mut out) }.ok()?;
-    String::from_utf8(take(out)).ok()
+    dpapi::unprotect(text, ENTROPY)
 }
 
 fn valid(text: &str) -> bool {

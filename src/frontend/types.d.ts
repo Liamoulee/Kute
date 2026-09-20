@@ -68,8 +68,8 @@ interface Kute {
     autoDetect: { start(): Promise<void>; undo(): void; showLast(): void; dropUndo(): void };
     clanColors: { apply(styles: unknown): void; toggle(enabled: boolean): void };
     badges: { toggle(enabled: boolean): void };
-    /** the socket to the Kute server and who else in the lobby runs Kute */
-    presence: { game: string; roster: Set<string>; receive(data: unknown): void };
+    /** the socket to the Kute server and who else in the lobby runs Kute (devs: hash -> their clan tag) */
+    presence: { game: string; roster: Set<string>; devs: Map<string, string>; receive(data: unknown): void };
     /** where the Kute server is, from the host (absent with an older exe) */
     apiBase?: string;
     /** the door to the Kute server */
@@ -77,6 +77,8 @@ interface Kute {
     bindShoot(): void;
     /** what the exe supports beyond the basics (absent with an older exe) */
     hostFeatures?: string[];
+    /** true when this PC holds a Kute developer token (the token itself never leaves the host) */
+    dev?: boolean;
     matchmaker: { showFilters(): Promise<void> };
 }
 
