@@ -287,7 +287,7 @@
     "throttle": {
         "name": "CPU Throttling",
         "id": "throttle",
-        "description": "Slows the game down by this factor (2 = 50%). \nOnly use it when the game is unstable",
+        "description": "Pauses the game thousands of times a second so it runs slower (2 = half speed). \nOnly use it when the game is unstable, an FPS limit is the better way to do less work",
         "type": "slider",
         "min": 1,
         "max": 3,
@@ -298,13 +298,13 @@
     "inMenuThrottle": {
         "name": "CPU Throttling in Menu",
         "id": "inMenuThrottle",
-        "description": "Same, but only while you are in the menu",
+        "description": "Same, but only while you are in the menu, where it also slows the match behind it",
         "type": "slider",
         "min": 1,
         "max": 3,
         "step": 0.01,
         "category": "Advanced",
-        "defaultValue": 1.5
+        "defaultValue": 1
     },
     "clearCache": {
         "name": "Clear Cache & Storage",
