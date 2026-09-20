@@ -688,6 +688,21 @@ unsafe fn wnd_proc_common(window: &mut Window, hwnd: HWND, msg: u32, wparam: WPA
             WM_SIZE => {
                 window.resize_browser(utils::LOWORD(lparam.0 as usize) as i32, utils::HIWORD(lparam.0 as usize) as i32);
             }
+            // per monitor v2: windows hands us the rect the window should take on the new monitor's scaling
+            WM_DPICHANGED if !window.state.fullscreen => {
+                let suggested = *(lparam.0 as *const RECT);
+                SetWindowPos(
+                    hwnd,
+                    None,
+                    suggested.left,
+                    suggested.top,
+                    suggested.right - suggested.left,
+                    suggested.bottom - suggested.top,
+                    SWP_NOZORDER | SWP_NOACTIVATE,
+                )
+                .ok();
+                return Some(LRESULT(0));
+            }
             WM_TIMER if wparam.0 == SHOW_TIMER => {
                 debug_print!("window: browser did not arrive in {SHOW_TIMEOUT_MS} ms, showing the window anyway");
                 show_window(window);
