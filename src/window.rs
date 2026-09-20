@@ -51,6 +51,11 @@ impl From<RECT> for Position {
 #[derive(Copy, Clone, serde::Serialize, serde::Deserialize, Default, Debug)]
 pub struct WindowState {
     pub fullscreen: bool,
+    // a maximized window's rect overhangs the screen by the border width, so restoring it as a plain window gave a
+    // window slightly too big and shifted down, which then needed a click on the title bar to really maximize.
+    // the position is the size to restore DOWN to, the flag maximizes on top of it
+    #[serde(default)]
+    pub maximized: bool,
     pub position: Position,
 }
 
@@ -79,10 +84,27 @@ impl Window {
                     SWP_NOZORDER | SWP_FRAMECHANGED,
                 )
                 .ok();
+                // a window that was maximized before F11 goes back to being maximized, not to a window of that size
+                if self.state.maximized {
+                    let _ = ShowWindow(self.hwnd, SW_MAXIMIZE);
+                }
             } else {
+                let mut placement = WINDOWPLACEMENT {
+                    length: std::mem::size_of::<WINDOWPLACEMENT>() as u32,
+                    ..Default::default()
+                };
+                self.state.maximized = IsZoomed(self.hwnd).as_bool();
                 let mut rect = RECT::default();
-                GetWindowRect(self.hwnd, &mut rect).ok();
+                if self.state.maximized && GetWindowPlacement(self.hwnd, &mut placement).is_ok() {
+                    rect = placement.rcNormalPosition;
+                } else {
+                    GetWindowRect(self.hwnd, &mut rect).ok();
+                }
                 self.state.position = Position::from(rect);
+                // leaving the maximized state behind avoids a window that is borderless AND still counts as maximized
+                if self.state.maximized {
+                    let _ = ShowWindow(self.hwnd, SW_RESTORE);
+                }
 
                 let h_monitor = MonitorFromWindow(self.hwnd, MONITOR_DEFAULTTONEAREST);
 
@@ -328,6 +350,7 @@ pub fn create_main_window() {
         let state = WindowState {
             // borderless, so the rect is the client area
             fullscreen: locked,
+            maximized: false,
             position: Position { left, top, right, bottom },
         };
         let hwnd = create_window("Remember Previous", false, Some(state));
@@ -405,6 +428,7 @@ pub fn create_popup_window(
     {
         window_state = Some(WindowState {
             fullscreen: false,
+            maximized: false,
             position: Position {
                 left: features.x,
                 top: features.y,
@@ -509,6 +533,7 @@ pub fn create_window(start_mode: &str, is_subwindow: bool, init_state: Option<Wi
             //fallback
             let mut creation_state = WindowState {
                 fullscreen: true,
+                maximized: false,
                 position: Position {
                     left: 0,
                     top: 0,
@@ -519,7 +544,12 @@ pub fn create_window(start_mode: &str, is_subwindow: bool, init_state: Option<Wi
             match start_mode {
                 "Borderless Fullscreen" => {}
                 "Maximized" => {
+                    // a real maximize: it keeps the taskbar visible, snapping and the restore button work, and the
+                    // windowed size is what the window restores down to. sizing a bordered window to the whole
+                    // screen only looked maximized (title bar inside the screen, borders and taskbar covered)
                     creation_state.fullscreen = false;
+                    creation_state.maximized = true;
+                    windowed_size(&mut creation_state);
                 }
                 "Remember Previous" => {
                     if let Some(init_state) = init_state {
@@ -593,6 +623,8 @@ pub fn create_window(start_mode: &str, is_subwindow: bool, init_state: Option<Wi
             // bottom stays unpainted (WM_ERASEBKGND is suppressed once a browser exists), which showed up as a black or
             // white border until the window was resized once (pressing F11 twice was the workaround)
             SetWindowPos(hwnd, None, x, y, width, height, SWP_FRAMECHANGED | SWP_NOZORDER | SWP_NOACTIVATE).ok();
+        } else if state.maximized {
+            let _ = ShowWindow(hwnd, SW_MAXIMIZE);
         }
 
         let window = Box::new(Window {
@@ -660,9 +692,20 @@ unsafe fn wnd_proc_common(window: &mut Window, hwnd: HWND, msg: u32, _wparam: WP
             }
             WM_DESTROY => {
                 if !window.is_subwindow {
-                    let mut rect = RECT::default();
-                    GetWindowRect(hwnd, &mut rect).ok();
-                    window.state.position = Position::from(rect);
+                    // the placement knows the restore size and the maximized state, GetWindowRect only sees the rect
+                    // of the moment (maximized: overhanging the screen, minimized: -32000)
+                    let mut placement = WINDOWPLACEMENT {
+                        length: std::mem::size_of::<WINDOWPLACEMENT>() as u32,
+                        ..Default::default()
+                    };
+                    if GetWindowPlacement(hwnd, &mut placement).is_ok() {
+                        window.state.position = Position::from(placement.rcNormalPosition);
+                        window.state.maximized = placement.showCmd == SW_SHOWMAXIMIZED.0 as u32 || IsZoomed(hwnd).as_bool();
+                    } else {
+                        let mut rect = RECT::default();
+                        GetWindowRect(hwnd, &mut rect).ok();
+                        window.state.position = Position::from(rect);
+                    }
                     let styles = GetWindowLongPtrW(hwnd, GWL_STYLE) as u32;
                     window.state.fullscreen = (styles & WS_OVERLAPPEDWINDOW.0) == 0;
                     crate::CONFIG.lock().unwrap().set("lastPosition", window.state);
