@@ -55,6 +55,13 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 
 <hr>
 
+<p align="center">
+If you want to support this Project, you can help with Code contributions :octocat: or a donations ❇️ <br> <br>
+<a href="https://ko-fi.com/null_dev"><img src="https://ko-fi.com/img/githubbutton_sm.svg"></a>
+</p>
+
+<hr>
+
 ## :lock: Potential issues
 
 - The stutter known from other uncapped clients (FPS counter high, screen choppy, worst when the GPU is the limit) is fixed by the patched CEF. <br>
