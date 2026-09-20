@@ -1,6 +1,50 @@
-use std::{env, fs};
+use std::{env, fs, path::PathBuf};
 extern crate embed_resource;
 extern crate toml;
+
+// what Explorer, the task manager and the signature dialog show about kute.exe. The version comes from
+// Cargo.toml, so the release workflow's bump carries it without anyone editing a resource file
+fn version_resource(package_version: &str, description: &str) -> String {
+    // FILEVERSION wants four numbers, "0.1.8" is three
+    let numbers = package_version
+        .split(['.', '-', '+'])
+        .map(|part| part.parse::<u16>().unwrap_or(0))
+        .chain([0, 0, 0, 0])
+        .take(4)
+        .map(|number| number.to_string())
+        .collect::<Vec<_>>()
+        .join(",");
+
+    format!(
+        r#"#pragma code_page(65001)
+1 VERSIONINFO
+FILEVERSION {numbers}
+PRODUCTVERSION {numbers}
+FILEOS 0x40004L
+FILETYPE 0x1L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName", "NullDev e.U."
+            VALUE "FileDescription", "{description}"
+            VALUE "FileVersion", "{package_version}"
+            VALUE "InternalName", "kute"
+            VALUE "OriginalFilename", "kute.exe"
+            VALUE "ProductName", "Kute"
+            VALUE "ProductVersion", "{package_version}"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
+"#
+    )
+}
+
 fn main() {
     embed_resource::compile("./resources/client.rc", embed_resource::NONE).manifest_optional().ok();
     if let Err(e) = embed_resource::compile("./resources/kute-manifest.rc", embed_resource::NONE).manifest_required() {
@@ -11,6 +55,12 @@ fn main() {
     let toml: toml::Value = toml::from_str(&toml_content).unwrap();
     let package_version = toml["package"]["version"].as_str().unwrap();
     let js_bundle_version = toml["package"]["metadata"]["js_bundle_version"].as_str().unwrap();
+    let description = toml["package"]["description"].as_str().unwrap();
+
+    // written into OUT_DIR instead of resources/, so a version bump never shows up as a changed file
+    let version_rc = PathBuf::from(env::var("OUT_DIR").unwrap()).join("version.rc");
+    fs::write(&version_rc, version_resource(package_version, description)).unwrap();
+    embed_resource::compile(&version_rc, embed_resource::NONE).manifest_optional().ok();
 
     let dest_path = env::current_dir().unwrap().join("target/bundle_version");
     fs::write(dest_path, js_bundle_version).unwrap();
