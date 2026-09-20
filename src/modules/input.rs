@@ -208,8 +208,6 @@ pub fn attach(parent: HWND) {
         }
     });
 
-    spawn_audio_window_thread();
-
     thread::spawn(move || {
         unsafe {
             debug_print!("input: WinEvent message thread started id={}", GetCurrentThreadId());
@@ -240,7 +238,9 @@ unsafe extern "system" fn dummy_wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, l
     unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
 }
 
-// OBS "Application Audio Capture" needs a window owned by the process that plays the audio
+// OBS "Application Audio Capture" needs a window owned by the process that plays the audio, which is the audio
+// service utility process (main.rs). This used to run here as well, from the days this file was a DLL loaded into
+// several processes, and the browser process it now lives in plays no audio: that window was a silent duplicate
 pub fn spawn_audio_window_thread() {
     thread::spawn(|| {
         let hinstance = unsafe { GetModuleHandleW(None).unwrap().into() };
