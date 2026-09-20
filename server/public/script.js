@@ -113,7 +113,7 @@ const lightbox = /** @type {HTMLDialogElement | null} */ (document.querySelector
 const stage = lightbox?.querySelector("[data-lightbox-stage]");
 const titleLabel = lightbox?.querySelector("[data-lightbox-title]");
 const countLabel = lightbox?.querySelector("[data-lightbox-count]");
-const cards = /** @type {HTMLElement[]} */ ([...document.querySelectorAll(".screen-card")]);
+const cards = /** @type {HTMLElement[]} */ ([...document.querySelectorAll(".screen-card[data-src]")]);
 
 let current = 0;
 let zoom = 1;

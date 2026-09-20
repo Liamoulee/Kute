@@ -973,7 +973,7 @@ h2 {
 
 .screen-gallery {
   display: grid;
-  grid-template-columns: minmax(0, 2.8fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 2.8fr) minmax(0, 1fr) minmax(0, 1fr);
   gap: 1rem;
 }
 
@@ -1080,6 +1080,26 @@ h2 {
   color: var(--cyan);
   font: normal 700 0.63rem/1 var(--mono);
   letter-spacing: 0.08em;
+}
+
+/* the placeholder card: nothing to open, so it says so and stays quiet */
+.screen-soon {
+  display: grid;
+  place-items: center;
+  border-style: dashed;
+  cursor: default;
+}
+
+.screen-soon:hover {
+  z-index: auto;
+  border-color: var(--line);
+  box-shadow: none;
+}
+
+.screen-soon span {
+  color: var(--dim);
+  font: 800 clamp(0.9rem, 1.6vw, 1.3rem)/1 var(--mono);
+  letter-spacing: 0.12em;
 }
 
 .features {
