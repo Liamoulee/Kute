@@ -13,6 +13,14 @@ function numberParam(key, fallback){
     return query.has(key) && Number.isFinite(value) ? value : fallback;
 }
 
+/**
+ * How long the scene keeps drawing after the result went out. The host answers `bench-finish` by asking the
+ * present hook for its interval distribution, and the hook only answers that on its next Present. Tearing the
+ * scene down first stopped the presents, so the request waited out its 150 ms and the row came back without
+ * any present numbers. The process exits on its own about a second later.
+ */
+const FINISH_GRACE_MS = 400;
+
 const settleMs = numberParam("settle", 700);
 const sampleMs = numberParam("ms", 2000);
 const hitchMs = numberParam("hitch", 8);
@@ -51,6 +59,7 @@ function run(){
     const tasks = new TaskProbe();
     const start = performance.now();
     let sampling = false;
+    let finishedAt = 0;
     let nextSlot = start;
 
     /**
@@ -66,6 +75,12 @@ function run(){
         const now = performance.now();
         scene.render(timestamp);
 
+        if (finishedAt > 0){
+            if (now - finishedAt < FINISH_GRACE_MS) requestAnimationFrame(frame);
+            else scene.destroy();
+            return;
+        }
+
         if (!sampling && now - start >= settleMs){
             sampling = true;
             window.chrome.webview.postMessage("bench-sample-start");
@@ -76,7 +91,7 @@ function run(){
         if (sampling && now - start >= settleMs + sampleMs){
             const otherTasks = tasks.stop();
             const stats = recorder.stats(hitchMs);
-            scene.destroy();
+            finishedAt = now;
             finish({
                 ok: true,
                 stats,
@@ -86,6 +101,7 @@ function run(){
                 height: canvas.height,
                 checksum: cpuChecksum(),
             });
+            requestAnimationFrame(frame);
             return;
         }
         requestAnimationFrame(frame);
