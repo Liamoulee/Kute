@@ -463,20 +463,28 @@ pub fn create_window(start_mode: &str, is_subwindow: bool, init_state: Option<Wi
         } else {
             w!("kute_webview")
         };
-        let wc = WNDCLASSW {
-            style: CS_HREDRAW | CS_VREDRAW,
-            lpfnWndProc: Some(wnd_proc_setup),
-            cbClsExtra: 0,
-            cbWndExtra: 0,
-            hInstance: hinstance,
-            hIcon: icon,
-            hCursor: Default::default(),
-            hbrBackground: CreateSolidBrush(COLORREF(0x00000000)),
-            lpszMenuName: PCWSTR::null(),
-            lpszClassName: class_name,
-        };
+        // the class survives the window, so registering it again (every popup) only leaked another brush
+        thread_local! {
+            static REGISTERED_CLASSES: RefCell<Vec<PCWSTR>> = const { RefCell::new(Vec::new()) };
+        }
+        let known = REGISTERED_CLASSES.with_borrow(|classes| classes.iter().any(|known| known.0 == class_name.0));
+        if !known {
+            let wc = WNDCLASSW {
+                style: CS_HREDRAW | CS_VREDRAW,
+                lpfnWndProc: Some(wnd_proc_setup),
+                cbClsExtra: 0,
+                cbWndExtra: 0,
+                hInstance: hinstance,
+                hIcon: icon,
+                hCursor: Default::default(),
+                hbrBackground: CreateSolidBrush(COLORREF(0x00000000)),
+                lpszMenuName: PCWSTR::null(),
+                lpszClassName: class_name,
+            };
 
-        RegisterClassW(&wc);
+            RegisterClassW(&wc);
+            REGISTERED_CLASSES.with_borrow_mut(|classes| classes.push(class_name));
+        }
 
         let screen_width = GetSystemMetrics(SM_CXSCREEN);
         let screen_height = GetSystemMetrics(SM_CYSCREEN);
