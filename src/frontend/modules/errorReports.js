@@ -1,15 +1,6 @@
 import { kute, ready } from "../client.js";
 import api from "./api.js";
 
-// Tells the Kute server when the client's own script throws (unless "Anonymous Telemetry" is off). A Krunker update
-// that moves an element is the usual cause, and without this nobody hears about it until a player complains.
-//
-// Only errors that come out of this bundle count: the host evaluates it under the name "bundle.js", so that name
-// is the error's file or the top frame of its stack. Krunker's own errors and userscripts are none of our business.
-// What goes out: client and bundle version, the message, the position and the stack. Nothing about the player.
-// At most MAX_REPORTS per page load and each message once, so a throw inside a loop cannot flood anything, and the
-// server keeps one row per distinct error with a counter.
-
 const BUNDLE_NAME = "bundle.js";
 const MAX_REPORTS = 3;
 

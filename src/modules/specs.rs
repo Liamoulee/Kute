@@ -1,4 +1,3 @@
-// hardware facts for the auto-detect run (frontend/modules/autoDetect): what the page cannot find out itself
 use serde_json::{Value, json};
 use windows::{
     Win32::{

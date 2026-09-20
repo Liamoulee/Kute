@@ -63,7 +63,7 @@ pub struct obs_source_info {
     pub video_render: Option<VideoRenderFn>,
 }
 
-/// Runtime-resolved function pointers into `obs.dll`.
+// Runtime-resolved function pointers into `obs.dll`.
 pub struct ObsApi {
     pub register_source: unsafe extern "C" fn(info: *const obs_source_info, size: usize),
     pub gs_get_device_type: unsafe extern "C" fn() -> i32,
@@ -75,7 +75,7 @@ pub struct ObsApi {
     pub gs_draw_sprite: unsafe extern "C" fn(tex: *mut gs_texture_t, flip: u32, cx: u32, cy: u32),
 }
 
-/// Resolved once: points into the already-loaded `obs.dll`.
+// Resolved once: points into the already-loaded `obs.dll`.
 pub static OBS: LazyLock<Option<ObsApi>> = LazyLock::new(resolve_obs_api);
 
 unsafe fn resolve<T: Copy>(module: HMODULE, name: &[u8]) -> Option<T> {

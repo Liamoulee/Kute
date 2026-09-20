@@ -32,8 +32,6 @@ struct KuteCaptureInfo {
     reserved: [u64; 2],
 }
 
-/// Raw pointer to the mapped control block, kept in an atomic so the hot present path can read
-/// `READER_ACTIVE` without taking the (uncontended) state mutex. 0 = capture not initialized.
 static INFO_PTR: AtomicU64 = AtomicU64::new(0);
 
 struct Capture {
@@ -42,10 +40,10 @@ struct Capture {
     last_main_present: Instant,
     mapping: usize,
     frame_event: usize,
-    /// Open NT handle (as `usize`) that keeps the `KuteCaptureTex_<pid>` name resolvable. Must
-    /// stay open for as long as the texture is published (a name only resolves while alive).
+    // Open NT handle (as `usize`) that keeps the `KuteCaptureTex_<pid>` name resolvable. Must
+    // stay open for as long as the texture is published (a name only resolves while alive).
     shared_handle: Option<usize>,
-    /// The real D3D11 device/context from the WebView2 composition swap chain.
+    // The real D3D11 device/context from the WebView2 composition swap chain.
     device: Option<ID3D11Device>,
     context: Option<ID3D11DeviceContext>,
     shared_tex: Option<ID3D11Texture2D>,
@@ -75,8 +73,6 @@ impl Drop for Capture {
 }
 
 impl Capture {
-    /// Close the published name-handle and release the shared texture so it is re-created lazily
-    /// (first use, or on the current swap chain / dims).
     fn release_shared(&mut self) {
         if self.shared_handle.is_some() || self.shared_tex.is_some() {
             crate::debug_print!("capture: releasing published shared texture");
@@ -97,11 +93,9 @@ fn wide(s: &str) -> Vec<u16> {
 }
 
 const READER_ACTIVE: u32 = 0x1;
-/// Control block mapping size (fixed; struct is 48 bytes).
+// Control block mapping size (fixed; struct is 48 bytes).
 const INFO_SIZE: usize = 64;
-/// Create the PID-scoped named control block + frame event and map the control block.
-/// Best-effort & non-fatal: if anything fails, capture simply stays off and the existing
-/// frame-timing feature keeps working. Called from `attach()`.
+
 pub fn capture_init() {
     let pid = unsafe { GetCurrentProcessId() };
     crate::debug_print!("capture: initialization started for pid {pid}");
@@ -159,10 +153,6 @@ pub fn capture_init() {
     }
 }
 
-/// Called from the `CreateSwapChainForComposition` hook each time a (new) swap chain appears, so
-/// we learn the real D3D11 device and invalidate the shared texture for lazy re-creation against
-/// the current swap chain. `device` is `None` if the device could not be obtained here; the
-/// present path will lazily re-fetch it from the swap chain.
 pub fn capture_on_swapchain(_swapchain: *mut c_void, device: Option<ID3D11Device>) {
     if INFO_PTR.load(Ordering::Acquire) == 0 {
         return;
@@ -178,8 +168,8 @@ pub fn capture_on_swapchain(_swapchain: *mut c_void, device: Option<ID3D11Device
     }
 }
 
-/// Ensure a shared texture matching (`w`, `h`, `format`) exists on the real device, then publish
-/// dims/format in the control block. Currently holding the state lock.
+// Ensure a shared texture matching (`w`, `h`, `format`) exists on the real device, then publish
+// dims/format in the control block. Currently holding the state lock.
 fn ensure_shared_tex(c: &mut Capture, w: u32, h: u32, format: u32) {
     if let Some(_tex) = c.shared_tex.as_ref()
         && c.cached_w == w
@@ -218,7 +208,6 @@ fn ensure_shared_tex(c: &mut Capture, w: u32, h: u32, format: u32) {
         return;
     };
 
-    // Publish a name so the OBS process can open it by name (raw handles never cross processes).
     let tex_name = wide(&format!("KuteCaptureTex_{}", c.pid));
     let res: IDXGIResource1 = match tex.cast() {
         Ok(r) => r,
@@ -271,8 +260,6 @@ pub fn capture_on_present(swapchain: *mut c_void) {
     if let Ok(mut guard) = CAPTURE.lock() {
         let Some(c) = guard.as_mut() else { return };
 
-        // Learn active dims/format from the live back buffer. We borrow (not own) the WebView2
-        // swap-chain pointer so we never release a reference that isn't ours.
         let Some(sc) = (unsafe { IDXGISwapChain1::from_raw_borrowed(&swapchain) }) else {
             return;
         };
@@ -286,11 +273,9 @@ pub fn capture_on_present(swapchain: *mut c_void) {
 
         if let Some(main_sc) = c.main_swapchain {
             if sc_ptr != main_sc {
-                // If main swapchain is actively presenting ignore new swapchains
                 if c.last_main_present.elapsed() < std::time::Duration::from_millis(1500) {
                     return;
                 }
-                // Main swapchain went silent
                 crate::debug_print!("capture: main swapchain silent, updating to {sc_ptr:#x}");
                 c.main_swapchain = Some(sc_ptr);
                 c.release_shared();
@@ -305,7 +290,6 @@ pub fn capture_on_present(swapchain: *mut c_void) {
         let h = desc.Height;
         let fmt = desc.Format.0 as u32;
 
-        // Device must be the real one; lazily fetch from the swap chain if not yet known.
         if c.device.is_none()
             && let Ok(dev) = unsafe { sc.GetDevice::<ID3D11Device>() }
         {
@@ -313,8 +297,6 @@ pub fn capture_on_present(swapchain: *mut c_void) {
             c.context = None;
         }
 
-        // Ensure the dedicated shared texture exists / matches current dims & format. Called
-        // before taking any field borrow so it may take the whole `&mut Capture`.
         if c.shared_tex.is_none() || c.cached_w != w || c.cached_h != h || c.cached_format != fmt {
             ensure_shared_tex(c, w, h, fmt);
         }
@@ -328,10 +310,8 @@ pub fn capture_on_present(swapchain: *mut c_void) {
         }
         let Some(context) = c.context.as_ref() else { return };
 
-        // Copy the back buffer into the dedicated shared texture (synchronous on this device).
         unsafe { context.CopyResource(shared, &back) };
 
-        // Signal a fresh, safe-to-copy frame and advance the counter.
         unsafe {
             let info = &mut *(info_ptr as *mut KuteCaptureInfo);
             info.frame_counter = info.frame_counter.wrapping_add(1);
@@ -340,8 +320,8 @@ pub fn capture_on_present(swapchain: *mut c_void) {
     }
 }
 
-/// Best-effort cleanup on `DLL_PROCESS_DETACH`. Dropping the state closes the kernel handles and
-/// releases the COM objects; named objects vanish when their last handle closes (process exit too).
+// Best-effort cleanup on `DLL_PROCESS_DETACH`. Dropping the state closes the kernel handles and
+// releases the COM objects; named objects vanish when their last handle closes (process exit too).
 pub fn capture_cleanup() {
     crate::debug_print!("capture: cleanup started");
     if let Ok(mut guard) = CAPTURE.lock() {

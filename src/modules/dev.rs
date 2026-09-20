@@ -1,10 +1,3 @@
-// the developer badge's half of the proof. a developer holds a token that the Kute server also knows
-// (config.custom.ts). it lives DPAPI encrypted in Documents\kute\dev.json, deliberately not in settings.json,
-// which people share and which OneDrive syncs.
-//
-// the page never sees the token: it asks this process for HMAC-SHA256(token, nonce + "\n" + game + "\n" + hash)
-// over the bridge and sends only that with its presence join. the token itself never travels, and the nonce
-// belongs to one connection, so a recorded proof is worthless on another one. see _docs/badges-plan.md
 use crate::modules::dpapi;
 use crate::utils;
 use serde::{Deserialize, Serialize};
@@ -54,7 +47,6 @@ fn message(text: PCWSTR, style: windows::Win32::UI::WindowsAndMessaging::MESSAGE
 }
 
 // "--set-dev-token=<username>:<token>" stores the pair, "--set-dev-token=" alone forgets it again.
-// nothing else about this exe changes, so it is a start that only writes the file and exits
 pub fn handle_cli_flags() -> bool {
     let Some(value) = std::env::args().find_map(|arg| arg.strip_prefix(ARG).map(str::to_string)) else {
         return false;
@@ -98,8 +90,6 @@ pub fn handle_cli_flags() -> bool {
     true
 }
 
-// the answer to a "dev-proof" bridge message: the username the server looks up, and the proof, both empty
-// when this PC holds no token
 pub fn proof(nonce: &str, game: &str, hash: &str) -> Option<(String, String)> {
     let (user, token) = load()?;
     let data = format!("{nonce}\n{game}\n{hash}");

@@ -241,9 +241,9 @@ class RankProgress {
         const nextRankDisplay = data.isMax
             ? ""
             : `<div class="rank-next-container">
-				 <img src="https://assets.krunker.io/img/ranked/ranks/${data.nextRank.image}" class="elo-rank-img">
-				 <span>${data.nextRank.rank}</span>
-			   </div>`;
+				<img src="https://assets.krunker.io/img/ranked/ranks/${data.nextRank.image}" class="elo-rank-img">
+				<span>${data.nextRank.rank}</span>
+			</div>`;
 
         const barText = data.isMax ? `${currentElo}` : `${currentElo} / ${data.nextRank.elo}`;
 

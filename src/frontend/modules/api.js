@@ -1,8 +1,3 @@
-// The one door to the Kute server (clan colors, the Kute badge, telemetry). The client has to play the same with
-// the server gone, so: one health check per page load, and when it fails nothing talks to the server until the
-// next load. A server that dies later gets the same treatment after a few failed requests in a row.
-// Every request has a timeout, nothing here ever throws.
-
 import { kute } from "../client.js";
 
 const HEALTH_TIMEOUT_MS = 4000;

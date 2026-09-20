@@ -82,4 +82,3 @@ function openExtQueue(){
 }
 
 externalQueue.onclick = openExtQueue;
-

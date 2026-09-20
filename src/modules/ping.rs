@@ -74,9 +74,6 @@ pub fn ping(browser_id: i32) {
 static REGION_PINGS: Mutex<Option<(time::Instant, String)>> = Mutex::new(None);
 const REGION_PINGS_MAX_AGE: time::Duration = time::Duration::from_secs(60);
 
-// the matchmaker sorts lobbies by the ping to their region: one ICMP ping to a lobby server of every region,
-// the list of them comes from krunker's matchmaker. replies {regionPings: {"de-fra": 30, ...}}, keyed like the
-// region field of the game list. cached for a minute, a search is one key press
 pub fn ping_regions(browser_id: i32) {
     std::thread::spawn(move || {
         let cached = REGION_PINGS.lock().unwrap().as_ref().filter(|(at, _)| at.elapsed() < REGION_PINGS_MAX_AGE).map(|(_, json)| json.clone());

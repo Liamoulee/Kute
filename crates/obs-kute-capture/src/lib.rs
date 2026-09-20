@@ -87,8 +87,8 @@ impl KuteSource {
         self.height = 0;
     }
 
-    /// Open the producer's named shared texture on OBS's device and wrap it into a `gs_texture_t`.
-    /// No-op if one already exists at the given size.
+    // Open the producer's named shared texture on OBS's device and wrap it into a `gs_texture_t`.
+    // No-op if one already exists at the given size.
     fn open_texture(&mut self, w: u32, h: u32) {
         if !self.gs_tex.is_null() && self.width == w && self.height == h {
             return;
@@ -207,8 +207,6 @@ unsafe extern "C" fn video_tick(data: *mut c_void, _seconds: f32) {
 unsafe extern "C" fn video_render(data: *mut c_void, effect: *mut gs_effect_t) {
     let s = &mut *(data as *mut KuteSource);
 
-    // Open (or resize/reopen) the shared texture here, on the render thread, where a gs context
-    // is guaranteed active.
     if let Some(sess) = s.session.as_ref() {
         let w = unsafe { (*sess.info).width };
         let h = unsafe { (*sess.info).height };
@@ -263,13 +261,13 @@ pub extern "C" fn obs_module_load() -> bool {
     true
 }
 
-/// Required by OBS's module loader (equivalent of `OBS_DECLARE_MODULE`): receives the module's
-/// `obs_module_t*`. We don't use `obs_current_module`/locale helpers, so we just accept it.
+// Required by OBS's module loader (equivalent of `OBS_DECLARE_MODULE`): receives the module's
+// `obs_module_t*`. We don't use `obs_current_module`/locale helpers, so we just accept it.
 #[unsafe(no_mangle)]
 pub extern "C" fn obs_module_set_pointer(_module: *mut c_void) {}
 
-/// Required by OBS's module loader: reports the libobs API version we were built against. OBS only
-/// rejects plugins claiming a *newer* libobs than itself, so we target OBS 32.x (API 32.0.0).
+// Required by OBS's module loader: reports the libobs API version we were built against. OBS only
+// rejects plugins claiming a *newer* libobs than itself, so we target OBS 32.x (API 32.0.0).
 #[unsafe(no_mangle)]
 pub extern "C" fn obs_module_ver() -> u32 {
     32 << 24 // LIBOBS_API_VER = 0x20000000 (major 32, minor 0, patch 0)

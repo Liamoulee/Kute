@@ -1,7 +1,3 @@
-// the account manager's store. credentials live in Documents\kute\accounts.json, each field encrypted with
-// DPAPI (CryptProtectData, user scope, extra entropy): only this Windows user on this machine can read them,
-// a copied or synced file is noise. the page never holds the list, it gets names and colors, and a login
-// is filled into Krunker's form by this process over CDP so the password never crosses the bridge
 use crate::modules::devtools;
 use crate::modules::dpapi;
 use crate::utils;

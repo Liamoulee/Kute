@@ -5,10 +5,6 @@ import { getDb } from "../db";
 // =     - SPDX: MIT -     = //
 // ========================= //
 
-// The three player numbers of /api/health. All of them are plain counters: how many connections are open now,
-// the highest that number ever was (with the day), and how many clients ever said "this is my first time".
-// No list of who was counted exists anywhere, the client remembers that itself.
-
 let online = 0;
 let peak = 0;
 let peakDay = "";

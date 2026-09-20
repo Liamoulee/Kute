@@ -168,9 +168,6 @@ pub fn set_browser_visible(browser: &Browser, visible: bool) {
     }
 }
 
-// an auto-detect run measures the window the player looks at: a minimized one gets restored, and it comes to the
-// front (windows allows that here, the player just clicked a button in this window). not maximized on purpose,
-// the run has to measure the size the player really plays in
 pub fn bring_to_front(browser: &Browser) {
     let Some(hwnd) = root_hwnd(browser) else { return };
     unsafe {
@@ -272,8 +269,6 @@ pub fn detach_browser(browser: &Browser) {
     }
 }
 
-// "close" from the page: shut every window down the regular way. only this process's windows,
-// a bench run and the client can be open at the same time
 pub fn close_all() {
     let windows: Vec<HWND> = BROWSER_WINDOWS.with_borrow(|m| m.values().copied().collect());
     for hwnd in windows {
@@ -441,9 +436,7 @@ pub fn create_popup_window(
     }
 }
 
-// kute.ico carries simplified art for 16 to 32 px and the detailed logo above that (resources/make-ico.py).
-// the class icon is one handle at the 32 px class, so the title bar icon would be whatever windows derives from
-// it. asking for the exact sizes the system uses (they grow with the display scale) gets the entry made for them
+// kute.ico carries simplified art for 16 to 32 px and the detailed logo above that (resources/make-ico.py)
 unsafe fn set_window_icons(hwnd: HWND, hinstance: HINSTANCE) {
     unsafe {
         for (kind, width, height) in [(ICON_SMALL, SM_CXSMICON, SM_CYSMICON), (ICON_BIG, SM_CXICON, SM_CYICON)] {

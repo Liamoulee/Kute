@@ -1,7 +1,3 @@
-// DPAPI (CryptProtectData, user scope) plus the hex the stores keep the blobs as. Only this Windows user on
-// this machine can read a blob back, so a copied or synced file is noise. The entropy ties a blob to one use:
-// a blob made for the account store does not decrypt as a developer token, and neither decrypts in another
-// program that uses DPAPI with the same user
 use windows::Win32::Foundation::{HLOCAL, LocalFree};
 use windows::Win32::Security::Cryptography::{CRYPT_INTEGER_BLOB, CRYPTPROTECT_UI_FORBIDDEN, CryptProtectData, CryptUnprotectData};
 use windows::core::PCWSTR;

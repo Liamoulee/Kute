@@ -1,6 +1,3 @@
-// Custom matchmaker, ported from the Krunker Civilian Client (GPL-3.0), which took it from Crankshaft.
-// F6 fetches the live lobby list, keeps the lobbies that pass the player's filters, sorts them by the ping
-// to their region (measured by the host) and joins the best one, with a short scan animation meanwhile.
 import styles from "../components/matchmaker.css";
 import { kute } from "../client.js";
 import { request } from "../utils.js";

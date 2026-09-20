@@ -75,9 +75,7 @@ pub fn set_target_fps(fps_limit: u64) {
     }
 }
 
-// asks the present hook for the distribution of its frame intervals since the last call and starts a new window.
-// the hook answers from its next present, so this waits a moment. None without the hook, or when nothing presents.
-// returns (p50, p99, max of the present intervals, p99 of the arrival intervals, samples), times in ns
+// asks the present hook for the distribution of its frame intervals since the last call
 pub fn take_present_intervals() -> Option<(u64, u64, u64, u64, u64)> {
     let ptr = SHARED_STATS_PTR.load(Ordering::SeqCst);
     if ptr == 0 {
@@ -160,10 +158,6 @@ pub fn has_flag(wanted: &str) -> bool {
     FLAGS.lock().unwrap().iter().any(|flag| flag == wanted)
 }
 
-// chromium's session service records our game tab and its startup code restores it into a plain
-// chrome window on the next start, so the recorded session is dropped and the profile is marked
-// as cleanly exited before every start. the same pass pins the profile preferences that mirror
-// the WebView2 settings (no password or autofill prompts, no translate bubble)
 pub fn prepare_profile() {
     let profile_dir = cache_dir().join("Default");
     if let Ok(entries) = fs::read_dir(profile_dir.join("Sessions")) {

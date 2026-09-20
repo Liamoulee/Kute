@@ -4,9 +4,7 @@ import path from "node:path";
 const args = process.argv.slice(2);
 const buildType = args[0];
 
-// cef-dll-sys copies the CEF runtime (libcef.dll, *.pak, locales/, ...) next to the exe when its build script runs,
-// this fills in what a skipped build script left out and stages what cargo does not: the VC runtime, the js bundle
-// and the OBS plugin. dist/ collects the shippable subset of the target dir for the installer
+// cef-dll-sys copies the CEF runtime (libcef.dll, *.pak, locales/, ...) next to the exe when its build script runs
 const targetDir = path.join(process.cwd(), "target", buildType);
 const targetResourcesDir = path.join(targetDir, "resources");
 const distDir = path.join(targetDir, "dist");

@@ -1,6 +1,3 @@
-// in-process successor of webview-dll: subclasses CEF's Chrome_WidgetWin / Chrome_RenderWidgetHostHWND
-// windows for raw input filtering, scroll forwarding and ramp boost, kills the pointer lock bubble
-// and provides the hidden window OBS captures the game audio through
 use std::{
     ffi::c_void,
     mem::{self, transmute},

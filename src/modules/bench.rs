@@ -14,10 +14,7 @@ use cef::{rc::*, *};
 
 use crate::{app, bridge, debug_print, utils, window};
 
-// `kute.exe --bench=hook=1,depth=1,uncap=1,ms=2000,out=C:\path\result.json` measures one process level
-// configuration: it is a second browser process with its own profile, flags and timing mapping, so it
-// can run next to the client. it loads the synthetic scene (frontend/modules/autoDetect), writes one
-// JSON result and exits. settings that need a restart can only be compared this way
+// `kute.exe --bench=hook=1,depth=1,uncap=1,ms=2000,out=C:\path\result.json`
 pub struct BenchConfig {
     pub hook: bool,
     pub uncap: bool,
@@ -219,9 +216,6 @@ fn run_one(config: &str, step: usize, steps: usize, rect: [i32; 4], exe: &PathBu
     result
 }
 
-// UI thread. the game page is hidden while the bench processes measure, otherwise it competes for the GPU and
-// the numbers mean nothing. the bench window covers the client and takes no input, so there is nothing a
-// player could do wrong in between. replies {benchMatrix: [result or null, ...]} in the order of the configs
 pub fn run_matrix(browser: &Browser, configs: Vec<String>) {
     if MATRIX_RUNNING.swap(true, Ordering::SeqCst) {
         return;

@@ -12,10 +12,10 @@ pub const KUTE_CAPTURE_MAGIC: u32 = 0x5052_4347; // "GCRP"
 pub const KUTE_CAPTURE_VERSION: u32 = 1;
 pub const READER_ACTIVE: u32 = 0x1;
 const INFO_SIZE: usize = 64;
-/// SYNCHRONIZE access right needed to peek (wait) on the frame event.
+// SYNCHRONIZE access right needed to peek (wait) on the frame event.
 const SYNCHRONIZE: u32 = 0x0010_0000;
 
-/// Layout must match the producer's `KuteCaptureInfo` byte-for-byte (docs/obs-shared-capture.md §4).
+// Layout must match the producer's `KuteCaptureInfo` byte-for-byte (docs/obs-shared-capture.md §4).
 #[repr(C, packed)]
 pub struct KuteCaptureInfo {
     pub magic: u32,
@@ -28,7 +28,7 @@ pub struct KuteCaptureInfo {
     pub reserved: [u64; 2],
 }
 
-/// An open handle to one producer's capture state.
+// An open handle to one producer's capture state.
 pub struct Session {
     pub pid: u32,
     pub mapping: HANDLE,
@@ -38,7 +38,7 @@ pub struct Session {
 }
 
 impl Session {
-    /// Close handles + unmap. The producer's named objects vanish when their last handle closes.
+    // Close handles + unmap. The producer's named objects vanish when their last handle closes.
     pub fn close(&mut self) {
         unsafe {
             if !self.view.Value.is_null() {
@@ -79,8 +79,6 @@ fn name_matches(name: &[u16], expected: &str) -> bool {
     name[..exp.len()] == exp[..] && name[exp.len()] == 0
 }
 
-/// Try to open + validate the producer for `pid`. Returns a session on success (mapping mapped +
-/// magic/version valid), otherwise `None` and nothing leaks.
 fn try_attach(pid: u32) -> Option<Session> {
     unsafe {
         let info_name = wide(&format!("KuteCaptureInfo_{pid}"));
@@ -112,7 +110,6 @@ fn try_attach(pid: u32) -> Option<Session> {
     }
 }
 
-/// True if a process with `pid` currently exists (does not wait, needs no rights).
 pub fn process_exists(pid: u32) -> bool {
     unsafe {
         let Ok(h) = OpenProcess(PROCESS_ACCESS_RIGHTS(0), false, pid) else {
@@ -124,8 +121,6 @@ pub fn process_exists(pid: u32) -> bool {
     }
 }
 
-/// Enumerate every `kute.exe` and (re)attach to the one that publishes a valid capture
-/// control block.
 pub fn discover() -> Option<Session> {
     unsafe {
         let snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0).ok()?;

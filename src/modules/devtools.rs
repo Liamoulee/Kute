@@ -1,7 +1,6 @@
 use cef::*;
 use std::sync::atomic::{AtomicI32, AtomicU32, Ordering};
 
-// CDP message ids only need to be unique per browser
 static NEXT_ID: AtomicI32 = AtomicI32::new(1);
 
 fn call(browser: &Browser, method: &str, params: Option<DictionaryValue>) {

@@ -14,8 +14,8 @@ export async function telemetryRoutes(app: FastifyInstance): Promise<void> {
     const insertReport = getDb().prepare(
         `INSERT INTO autodetect_reports
             (received_day, kute_version, run_index, gpu, cpu, hz, laptop, base_fps, final_fps, regime, holds_goal, changes,
-             renderer, os_build, ram_gb, threads, canvas_width, canvas_height, resolution, hard_flip, throttle, fps_limit,
-             present_p99, report)
+            renderer, os_build, ram_gb, threads, canvas_width, canvas_height, resolution, hard_flip, throttle, fps_limit,
+            present_p99, report)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const insertFailure = getDb().prepare(

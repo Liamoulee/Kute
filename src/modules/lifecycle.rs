@@ -210,8 +210,8 @@ pub fn set_panic_hook() -> io::Result<()> {
                 PCWSTR(
                     create_utf_string(format!(
                         "A crash report has been saved to:\n\
-                     {}\n\n\
-                     Click Yes to open the log.",
+                        {}\n\n\
+                        Click Yes to open the log.",
                         log_file_path.display()
                     ))
                     .as_ptr(),
@@ -235,18 +235,12 @@ pub fn set_panic_hook() -> io::Result<()> {
     Ok(())
 }
 
-// a path inside the user's folder names the Windows account. it has no place in a report.
-// None when the pattern does not compile (the regex crate is built without unicode case folding here, so no
-// (?i)): then nothing gets sent, and nothing on this path may ever panic, it runs on every start
 fn without_user_paths(text: &str) -> Option<String> {
     static USER_PATH: std::sync::LazyLock<Option<regex::Regex>> =
         std::sync::LazyLock::new(|| regex::Regex::new(r#"[A-Za-z]:[\\/]+[Uu][Ss][Ee][Rr][Ss][\\/]+[^\\/\s:"']+"#).ok());
     Some(USER_PATH.as_ref()?.replace_all(text, "~").into_owned())
 }
 
-// a crash gets reported on the NEXT start, not from the process that is going down: what crashed, where, and the
-// stack, no more (the server keeps one row per distinct crash with a counter). crash_log.sent remembers which
-// log went out, so the file itself stays where the user can find it for an issue
 pub fn report_last_crash() {
     let log_path = crash_log_path();
     let Ok(modified) = fs::metadata(&log_path).and_then(|meta| meta.modified()) else {
@@ -280,9 +274,6 @@ pub fn report_last_crash() {
     send_telemetry("crash", report.to_string());
 }
 
-// an auto-detect report: hardware names and measurements, nothing about the player (see server/src/util/report.ts
-// for the exact fields the server keeps). sent from here and not from the page, where the game's content
-// security policy decides what may be fetched. fire and forget: a lost report is not worth a retry
 pub fn send_telemetry(kind: &str, report: String) {
     if !utils::config("telemetry", true) || !constants::TELEMETRY_KINDS.contains(&kind) {
         return;
