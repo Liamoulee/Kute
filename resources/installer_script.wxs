@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util">
-  <Package Id="kutePackage" Name="Kute" Manufacturer="NullDev" Version="0.1.7" Scope="perUser" UpgradeCode="a7646727-a137-4b5b-a053-a558de8fa100">
+  <Package Id="kutePackage" Name="Kute" Manufacturer="NullDev" Version="0.1.8" Scope="perUser" UpgradeCode="a7646727-a137-4b5b-a053-a558de8fa100">
     <util:CloseApplication Target="kute.exe" CloseMessage="yes" RebootPrompt="no"/>
     <Icon Id="AppIconIco" SourceFile="resources/kute.ico"/>
     <Property Id="ARPPRODUCTICON" Value="AppIconIco" />
