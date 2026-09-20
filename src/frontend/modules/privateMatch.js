@@ -49,15 +49,26 @@ export async function hostLobby(){
             if (map.checked !== (map.id === LOBBY_MAP)) map.click();
         }
         // a room made by createPrivateRoom is already out of the public game list, but Krunker's own "Private"
-        // box is what keeps strangers out. It stays ticked for the player's next host, which is the safer default
+        // box is what keeps strangers out. It is ticked for this room only and put back right after: the box
+        // holds nothing of its own (no handler, nothing stored) and the room that is running is never read back
+        // from the form, the host window only reads it when "Start Game" makes a new room
         const makePrivate = /** @type {HTMLInputElement|null} */ (document.querySelector("#makePrivate"));
-        if (makePrivate && !makePrivate.checked) makePrivate.click();
+        const tickedByUs = !!makePrivate && !makePrivate.checked;
+        if (tickedByUs) makePrivate.click();
+        const putBack = () => {
+            if (tickedByUs) makePrivate.click();
+        };
+
         window.createPrivateRoom();
         for (let i = 0; i < 32; i++){
             await sleep(250);
             const now = activity();
-            if (now.custom && now.id && now.id !== previousId && now.map) return true;
+            if (now.custom && now.id && now.id !== previousId && now.map){
+                putBack();
+                return true;
+            }
         }
+        putBack();
         window.closWind?.();
         await sleep(1500);
     }
