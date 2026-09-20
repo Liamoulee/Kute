@@ -54,7 +54,23 @@ impl Config {
             data.entry(key).or_insert(default_value);
         }
 
-        Config { data }
+        Config { data }.migrate_menu_throttle()
+    }
+
+    // "CPU Throttling in Menu" used to default to 1.5, which suspends the game's main thread a third of the time.
+    // It is also on during the end screen, where a round start rebuilds every player's model, and it stretched that
+    // work by 1.5x. Every install has the old default written into its settings.json, so lowering the default alone
+    // would reach nobody. Runs once, and only on the old default: a value someone picked themselves stays.
+    fn migrate_menu_throttle(mut self) -> Config {
+        if self.get::<bool>("menuThrottleMigrated").unwrap_or(false) {
+            return self;
+        }
+        self.set("menuThrottleMigrated", true);
+        if self.get::<f64>("inMenuThrottle") == Some(1.5) {
+            self.set("inMenuThrottle", 1.0);
+        }
+        self.save();
+        self
     }
 
     pub fn get<T: serde::de::DeserializeOwned>(&self, setting: &str) -> Option<T> {
