@@ -133,6 +133,8 @@ Object.defineProperty(window, "gameLoaded", {
         import("./modules/matchmaker.js");
         // always: the customize button needs the module, which draws nothing while the setting is off
         import("./modules/nukeCounter.js");
+        // always: it applies the saved HUD layout, the editor itself only loads when it is opened
+        import("./modules/hudEditor/index.js");
         if (kute?.settings?.data?.hsSound) import("./modules/hsSound.js");
         if (kute?.settings?.data?.betterChat) import("./modules/betterChat.js");
         if (kute?.settings?.data?.hpEnemyCounter) import("./modules/hpEnemyCounter.js");

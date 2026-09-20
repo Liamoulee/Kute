@@ -1,0 +1,166 @@
+<style>
+#hpPanel {
+	box-sizing: border-box;
+	width: 320px;
+	max-height: 86vh;
+	display: flex;
+	flex-direction: column;
+	padding: 1.1em 1.2em 0.9em 1.2em;
+	border-radius: 14px;
+	background: rgba(18, 18, 22, 0.92);
+	box-shadow: 0 8px 48px #000c;
+	color: #fff;
+	font-family: Consolas, monospace;
+	font-size: 14px;
+	opacity: 0.7;
+	transition: opacity 0.1s;
+}
+
+/* out of the way of the HUD it is editing, until it is used */
+#hpPanel:hover,
+#hpPanel.hpBusy {
+	opacity: 1;
+}
+
+#hpHead {
+	margin-bottom: 0.2em;
+	cursor: grab;
+	user-select: none;
+	touch-action: none;
+	font-size: 1.35em;
+	letter-spacing: 1px;
+	color: #35e0e8;
+	text-align: center;
+}
+
+#hpHint {
+	margin-bottom: 0.8em;
+	color: #888;
+	font-size: 0.85em;
+	text-align: center;
+	line-height: 1.5;
+}
+
+#hpList {
+	flex: 1 1 auto;
+	overflow-y: auto;
+	margin-right: -0.6em;
+	padding-right: 0.6em;
+}
+
+.hpGroup {
+	margin: 0.7em 0 0.3em 0;
+	color: #ccc;
+	font-size: 0.85em;
+	letter-spacing: 1px;
+}
+
+.hpRow {
+	display: flex;
+	align-items: center;
+	gap: 0.5em;
+	padding: 0.25em 0.4em;
+	border-radius: 6px;
+	color: #ddd;
+	cursor: pointer;
+}
+
+.hpRow:hover {
+	background: rgba(53, 224, 232, 0.1);
+}
+
+.hpRow.hpMissing {
+	opacity: 0.35;
+	cursor: default;
+}
+
+.hpRow.hpMissing:hover {
+	background: none;
+}
+
+.hpName {
+	flex: 1 1 auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.hpNote {
+	color: #777;
+	font-size: 0.8em;
+}
+
+.hpMoved {
+	color: #ffc147;
+	font-size: 0.8em;
+}
+
+.hpReset {
+	color: #777;
+	font-size: 0.85em;
+	visibility: hidden;
+}
+
+.hpRow.hpChanged .hpReset {
+	visibility: visible;
+}
+
+.hpReset:hover {
+	color: #eb5656;
+}
+
+.hpRow input[type="checkbox"] {
+	width: 1.1em;
+	height: 1.1em;
+	margin: 0;
+	accent-color: #35e0e8;
+	cursor: pointer;
+}
+
+#hpMaster {
+	margin-bottom: 0.4em;
+	padding: 0.4em;
+	border-radius: 6px;
+	background: rgba(255, 255, 255, 0.06);
+}
+
+#hpActions {
+	display: flex;
+	gap: 0.6em;
+	margin-top: 0.9em;
+}
+
+.hpButton {
+	flex: 1 1 0;
+	padding: 0.6em 0.5em;
+	border-radius: 8px;
+	background: #2a2a2a;
+	color: #999;
+	text-align: center;
+	cursor: pointer;
+	user-select: none;
+}
+
+.hpButton:hover {
+	background: #333;
+}
+
+#hpDone {
+	background: #1b5e63;
+	color: #fff;
+}
+
+#hpDone:hover {
+	background: #23777d;
+}
+</style>
+<div id="hpPanel">
+	<div id="hpHead">HUD Layout</div>
+	<div id="hpHint">Drag a box to move it, wheel over it to resize.<br>Arrow keys nudge, shift for 10 px</div>
+	<label class="hpRow" id="hpMaster"><span class="hpName">Show HUD</span><input type="checkbox" id="hpShowUI"></label>
+	<div id="hpList"></div>
+	<div id="hpActions">
+		<div class="hpButton" id="hpReset">Reset all</div>
+		<div class="hpButton" id="hpDone">Done</div>
+	</div>
+</div>

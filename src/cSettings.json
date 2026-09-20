@@ -194,6 +194,15 @@
         "category": "Interface",
         "defaultValue": true
     },
+    "hudLayout": {
+        "name": "HUD Editor",
+        "id": "hudLayout",
+        "description": "Move, resize and hide the in-game HUD. F7 opens it in a match too",
+        "type": "none",
+        "category": "Interface",
+        "button": "Edit",
+        "buttonAction": "{{kute}}.hudEditor.edit()"
+    },
     "nukeCounter": {
         "name": "Nuke Counter",
         "id": "nukeCounter",
