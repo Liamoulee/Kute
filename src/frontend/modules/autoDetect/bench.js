@@ -61,6 +61,12 @@ function run(){
     let sampling = false;
     let finishedAt = 0;
     let nextSlot = start;
+    // the host closes this window as soon as it has the result, and the window takes the GL context with it.
+    // drawing on a lost context does nothing but fill the log with "useProgram: program not valid"
+    let contextLost = false;
+    canvas.addEventListener("webglcontextlost", () => {
+        contextLost = true;
+    });
 
     /**
      * @param {number} timestamp
@@ -73,6 +79,15 @@ function run(){
             nextSlot = Math.max(nextSlot + 1000 / cap, performance.now());
         }
         const now = performance.now();
+        // the event is the normal signal, the direct question covers a teardown that never gets to fire it.
+        // only asked after the result went out, so the measured loop stays as it was
+        if (contextLost || (finishedAt > 0 && scene.lost())){
+            // after the result went out this is the normal way the grace period ends, before it the run is
+            // over and the host may as well hear it now instead of waiting for its timeout
+            if (finishedAt === 0) finish({ ok: false, error: "webgl context lost" });
+            scene.destroy();
+            return;
+        }
         scene.render(timestamp);
 
         if (finishedAt > 0){

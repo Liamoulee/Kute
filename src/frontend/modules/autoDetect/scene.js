@@ -227,6 +227,7 @@ function cpuWork(iterations){
  * @typedef {object} Scene
  * @property {(timeMs: number) => void} render Draws one frame
  * @property {(width: number, height: number) => void} resize
+ * @property {() => boolean} lost Whether the GL context is gone, which is what a closing window looks like
  * @property {() => void} destroy
  */
 
@@ -373,8 +374,12 @@ export function createScene(canvas, load = DEFAULT_LOAD, labelLines = []){
             gl.bindVertexArray(null);
         },
 
+        lost(){
+            return gl.isContextLost();
+        },
+
         destroy(){
-            gl.getExtension("WEBGL_lose_context")?.loseContext();
+            if (!gl.isContextLost()) gl.getExtension("WEBGL_lose_context")?.loseContext();
         },
     };
 }
