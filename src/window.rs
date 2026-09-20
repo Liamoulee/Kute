@@ -580,6 +580,11 @@ pub fn create_window(start_mode: &str, is_subwindow: bool, init_state: Option<Wi
 
         if state.fullscreen {
             SetWindowLongPtrW(hwnd, GWL_STYLE, (WS_VISIBLE.0) as _);
+            // the style change alone does not recompute the frame. without this the client area keeps the size it had
+            // WITH the title bar and border, the browser gets created for that size and a strip on the right and at the
+            // bottom stays unpainted (WM_ERASEBKGND is suppressed once a browser exists), which showed up as a black or
+            // white border until the window was resized once (pressing F11 twice was the workaround)
+            SetWindowPos(hwnd, None, x, y, width, height, SWP_FRAMECHANGED | SWP_NOZORDER | SWP_NOACTIVATE).ok();
         }
 
         let window = Box::new(Window {
