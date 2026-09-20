@@ -1,7 +1,7 @@
 import { kute } from "../../client.js";
 import { HUD_ELEMENTS } from "./elements.js";
 import { confirmPopup } from "../confirmPopup.js";
-import { hostLobby, spawn } from "../privateMatch.js";
+import { activity, hostLobby, spawn } from "../privateMatch.js";
 
 /**
  * Applies the saved HUD layout and opens the editor.
@@ -24,6 +24,7 @@ import { hostLobby, spawn } from "../privateMatch.js";
  * @property {number} vw Viewport the snapshot was taken at
  * @property {number} vh
  * @property {number} factor The scale Krunker's UI scaling had on the HUD
+ * @property {string} game The match it was measured in, so the same one does not get measured twice
  * @property {Record<string, [number, number, number, number, number]>} rects key -> x, y, width, height, visible
  */
 
@@ -134,7 +135,7 @@ export class HudEditor {
         }
 
         /** @type {HudGeometry} */
-        const geometry = { vw: window.innerWidth, vh: window.innerHeight, factor: 1, rects: {} };
+        const geometry = { vw: window.innerWidth, vh: window.innerHeight, factor: 1, game: activity().id ?? "", rects: {} };
 
         // what the player sees, with our own offsets taken out so the snapshot is the untouched layout
         const layoutText = this.style?.textContent ?? "";
@@ -214,6 +215,13 @@ export class HudEditor {
 
         if (this.inMatch()){
             this.show(this.snapshot());
+            return;
+        }
+
+        // closed and opened again without leaving the match it was measured in: nothing to host, just draw it
+        const measured = this.geometry();
+        if (measured?.game && measured.game === activity().id){
+            this.show(measured);
             return;
         }
 
