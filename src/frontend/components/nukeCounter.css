@@ -1,5 +1,9 @@
 #kuteNukeCounter {
 	position: absolute;
+	/* the anchor it hangs from. where it actually sits is the HUD editor's translate on top of this */
+	left: 94%;
+	top: 50%;
+	transform: translate(-50%, -50%);
 	z-index: 10;
 	display: flex;
 	align-items: center;

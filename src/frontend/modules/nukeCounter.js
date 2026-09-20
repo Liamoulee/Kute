@@ -12,13 +12,10 @@ import { kute } from "../client.js";
  * @typedef {object} NukeCounterConfig
  * @property {number} goal Total to aim for, 0 hides it
  * @property {boolean} background Dark backdrop behind the counter
- * @property {number} scale
- * @property {number} x Percent of the screen width
- * @property {number} y Percent of the screen height
  */
 
 /** @type {NukeCounterConfig} */
-const DEFAULT_CONFIG = { goal: 0, background: true, scale: 1, x: 94, y: 50 };
+const DEFAULT_CONFIG = { goal: 0, background: true };
 
 const PLAYER_API = "https://gapi.svc.krunker.io/players/";
 // one timer drives reattaching, the first fetch and the end screen. it only reads ids and inline styles, never layout
@@ -156,16 +153,10 @@ class NukeCounter {
     }
 
     /**
-     * Position, size and backdrop. Called on every change in the options popup, so it stays cheap.
+     * The backdrop. Where the counter sits and how big it is comes from the HUD layout stylesheet.
      */
     applyConfig(){
-        const { overlay } = this;
-        if (!overlay) return;
-        const { x, y, scale, background } = this.config;
-        overlay.style.left = `${clamp(x, 0, 100)}%`;
-        overlay.style.top = `${clamp(y, 0, 100)}%`;
-        overlay.style.transform = `translate(-50%, -50%) scale(${clamp(scale, 0.25, 3)})`;
-        overlay.classList.toggle("nukeBg", background);
+        this.overlay?.classList.toggle("nukeBg", this.config.background);
     }
 
     /**
@@ -265,6 +256,7 @@ class NukeCounter {
 
     /**
      * The options popup behind the setting's button. Changes apply right away, and are saved when it closes.
+     * Position and size are not here, they belong to the HUD editor.
      */
     async showOptions(){
         const html = await import("../components/nukeCounterOptions.html");
@@ -284,23 +276,7 @@ class NukeCounter {
          */
         const element = (id) => /** @type {HTMLInputElement} */ (shadow.querySelector(`#${id}`));
 
-        const screenBox = element("nkScreen");
-        const ghost = element("nkGhost");
-        const ghostGoal = /** @type {HTMLElement} */ (shadow.querySelector("#nkGhost .nkGoal"));
-        const screenHint = element("nkScreenHint");
-
-        /**
-         * Draws the preview and the real counter from the values being edited.
-         */
         const apply = () => {
-            ghost.style.left = `${config.x}%`;
-            ghost.style.top = `${config.y}%`;
-            ghost.style.transform = `translate(-50%, -50%) scale(${config.scale})`;
-            ghost.classList.toggle("nkBg", config.background);
-            ghostGoal.style.display = config.goal > 0 ? "" : "none";
-            ghostGoal.textContent = `/ ${format(config.goal)}`;
-            screenHint.textContent = `Drag the counter to place it (${config.x}% / ${config.y}%)`;
-
             kute.settings.data.nukeCounterConfig = config;
             this.applyConfig();
             this.render();
@@ -308,8 +284,6 @@ class NukeCounter {
 
         element("nkGoalInput").value = String(config.goal);
         element("nkBackground").checked = config.background;
-        element("nkScale").value = String(config.scale);
-        apply();
 
         element("nkGoalInput").oninput = (event) => {
             const value = Number.parseInt(/** @type {HTMLInputElement} */ (event.target).value, 10);
@@ -320,35 +294,6 @@ class NukeCounter {
             config.background = /** @type {HTMLInputElement} */ (event.target).checked;
             apply();
         };
-        element("nkScale").oninput = (event) => {
-            config.scale = Number(/** @type {HTMLInputElement} */ (event.target).value) || 1;
-            apply();
-        };
-
-        /**
-         * Dragging the preview counter is how the position is set, the counter itself is not reachable from the menu.
-         *
-         * @param {PointerEvent} event
-         */
-        const drag = (event) => {
-            const box = screenBox.getBoundingClientRect();
-            config.x = Math.round(clamp(((event.clientX - box.left) / box.width) * 100, 0, 100) * 2) / 2;
-            config.y = Math.round(clamp(((event.clientY - box.top) / box.height) * 100, 0, 100) * 2) / 2;
-            apply();
-        };
-        ghost.onpointerdown = (event) => {
-            ghost.setPointerCapture(event.pointerId);
-            ghost.classList.add("nkDragging");
-        };
-        ghost.onpointermove = (event) => {
-            if (ghost.hasPointerCapture(event.pointerId)) drag(event);
-        };
-        ghost.onpointerup = () => ghost.classList.remove("nkDragging");
-        ghost.onpointercancel = () => ghost.classList.remove("nkDragging");
-        // a click anywhere on the fake screen puts the counter there
-        screenBox.onpointerdown = (event) => {
-            if (event.target === screenBox) drag(event);
-        };
 
         const controller = new AbortController();
         const close = () => {
@@ -357,12 +302,9 @@ class NukeCounter {
             this.saveConfig(config);
         };
         element("nkDone").onclick = close;
-        element("nkReset").onclick = () => {
-            Object.assign(config, DEFAULT_CONFIG);
-            element("nkGoalInput").value = String(config.goal);
-            element("nkBackground").checked = config.background;
-            element("nkScale").value = String(config.scale);
-            apply();
+        element("nkPlace").onclick = () => {
+            close();
+            kute.hudEditor?.edit();
         };
         overlay.addEventListener("mousedown", (event) => {
             if (event.target === overlay) close();
