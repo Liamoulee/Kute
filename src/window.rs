@@ -30,6 +30,8 @@ thread_local! {
     // browser id -> the kute window hosting it, valid even once CEF tore its own windows down
     static BROWSER_WINDOWS: RefCell<HashMap<i32, HWND>> = RefCell::new(HashMap::new());
     static MAIN_BROWSER: RefCell<Option<Browser>> = const { RefCell::new(None) };
+    // every window we own, browser or not: BROWSER_WINDOWS misses one whose browser is already gone
+    static OUR_WINDOWS: RefCell<Vec<HWND>> = const { RefCell::new(Vec::new()) };
 }
 
 #[derive(Copy, Clone, serde::Serialize, serde::Deserialize, Default, Debug)]
@@ -311,7 +313,7 @@ pub fn detach_browser(browser: &Browser) {
 }
 
 pub fn close_all() {
-    let windows: Vec<HWND> = BROWSER_WINDOWS.with_borrow(|m| m.values().copied().collect());
+    let windows: Vec<HWND> = OUR_WINDOWS.with_borrow(|w| w.clone());
     for hwnd in windows {
         unsafe {
             PostMessageW(Some(hwnd), WM_CLOSE, WPARAM(0), LPARAM(0)).ok();
@@ -664,6 +666,7 @@ unsafe extern "system" fn wnd_proc_setup(hwnd: HWND, msg: u32, wparam: WPARAM, l
             let create_struct = lparam.0 as *const CREATESTRUCTW;
             let is_subwindow = (*create_struct).lpCreateParams as isize;
             WINDOW_COUNT.fetch_add(1, Ordering::SeqCst);
+            OUR_WINDOWS.with_borrow_mut(|windows| windows.push(hwnd));
             let wnd_proc = if is_subwindow == 0 {
                 wnd_proc_main as *const () as isize
             } else {
@@ -729,6 +732,7 @@ unsafe fn wnd_proc_common(window: &mut Window, hwnd: HWND, msg: u32, wparam: WPA
             }
             WM_DESTROY => {
                 KillTimer(Some(hwnd), SHOW_TIMER).ok();
+                OUR_WINDOWS.with_borrow_mut(|windows| windows.retain(|known| *known != hwnd));
                 if !window.is_subwindow {
                     // the placement knows the restore size and the maximized state, GetWindowRect only sees the rect
                     // of the moment (maximized: overhanging the screen, minimized: -32000)
