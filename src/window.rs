@@ -20,6 +20,9 @@ use windows::{
 static WINDOW_COUNT: AtomicUsize = AtomicUsize::new(0);
 static BROWSER_COUNT: AtomicUsize = AtomicUsize::new(0);
 const RENDER_STATS_TIMER: usize = 1;
+// safety net: shows a window whose browser never arrived, so a failed browser is a visible window, not a missing one
+const SHOW_TIMER: usize = 2;
+const SHOW_TIMEOUT_MS: u32 = 4000;
 
 // CEF objects are UI thread only, the same thread that owns every window
 thread_local! {
@@ -221,6 +224,21 @@ pub fn browser_by_id(id: i32) -> Option<Browser> {
     BROWSERS.with_borrow(|b| b.get(&id).cloned())
 }
 
+// windows are created hidden so the first thing on screen is the page, not a black rectangle for as long as the
+// browser needs to come up. shown once the browser is attached, or by SHOW_TIMER should that never happen
+unsafe fn show_window(window: &Window) {
+    unsafe {
+        KillTimer(Some(window.hwnd), SHOW_TIMER).ok();
+        if IsWindowVisible(window.hwnd).as_bool() {
+            return;
+        }
+        let _ = ShowWindow(
+            window.hwnd,
+            if window.state.maximized && !window.state.fullscreen { SW_MAXIMIZE } else { SW_SHOW },
+        );
+    }
+}
+
 // on_after_created: link the browser to the window it was created in
 pub fn attach_browser(browser: &Browser) {
     BROWSER_COUNT.fetch_add(1, Ordering::SeqCst);
@@ -240,6 +258,7 @@ pub fn attach_browser(browser: &Browser) {
         let mut rect = RECT::default();
         GetClientRect(hwnd, &mut rect).ok();
         window.resize_browser(rect.right - rect.left, rect.bottom - rect.top);
+        show_window(window);
     }
 
     if browser.is_popup() == 0 {
@@ -603,7 +622,7 @@ pub fn create_window(start_mode: &str, is_subwindow: bool, init_state: Option<Wi
             WINDOW_EX_STYLE::default(),
             class_name,
             w!("Kute"),
-            WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+            WS_OVERLAPPEDWINDOW,
             x,
             y,
             width,
@@ -623,9 +642,8 @@ pub fn create_window(start_mode: &str, is_subwindow: bool, init_state: Option<Wi
             // bottom stays unpainted (WM_ERASEBKGND is suppressed once a browser exists), which showed up as a black or
             // white border until the window was resized once (pressing F11 twice was the workaround)
             SetWindowPos(hwnd, None, x, y, width, height, SWP_FRAMECHANGED | SWP_NOZORDER | SWP_NOACTIVATE).ok();
-        } else if state.maximized {
-            let _ = ShowWindow(hwnd, SW_MAXIMIZE);
         }
+        SetTimer(Some(hwnd), SHOW_TIMER, SHOW_TIMEOUT_MS, None);
 
         let window = Box::new(Window {
             hwnd,
@@ -659,7 +677,7 @@ unsafe extern "system" fn wnd_proc_setup(hwnd: HWND, msg: u32, wparam: WPARAM, l
 }
 
 // messages both window kinds handle the same way, Some(result) when handled
-unsafe fn wnd_proc_common(window: &mut Window, hwnd: HWND, msg: u32, _wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
+unsafe fn wnd_proc_common(window: &mut Window, hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
     unsafe {
         match msg {
             WM_SETFOCUS => {
@@ -669,6 +687,10 @@ unsafe fn wnd_proc_common(window: &mut Window, hwnd: HWND, msg: u32, _wparam: WP
             }
             WM_SIZE => {
                 window.resize_browser(utils::LOWORD(lparam.0 as usize) as i32, utils::HIWORD(lparam.0 as usize) as i32);
+            }
+            WM_TIMER if wparam.0 == SHOW_TIMER => {
+                debug_print!("window: browser did not arrive in {SHOW_TIMEOUT_MS} ms, showing the window anyway");
+                show_window(window);
             }
             WM_MOVE | WM_MOVING => {
                 if let Some(host) = window.browser.as_ref().and_then(|b| b.host()) {
@@ -691,6 +713,7 @@ unsafe fn wnd_proc_common(window: &mut Window, hwnd: HWND, msg: u32, _wparam: WP
                 }
             }
             WM_DESTROY => {
+                KillTimer(Some(hwnd), SHOW_TIMER).ok();
                 if !window.is_subwindow {
                     // the placement knows the restore size and the maximized state, GetWindowRect only sees the rect
                     // of the moment (maximized: overhanging the screen, minimized: -32000)
