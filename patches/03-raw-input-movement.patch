@@ -1,0 +1,61 @@
+--- a/ui/views/win/hwnd_message_handler.cc
++++ b/ui/views/win/hwnd_message_handler.cc
+@@ -90,6 +90,17 @@
+ namespace views {
+ namespace {
+ 
++// Kute: the raw mouse path keeps the movement of every packet and takes no button state from raw input. Stock
++// Chromium skips a packet whose only flag is a wheel step, and Kute used to drop every packet carrying a button change
++// before Chromium read it (the page must not see the button in move events, left click is F20 while locked). Both lost
++// the movement that came in the same packet: measured at 6 to 9 counts per click or release, about 0.9 % of all
++// movement, right at the moment of the shot. With this feature the page sees the same events as with Kute's filter,
++// plus that movement. Also reads a mouse packet with one call into a stack buffer instead of a size query, a heap
++// allocation and a second call. Enabled by Kute with --enable-features=KuteRawInputMovementOnly.
++BASE_FEATURE(kKuteRawInputMovementOnly,
++             "KuteRawInputMovementOnly",
++             base::FEATURE_DISABLED_BY_DEFAULT);
++
+ // MoveLoopMouseWatcher is used to determine if the user canceled or completed a
+ // move. win32 doesn't appear to offer a way to determine the result of a move,
+ // so we install hooks to determine if we got a mouse up and assume the move
+@@ -2448,6 +2459,40 @@
+ 
+   HRAWINPUT input_handle = reinterpret_cast<HRAWINPUT>(l_param);
+ 
++  if (base::FeatureList::IsEnabled(kKuteRawInputMovementOnly)) {
++    RAWINPUT raw = {};
++    UINT raw_size = sizeof(raw);
++    // fails without consuming the input when the record is bigger than a RAWINPUT (not a mouse), then the
++    // regular path below reads it
++    if (::GetRawInputData(input_handle, RID_INPUT, &raw, &raw_size,
++                          sizeof(RAWINPUTHEADER)) != static_cast<UINT>(-1)) {
++      if (raw.header.dwType == RIM_TYPEMOUSE) {
++        const bool absolute = raw.data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE;
++        const bool moved =
++            raw.data.mouse.lLastX != 0 || raw.data.mouse.lLastY != 0;
++        // the packets that reached the page before still do; a packet with a button or wheel change now does too
++        // when it also carries relative movement. raw_input_button_state_ is never updated in this mode
++        if (raw.data.mouse.usButtonFlags == 0 || (!absolute && moved)) {
++          POINT cursor_pos = {0};
++          ::GetCursorPos(&cursor_pos);
++          ::ScreenToClient(hwnd(), &cursor_pos);
++          ui::MouseEvent event(
++              ui::EventType::kMouseMoved,
++              gfx::PointF(cursor_pos.x, cursor_pos.y),
++              gfx::PointF(cursor_pos.x, cursor_pos.y), ui::EventTimeForNow(),
++              ui::GetModifiersFromKeyState() | raw_input_button_state_, 0);
++          if (!absolute) {
++            ui::MouseEvent::DispatcherApi(&event).set_movement(gfx::Vector2dF(
++                raw.data.mouse.lLastX, raw.data.mouse.lLastY));
++          }
++          delegate_->HandleMouseEvent(&event);
++        }
++      }
++      RAWINPUT* raw_input = &raw;
++      return ::DefRawInputProc(&raw_input, 1, sizeof(RAWINPUTHEADER));
++    }
++  }
++
+   // Get the size of the input record.
+   UINT size = 0;
+   UINT result = ::GetRawInputData(input_handle, RID_INPUT, nullptr, &size,
