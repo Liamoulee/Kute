@@ -193,8 +193,16 @@ class SettingsManager {
          * @param {...any} args
          * @return {string}
          */
-        this.settingsWindow.getSettings = (...args) =>
-            origGetSettings.call(this.settingsWindow, ...args).replace(/^<\/div>/, "") + this.getCSettings();
+        this.settingsWindow.getSettings = (...args) => {
+            const original = origGetSettings.call(this.settingsWindow, ...args);
+            const ours = this.getCSettings();
+            if (!ours) return original;
+            // the client settings belong inside the container krunker closes first, so that closer moves behind
+            // them instead of being dropped: dropping it left the settings window one `</div>` short, and while
+            // a search was open two short, which closes krunker's own boxes early and swallows the rows after them
+            const closesFirst = original.startsWith("</div>");
+            return (closesFirst ? original.slice("</div>".length) : original) + ours + (closesFirst ? "</div>" : "");
+        };
 
         this.settingsWindow.getCSettings = () => this.getCSettings();
         window.chrome.webview.addEventListener("message", (event) => {
@@ -275,6 +283,8 @@ class SettingsManager {
 
         let tempHTML = "<div class='kuteSettings'>";
         let previousCategory = null;
+        // a search that matches nothing of ours must render nothing at all, not an empty box with its closers
+        let rendered = false;
 
         for (const setting of Object.values(settings)){
             // filter first: while searching, the controls of everything that does not match got built for nothing
@@ -291,6 +301,7 @@ class SettingsManager {
 										<div class='setBodH' id="setBod_kute_${setting.category}">`;
             }
 
+            rendered = true;
             tempHTML += `<div class='settName' ${setting.description ? `title="${setting.description}"` : ""}>
 								${setting.name.replaceAll("{{version}}", kute.version ?? "")}
 								${setting.needsRestart ? ' <span style="color: #eb5656" title="Requires Restart">*</span>' : ""}
@@ -298,7 +309,9 @@ class SettingsManager {
 								${setting.html}</div>`;
         }
 
-        return tempHTML ? `${tempHTML}</div></div></div>` : "";
+        // closes the open category body and the kuteSettings box, and nothing else: whatever krunker left open
+        // is krunker's to close (see the wrapper in init)
+        return rendered ? `${tempHTML}</div></div>` : "";
     }
 }
 
