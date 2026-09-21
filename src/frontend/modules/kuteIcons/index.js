@@ -28,6 +28,13 @@ function chosenSlots(){
 }
 
 /**
+ * @return {boolean} Whether this exe answers the icon requests
+ */
+function hostSupports(){
+    return kute.hostFeatures?.includes("kute-icons") ?? false;
+}
+
+/**
  * @param {IconSlot} slot
  * @return {boolean}
  */
@@ -120,6 +127,11 @@ class KuteIcons {
      */
     async onToggle(enabled){
         postUrls();
+        // an exe from before Kute icons ignores the setting, so there is nothing to show or reload for
+        if (!hostSupports()){
+            if (enabled) kute.showNotification("Kute icons need a newer Kute, update the client", false, 4);
+            return;
+        }
         if (enabled) await this.warnHidden(SLOTS.filter(slotOn));
         await offerReload(enabled ? "Kute icons are on." : "Kute icons are off, your own icons are back.");
     }
@@ -182,7 +194,7 @@ class KuteIcons {
          */
         const element = (id) => /** @type {HTMLElement} */ (shadow.querySelector(`#${id}`));
 
-        const supported = kute.hostFeatures?.includes("kute-icons") ?? false;
+        const supported = hostSupports();
         const on = kute.settings.data.kuteIcons === true;
         let hint = "Ticked icons show Kute's version. Your Krunker settings stay as they are.";
         if (!on) hint = "Use Kute Icons is off, so none of these show yet.";
