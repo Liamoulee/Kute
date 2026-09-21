@@ -361,7 +361,8 @@ unsafe extern "system" fn wnd_proc_1(window: HWND, message: u32, wparam: WPARAM,
                 {
                     let raw = buffer.assume_init_ref();
 
-                    if raw.data.mouse.Anonymous.Anonymous.usButtonFlags != 0 {
+                    // the union only holds mouse data in a mouse packet
+                    if raw.header.dwType == RIM_TYPEMOUSE.0 && raw.data.mouse.Anonymous.Anonymous.usButtonFlags != 0 {
                         return LRESULT(1);
                     };
                 }
