@@ -261,14 +261,15 @@ fn attach() {
         });
         debug_print!("render: Present1 hook created, trampoline={original_present:p}");
 
-        match MinHook::enable_all_hooks() {
-            Ok(()) => debug_print!("render: all MinHook hooks enabled"),
-            Err(error) => debug_print!("render: cannot enable hooks: {error:?}"),
-        }
+        // the trampolines first: a hooked call arriving between enabling and storing would find None
         #[allow(clippy::missing_transmute_annotations)]
         {
             ORIGINAL_CREATE_SWAPCHAIN = mem::transmute(original_create_swapchain);
             ORIGINAL_PRESENT = mem::transmute(original_present);
+        }
+        match MinHook::enable_all_hooks() {
+            Ok(()) => debug_print!("render: all MinHook hooks enabled"),
+            Err(error) => debug_print!("render: cannot enable hooks: {error:?}"),
         }
         debug_print!("render: attach completed");
     }
