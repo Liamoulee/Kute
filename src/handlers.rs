@@ -80,11 +80,15 @@ wrap_resource_request_handler! {
             if modules::bench::active() && url.contains(modules::bench::BENCH_PATH) {
                 return modules::resource::serve("text/html", modules::bench::STUB_PAGE.as_bytes().to_vec());
             }
-            let bytes = modules::swapper::swap_for(&url)?;
-            debug_print!("handlers: swapping {url}");
-
-            let filename = url.split("krunker.io/").nth(1).and_then(|s| s.split('?').next()).unwrap_or("");
-            modules::resource::serve(modules::swapper::mime_for(filename), bytes.clone())
+            // the player's own swapper folder first: their file beats ours for the same request
+            if let Some(bytes) = modules::swapper::swap_for(&url) {
+                debug_print!("handlers: swapping {url}");
+                let filename = url.split("krunker.io/").nth(1).and_then(|s| s.split('?').next()).unwrap_or("");
+                return modules::resource::serve(modules::swapper::mime_for(filename), bytes.clone());
+            }
+            let bytes = modules::icons::bytes_for(&url)?;
+            debug_print!("handlers: kute icon for {url}");
+            modules::resource::serve("image/png", bytes.to_vec())
         }
     }
 }
@@ -496,6 +500,15 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         }
         return;
     }
+    // "icon-urls <json>": the images the player pointed the icon slots at, so Kute icons answer those too
+    if let Some(rest) = message_string.strip_prefix("icon-urls ") {
+        if rest.len() <= 16 * 1024
+            && let Ok(value) = serde_json::from_str::<serde_json::Value>(rest)
+        {
+            modules::icons::set_player_urls(&value);
+        }
+        return;
+    }
     // a setting whose value is an object (the matchmaker filters): "set-config-json <id> <json>"
     if let Some(rest) = message_string.strip_prefix("set-config-json ") {
         if let Some((setting, value)) = rest.split_once(' ')
@@ -615,6 +628,11 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         }
         ["bring-to-front"] => {
             window::bring_to_front(browser);
+        }
+        // the page keeps the images it already has, so a changed icon only shows after this. Never "clear-cache"
+        // for that: it also wipes the origin's storage, which is every Krunker setting the player has
+        ["hard-reload"] => {
+            browser.reload_ignore_cache();
         }
         ["clear-cache"] => {
             modules::devtools::clear_cache(browser);

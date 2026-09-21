@@ -21,6 +21,7 @@ pub mod modules {
     pub mod devtools;
     pub mod dpapi;
     pub mod flaglist;
+    pub mod icons;
     pub mod input;
     pub mod lifecycle;
     pub mod obs;

@@ -39,7 +39,7 @@ pub fn send_info(frame: &Frame) {
     info_map.insert("settings".to_string(), serde_json::json!(&*crate::CONFIG.lock().unwrap()));
     info_map.insert("version".to_string(), serde_json::Value::String(version.to_string()));
     info_map.insert("apiBase".to_string(), serde_json::Value::String(crate::utils::api_url()));
-    info_map.insert("hostFeatures".to_string(), serde_json::json!(["matchmaker", "dev-proof"]));
+    info_map.insert("hostFeatures".to_string(), serde_json::json!(["matchmaker", "dev-proof", "kute-icons"]));
 
     if crate::modules::dev::has_token() {
         info_map.insert("dev".to_string(), serde_json::Value::Bool(true));
