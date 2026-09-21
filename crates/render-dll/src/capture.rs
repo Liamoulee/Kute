@@ -36,8 +36,8 @@ static INFO_PTR: AtomicU64 = AtomicU64::new(0);
 
 struct Capture {
     pid: u32,
-    main_swapchain: Option<usize>,
-    last_main_present: Instant,
+    // when the last frame was copied for OBS, see MIN_COPY_INTERVAL
+    last_copy: Option<Instant>,
     mapping: usize,
     frame_event: usize,
     // Open NT handle (as `usize`) that keeps the `KuteCaptureTex_<pid>` name resolvable. Must
@@ -47,6 +47,8 @@ struct Capture {
     device: Option<ID3D11Device>,
     context: Option<ID3D11DeviceContext>,
     shared_tex: Option<ID3D11Texture2D>,
+    // the device the shared texture was made on: a copy needs both on the same device
+    tex_device: usize,
     cached_w: u32,
     cached_h: u32,
     cached_format: u32,
@@ -93,6 +95,10 @@ fn wide(s: &str) -> Vec<u16> {
 }
 
 const READER_ACTIVE: u32 = 0x1;
+// OBS shows 60 (at most a few hundred) frames a second, an uncapped game presents a thousand and more. Copying every one
+// moved a whole frame per present for nothing (18.6 MB at 3440x1351, so 18.6 GB/s at 1000 FPS: noise on a big GPU, a real
+// share of a small one's memory bandwidth). At most 240 copies a second, so OBS gets a frame at most about 4 ms old
+const MIN_COPY_INTERVAL: std::time::Duration = std::time::Duration::from_micros(4_150);
 // Control block mapping size (fixed; struct is 48 bytes).
 const INFO_SIZE: usize = 64;
 
@@ -136,14 +142,14 @@ pub fn capture_init() {
 
         *CAPTURE.lock().unwrap() = Some(Capture {
             pid,
-            main_swapchain: None,
-            last_main_present: Instant::now(),
+            last_copy: None,
             mapping: mapping.0 as usize,
             frame_event: frame_event.0 as usize,
             shared_handle: None,
             device: None,
             context: None,
             shared_tex: None,
+            tex_device: 0,
             cached_w: 0,
             cached_h: 0,
             cached_format: 0,
@@ -171,7 +177,9 @@ pub fn capture_on_swapchain(_swapchain: *mut c_void, device: Option<ID3D11Device
 // Ensure a shared texture matching (`w`, `h`, `format`) exists on the real device, then publish
 // dims/format in the control block. Currently holding the state lock.
 fn ensure_shared_tex(c: &mut Capture, w: u32, h: u32, format: u32) {
+    let device_ptr = c.device.as_ref().map_or(0, |device| device.as_raw() as usize);
     if let Some(_tex) = c.shared_tex.as_ref()
+        && c.tex_device == device_ptr
         && c.cached_w == w
         && c.cached_h == h
         && c.cached_format == format
@@ -180,6 +188,10 @@ fn ensure_shared_tex(c: &mut Capture, w: u32, h: u32, format: u32) {
     }
 
     c.release_shared();
+    // the immediate context belongs to a device too
+    if c.tex_device != device_ptr {
+        c.context = None;
+    }
 
     let Some(device) = c.device.as_ref() else {
         crate::debug_print!("capture: shared texture creation deferred because no D3D11 device is available");
@@ -227,6 +239,7 @@ fn ensure_shared_tex(c: &mut Capture, w: u32, h: u32, format: u32) {
     }
 
     c.shared_tex = Some(tex);
+    c.tex_device = device_ptr;
     c.cached_w = w;
     c.cached_h = h;
     c.cached_format = format;
@@ -259,6 +272,9 @@ pub fn capture_on_present(swapchain: *mut c_void) {
 
     if let Ok(mut guard) = CAPTURE.lock() {
         let Some(c) = guard.as_mut() else { return };
+        if c.last_copy.is_some_and(|at| at.elapsed() < MIN_COPY_INTERVAL) {
+            return;
+        }
 
         let Some(sc) = (unsafe { IDXGISwapChain1::from_raw_borrowed(&swapchain) }) else {
             return;
@@ -269,22 +285,9 @@ pub fn capture_on_present(swapchain: *mut c_void) {
         let mut desc = D3D11_TEXTURE2D_DESC::default();
         unsafe { back.GetDesc(&mut desc) };
 
-        let sc_ptr = swapchain as usize;
-
-        if let Some(main_sc) = c.main_swapchain {
-            if sc_ptr != main_sc {
-                if c.last_main_present.elapsed() < std::time::Duration::from_millis(1500) {
-                    return;
-                }
-                crate::debug_print!("capture: main swapchain silent, updating to {sc_ptr:#x}");
-                c.main_swapchain = Some(sc_ptr);
-                c.release_shared();
-            }
-        } else {
-            c.main_swapchain = Some(sc_ptr);
-        }
-
-        c.last_main_present = Instant::now();
+        // which swap chain is the game's is decided by the present hook (only the game's calls this). capture used to
+        // keep its own choice with a 1.5 s silence rule, so after a resize OBS kept the old frame for up to a second.
+        // a new swap chain needs no new shared texture unless its size or format differ (ensure_shared_tex below)
 
         let w = desc.Width;
         let h = desc.Height;
@@ -297,9 +300,8 @@ pub fn capture_on_present(swapchain: *mut c_void) {
             c.context = None;
         }
 
-        if c.shared_tex.is_none() || c.cached_w != w || c.cached_h != h || c.cached_format != fmt {
-            ensure_shared_tex(c, w, h, fmt);
-        }
+        // returns at once while size, format and device are the same
+        ensure_shared_tex(c, w, h, fmt);
 
         let Some(device) = c.device.as_ref() else { return };
         let Some(shared) = c.shared_tex.as_ref() else { return };
@@ -310,6 +312,7 @@ pub fn capture_on_present(swapchain: *mut c_void) {
         }
         let Some(context) = c.context.as_ref() else { return };
 
+        c.last_copy = Some(Instant::now());
         unsafe { context.CopyResource(shared, &back) };
 
         unsafe {
