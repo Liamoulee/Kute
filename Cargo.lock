@@ -696,7 +696,7 @@ dependencies = [
 
 [[package]]
 name = "kute"
-version = "0.1.9"
+version = "0.1.10"
 dependencies = [
  "cef",
  "discord-rich-presence",
