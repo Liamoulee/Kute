@@ -46,7 +46,6 @@ pub const DEFAULT_BLOCKLIST: &str = r#"[
   "*://krunker.io/libs/fflate*",
   "*://krunker.io/libs/purejscarousel*",
   "*://assets.krunker.io/sound/ambient_*",
-  "*://assets.krunker.io/models/clouds_0.obj*",
   "*://krunker.io/img/client.png*",
   "*://krunker.io/libs/nipplejs.min.js*",
   "*://user-assets.krunker.io/60585/*",

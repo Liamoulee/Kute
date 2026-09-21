@@ -2,8 +2,24 @@ use std::{collections::HashMap, fs, path::PathBuf, sync::LazyLock};
 
 use crate::utils;
 
-// relative url path (forward slashes) -> file bytes, resolved once
-pub static SWAPS: LazyLock<HashMap<String, Vec<u8>>> = LazyLock::new(|| if utils::config("swapper", true) { load() } else { HashMap::new() });
+/// Files the client serves in place of the game's own, keyed like the player's swapper folder.
+///
+/// The clouds model is 774 KB of geometry that only ever draws clouds. This client used to block the request
+/// instead, and the game then built its cloud pass around a model that never arrived: every frame called
+/// `useProgram` on a program that never linked, a few hundred "program not valid" lines per load on any map
+/// with clouds. A valid model keeps that path whole, and one triangle a thousandth of a unit across costs
+/// nothing to draw or to download.
+const BUILT_IN: &[(&str, &str)] = &[("models/clouds_0.obj", include_str!("../../resources/swaps/clouds_0.obj"))];
+
+// relative url path (forward slashes) -> file bytes, resolved once. The player's own folder is loaded over the
+// built in ones, so a file of theirs always wins
+pub static SWAPS: LazyLock<HashMap<String, Vec<u8>>> = LazyLock::new(|| {
+    let mut swaps: HashMap<String, Vec<u8>> = BUILT_IN.iter().map(|(path, body)| ((*path).to_string(), body.as_bytes().to_vec())).collect();
+    if utils::config("swapper", true) {
+        swaps.extend(load());
+    }
+    swaps
+});
 
 // mirrors the filename extraction of the WebView2 resource handler
 pub fn swap_for(url: &str) -> Option<&'static Vec<u8>> {

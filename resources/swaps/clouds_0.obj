@@ -1,0 +1,13 @@
+# Kute: served in place of the game's clouds_0.obj (774 KB of cloud geometry).
+# Blocking that request outright is what this client used to do, and the game then draws its cloud pass with a
+# program that never linked, which logs "useProgram: program not valid" every frame. A valid model keeps the
+# render path whole, and one triangle a thousandth of a unit across is nothing to draw.
+o kute_empty_clouds
+v 0.000000 0.000000 0.000000
+v 0.001000 0.000000 0.000000
+v 0.000000 0.001000 0.000000
+vn 0.000000 1.000000 0.000000
+vt 0.000000 0.000000
+vt 1.000000 0.000000
+vt 0.000000 1.000000
+f 1/1/1 2/2/1 3/3/1
