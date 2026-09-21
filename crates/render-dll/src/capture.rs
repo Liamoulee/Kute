@@ -36,6 +36,8 @@ static INFO_PTR: AtomicU64 = AtomicU64::new(0);
 
 struct Capture {
     pid: u32,
+    // when the last frame was copied for OBS, see MIN_COPY_INTERVAL
+    last_copy: Option<Instant>,
     mapping: usize,
     frame_event: usize,
     // Open NT handle (as `usize`) that keeps the `KuteCaptureTex_<pid>` name resolvable. Must
@@ -93,6 +95,10 @@ fn wide(s: &str) -> Vec<u16> {
 }
 
 const READER_ACTIVE: u32 = 0x1;
+// OBS shows 60 (at most a few hundred) frames a second, an uncapped game presents a thousand and more. Copying every one
+// moved a whole frame per present for nothing (18.6 MB at 3440x1351, so 18.6 GB/s at 1000 FPS: noise on a big GPU, a real
+// share of a small one's memory bandwidth). At most 240 copies a second, so OBS gets a frame at most about 4 ms old
+const MIN_COPY_INTERVAL: std::time::Duration = std::time::Duration::from_micros(4_150);
 // Control block mapping size (fixed; struct is 48 bytes).
 const INFO_SIZE: usize = 64;
 
@@ -136,6 +142,7 @@ pub fn capture_init() {
 
         *CAPTURE.lock().unwrap() = Some(Capture {
             pid,
+            last_copy: None,
             mapping: mapping.0 as usize,
             frame_event: frame_event.0 as usize,
             shared_handle: None,
@@ -265,6 +272,9 @@ pub fn capture_on_present(swapchain: *mut c_void) {
 
     if let Ok(mut guard) = CAPTURE.lock() {
         let Some(c) = guard.as_mut() else { return };
+        if c.last_copy.is_some_and(|at| at.elapsed() < MIN_COPY_INTERVAL) {
+            return;
+        }
 
         let Some(sc) = (unsafe { IDXGISwapChain1::from_raw_borrowed(&swapchain) }) else {
             return;
@@ -302,6 +312,7 @@ pub fn capture_on_present(swapchain: *mut c_void) {
         }
         let Some(context) = c.context.as_ref() else { return };
 
+        c.last_copy = Some(Instant::now());
         unsafe { context.CopyResource(shared, &back) };
 
         unsafe {
