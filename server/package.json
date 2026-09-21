@@ -1,6 +1,6 @@
 {
     "name": "kute-server",
-    "version": "1.0.19",
+    "version": "1.0.20",
     "private": "true",
     "description": "The Metadata Server for the Kute Client",
     "keywords": ["browser-game", "cute", "krunker", "krunker-client", "krunkerio", "kute", "nulldev"],
