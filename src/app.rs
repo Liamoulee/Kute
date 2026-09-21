@@ -92,6 +92,8 @@ pub fn take_present_intervals() -> Option<(u64, u64, u64, u64, u64)> {
             }
             std::thread::sleep(std::time::Duration::from_millis(1));
         }
+        // pairs with the fence before the hook writes the ack: the values below are the ones of this request
+        std::sync::atomic::fence(std::sync::atomic::Ordering::Acquire);
         Some((
             (*shared).present_p50_ns,
             (*shared).present_p99_ns,

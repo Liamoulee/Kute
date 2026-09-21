@@ -649,7 +649,9 @@ unsafe extern "system" fn present_hk(
                 shared.present_max_ns = max;
                 shared.arrive_p99_ns = arrive_p99;
                 shared.samples = samples;
-                shared.stats_ack = shared.stats_request;
+                // the host reads the values once it sees the ack, so they have to be written before it
+                std::sync::atomic::fence(Ordering::Release);
+                std::ptr::write_volatile(&raw mut shared.stats_ack, shared.stats_request);
             }
         }
         let original_present = ORIGINAL_PRESENT.unwrap();
