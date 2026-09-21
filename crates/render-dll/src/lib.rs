@@ -274,6 +274,30 @@ fn attach() {
     }
 }
 
+// set once the first big swap chain gets created, read by every present of ours
+static TEARING_SUPPORTED: AtomicBool = AtomicBool::new(false);
+
+// the check chromium makes before it asks for tearing (DXGISwapChainTearingSupported). asked once
+unsafe fn tearing_supported(factory: *mut c_void) -> bool {
+    static CHECKED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    let supported = *CHECKED.get_or_init(|| unsafe {
+        let Some(factory) = IDXGIFactory2::from_raw_borrowed(&factory) else {
+            return false;
+        };
+        let Ok(factory5) = factory.cast::<IDXGIFactory5>() else { return false };
+        let mut allow = BOOL(0);
+        let checked = factory5.CheckFeatureSupport(
+            DXGI_FEATURE_PRESENT_ALLOW_TEARING,
+            &mut allow as *mut BOOL as *mut c_void,
+            mem::size_of::<BOOL>() as u32,
+        );
+        debug_print!("render: tearing supported={} ({checked:?})", allow.as_bool());
+        checked.is_ok() && allow.as_bool()
+    });
+    TEARING_SUPPORTED.store(supported, Ordering::Relaxed);
+    supported
+}
+
 // chromium's swap chain as it asked for it
 unsafe fn create_swapchain_unmodified(
     this: *mut c_void,
@@ -322,7 +346,11 @@ unsafe extern "system" fn create_swapchain_hk(
         desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL; // discard crashes
         desc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
         // desc.Scaling = DXGI_SCALING_NONE; // this crashes
-        desc.Flags = (DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING.0 | DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT.0) as u32;
+        desc.Flags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT.0 as u32;
+        // like chromium itself: tearing only where the system supports it
+        if tearing_supported(this) {
+            desc.Flags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING.0 as u32;
+        }
 
         let original_fn = ORIGINAL_CREATE_SWAPCHAIN.unwrap();
 
@@ -605,7 +633,7 @@ unsafe extern "system" fn present_hk(
 
         // if the DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING swapchain was created with ALLOW_TEARING, we can present with it.
         // otheriwse it would fail with DXGI_ERROR_INVALID_CALL
-        if sync_interval == 0 && handle_opt.is_some() {
+        if sync_interval == 0 && handle_opt.is_some() && TEARING_SUPPORTED.load(Ordering::Relaxed) {
             present_flags |= DXGI_PRESENT_ALLOW_TEARING;
         }
         let present_started = std::time::Instant::now();
