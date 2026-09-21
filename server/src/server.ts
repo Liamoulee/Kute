@@ -65,7 +65,10 @@ loadPlayerStats();
 sheduleCrons();
 
 app.register(cors, { origin: "*" });
-app.register(helmet);
+// the files under public/kr exist to be embedded by krunker.io (crosshairs, hitmarkers, kill icons). Helmet
+// defaults Cross-Origin-Resource-Policy to same-origin, and the game's page then refuses every one of them with
+// ERR_BLOCKED_BY_RESPONSE.NotSameOrigin, whatever CORS says, because CORP is checked before it
+app.register(helmet, { crossOriginResourcePolicy: { policy: "cross-origin" } });
 app.register(websocket);
 
 // the API only: one visit of the website alone loads more than 10 files
