@@ -35,6 +35,23 @@ setHolder.innerHTML = html;
 const originalimportSettingsPopup = window.importSettingsPopup;
 const originalimportSettings = window.importSettings;
 
+/** Krunker's settings window, the one the import button sits in. */
+const SETTINGS_WINDOW = 1;
+
+/**
+ * Builds the settings window again after an import.
+ *
+ * Krunker builds that window once and does not rebuild it when the values change underneath, and which rows a
+ * group shows is decided while it is built: with the crosshair type on anything but Image, the crosshair group
+ * holds one row. So a player who imports settings that switch the type to Image finds no field to put the image
+ * in, until they close the settings and open them again (reported 2026-09-21, with a screenshot of exactly that).
+ */
+function reopenSettings(){
+    if (!document.querySelector("#settSearch")) return;
+    window.closWind?.(SETTINGS_WINDOW);
+    window.showWindow?.(SETTINGS_WINDOW);
+}
+
 /**
  * Wraps Krunker's importSettingsPopup to add the import toggles below the text area.
  */
@@ -81,6 +98,7 @@ window.importSettings = () => {
     importTxtElement.value = JSON.stringify(json);
     originalimportSettings();
     kute.bindShoot();
+    reopenSettings();
     // an auto-detect undo would now restore values from before the import
     kute.autoDetect?.dropUndo();
     // the first start setup offers this import as its settings step, and continues once it went through
