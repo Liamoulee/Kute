@@ -194,6 +194,16 @@
         "category": "Interface",
         "defaultValue": true
     },
+    "kuteIcons": {
+        "name": "Use Kute Icons",
+        "id": "kuteIcons",
+        "description": "Kute's icons for the counters, ammo, hitmarker, reticle and scope. Your settings stay untouched",
+        "type": "checkbox",
+        "category": "Interface",
+        "defaultValue": false,
+        "button": "Customize",
+        "buttonAction": "{{kute}}.kuteIcons.customize()"
+    },
     "hudLayout": {
         "name": "HUD Editor",
         "id": "hudLayout",

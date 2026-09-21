@@ -97,6 +97,8 @@ window.importSettings = () => {
     originalimportSettings();
     kute.bindShoot();
     reopenSettings();
+    // the import may have pointed an icon slot at another image of the player's own
+    kute.kuteIcons?.refresh();
     // an auto-detect undo would now restore values from before the import
     kute.autoDetect?.dropUndo();
     // the first start setup offers this import as its settings step, and continues once it went through
