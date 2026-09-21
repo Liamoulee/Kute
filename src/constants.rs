@@ -14,6 +14,10 @@ pub const KRUNKER_URL: &str = "https://krunker.io";
 pub const MSG_TO_PAGE: &str = "kute-message";
 pub const MSG_FROM_PAGE: &str = "kute-post";
 
+// Never block anything the renderer needs. libs/fflate was in here once: the game builds shader programs with
+// it, so blocking it left every program unlinked and the page logged "useProgram: program not valid" a few
+// hundred times per load (A/B on 2026-09-21: 256 lines with it blocked, 0 with only that entry allowed and the
+// rest of the list untouched). An entry that stops a script from loading needs that kind of check first
 pub const DEFAULT_BLOCKLIST: &str = r#"[
 	"*://*.pollfish.com/*",
 	"*://*.paypalobjects.com/*",
@@ -43,7 +47,6 @@ pub const DEFAULT_BLOCKLIST: &str = r#"[
   "*://krunker.io/libs/chart.bundle*",
   "*://krunker.io/img/muzflash.png*",
   "*://krunker.io/service-worker.js*",
-  "*://krunker.io/libs/fflate*",
   "*://krunker.io/libs/purejscarousel*",
   "*://assets.krunker.io/sound/ambient_*",
   "*://assets.krunker.io/models/clouds_0.obj*",
