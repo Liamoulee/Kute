@@ -594,7 +594,53 @@ unsafe extern "system" fn present_hk(
             0
         };
 
-        // limiter (main swapchain only)
+        // if the DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING swapchain was created with ALLOW_TEARING, we can present with it.
+        // otheriwse it would fail with DXGI_ERROR_INVALID_CALL
+        if sync_interval == 0 && handle_opt.is_some() && TEARING_SUPPORTED.load(Ordering::Relaxed) {
+            present_flags |= DXGI_PRESENT_ALLOW_TEARING;
+        }
+        let present_started = std::time::Instant::now();
+        if is_main {
+            PRESENTS.with_borrow_mut(|presents| presents.mark(present_started));
+            let shared = &mut *(ptr as *mut SharedState);
+            if shared.stats_request != shared.stats_ack {
+                let (p50, p99, max, samples) = PRESENTS.with_borrow_mut(|presents| presents.take());
+                let (_, arrive_p99, _, _) = ARRIVALS.with_borrow_mut(|arrivals| arrivals.take());
+                shared.present_p50_ns = p50;
+                shared.present_p99_ns = p99;
+                shared.present_max_ns = max;
+                shared.arrive_p99_ns = arrive_p99;
+                shared.samples = samples;
+                // the host reads the values once it sees the ack, so they have to be written before it
+                std::sync::atomic::fence(Ordering::Release);
+                std::ptr::write_volatile(&raw mut shared.stats_ack, shared.stats_request);
+            }
+        }
+        let original_present = ORIGINAL_PRESENT.unwrap();
+        let mut hr = original_present(p_this, sync_interval, present_flags, p_present_parameters);
+        if hr.is_err() && (present_flags.0 & DXGI_PRESENT_ALLOW_TEARING.0) != 0 {
+            debug_print!("Present failed with tearing flag: {:#X}, retrying fallback", hr.0);
+            let fallback_flags = DXGI_PRESENT(present_flags.0 & !DXGI_PRESENT_ALLOW_TEARING.0);
+            hr = original_present(p_this, sync_interval, fallback_flags, p_present_parameters);
+            debug_print!("render: Present fallback result={:#X}", hr.0);
+        }
+
+        if is_main {
+            capture::capture_on_present(p_this);
+        }
+
+        // how long the real present took, without the limiter's sleep below
+        let present_ns = if cfg!(feature = "verbose-logs") {
+            present_started.elapsed().as_nanos() as u64
+        } else {
+            0
+        };
+
+        // limiter (main swapchain only), AFTER the real present. the renderer can start its next frame while this
+        // thread sleeps (the swap ack does not wait for Present1 to return), so with the sleep before the present a
+        // frame had its input read and then sat out the whole sleep: at a cap of 144 the input was 13 ms old when the
+        // frame went out. now the frame goes out as soon as it arrives, about 1 ms after the game read its input at
+        // the median (Chromium trace from the rAF callbacks to Present1, caps 144 and 240, same frame pacing)
         let target_fps = (*(ptr as *const SharedState)).target_fps;
         if is_main && let Some(nanos) = 1_000_000_000u64.checked_div(target_fps) {
             let target_frame_time = std::time::Duration::from_nanos(nanos);
@@ -633,43 +679,7 @@ unsafe extern "system" fn present_hk(
         }
         // end of limiter
 
-        // if the DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING swapchain was created with ALLOW_TEARING, we can present with it.
-        // otheriwse it would fail with DXGI_ERROR_INVALID_CALL
-        if sync_interval == 0 && handle_opt.is_some() && TEARING_SUPPORTED.load(Ordering::Relaxed) {
-            present_flags |= DXGI_PRESENT_ALLOW_TEARING;
-        }
-        let present_started = std::time::Instant::now();
-        if is_main {
-            PRESENTS.with_borrow_mut(|presents| presents.mark(present_started));
-            let shared = &mut *(ptr as *mut SharedState);
-            if shared.stats_request != shared.stats_ack {
-                let (p50, p99, max, samples) = PRESENTS.with_borrow_mut(|presents| presents.take());
-                let (_, arrive_p99, _, _) = ARRIVALS.with_borrow_mut(|arrivals| arrivals.take());
-                shared.present_p50_ns = p50;
-                shared.present_p99_ns = p99;
-                shared.present_max_ns = max;
-                shared.arrive_p99_ns = arrive_p99;
-                shared.samples = samples;
-                // the host reads the values once it sees the ack, so they have to be written before it
-                std::sync::atomic::fence(Ordering::Release);
-                std::ptr::write_volatile(&raw mut shared.stats_ack, shared.stats_request);
-            }
-        }
-        let original_present = ORIGINAL_PRESENT.unwrap();
-        let mut hr = original_present(p_this, sync_interval, present_flags, p_present_parameters);
-        if hr.is_err() && (present_flags.0 & DXGI_PRESENT_ALLOW_TEARING.0) != 0 {
-            debug_print!("Present failed with tearing flag: {:#X}, retrying fallback", hr.0);
-            let fallback_flags = DXGI_PRESENT(present_flags.0 & !DXGI_PRESENT_ALLOW_TEARING.0);
-            hr = original_present(p_this, sync_interval, fallback_flags, p_present_parameters);
-            debug_print!("render: Present fallback result={:#X}", hr.0);
-        }
-
-        if is_main {
-            capture::capture_on_present(p_this);
-        }
-
         if cfg!(feature = "verbose-logs") {
-            let present_ns = present_started.elapsed().as_nanos() as u64;
             // report stalls (maybe it helps some other dev one day)
             if wait_ns > 50_000_000 || present_ns > 50_000_000 {
                 debug_print!(
