@@ -350,6 +350,12 @@ unsafe extern "system" fn wnd_proc_1(window: HWND, message: u32, wparam: WPARAM,
             WM_INPUT => {
                 let mut buffer = std::mem::MaybeUninit::<RAWINPUT>::uninit();
                 let mut size = std::mem::size_of::<RAWINPUT>() as u32;
+                // with our libcef chromium itself keeps the movement and ignores the button in these packets (app.rs,
+                // KuteRawInputMovementOnly), and dropping them here would throw the movement away again
+                static CHROMIUM_FILTERS: LazyLock<bool> = LazyLock::new(|| crate::app::feature_enabled("KuteRawInputMovementOnly"));
+                if *CHROMIUM_FILTERS {
+                    return CallWindowProcW(PREV_WNDPROC_1, window, message, wparam, lparam);
+                }
                 // we only deny raw input events carrying a mouse button press, the movement itself is handled by chromium
                 if GetRawInputData(
                     HRAWINPUT(lparam.0 as _),

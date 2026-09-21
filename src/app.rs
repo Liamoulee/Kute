@@ -153,11 +153,28 @@ pub fn load_flags() {
     if let Some(profile) = color_profile_switch(&config("colorProfile", "Default".to_string())) {
         flags.push(format!("--force-color-profile={profile}"));
     }
+    // our libcef (resources/cef, patch 03): chromium keeps the movement of raw mouse packets that also carry a button
+    // or wheel change and takes no button state from them, so input.rs no longer drops those packets. a
+    // --disable-features=KuteRawInputMovementOnly in user_flags.json brings the old way back, the filter included
+    flags.push("--enable-features=KuteRawInputMovementOnly".to_string());
     *FLAGS.lock().unwrap() = flags;
 }
 
 pub fn has_flag(wanted: &str) -> bool {
     FLAGS.lock().unwrap().iter().any(|flag| flag == wanted)
+}
+
+// whether a chromium feature ends up enabled by our flags (a --disable-features entry wins, like in chromium)
+pub fn feature_enabled(name: &str) -> bool {
+    let listed = |switch: &str| {
+        FLAGS
+            .lock()
+            .unwrap()
+            .iter()
+            .filter_map(|flag| flag.strip_prefix(switch))
+            .any(|list| list.split(',').any(|feature| feature.split(':').next() == Some(name)))
+    };
+    listed("--enable-features=") && !listed("--disable-features=")
 }
 
 pub fn prepare_profile() {
