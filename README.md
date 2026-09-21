@@ -16,6 +16,11 @@
 
 Kute is a high-performance Krunker client designed to enhance your gaming experience with features like uncapped FPS, optimized performance tweaks, custom scripts, and more. It runs on its own bundled Chromium (CEF) and provides a seamless, feature-rich environment for both casual and competitive players. Brought to you by <code>[cute]</code>, and the same guy who co-developed [idkr](https://github.com/idkr-client/idkr) and contributed to [glorp](https://github.com/slavcp/glorp).
 
+> [!WARNING]
+> This client uses patched CEF with Raw Input, which means mouse input is native: every bit of movement reaches the game, more accurately than on any other client. If you are used to playing on other clients, it might take a bit of time to get used to it.
+
+<hr>
+
 ## :star: Features
 
 - [x] Runs on its own bundled Chromium (CEF), no browser or runtime install needed
