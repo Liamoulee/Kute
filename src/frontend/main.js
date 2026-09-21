@@ -7,6 +7,13 @@ import "./modules/errorReports.js";
 const isBenchPage = location.pathname === "/kute-bench";
 if (isBenchPage) import("./modules/autoDetect/bench.js");
 
+// Krunker starts everyone on its basic settings list, which hides most of its own settings and every client
+// setting: settings.js renders them as the last ADVANCED tab, so a player who never flips that switch cannot
+// find them at all. "1" is what the switch writes for advanced and "0" for basic (windows[0].toggleType), and
+// it never removes the key, so an unset one really does mean "never chose". Written here because this file is
+// evaluated before any page script, which is the only point where Krunker still reads it for this page load
+if (!isBenchPage && localStorage.getItem("krk_advanced") === null) localStorage.setItem("krk_advanced", "1");
+
 let initialLoad = true;
 window.OffCliV = true;
 /**
