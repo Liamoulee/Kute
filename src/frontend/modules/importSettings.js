@@ -3,7 +3,10 @@ import { getElement } from "../utils.js";
 
 /** @type {HTMLDivElement} */
 const setHolder = document.createElement("div");
-setHolder.classList = "settName";
+setHolder.className = "settName";
+// two columns: the labels keep the left one, every switch sits in the right one. As one text flow each switch
+// sat wherever its label happened to end, so the three of them stood in a staircase
+setHolder.style.cssText = "display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px 12px;margin-top:10px";
 
 /**
  * Which setting groups get imported. Stored per group in localStorage as kute_<group>.
@@ -19,16 +22,11 @@ const settings = {
 
 let html = "";
 for (const setting in settings){
-    html += `
-	Import ${setting}
-<label class="switch">
-		<input type="checkbox" onclick="window.localStorage.setItem('kute_${setting}', this.checked)" ${settings[setting] ? "checked" : ""}>
-			<span class="slider">
-				<span class="grooves">
-				</span>
-				</span>
-	</label>
-	<br>`;
+    html += `<span>Import ${setting}</span>
+		<label class="switch" style="margin: 0">
+			<input type="checkbox" onclick="window.localStorage.setItem('kute_${setting}', this.checked)" ${settings[setting] ? "checked" : ""}>
+			<span class="slider"><span class="grooves"></span></span>
+		</label>`;
 }
 
 setHolder.innerHTML = html;
