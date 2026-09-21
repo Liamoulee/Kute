@@ -1,7 +1,18 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use std::{collections::HashMap, env, fs, fs::*, io::*};
+use std::{
+    collections::HashMap,
+    env, fs,
+    fs::*,
+    io::*,
+    path::PathBuf,
+    sync::{
+        LazyLock, Mutex,
+        mpsc::{self, Sender},
+    },
+    time::Duration,
+};
 #[derive(Deserialize)]
 struct SettingInfo {
     #[serde(default)]
@@ -84,8 +95,46 @@ impl Config {
     }
 
     pub fn save(&self) {
-        let settings_path = env::var("USERPROFILE").unwrap() + "\\Documents\\kute\\settings.json";
-        let settings_string = serde_json::to_string_pretty(&self.data).unwrap();
-        fs::write(settings_path, settings_string).ok();
+        let Ok(settings_string) = serde_json::to_string_pretty(&self.data) else {
+            return;
+        };
+        write_settings(&settings_string);
     }
+}
+
+// one writer at a time: the delayed save below and the one at exit can meet
+static WRITE_LOCK: Mutex<()> = Mutex::new(());
+
+// through a temp file and a rename, so a crash in the middle of a write leaves the old file instead of half of one
+fn write_settings(text: &str) {
+    let _guard = WRITE_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let settings_path = PathBuf::from(env::var("USERPROFILE").unwrap_or_default()).join("Documents\\kute\\settings.json");
+    let temp_path = settings_path.with_extension("json.tmp");
+    if fs::write(&temp_path, text).is_ok() {
+        fs::rename(&temp_path, &settings_path).ok();
+    }
+}
+
+// the settings used to be written at a clean exit only, so a crash, a killed process or a Windows shutdown lost every
+// change of the session. now a change gets written a second after the last one (a dragged slider is one write)
+static SAVER: LazyLock<Sender<()>> = LazyLock::new(|| {
+    let (sender, receiver) = mpsc::channel::<()>();
+    std::thread::spawn(move || {
+        while receiver.recv().is_ok() {
+            while receiver.recv_timeout(Duration::from_secs(1)).is_ok() {}
+            let Ok(settings_string) = serde_json::to_string_pretty(&crate::CONFIG.lock().unwrap().data) else {
+                continue;
+            };
+            write_settings(&settings_string);
+        }
+    });
+    sender
+});
+
+pub fn save_soon() {
+    // a bench process never writes the settings (its window must not end up as the client's lastPosition)
+    if crate::modules::bench::config().is_some() {
+        return;
+    }
+    SAVER.send(()).ok();
 }
