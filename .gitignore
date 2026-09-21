@@ -19,3 +19,6 @@ server/config/config.custom.ts
 server/data/*.db
 server/data/*.db-shm
 server/data/*.db-wal
+
+# Claude Code (personal)
+.claude/settings.local.json
