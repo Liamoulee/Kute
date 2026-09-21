@@ -3,13 +3,14 @@ use std::{
     cell::RefCell,
     collections::HashMap,
     net::{IpAddr, Ipv4Addr},
-    sync::{LazyLock, Mutex},
+    sync::Mutex,
     time,
 };
 
 use crate::{bridge, modules::devtools};
 
-static LAST_CONNECTED_LOBBY: LazyLock<Mutex<IpAddr>> = LazyLock::new(|| Mutex::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1))));
+// the lobby the game connected to: its host name, and its address once the ping thread resolved it
+static LAST_CONNECTED_LOBBY: Mutex<Option<(String, Option<IpAddr>)>> = Mutex::new(None);
 
 // the observer is dropped when its registration is
 thread_local! {
@@ -36,10 +37,10 @@ wrap_dev_tools_message_observer! {
             let Some(host) = url.split("://").nth(1).and_then(|s| s.split('/').next()) else { return };
             let host = host.split(':').next().unwrap_or(host);
 
-            if let Ok(ips) = dns_lookup::lookup_host(host)
-                && let Some(ip) = ips.into_iter().next()
-            {
-                *LAST_CONNECTED_LOBBY.lock().unwrap() = ip;
+            // no DNS lookup here, this runs on the browser's UI thread. the ping thread resolves it
+            let mut lobby = LAST_CONNECTED_LOBBY.lock().unwrap();
+            if lobby.as_ref().is_none_or(|(known, _)| known != host) {
+                *lobby = Some((host.to_string(), None));
             }
         }
     }
@@ -57,7 +58,7 @@ pub fn load(browser: &Browser) {
 // pinged off the UI thread so a timeout never stalls the browser
 pub fn ping(browser_id: i32) {
     std::thread::spawn(move || {
-        let addr = *LAST_CONNECTED_LOBBY.lock().unwrap();
+        let Some(addr) = lobby_address() else { return };
         let result = ping_rs::send_ping(
             &addr,
             time::Duration::from_secs(1),
@@ -68,6 +69,26 @@ pub fn ping(browser_id: i32) {
             bridge::post_json_later(browser_id, format!("{{\"pingInfo\":{}}}", reply.rtt));
         }
     });
+}
+
+// before the game connected anywhere this is localhost, like it always was
+fn lobby_address() -> Option<IpAddr> {
+    let lobby = LAST_CONNECTED_LOBBY.lock().unwrap().clone();
+    let Some((host, resolved)) = lobby else {
+        return Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)));
+    };
+    if resolved.is_some() {
+        return resolved;
+    }
+    let ip = dns_lookup::lookup_host(&host).ok()?.next()?;
+    let mut lobby = LAST_CONNECTED_LOBBY.lock().unwrap();
+    // the game may have moved on to another lobby during the lookup
+    if let Some((known, resolved)) = lobby.as_mut()
+        && *known == host
+    {
+        *resolved = Some(ip);
+    }
+    Some(ip)
 }
 
 // the last region pings as a JSON object and when they were taken

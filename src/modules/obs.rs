@@ -60,6 +60,7 @@ pub fn set_plugin_installed(frame: &cef::Frame, install: bool) {
 
     if !ok || message.starts_with("Windows administrator") {
         crate::CONFIG.lock().unwrap().set("obsCapturePlugin", false);
+        crate::config::save_soon();
     }
 
     debug_print!("{}", &message);

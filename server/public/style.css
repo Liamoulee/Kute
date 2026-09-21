@@ -742,6 +742,15 @@ h2 {
   line-height: 1.6;
 }
 
+/* a short heads-up under a card's text */
+.perf-body p.perf-note {
+  margin-top: 0.9rem;
+  padding-left: 0.7rem;
+  color: #ffd166;
+  border-left: 2px solid #ffd166;
+  font: 600 0.78rem/1.5 var(--mono);
+}
+
 .tags {
   margin: 1.2rem 0 0;
   padding: 0;

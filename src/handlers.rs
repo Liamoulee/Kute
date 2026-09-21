@@ -503,6 +503,7 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             && let Ok(value) = serde_json::from_str::<serde_json::Value>(value)
         {
             crate::CONFIG.lock().unwrap().set(setting, value);
+            crate::config::save_soon();
         }
         return;
     }
@@ -536,6 +537,7 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
     match parts.as_slice() {
         ["set-config", setting, value] => {
             crate::CONFIG.lock().unwrap().set(setting, parse_web_message_value(value));
+            crate::config::save_soon();
 
             // the one FPS limit: the present hook paces the whole game loop (see gameFpsLimit.js for the fallback)
             if *setting == "gameFpsLimit"
@@ -549,6 +551,7 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             modules::obs::set_plugin_installed(frame, install);
             if !install {
                 crate::CONFIG.lock().unwrap().set("obsCapturePlugin", false);
+                crate::config::save_soon();
             }
         }
         ["get-info"] => {

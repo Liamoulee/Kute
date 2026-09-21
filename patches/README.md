@@ -2,9 +2,62 @@
 
 You do not need these to build Kute. The patched `libcef.dll` ships in `resources/cef/` (Git LFS) and the build copies it over the stock one. They are here so everybody can see what the DLL changes, and to rebuild it for a new CEF version.
 
-Plain `git diff` files against `chromium/src` at 151.0.7922.174 (CEF branch 7922, the version of the `cef` crate in `Cargo.toml`). Apply them after CEF's `genprojects.bat`, then build CEF the regular way (`automate-git.py`, around 100 GB of disk and several hours).
+Plain `git diff` files against `chromium/src` at 151.0.7922.174 (CEF branch 7922, the version of the `cef` crate in `Cargo.toml`), applied on top of CEF's own Chromium patches.
 
 - `01-input-priority.patch`: `main_thread_scheduler_impl.cc`. Input task queues run at normal instead of highest priority and the compositor priority is capped at normal. Without it, continuous mouse input with `--disable-frame-rate-limit` starves WebSocket and worker messages on a busy main thread (the Krunker "aim freeze", Chromium bug 415071737). From bigjakk/Electron-Websocket-Fix.
 - `02-frame-pacing.patch`: `cc/scheduler/scheduler_state_machine.cc`. `IsDrawThrottled()` no longer exempts `disable_frame_rate_limit`, so the renderer stops flooding the main thread with back to back BeginMainFrames. This is what fixes the stutter when the GPU is the limit. Queue depth is the feature param `CustomMaxPendingFrames:count/N` (default 1). From thegu5 and bigjakk.
+- `03-raw-input-movement.patch`: `ui/views/win/hwnd_message_handler.cc`, feature `KuteRawInputMovementOnly` (off by default, Kute turns it on in `src/app.rs`). The raw mouse path keeps the movement of every packet and takes no button state from raw input. Stock Chromium skips a packet whose only flag is a wheel step, and Kute used to drop every packet with a button change before Chromium read it, so the page would not see the button in move events. Both threw away the movement in that packet: 6 to 9 counts per click or release, right at the shot. Also reads a mouse packet with one `GetRawInputData` call into a stack buffer instead of a size query, a heap allocation and a second call. While the feature is on, `src/modules/input.rs` skips its own `WM_INPUT` filter; `--disable-features=KuteRawInputMovementOnly` in `user_flags.json` brings the old way back.
 
-Only comments differ from the source the shipped DLL was built with.
+01 and 02 differ from the source the shipped DLL was built with in comments only; 03 is the exact diff.
+
+## Rebuilding the DLL
+
+What the shipped DLL was built with: CEF branch 7922, CEF commit `2384915b7b1f0fe5ad1107e48d80c34e86b698d7`, Chromium `151.0.7922.174` (`cef_binary_151.3.24+g2384915+chromium-151.0.7922.174`, the distribution `cef-dll-sys` downloads, see `Cargo.lock`). Windows x64, Visual Studio 2022 with ATL, Windows SDK 10.0.26100.0, Python 3.12, git with long paths, about 100 GB of disk. For a newer CEF, take the branch and commit from the tarball name `cef-dll-sys` downloads.
+
+1. Environment for every step (cmd):
+
+   ```
+   set GN_DEFINES=is_official_build=true
+   set GYP_MSVS_VERSION=2022
+   set DEPOT_TOOLS_WIN_TOOLCHAIN=0
+   set CEF_ARCHIVE_FORMAT=tar.bz2
+   ```
+
+2. Checkout with CEF's `automate-git.py` (from the CEF repo, `tools/automate/`), about 30 GB and 40 minutes. This fetches depot_tools, CEF and Chromium and applies CEF's own patches:
+
+   ```
+   py -3.12 automate-git.py --download-dir=C:\cef --branch=7922 --checkout=2384915b7b1f0fe5ad1107e48d80c34e86b698d7 --x64-build --no-chromium-history --with-pgo-profiles --no-build --no-distrib
+   ```
+
+3. Generate the build directories (with `C:\cef\depot_tools` on `PATH`): in `chromium\src\cef` run `python3.bat tools\gclient_hook.py`. Then append to `chromium\src\out\Release_GN_x64\args.gn`:
+
+   ```
+   symbol_level=0
+   blink_symbol_level=0
+   v8_symbol_level=0
+   ```
+
+4. Apply the patches in `chromium\src`, in order:
+
+   ```
+   git apply <kute>\patches\01-input-priority.patch
+   git apply <kute>\patches\02-frame-pacing.patch
+   git apply <kute>\patches\03-raw-input-movement.patch
+   ```
+
+   If one rejects on a new Chromium, the places to find are `MainThreadSchedulerImpl::ComputePriority` (the `kInput` case) and `ComputeCompositorPriority` (01), `SchedulerStateMachine::IsDrawThrottled` (02), `HWNDMessageHandler::OnInputEvent` (03). Save the re-anchored `git diff` back into this folder.
+
+5. Build (with `C:\cef\depot_tools` on `PATH`, in `chromium\src`), about 3 hours from scratch on a 12900K, one to two minutes for a small change afterwards:
+
+   ```
+   autoninja -C out\Release_GN_x64 cefclient bootstrap bootstrapc
+   ```
+
+6. Copy `chromium\src\out\Release_GN_x64\libcef.dll` to `resources\cef\libcef.dll` and commit it (Git LFS). Only `libcef.dll` differs from the official distribution; `v8_context_snapshot.bin` and `icudtl.dat` come out byte identical, so the rest stays stock.
+
+A `libcef.dll` that does not match the `cef` crate version crashes on start: when bumping the crate, rebuild first or delete `resources/cef/libcef.dll`.
+
+## How the patches were checked
+
+- 01 and 02: the aim freeze stress test (a 12 s mouse flood over CDP on a page that spends 3 ms of JavaScript per frame, next to a 60 Hz WebSocket). Stock CEF freezes WebSocket delivery for 7 to 12 s, the patched DLL keeps every gap under about 36 ms, with no frame rate cost.
+- 03: raw mouse counts against the movement the page received over the same 60 s in a match: 99.88 % with the patch, 99.65 % without (the difference is what the old filter dropped), presses and releases identical. The aim freeze test still passes with it (worst gaps 20.6 and 24.5 ms, stock 7.4 and 8.3 s in the same session).

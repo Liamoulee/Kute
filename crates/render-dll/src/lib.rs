@@ -261,16 +261,63 @@ fn attach() {
         });
         debug_print!("render: Present1 hook created, trampoline={original_present:p}");
 
-        match MinHook::enable_all_hooks() {
-            Ok(()) => debug_print!("render: all MinHook hooks enabled"),
-            Err(error) => debug_print!("render: cannot enable hooks: {error:?}"),
-        }
+        // the trampolines first: a hooked call arriving between enabling and storing would find None
         #[allow(clippy::missing_transmute_annotations)]
         {
             ORIGINAL_CREATE_SWAPCHAIN = mem::transmute(original_create_swapchain);
             ORIGINAL_PRESENT = mem::transmute(original_present);
         }
+        match MinHook::enable_all_hooks() {
+            Ok(()) => debug_print!("render: all MinHook hooks enabled"),
+            Err(error) => debug_print!("render: cannot enable hooks: {error:?}"),
+        }
         debug_print!("render: attach completed");
+    }
+}
+
+// set once the first big swap chain gets created, read by every present of ours
+static TEARING_SUPPORTED: AtomicBool = AtomicBool::new(false);
+
+// the check chromium makes before it asks for tearing (DXGISwapChainTearingSupported). asked once
+unsafe fn tearing_supported(factory: *mut c_void) -> bool {
+    static CHECKED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    let supported = *CHECKED.get_or_init(|| unsafe {
+        let Some(factory) = IDXGIFactory2::from_raw_borrowed(&factory) else {
+            return false;
+        };
+        let Ok(factory5) = factory.cast::<IDXGIFactory5>() else { return false };
+        let mut allow = BOOL(0);
+        let checked = factory5.CheckFeatureSupport(
+            DXGI_FEATURE_PRESENT_ALLOW_TEARING,
+            &mut allow as *mut BOOL as *mut c_void,
+            mem::size_of::<BOOL>() as u32,
+        );
+        debug_print!("render: tearing supported={} ({checked:?})", allow.as_bool());
+        checked.is_ok() && allow.as_bool()
+    });
+    TEARING_SUPPORTED.store(supported, Ordering::Relaxed);
+    supported
+}
+
+// chromium's swap chain as it asked for it
+unsafe fn create_swapchain_unmodified(
+    this: *mut c_void,
+    pdevice: *mut c_void,
+    pdesc: *const DXGI_SWAP_CHAIN_DESC1,
+    prestricttooutput: *mut c_void,
+    ppswapchain: *mut *mut c_void,
+) -> HRESULT {
+    unsafe {
+        let original_fn = ORIGINAL_CREATE_SWAPCHAIN.unwrap();
+        let result = original_fn(this, pdevice, pdesc, prestricttooutput, ppswapchain);
+
+        // new swapchain creation can be on the same address as a destroyed one, so purge stale wait handle
+        if result.is_ok() && !ppswapchain.is_null() && WAIT_HANDLE.write().unwrap().remove(&(*ppswapchain as usize)).is_some() {
+            debug_print!("render: purged stale wait handle for reused swapchain address {:?}", *ppswapchain);
+            // bump when WAIT_HANDLE changes so the per-thread caches in present_hk drop stale entries
+            WAIT_HANDLE_GENERATION.fetch_add(1, Ordering::Release);
+        }
+        result
     }
 }
 
@@ -284,16 +331,8 @@ unsafe extern "system" fn create_swapchain_hk(
     unsafe {
         // small ones are chromium's own little surfaces. every big one is a window's, see MAIN_SWAPCHAIN
         if (*pdesc).Width < 600 || (*pdesc).Height < 600 {
-            let original_fn = ORIGINAL_CREATE_SWAPCHAIN.unwrap();
-            let result = original_fn(this, pdevice, pdesc, prestricttooutput, ppswapchain);
-
-            // new swapchain creation can be on the same address as a destroyed one, so purge stale wait handle
-            if result.is_ok() && !ppswapchain.is_null() && WAIT_HANDLE.write().unwrap().remove(&(*ppswapchain as usize)).is_some() {
-                debug_print!("render: purged stale wait handle for reused swapchain address {:?}", *ppswapchain);
-                // bump when WAIT_HANDLE changes so the per-thread caches in present_hk drop stale entries
-                WAIT_HANDLE_GENERATION.fetch_add(1, Ordering::Release);
-            }
-            return result;
+            debug_print!("render: swap chain {}x{} left alone (under 600 px)", (*pdesc).Width, (*pdesc).Height);
+            return create_swapchain_unmodified(this, pdevice, pdesc, prestricttooutput, ppswapchain);
         }
         debug_print!(
             "render: CreateSwapChainForComposition called original={}x{} buffers={} format={} flags={:#x}",
@@ -309,14 +348,20 @@ unsafe extern "system" fn create_swapchain_hk(
         desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL; // discard crashes
         desc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
         // desc.Scaling = DXGI_SCALING_NONE; // this crashes
-        desc.Flags = (DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING.0 | DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT.0) as u32;
+        desc.Flags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT.0 as u32;
+        // like chromium itself: tearing only where the system supports it
+        if tearing_supported(this) {
+            desc.Flags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING.0 as u32;
+        }
 
         let original_fn = ORIGINAL_CREATE_SWAPCHAIN.unwrap();
 
         let result = original_fn(this, pdevice, &desc, prestricttooutput, ppswapchain);
-        if let Err(e) = result.ok() {
-            debug_print!("Failed to create swap chain: {:#X} - {}", result.0, e);
-            panic!("h");
+        if let Err(_e) = result.ok() {
+            // a panic here took the whole GPU process down. chromium's own swap chain is the better outcome, it only
+            // goes without the limiter, stats and capture (and chromium handles a failure of that one by itself)
+            debug_print!("render: modified swap chain creation failed: {:#X} - {}, creating it unmodified", result.0, _e);
+            create_swapchain_unmodified(this, pdevice, pdesc, prestricttooutput, ppswapchain)
         } else {
             debug_print!("render: swap chain created pointer={:?}", *ppswapchain);
             let swap_chain = IDXGISwapChain1::from_raw(*ppswapchain);
@@ -337,6 +382,8 @@ unsafe extern "system" fn create_swapchain_hk(
                 swap_chain2
                     .SetMaximumFrameLatency(1)
                     .unwrap_or_else(|e| debug_print!("Failed to set latency: {:?}", e));
+                // what holds in the end: depth 1 is what the pacing rests on
+                debug_print!("render: frame latency now {:?}", swap_chain2.GetMaximumFrameLatency());
 
                 let waitable_obj = swap_chain2.GetFrameLatencyWaitableObject();
                 debug_print!("render: frame-latency waitable object={waitable_obj:?}");
@@ -547,7 +594,53 @@ unsafe extern "system" fn present_hk(
             0
         };
 
-        // limiter (main swapchain only)
+        // if the DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING swapchain was created with ALLOW_TEARING, we can present with it.
+        // otheriwse it would fail with DXGI_ERROR_INVALID_CALL
+        if sync_interval == 0 && handle_opt.is_some() && TEARING_SUPPORTED.load(Ordering::Relaxed) {
+            present_flags |= DXGI_PRESENT_ALLOW_TEARING;
+        }
+        let present_started = std::time::Instant::now();
+        if is_main {
+            PRESENTS.with_borrow_mut(|presents| presents.mark(present_started));
+            let shared = &mut *(ptr as *mut SharedState);
+            if shared.stats_request != shared.stats_ack {
+                let (p50, p99, max, samples) = PRESENTS.with_borrow_mut(|presents| presents.take());
+                let (_, arrive_p99, _, _) = ARRIVALS.with_borrow_mut(|arrivals| arrivals.take());
+                shared.present_p50_ns = p50;
+                shared.present_p99_ns = p99;
+                shared.present_max_ns = max;
+                shared.arrive_p99_ns = arrive_p99;
+                shared.samples = samples;
+                // the host reads the values once it sees the ack, so they have to be written before it
+                std::sync::atomic::fence(Ordering::Release);
+                std::ptr::write_volatile(&raw mut shared.stats_ack, shared.stats_request);
+            }
+        }
+        let original_present = ORIGINAL_PRESENT.unwrap();
+        let mut hr = original_present(p_this, sync_interval, present_flags, p_present_parameters);
+        if hr.is_err() && (present_flags.0 & DXGI_PRESENT_ALLOW_TEARING.0) != 0 {
+            debug_print!("Present failed with tearing flag: {:#X}, retrying fallback", hr.0);
+            let fallback_flags = DXGI_PRESENT(present_flags.0 & !DXGI_PRESENT_ALLOW_TEARING.0);
+            hr = original_present(p_this, sync_interval, fallback_flags, p_present_parameters);
+            debug_print!("render: Present fallback result={:#X}", hr.0);
+        }
+
+        if is_main {
+            capture::capture_on_present(p_this);
+        }
+
+        // how long the real present took, without the limiter's sleep below
+        let present_ns = if cfg!(feature = "verbose-logs") {
+            present_started.elapsed().as_nanos() as u64
+        } else {
+            0
+        };
+
+        // limiter (main swapchain only), AFTER the real present. the renderer can start its next frame while this
+        // thread sleeps (the swap ack does not wait for Present1 to return), so with the sleep before the present a
+        // frame had its input read and then sat out the whole sleep: at a cap of 144 the input was 13 ms old when the
+        // frame went out. now the frame goes out as soon as it arrives, about 1 ms after the game read its input at
+        // the median (Chromium trace from the rAF callbacks to Present1, caps 144 and 240, same frame pacing)
         let target_fps = (*(ptr as *const SharedState)).target_fps;
         if is_main && let Some(nanos) = 1_000_000_000u64.checked_div(target_fps) {
             let target_frame_time = std::time::Duration::from_nanos(nanos);
@@ -586,41 +679,7 @@ unsafe extern "system" fn present_hk(
         }
         // end of limiter
 
-        // if the DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING swapchain was created with ALLOW_TEARING, we can present with it.
-        // otheriwse it would fail with DXGI_ERROR_INVALID_CALL
-        if sync_interval == 0 && handle_opt.is_some() {
-            present_flags |= DXGI_PRESENT_ALLOW_TEARING;
-        }
-        let present_started = std::time::Instant::now();
-        if is_main {
-            PRESENTS.with_borrow_mut(|presents| presents.mark(present_started));
-            let shared = &mut *(ptr as *mut SharedState);
-            if shared.stats_request != shared.stats_ack {
-                let (p50, p99, max, samples) = PRESENTS.with_borrow_mut(|presents| presents.take());
-                let (_, arrive_p99, _, _) = ARRIVALS.with_borrow_mut(|arrivals| arrivals.take());
-                shared.present_p50_ns = p50;
-                shared.present_p99_ns = p99;
-                shared.present_max_ns = max;
-                shared.arrive_p99_ns = arrive_p99;
-                shared.samples = samples;
-                shared.stats_ack = shared.stats_request;
-            }
-        }
-        let original_present = ORIGINAL_PRESENT.unwrap();
-        let mut hr = original_present(p_this, sync_interval, present_flags, p_present_parameters);
-        if hr.is_err() && (present_flags.0 & DXGI_PRESENT_ALLOW_TEARING.0) != 0 {
-            debug_print!("Present failed with tearing flag: {:#X}, retrying fallback", hr.0);
-            let fallback_flags = DXGI_PRESENT(present_flags.0 & !DXGI_PRESENT_ALLOW_TEARING.0);
-            hr = original_present(p_this, sync_interval, fallback_flags, p_present_parameters);
-            debug_print!("render: Present fallback result={:#X}", hr.0);
-        }
-
-        if is_main {
-            capture::capture_on_present(p_this);
-        }
-
         if cfg!(feature = "verbose-logs") {
-            let present_ns = present_started.elapsed().as_nanos() as u64;
             // report stalls (maybe it helps some other dev one day)
             if wait_ns > 50_000_000 || present_ns > 50_000_000 {
                 debug_print!(
@@ -685,10 +744,17 @@ pub extern "system" fn render_attach() -> i32 {
     }
 }
 
+// returns TRUE: a DllMain that returns nothing hands the loader whatever is left in the register, and a zero there
+// makes LoadLibrary fail on DLL_PROCESS_ATTACH. that worked by luck of the generated code, one more branch below
+// was enough to turn it into a zero and the GPU process ran without the hook
 #[unsafe(no_mangle)]
-extern "system" fn DllMain(_: HINSTANCE, call_reason: u32, _: *mut ()) {
+extern "system" fn DllMain(_: HINSTANCE, call_reason: u32, reserved: *mut ()) -> BOOL {
     if call_reason == DLL_PROCESS_ATTACH {
         debug_print!("render: DLL_PROCESS_ATTACH, waiting for render_attach");
+    } else if call_reason == DLL_PROCESS_DETACH && !reserved.is_null() {
+        // the process is exiting: the other threads are already gone, possibly holding one of the locks below,
+        // and the system frees everything anyway (Microsoft's DllMain guidance: do no cleanup in this case)
+        debug_print!("render: DLL_PROCESS_DETACH at process exit, nothing to clean up");
     } else if call_reason == DLL_PROCESS_DETACH {
         debug_print!("render: DLL_PROCESS_DETACH, cleaning capture state and handles");
         capture::capture_cleanup();
@@ -702,4 +768,5 @@ extern "system" fn DllMain(_: HINSTANCE, call_reason: u32, _: *mut ()) {
             }
         }
     }
+    TRUE
 }

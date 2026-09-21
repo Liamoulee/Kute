@@ -174,7 +174,7 @@
             </div>
             <div class="perf-body">
               <h3>Uncapped FPS</h3>
-              <p>A hook on the game's swap chain holds any FPS limit exactly while the CPU idles, and counts the frames that actually reach your screen. The bundled Chromium is patched against the aim freeze and the stutter other uncapped clients get when the GPU is the limit.</p>
+              <p>A hook on the game's swap chain holds any FPS limit exactly while the CPU idles, and a frame reaches the screen about 1&nbsp;ms after the game read your mouse (median at 144&nbsp;FPS, down from 13.6&nbsp;ms). The bundled Chromium is patched against the aim freeze (in our stress test stock Chromium stalled for 7.5&nbsp;s, Kute for at most 30&nbsp;ms) and the stutter other uncapped clients get when the GPU is the limit.</p>
               <ul class="tags">
                 <li>D3D11</li><li>D3D11on12</li><li>OpenGL</li><li>Vulkan</li>
               </ul>
@@ -207,7 +207,8 @@
             </div>
             <div class="perf-body">
               <h3>Raw input</h3>
-              <p>Mouse movement comes straight from the device, without Windows pointer acceleration. Scrolling can jump for easier ramp boosts, and that turns itself off in competitive.</p>
+              <p>Mouse movement comes straight from the device, without Windows pointer acceleration, and 100&nbsp;% of it reaches the game, also when you click or scroll mid-flick. Scrolling can jump for easier ramp boosts, and that turns itself off in competitive.</p>
+              <p class="perf-note">Native input, more accurate than on any other client. Coming from another one, it might take a bit of time to get used to it.</p>
               <ul class="tags">
                 <li>No acceleration</li><li>Ramp boost</li>
               </ul>

@@ -82,6 +82,7 @@ class BetterChat {
      * @param {MutationRecord[]} mutations
      */
     parseMessages(mutations){
+        let tagged = false;
         for (const mutation of mutations){
             for (const node of mutation.addedNodes){
                 // text nodes have no querySelector, and a throw here aborts the whole mutation batch
@@ -99,11 +100,12 @@ class BetterChat {
                 if (!tab || !chatItem.textContent.includes("\u200E:") || !this.teamModes.has(window.getGameActivity().mode)) continue;
                 if (tab === "0") chatMsg.insertBefore(this.channelA.cloneNode(true), chatMsg.firstChild);
                 else if (tab === "1") chatMsg.insertBefore(this.channelT.cloneNode(true), chatMsg.firstChild);
-                // to the bottom. not scrollHeight: reading it right after an insert makes the browser lay the
-                // page out on the spot, in the middle of a frame. a value past the end gets clamped to the end
-                this.chatList.scrollTop = 1e9;
+                tagged = true;
             }
         }
+        // to the bottom, once per batch: setting scrollTop lays the page out on the spot, in the middle of a frame.
+        // not scrollHeight, reading it does the same. a value past the end gets clamped to the end
+        if (tagged) this.chatList.scrollTop = 1e9;
     }
 
     /**
