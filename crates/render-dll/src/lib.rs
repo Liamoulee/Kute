@@ -685,10 +685,17 @@ pub extern "system" fn render_attach() -> i32 {
     }
 }
 
+// returns TRUE: a DllMain that returns nothing hands the loader whatever is left in the register, and a zero there
+// makes LoadLibrary fail on DLL_PROCESS_ATTACH. that worked by luck of the generated code, one more branch below
+// was enough to turn it into a zero and the GPU process ran without the hook
 #[unsafe(no_mangle)]
-extern "system" fn DllMain(_: HINSTANCE, call_reason: u32, _: *mut ()) {
+extern "system" fn DllMain(_: HINSTANCE, call_reason: u32, reserved: *mut ()) -> BOOL {
     if call_reason == DLL_PROCESS_ATTACH {
         debug_print!("render: DLL_PROCESS_ATTACH, waiting for render_attach");
+    } else if call_reason == DLL_PROCESS_DETACH && !reserved.is_null() {
+        // the process is exiting: the other threads are already gone, possibly holding one of the locks below,
+        // and the system frees everything anyway (Microsoft's DllMain guidance: do no cleanup in this case)
+        debug_print!("render: DLL_PROCESS_DETACH at process exit, nothing to clean up");
     } else if call_reason == DLL_PROCESS_DETACH {
         debug_print!("render: DLL_PROCESS_DETACH, cleaning capture state and handles");
         capture::capture_cleanup();
@@ -702,4 +709,5 @@ extern "system" fn DllMain(_: HINSTANCE, call_reason: u32, _: *mut ()) {
             }
         }
     }
+    TRUE
 }
