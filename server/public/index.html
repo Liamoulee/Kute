@@ -63,6 +63,7 @@
       </div>
       <nav aria-label="Sections">
         <a href="#performance">Performance</a>
+        <a href="#faq">FAQ</a>
         <a href="#screenshots">Screenshots</a>
         <a href="#features">Features</a>
         <a href="#about">About</a>
@@ -232,9 +233,31 @@
         </div>
       </section>
 
-      <section class="section-shell screenshots" id="screenshots">
+      <section class="section-shell faq" id="faq">
         <div class="section-head reveal">
           <p class="eyebrow">[ 02 ]</p>
+          <h2>FAQ</h2>
+        </div>
+
+        <div class="faq-list">
+          <details class="faq-item reveal">
+            <summary>My game stutters</summary>
+            <p>Run <b>Auto-Detect Best Settings</b> in the General settings. It plays a private test match, measures what each setting costs on your PC and sets only what makes a real difference (it needs a Krunker account). Leave CPU Throttling at 1 unless Auto-Detect sets it.</p>
+          </details>
+          <details class="faq-item reveal">
+            <summary>I can't aim</summary>
+            <p>Kute uses pure raw input: your mouse's movement goes straight to the game, without Windows pointer acceleration, and none of it gets lost, not even the movement in the same instant as a click or a scroll. No other client passes every bit of it through. It is more accurate, and exactly because of that it can feel different for a few rounds if your aim is used to another client. Give it some time before you change your sensitivity.</p>
+          </details>
+          <details class="faq-item reveal">
+            <summary>My FPS is lower, but the client is smoother</summary>
+            <p>Uncapped, other clients count every frame the game computes, including frames that never reach your screen: they pile up behind the GPU and get replaced before they are shown. A big number, but those frames are only extra load and extra input lag. Kute's swap chain hook and patched Chromium let the game run just one frame ahead, so it only computes frames that actually get shown, and the <b>Present FPS Counter</b> shows the frames that reach your screen. A lower number that is real, instead of a higher one that is not.</p>
+          </details>
+        </div>
+      </section>
+
+      <section class="section-shell screenshots" id="screenshots">
+        <div class="section-head reveal">
+          <p class="eyebrow">[ 03 ]</p>
           <h2>Screenshots</h2>
           <p>Click one to see it full size.</p>
         </div>
@@ -277,7 +300,7 @@
 
       <section class="section-shell features" id="features">
         <div class="features-side reveal">
-          <p class="eyebrow">[ 03 ]</p>
+          <p class="eyebrow">[ 04 ]</p>
           <h2>All features</h2>
           <p>Nearly all of them are settings in Krunker's settings menu and can be turned off.</p>
           <nav class="feature-index" aria-label="Feature groups">
@@ -360,7 +383,7 @@
           <div class="about-rings"></div>
         </div>
         <div class="about-copy reveal">
-          <p class="eyebrow">[ 04 ]</p>
+          <p class="eyebrow">[ 05 ]</p>
           <h2>Made by <a href="https://github.com/NullDev" target="_blank" rel="noreferrer">NullDev</a> / <a href="https://krunker.io/social.html?p=profile&q=NLPing" target="_blank" rel="noreferrer">NulPing</a> - <a href="https://krunker.io/social.html?p=clan&q=cute" target="_blank" rel="noreferrer">[cute]</a></h2>
           <p>
             Same guy who co-developed <a href="https://github.com/idkr-client/idkr" target="_blank" rel="noreferrer">idkr</a> and is a contributor to <a href="https://github.com/slavcp/glorp" target="_blank" rel="noreferrer">glorp</a>.

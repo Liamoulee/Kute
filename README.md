@@ -68,12 +68,16 @@ If you want to support this Project, you can help with Code contributions :octoc
 
 <hr>
 
-## :lock: Potential issues
+## :question: FAQ
 
-- The stutter known from other uncapped clients (FPS counter high, screen choppy, worst when the GPU is the limit) is fixed by the patched CEF. <br>
-  If you still see it: run Auto-Detect, open its Advanced view, copy the report and [open an issue](https://github.com/NullDev/Kute/issues/choose).
-- CPU Throttling pauses the game in short bursts and causes lag spikes. Leave it at 1 unless Auto-Detect sets it.
-- Auto-Detect needs a Krunker account, because it measures in a private match.
+**My game stutters.** <br>
+Run **Auto-Detect Best Settings** (General settings). It plays a private test match, measures what each setting costs on your PC and sets only what makes a real difference (it needs a Krunker account). Leave CPU Throttling at 1 unless Auto-Detect sets it. Still stuttering? Open Auto-Detect's Advanced view, copy the report and [open an issue](https://github.com/NullDev/Kute/issues/choose).
+
+**I can't aim / my aim feels different.** <br>
+Kute uses pure raw input: your mouse's movement goes straight to the game, without Windows pointer acceleration, and none of it gets lost, not even the movement in the same instant as a click or a scroll. No other client passes every bit of it through. It is more accurate, and exactly because of that it can feel different for a few rounds if your aim is used to another client. Give it some time before you change your sensitivity.
+
+**My FPS is lower than in other clients, but Kute feels smoother.** <br>
+Uncapped, other clients count every frame the game computes, including frames that never reach your screen: they pile up behind the GPU and get replaced before they are shown. That makes a big number, but those extra frames are only extra load and extra input lag. Kute's swap chain hook and patched Chromium let the game run just one frame ahead, so it only computes frames that actually get shown, and the **Present FPS Counter** (Interface settings) shows the frames that reach your screen. A lower number that is real, instead of a higher one that is not.
 
 <hr>
 
@@ -88,7 +92,7 @@ If you want to support this Project, you can help with Code contributions :octoc
 | [`crates/render-dll`](/crates/render-dll) | `render.dll`, loaded into Chromium's GPU process: the DXGI present hook (flip swapchain, FPS limiter, frame stats) and the producer side of the OBS capture. |
 | [`crates/obs-kute-capture`](/crates/obs-kute-capture) | The OBS plugin that shows the game through a shared texture. |
 | [`resources/`](/resources) | Installer script (WiX), VC runtime, and the patched CEF DLL in [`resources/cef/`](/resources/cef) (Git LFS). |
-| [`patches/`](/patches) | The two Chromium patches the CEF DLL is built with. |
+| [`patches/`](/patches) | The Chromium patches the CEF DLL is built with, and how to rebuild it. |
 | [`server/`](/server) | The server behind `kute.lol`: clan colors, the Kute badge presence and the anonymous Auto-Detect reports. Bun, Fastify, TypeScript, SQLite. Its own project with its own `package.json`. The client builds and runs without it, and plays the same when it is down. |
 
 ### Client
