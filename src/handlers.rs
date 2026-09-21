@@ -1,11 +1,6 @@
 use crate::{app, bridge, constants, debug_print, modules, utils, utils::config, window};
-use cef::{
-    rc::*,
-    wrapper::byte_read_handler::{ByteReadHandler, ByteStream},
-    wrapper::stream_resource_handler::StreamResourceHandler,
-    *,
-};
-use std::sync::{Arc, Mutex};
+use cef::{rc::*, *};
+use std::sync::Mutex;
 
 // args handed over by a second instance while the main window was being recreated
 static PENDING_ARGS: Mutex<Option<String>> = Mutex::new(None);
@@ -83,18 +78,13 @@ wrap_resource_request_handler! {
         ) -> Option<ResourceHandler> {
             let url = request_url(request)?;
             if modules::bench::active() && url.contains(modules::bench::BENCH_PATH) {
-                let mut read_handler =
-                    ByteReadHandler::new(Arc::new(Mutex::new(ByteStream::new(modules::bench::STUB_PAGE.as_bytes().to_vec()))));
-                let stream = stream_reader_create_for_handler(Some(&mut read_handler))?;
-                return Some(StreamResourceHandler::new_with_stream("text/html".to_string(), stream));
+                return modules::resource::serve("text/html", modules::bench::STUB_PAGE.as_bytes().to_vec());
             }
             let bytes = modules::swapper::swap_for(&url)?;
             debug_print!("handlers: swapping {url}");
 
             let filename = url.split("krunker.io/").nth(1).and_then(|s| s.split('?').next()).unwrap_or("");
-            let mut read_handler = ByteReadHandler::new(Arc::new(Mutex::new(ByteStream::new(bytes.clone()))));
-            let stream = stream_reader_create_for_handler(Some(&mut read_handler))?;
-            Some(StreamResourceHandler::new_with_stream(modules::swapper::mime_for(filename).to_string(), stream))
+            modules::resource::serve(modules::swapper::mime_for(filename), bytes.clone())
         }
     }
 }

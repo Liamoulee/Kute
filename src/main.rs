@@ -27,6 +27,7 @@ pub mod modules {
     pub mod ping;
     pub mod priority;
     pub mod render_hook;
+    pub mod resource;
     pub mod specs;
     pub mod swapper;
     pub mod userscripts;
