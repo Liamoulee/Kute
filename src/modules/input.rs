@@ -77,6 +77,7 @@ static mut PREV_WNDPROC_2: WNDPROC = None;
 // true while the game holds the pointer
 static POINTER_LOCKED: AtomicBool = AtomicBool::new(false);
 static F20_DOWN: AtomicBool = AtomicBool::new(false);
+static RAMPBOOST: AtomicBool = AtomicBool::new(false);
 static WINDOW_HANDLE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static RENDER_WIDGET: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static HOOK_HANDLE: AtomicUsize = AtomicUsize::new(0);
@@ -118,22 +119,26 @@ impl ChromeWindows {
         }
     }
 
+    // each window on its own: every page load brings a new render widget while the outer window stays, and
+    // returning once the outer one was ours left every widget after the first page load without its hook
     unsafe fn set_window_procs(&self) {
         unsafe {
             let original_proc_1 = GetWindowLongPtrW(self.chrome_window, GWLP_WNDPROC);
-            if original_proc_1 == wnd_proc_1 as *const () as isize {
-                return;
+            if original_proc_1 != wnd_proc_1 as *const () as isize {
+                debug_print!("input: original chrome wndproc={original_proc_1:#x}");
+                PREV_WNDPROC_1 = transmute::<isize, Option<unsafe extern "system" fn(HWND, u32, WPARAM, LPARAM) -> LRESULT>>(original_proc_1);
+                let _previous = SetWindowLongPtrW(self.chrome_window, GWLP_WNDPROC, wnd_proc_1 as *const () as isize);
+                debug_print!("input: installed chrome wndproc, previous={_previous:#x}");
             }
-            debug_print!("input: original chrome wndproc={original_proc_1:#x}");
-            PREV_WNDPROC_1 = transmute::<isize, Option<unsafe extern "system" fn(HWND, u32, WPARAM, LPARAM) -> LRESULT>>(original_proc_1);
-            let _previous = SetWindowLongPtrW(self.chrome_window, GWLP_WNDPROC, wnd_proc_1 as *const () as isize);
-            debug_print!("input: installed chrome wndproc, previous={_previous:#x}");
 
             let original_proc_2 = GetWindowLongPtrW(self.chrome_renderwidget, GWLP_WNDPROC);
+            if original_proc_2 == wnd_proc_widget as *const () as isize || original_proc_2 == wnd_proc_widget_rampboost as *const () as isize {
+                return;
+            }
             debug_print!("input: original render widget wndproc={original_proc_2:#x}");
             PREV_WNDPROC_2 = transmute::<isize, Option<unsafe extern "system" fn(HWND, u32, WPARAM, LPARAM) -> LRESULT>>(original_proc_2);
-            let _previous = SetWindowLongPtrW(self.chrome_renderwidget, GWLP_WNDPROC, wnd_proc_widget as *const () as isize);
             RENDER_WIDGET.store(self.chrome_renderwidget.0, sync::atomic::Ordering::Relaxed);
+            let _previous = SetWindowLongPtrW(self.chrome_renderwidget, GWLP_WNDPROC, widget_proc());
             debug_print!("input: installed render widget wndproc, previous={_previous:#x}");
         }
     }
@@ -144,19 +149,24 @@ pub fn set_pointer_locked(locked: bool) {
     debug_print!("input: pointer locked={locked}");
 }
 
+// the procedure the render widget gets, remembered so a widget hooked later (after a page load) gets the same
+fn widget_proc() -> isize {
+    if RAMPBOOST.load(sync::atomic::Ordering::Relaxed) {
+        wnd_proc_widget_rampboost as *const () as isize
+    } else {
+        wnd_proc_widget as *const () as isize
+    }
+}
+
 // switches the render widget between the plain and the ramp boost window procedure
 pub fn set_rampboost(enabled: bool) {
+    RAMPBOOST.store(enabled, sync::atomic::Ordering::Relaxed);
     let widget = HWND(RENDER_WIDGET.load(sync::atomic::Ordering::Relaxed));
     if widget.0.is_null() {
         return;
     }
     unsafe {
-        let proc_ = if enabled {
-            wnd_proc_widget_rampboost as *const () as isize
-        } else {
-            wnd_proc_widget as *const () as isize
-        };
-        SetWindowLongPtrW(widget, GWLP_WNDPROC, proc_);
+        SetWindowLongPtrW(widget, GWLP_WNDPROC, widget_proc());
     }
     debug_print!("input: rampboost={enabled}");
 }
@@ -182,11 +192,12 @@ pub fn attach(parent: HWND) {
     }
 
     // re-hook if the main window gets recreated (see the subwindow WM_COPYDATA path) or
-    // chromium replaced the render widget window (renderer swap)
+    // chromium replaced the render widget window, which it does on every page load (a new lobby). every
+    // second, because until then the new page runs without the wheel handling. a tick is one IsWindow call
     thread::spawn(move || {
         loop {
             unsafe {
-                Sleep(5000);
+                Sleep(1000);
                 let mut current_parent = HWND(WINDOW_HANDLE.load(sync::atomic::Ordering::Relaxed));
                 if !IsWindow(Some(current_parent)).as_bool() {
                     let Ok(new_parent) = FindWindowW(w!("kute_webview"), PCWSTR::null()) else {
