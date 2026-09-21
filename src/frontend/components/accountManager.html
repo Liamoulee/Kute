@@ -1,115 +1,263 @@
 <style>
-#accountMenu {
-	color: white;
-	font-family: "Consolas" !important;
-	background-color: transparent;
+#accPopup {
+	position: relative;
+	box-sizing: border-box;
+	width: 460px;
+	max-width: 90vw;
+	max-height: 86vh;
+	padding: 2em 2.2em 1.6em 2.2em;
+	background: #1e1e1e;
+	color: #fff;
+	border-radius: 14px;
+	box-shadow: 0 8px 48px #000c;
+	font-family: Consolas, monospace;
+}
+
+#accClose {
 	position: absolute;
-	z-index: 999999;
-	left: calc(50% - 468px);
-	top: calc(50% - 280px);
-	height: 480px;
-	width: 936px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-}
-
-#windowHolder {
-	z-index: 999998;
-	position: absolute;
-	font-family: "Consolas" !important;
-	top: 0;
-	left: 0;
-	width: 100%;
-	height: 100%;
-	opacity: 75%;
-	background-color: #000000;
-}
-
-#accountContainer,
-#accountCreator {
-	display: flex;
-	font-family: "Consolas" !important;
-	flex-direction: row;
-	flex-wrap: wrap;
-	align-items: center;
-	justify-content: center;
-}
-
-#accountContainer {
-	height: 300px;
-}
-
-#accountCreator {
-	width: 300px;
-}
-
-.accountHolder {
-	padding: 20px;
-	user-select: none;
+	top: 0.5em;
+	right: 0.8em;
+	font-size: 1.4em;
+	color: #999;
 	cursor: pointer;
-	font-family: "Consolas" !important;
-	height: 40px;
-	font-size: 2rem;
-	margin: 20px;
+	user-select: none;
+}
+
+#accClose:hover {
+	color: #fff;
+}
+
+#accTitle {
+	margin: 0 0 0.3em 0;
+	font-size: 1.6em;
+	letter-spacing: 1px;
+	color: #35e0e8;
+	text-align: center;
+}
+
+.accHint {
+	margin: 0 0 1.2em 0;
+	color: #999;
+	font-size: 0.9em;
+	text-align: center;
+}
+
+#accList {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5em;
+	max-height: 44vh;
+	margin: 0 -0.4em;
+	padding: 0 0.4em;
+	overflow-x: hidden;
+	overflow-y: auto;
+	scrollbar-width: thin;
+	scrollbar-color: #444 #1e1e1e;
+}
+
+.accRow {
+	display: flex;
+	align-items: center;
+	gap: 0.8em;
+	padding: 0.55em 0.7em;
+	border-radius: 10px;
+	background: #2a2a2a;
+	cursor: pointer;
+	user-select: none;
+}
+
+.accRow:hover {
+	background: #333;
+}
+
+.accAvatar {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: center;
+	justify-content: center;
+	width: 2em;
+	height: 2em;
+	border-radius: 50%;
+	font-weight: bold;
+	text-transform: uppercase;
+}
+
+.accName {
+	flex: 1 1 auto;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.accRemove {
+	flex: 0 0 auto;
+	padding: 0 0.3em;
+	font-size: 1.3em;
+	line-height: 1;
+	color: #666;
+	opacity: 0;
 	transition: 100ms;
 }
 
-.accountHolder:hover {
-	transform: scale(1.4);
+.accRow:hover .accRemove {
+	opacity: 1;
 }
 
-#createAccountButton,
-#newAccountButton {
-	width: 150px;
-	position: absolute;
-	left: calc(50% - 104px);
-	font-family: "Consolas" !important;
-	color: white;
-	bottom: 0px;
+.accRemove:hover {
+	color: #ff6b6b;
 }
 
-.hidden {
-	display: none !important;
-}
-
-#username,
-#password {
-	font-family: "Consolas";
-	width: 100%;
-	padding: 10px;
+#accEmpty {
+	padding: 1.6em 0;
+	color: #777;
 	text-align: center;
-	padding-left: 10px;
-	font-size: 22px;
+}
+
+.accField {
+	margin-bottom: 0.9em;
+}
+
+.accLabel {
+	display: block;
+	margin-bottom: 0.35em;
+	font-size: 0.8em;
+	letter-spacing: 2px;
+	color: #999;
+}
+
+.accInput {
+	box-sizing: border-box;
+	width: 100%;
+	padding: 0.6em 0.8em;
 	border: none;
-	border-radius: 5px;
-	margin-top: 20px;
-	background-color: rgba(255, 255, 255, 0.1);
-	color: rgba(255, 255, 255, 0.8);
+	border-radius: 8px;
+	background: #2a2a2a;
+	color: #fff;
+	font-family: inherit;
+	font-size: 1em;
 	outline: none;
 }
 
-#color-picker {
-	border: 2px solid white !important;
-	border-radius: 0;
-	height: 50px;
-	appearance: none;
-	background-color: transparent;
+.accInput:focus {
+	background: #333;
+	box-shadow: inset 0 0 0 1px #35e0e8;
+}
+
+#accColorRow {
+	display: flex;
+	align-items: center;
+	gap: 0.7em;
+}
+
+#accColor {
+	flex: 0 0 auto;
+	width: 3.4em;
+	height: 3em;
 	padding: 0;
+	border: none;
+	border-radius: 8px;
+	background: #2a2a2a;
+	appearance: none;
+	cursor: pointer;
+}
+
+#accColor::-webkit-color-swatch-wrapper {
+	padding: 0.35em;
+}
+
+#accColor::-webkit-color-swatch {
+	border: none;
+	border-radius: 5px;
+}
+
+#accPreview {
+	display: flex;
+	flex: 1 1 auto;
+	align-items: center;
+	gap: 0.8em;
+	padding: 0.55em 0.7em;
+	border-radius: 10px;
+	background: #2a2a2a;
+	overflow: hidden;
+}
+
+#accError {
+	min-height: 1.3em;
+	color: #ff6b6b;
+	font-size: 0.85em;
+	text-align: center;
+}
+
+.accActions {
+	display: flex;
+	gap: 0.7em;
+	margin-top: 1.2em;
+}
+
+.accButton {
+	flex: 1 1 0;
+	padding: 0.7em 0.5em;
+	border-radius: 8px;
+	background: #2a2a2a;
+	color: #999;
+	text-align: center;
+	cursor: pointer;
+	user-select: none;
+}
+
+.accButton:hover {
+	background: #333;
+	color: #fff;
+}
+
+.accButton.accPrimary {
+	background: #1b5e63;
+	color: #fff;
+}
+
+.accButton.accPrimary:hover {
+	background: #23777d;
+}
+
+[hidden] {
+	display: none !important;
 }
 </style>
-<div id="windowHolder"></div>
-<div id="accountMenu">
-	<div id="accountContainerTab">
-		<div id="accountContainer"></div>
-		<div class="button small" id="newAccountButton">Add entry</div>
-	</div>
-	<div id="accountCreatorTab" class="hidden">
-		<div id="accountCreator">
-			<input id="color-picker" type="color" value="#ff0000">
-			<input id="username" placeholder="Username">
-			<input id="password" type="password" placeholder="Password">
+<div id="accPopup">
+	<div id="accClose">&times;</div>
+	<h2 id="accTitle">Accounts</h2>
+	<div id="accListView">
+		<div class="accHint" id="accListHint">Click an account to log in</div>
+		<div id="accList"></div>
+		<div id="accEmpty" hidden>Nothing saved yet</div>
+		<div class="accActions">
+			<div class="accButton accPrimary" id="accAdd">Add account</div>
 		</div>
-		<div class="button small" id="createAccountButton">Add account</div>
+	</div>
+	<div id="accFormView" hidden>
+		<div class="accHint" id="accFormHint"></div>
+		<div class="accField">
+			<label class="accLabel" for="accUsername">USERNAME</label>
+			<input class="accInput" id="accUsername" autocomplete="off" spellcheck="false">
+		</div>
+		<div class="accField">
+			<label class="accLabel" for="accPassword">PASSWORD</label>
+			<input class="accInput" id="accPassword" type="password" autocomplete="off">
+		</div>
+		<div class="accField">
+			<label class="accLabel">COLOR</label>
+			<div id="accColorRow">
+				<input id="accColor" type="color" value="#35e0e8">
+				<div id="accPreview">
+					<div class="accAvatar" id="accPreviewAvatar">?</div>
+					<div class="accName" id="accPreviewName">Username</div>
+				</div>
+			</div>
+		</div>
+		<div id="accError"></div>
+		<div class="accActions">
+			<div class="accButton" id="accCancel">Cancel</div>
+			<div class="accButton accPrimary" id="accSave">Save</div>
+		</div>
 	</div>
 </div>
