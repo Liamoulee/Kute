@@ -99,8 +99,6 @@ Object.defineProperty(window, "gameLoaded", {
         // console is disabled without this
         localStorage.setItem("logs", "true");
 
-        window.windows[0].toggleType({ checked: true });
-
         // append ranked and mod button to comp host ui
         // insertAdjacentHTML: "innerHTML +=" rebuilds the buttons that are already there, listeners and all
         getElement("#compBtnLst").insertAdjacentHTML("beforeend", `
