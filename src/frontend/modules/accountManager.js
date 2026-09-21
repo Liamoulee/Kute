@@ -23,6 +23,13 @@ import { confirmPopup } from "./confirmPopup.js";
 
 const LEGACY_KEY = "accounts";
 const DEFAULT_COLOR = "#35e0e8";
+// krunker's own words when the page is logged in as someone else than the game session started with
+const STALE_SESSION = /different account/i;
+// the popup comes right after the login or not at all, so the watch is short
+const WATCH_MS = 30000;
+// ours, in sessionStorage: a second hop right after one would be a loop and never a fix
+const HOP_KEY = "kute_account_hop";
+const HOP_QUIET_MS = 15000;
 
 /**
  * Reverses the old obfuscation (every char code shifted by the string length, then URL encoded).
@@ -129,7 +136,17 @@ class AccountManager {
         this.headerItem.innerHTML = '<span class="material-icons" style="font-size: 20px;">switch_account</span><span>Accounts</span>';
 
         /** @type {MutationObserver} */
-        this.headerObserver = new MutationObserver(() => this.placeButton());
+        this.headerObserver = new MutationObserver(() => {
+            this.placeButton();
+            this.trackAccount();
+        });
+
+        /** the account krunker is logged in as, "" while logged out. empty here means the page loaded logged out */
+        this.sessionAccount = localStorage.getItem("krunker_username") ?? "";
+        /** true while the stale session popup is being waited for */
+        this.watching = false;
+        /** @type {(() => void)|null} ends that wait early */
+        this.stopWatching = null;
 
         /** The open menu, or null. Its markup lives in a shadow root so the page's ids and css cannot reach it. */
         /** @type {HTMLDivElement|null} */
@@ -240,6 +257,7 @@ class AccountManager {
             this.headerSeparator.remove();
             this.headerItem.remove();
             this.closeMenu();
+            this.stopWatching?.();
         }
     }
 
@@ -271,6 +289,88 @@ class AccountManager {
         }
         const signedOut = document.querySelector("#signedOutHeaderBar");
         if (signedOut && !signedOut.contains(this.button)) signedOut.append(this.button);
+    }
+
+    /**
+     * Krunker re-renders the header on every login and logout, which is the cheapest signal that the account
+     * changed. Only a switch inside one page load makes Krunker's session go stale, a first login does not, and
+     * neither does a logout (the name is gone then, the next login is what tells whether it is someone else).
+     */
+    trackAccount(){
+        const current = localStorage.getItem("krunker_username") ?? "";
+        if (current === "" || current === this.sessionAccount) return;
+        const switched = this.sessionAccount !== "";
+        this.sessionAccount = current;
+        if (switched) this.watchForStaleSession();
+    }
+
+    /**
+     * Krunker's game session keeps the account it started with, so logging into another one without a reload
+     * ends in its "Different Account used this Session. Please refresh." popup. It does not always show up
+     * (logging in on a page that loaded logged out never does), so this waits for the popup itself instead of
+     * hopping after every switch. Nothing happens when it never appears, the watch just ends.
+     */
+    watchForStaleSession(){
+        if (this.watching) return;
+        this.watching = true;
+
+        /**
+         * textContent, never innerText: innerText forces a layout.
+         *
+         * @param {Node} node
+         * @return {boolean}
+         */
+        const isPopup = (node) => STALE_SESSION.test(node.textContent ?? "");
+        /** @type {{observer?: MutationObserver, timer: number}} */
+        const watch = { timer: 0 };
+        const stop = () => {
+            clearTimeout(watch.timer);
+            watch.observer?.disconnect();
+            this.watching = false;
+            this.stopWatching = null;
+        };
+
+        watch.observer = new MutationObserver((records) => {
+            for (const record of records){
+                // the popup is either inserted with its text or an element that was already there gets shown
+                const hit = record.type === "childList"
+                    ? [...record.addedNodes].some(isPopup)
+                    : record.target !== document.body && record.target !== document.documentElement && isPopup(record.target);
+                if (!hit) continue;
+                stop();
+                this.leaveStaleSession();
+                return;
+            }
+        });
+        watch.timer = setTimeout(stop, WATCH_MS);
+        this.stopWatching = stop;
+
+        // body wide, which is why it ends after WATCH_MS: the popup has no container of its own that stays
+        watch.observer.observe(document.body, {
+            childList: true,
+            subtree: true,
+            characterData: true,
+            attributeFilter: ["style", "class"],
+        });
+    }
+
+    /**
+     * Gets the player out of the stale session, the way the new lobby key does it. A plain reload goes back
+     * into the same lobby, whose slot is often taken while the page reloads ("game is full"), so this loads
+     * any other lobby instead: `exclude` is what the host navigates to for F4 and F6 (`window.rs`). In the
+     * menu there is no lobby to exclude and it is the plain page. A second hop inside the quiet time would
+     * be a loop and never a fix, so that one is left to the player.
+     */
+    leaveStaleSession(){
+        const last = Number(sessionStorage.getItem(HOP_KEY) ?? 0);
+        if (Date.now() - last < HOP_QUIET_MS) return;
+        sessionStorage.setItem(HOP_KEY, String(Date.now()));
+
+        // the raw id, exactly like the host cuts it out of the url: a re-encoded one is not the same string
+        const game = location.search.split("game=")[1]?.trim();
+        const target = game ? `https://krunker.io/?exclude=${game}` : "https://krunker.io/";
+        // krunker is still writing the new session as the popup goes up, the navigation must not race that
+        setTimeout(() => window.location.assign(target), 300);
     }
 
     /**
@@ -381,7 +481,8 @@ class AccountManager {
             const row = document.createElement("div");
             row.className = "accRow";
             row.title = `Log in as ${account.username}`;
-            row.onclick = () => this.login(account);
+            // waitForElement rejects when the header never switches, an unhandled rejection reports itself
+            row.onclick = () => this.login(account).catch((error) => console.error("[kute] accounts:", error));
 
             const avatar = document.createElement("div");
             avatar.className = "accAvatar";
@@ -511,11 +612,14 @@ class AccountManager {
      */
     async login(account){
         this.closeMenu();
-        if (document.querySelector("#signedInHeaderBar")){
+        // krunker's session is the one from the page load, so logging in over a logged in page goes stale
+        const wasSignedIn = document.querySelector("#signedInHeaderBar") !== null;
+        if (wasSignedIn){
             window.logoutAcc();
             await waitForElement("#signedOutHeaderBar");
         }
         window.loginOrRegister();
+        if (wasSignedIn) this.watchForStaleSession();
 
         queueMicrotask(() => {
             const authToggle = getElement(".auth-toggle-btn");
