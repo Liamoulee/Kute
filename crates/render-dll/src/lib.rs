@@ -274,6 +274,28 @@ fn attach() {
     }
 }
 
+// chromium's swap chain as it asked for it
+unsafe fn create_swapchain_unmodified(
+    this: *mut c_void,
+    pdevice: *mut c_void,
+    pdesc: *const DXGI_SWAP_CHAIN_DESC1,
+    prestricttooutput: *mut c_void,
+    ppswapchain: *mut *mut c_void,
+) -> HRESULT {
+    unsafe {
+        let original_fn = ORIGINAL_CREATE_SWAPCHAIN.unwrap();
+        let result = original_fn(this, pdevice, pdesc, prestricttooutput, ppswapchain);
+
+        // new swapchain creation can be on the same address as a destroyed one, so purge stale wait handle
+        if result.is_ok() && !ppswapchain.is_null() && WAIT_HANDLE.write().unwrap().remove(&(*ppswapchain as usize)).is_some() {
+            debug_print!("render: purged stale wait handle for reused swapchain address {:?}", *ppswapchain);
+            // bump when WAIT_HANDLE changes so the per-thread caches in present_hk drop stale entries
+            WAIT_HANDLE_GENERATION.fetch_add(1, Ordering::Release);
+        }
+        result
+    }
+}
+
 unsafe extern "system" fn create_swapchain_hk(
     this: *mut c_void,
     pdevice: *mut c_void,
@@ -284,16 +306,7 @@ unsafe extern "system" fn create_swapchain_hk(
     unsafe {
         // small ones are chromium's own little surfaces. every big one is a window's, see MAIN_SWAPCHAIN
         if (*pdesc).Width < 600 || (*pdesc).Height < 600 {
-            let original_fn = ORIGINAL_CREATE_SWAPCHAIN.unwrap();
-            let result = original_fn(this, pdevice, pdesc, prestricttooutput, ppswapchain);
-
-            // new swapchain creation can be on the same address as a destroyed one, so purge stale wait handle
-            if result.is_ok() && !ppswapchain.is_null() && WAIT_HANDLE.write().unwrap().remove(&(*ppswapchain as usize)).is_some() {
-                debug_print!("render: purged stale wait handle for reused swapchain address {:?}", *ppswapchain);
-                // bump when WAIT_HANDLE changes so the per-thread caches in present_hk drop stale entries
-                WAIT_HANDLE_GENERATION.fetch_add(1, Ordering::Release);
-            }
-            return result;
+            return create_swapchain_unmodified(this, pdevice, pdesc, prestricttooutput, ppswapchain);
         }
         debug_print!(
             "render: CreateSwapChainForComposition called original={}x{} buffers={} format={} flags={:#x}",
@@ -314,9 +327,11 @@ unsafe extern "system" fn create_swapchain_hk(
         let original_fn = ORIGINAL_CREATE_SWAPCHAIN.unwrap();
 
         let result = original_fn(this, pdevice, &desc, prestricttooutput, ppswapchain);
-        if let Err(e) = result.ok() {
-            debug_print!("Failed to create swap chain: {:#X} - {}", result.0, e);
-            panic!("h");
+        if let Err(_e) = result.ok() {
+            // a panic here took the whole GPU process down. chromium's own swap chain is the better outcome, it only
+            // goes without the limiter, stats and capture (and chromium handles a failure of that one by itself)
+            debug_print!("render: modified swap chain creation failed: {:#X} - {}, creating it unmodified", result.0, _e);
+            create_swapchain_unmodified(this, pdevice, pdesc, prestricttooutput, ppswapchain)
         } else {
             debug_print!("render: swap chain created pointer={:?}", *ppswapchain);
             let swap_chain = IDXGISwapChain1::from_raw(*ppswapchain);
@@ -337,6 +352,8 @@ unsafe extern "system" fn create_swapchain_hk(
                 swap_chain2
                     .SetMaximumFrameLatency(1)
                     .unwrap_or_else(|e| debug_print!("Failed to set latency: {:?}", e));
+                // what holds in the end: depth 1 is what the pacing rests on
+                debug_print!("render: frame latency now {:?}", swap_chain2.GetMaximumFrameLatency());
 
                 let waitable_obj = swap_chain2.GetFrameLatencyWaitableObject();
                 debug_print!("render: frame-latency waitable object={waitable_obj:?}");
