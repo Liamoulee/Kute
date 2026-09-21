@@ -331,6 +331,7 @@ unsafe extern "system" fn create_swapchain_hk(
     unsafe {
         // small ones are chromium's own little surfaces. every big one is a window's, see MAIN_SWAPCHAIN
         if (*pdesc).Width < 600 || (*pdesc).Height < 600 {
+            debug_print!("render: swap chain {}x{} left alone (under 600 px)", (*pdesc).Width, (*pdesc).Height);
             return create_swapchain_unmodified(this, pdevice, pdesc, prestricttooutput, ppswapchain);
         }
         debug_print!(
