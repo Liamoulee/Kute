@@ -344,6 +344,8 @@ unsafe extern "system" fn create_swapchain_hk(
             (*pdesc).Flags
         );
         let mut desc = *pdesc;
+        // only RENDER_TARGET_OUTPUT, on purpose: keeping chromium's SHADER_INPUT bit ("needed to bind to GL texture")
+        // cut the uncapped present rate by a quarter to a half in interleaved runs, and nothing needs it
         desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
         desc.BufferCount = 2; // 2 is the minimum
         desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL; // discard crashes
