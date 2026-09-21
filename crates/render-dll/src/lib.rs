@@ -329,9 +329,10 @@ unsafe extern "system" fn create_swapchain_hk(
     ppswapchain: *mut *mut c_void,
 ) -> HRESULT {
     unsafe {
-        // small ones are chromium's own little surfaces. every big one is a window's, see MAIN_SWAPCHAIN
-        if (*pdesc).Width < 600 || (*pdesc).Height < 600 {
-            debug_print!("render: swap chain {}x{} left alone (under 600 px)", (*pdesc).Width, (*pdesc).Height);
+        // small ones are chromium's own little surfaces (the only one seen is 16x16), every other one is a window's,
+        // see MAIN_SWAPCHAIN. 200 and not 600 px: a game window under 600 physical px tall used to run without the hook
+        if (*pdesc).Width < 200 || (*pdesc).Height < 200 {
+            debug_print!("render: swap chain {}x{} left alone (under 200 px)", (*pdesc).Width, (*pdesc).Height);
             return create_swapchain_unmodified(this, pdevice, pdesc, prestricttooutput, ppswapchain);
         }
         debug_print!(
