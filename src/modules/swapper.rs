@@ -1,11 +1,16 @@
 use std::{
     collections::{BTreeMap, HashMap},
     fs,
-    path::PathBuf,
+    hash::{DefaultHasher, Hash, Hasher},
+    path::{Path, PathBuf},
     sync::{Arc, LazyLock, Mutex, RwLock},
+    time::SystemTime,
 };
 
-use crate::{modules::files, utils};
+use crate::{
+    modules::{bench, files},
+    utils,
+};
 use serde_json::{Value, json};
 
 /// Files the client serves in place of the game's own, keyed like the player's swapper folder.
@@ -22,32 +27,89 @@ type Index = HashMap<String, Arc<Vec<u8>>>;
 // lowercased relative url path (forward slashes) -> file bytes. The player's own folder is loaded over the built
 // in ones, so a file of theirs always wins. Lowercase because players name folders `CSS` or `Textures` and the
 // game asks for `css` and `textures`, which used to fail without a word
-pub static SWAPS: LazyLock<RwLock<Arc<Index>>> = LazyLock::new(|| RwLock::new(Arc::new(build_index())));
+pub static SWAPS: LazyLock<RwLock<Arc<Index>>> = LazyLock::new(|| {
+    let files = if utils::config("swapper", true) && !bench::active() {
+        scan()
+    } else {
+        Vec::new()
+    };
+    RwLock::new(Arc::new(build_index(&files)))
+});
+
+// what the published index was built from (see reload). Held for the whole of a reload, so reloads run one after
+// the other and the last one to start is the one that stays
+static PUBLISHED_FROM: Mutex<Option<u64>> = Mutex::new(None);
 
 // every krunker.io file the game asked for this session, lowercased -> as requested. The swapper manager marks
 // swaps the game never asked for with it, and offers these paths as drop targets
 static SEEN: Mutex<BTreeMap<String, String>> = Mutex::new(BTreeMap::new());
 const MAX_SEEN: usize = 20_000;
 
-fn build_index() -> Index {
+// one file of the swapper folder: relative path (forward slashes), full path, size, last change
+type Scanned = (String, PathBuf, u64, Option<SystemTime>);
+
+fn scan_folder(root: &Path, dir: &Path, out: &mut Vec<Scanned>) {
+    let Ok(entries) = fs::read_dir(dir) else { return };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Ok(kind) = entry.file_type() else { continue };
+        if kind.is_dir() {
+            scan_folder(root, &path, out);
+        } else if kind.is_file() {
+            let Some(relative) = path.strip_prefix(root).ok().and_then(|p| p.to_str()).map(|p| p.replace('\\', "/")) else {
+                continue;
+            };
+            let meta = entry.metadata().ok();
+            let size = meta.as_ref().map(|meta| meta.len()).unwrap_or(0);
+            let modified = meta.and_then(|meta| meta.modified().ok());
+            out.push((relative, path, size, modified));
+        }
+    }
+}
+
+// the swapper folder without reading a single file
+fn scan() -> Vec<Scanned> {
+    let root = swapper_dir();
+    fs::create_dir_all(&root).ok();
+    let mut files = Vec::new();
+    scan_folder(&root, &root, &mut files);
+    files.sort_by(|a, b| a.0.cmp(&b.0));
+    files
+}
+
+fn build_index(files: &[Scanned]) -> Index {
     let mut swaps: Index = BUILT_IN
         .iter()
         .map(|(path, body)| (path.to_lowercase(), Arc::new(body.as_bytes().to_vec())))
         .collect();
-    if utils::config("swapper", true) {
-        for (path, bytes) in load() {
-            swaps.insert(path.to_lowercase(), Arc::new(bytes));
+    for (relative, path, ..) in files {
+        match fs::read(path) {
+            Ok(bytes) => {
+                swaps.insert(relative.to_lowercase(), Arc::new(bytes));
+            }
+            Err(e) => eprintln!("swapper: can't read {}: {}", path.display(), e),
         }
     }
     swaps
 }
 
-// reads the folder again after the manager changed it, off the UI thread. The next request sees the new files
+/// Reads the folder again and publishes the new index, before it returns: the manager's reply comes after this, so
+/// a refresh right after it gets the new files. Runs on the manager's worker thread, never on the UI or IO thread.
+/// A folder that did not change since the last reload (same paths, sizes and change times) is not read again.
 pub fn reload() {
-    std::thread::spawn(|| {
-        let index = Arc::new(build_index());
-        *SWAPS.write().unwrap() = index;
-    });
+    let mut published_from = PUBLISHED_FROM.lock().unwrap();
+    let files = if utils::config("swapper", true) { scan() } else { Vec::new() };
+    let mut hasher = DefaultHasher::new();
+    files.iter().for_each(|(relative, _, size, modified)| (relative, size, modified).hash(&mut hasher));
+    let signature = hasher.finish();
+    if *published_from == Some(signature) {
+        return;
+    }
+    let index = Arc::new(build_index(&files));
+    // the old index is dropped after the lock is released: freeing a big pack must not hold up a request
+    let old = std::mem::replace(&mut *SWAPS.write().unwrap(), index);
+    drop(old);
+    *published_from = Some(signature);
 }
 
 // "https://assets.krunker.io/textures/a.png?build=x" -> "textures/a.png"
@@ -81,39 +143,6 @@ pub fn mime_for(path: &str) -> &'static str {
         "obj" | "txt" => "text/plain",
         _ => "application/octet-stream",
     }
-}
-
-fn recurse_swap(root_dir: &PathBuf, swap_dir: PathBuf, swaps: &mut HashMap<String, Vec<u8>>) {
-    let Ok(entries) = fs::read_dir(&swap_dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let path = entry.path();
-        let Ok(file_type) = entry.file_type() else {
-            continue;
-        };
-        if file_type.is_dir() {
-            recurse_swap(root_dir, path, swaps);
-        } else if file_type.is_file() {
-            let Some(relative_path) = path.strip_prefix(root_dir).ok().and_then(|p| p.to_str()).map(|p| p.replace('\\', "/")) else {
-                continue;
-            };
-            match fs::read(&path) {
-                Ok(content) => {
-                    swaps.insert(relative_path, content);
-                }
-                Err(e) => eprintln!("swapper: can't read {}: {}", path.display(), e),
-            }
-        }
-    }
-}
-
-pub fn load() -> HashMap<String, Vec<u8>> {
-    let swap_dir = utils::settings_dir().join("swapper");
-    fs::create_dir_all(&swap_dir).unwrap_or_default();
-    let mut swaps = HashMap::new();
-    recurse_swap(&swap_dir, swap_dir.clone(), &mut swaps);
-    swaps
 }
 
 pub fn swapper_dir() -> PathBuf {
