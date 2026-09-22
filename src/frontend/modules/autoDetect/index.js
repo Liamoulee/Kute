@@ -1,6 +1,6 @@
 import panelHtml from "../../components/autoDetect.html";
 import { kute } from "../../client.js";
-import { activity, hostLobby, spawn } from "../privateMatch.js";
+import { activity, hostLobby, inRoom, spawn } from "../privateMatch.js";
 import { checkCompMode, request } from "../../utils.js";
 import { FrameRecorder } from "./metrics.js";
 import { decide, decideClient, HEADROOM, MIN_RESOLUTION, SIGNIFICANT_SETTING, TARGET_REFRESH_MULTIPLE } from "./decide.js";
@@ -697,10 +697,11 @@ class AutoDetect {
         venue.stage = "lobby";
         panel.progress("Opening a private test match", 0.05);
         panel.clickThrough(true);
-        let joined = await hostLobby();
-        if (joined){
+        const room = await hostLobby();
+        let joined = false;
+        if (room){
             panel.progress("Joining the test match", 0.1);
-            joined = await spawn();
+            joined = await spawn(room);
         }
         panel.clickThrough(false);
         if (!joined){
@@ -709,6 +710,13 @@ class AutoDetect {
         }
         venue.inMatch = true;
         venue.stage = "measure";
+        /**
+         * Stops the run when the page is no longer in the test match (a redirect, a kick, a lost connection): every
+         * number after that would belong to another match, and settings would get written into it.
+         */
+        const stillInRoom = () => {
+            if (!inRoom(room)) throw new Error("left the private test match");
+        };
         const lobbySeconds = (performance.now() - started) / 1000 - clientSeconds;
         if (this.cancelled) return null;
 
@@ -727,6 +735,7 @@ class AutoDetect {
 
         // a window that is minimized or behind another one renders differently, or not at all
         window.chrome.webview.postMessage("bring-to-front");
+        stillInRoom();
         panel.progress("Measuring your current settings", 0.15);
         // (the first call only starts a fresh window in the hook, the second one reads the baseline's presents)
         await request("get-present-intervals", "presentIntervals");
@@ -807,6 +816,7 @@ class AutoDetect {
                 continue;
             }
             if (this.cancelled) return null;
+            stillInRoom();
 
             panel.progress(`Measuring ${setting.label}`, 0.2 + (0.6 * live.indexOf(setting)) / live.length);
             const flipped = game.opposite(current);
@@ -824,6 +834,7 @@ class AutoDetect {
             for (const row of settings){
                 if (row.gain === null || !row.steady || row.current === row.cheap || row.gain < SIGNIFICANT_SETTING) continue;
                 if (this.cancelled) return null;
+                stillInRoom();
                 panel.progress(`Confirming ${row.label}`, 0.8);
                 const { ratio, steady } = await compare(() => game.write(row.id, row.cheap), () => game.write(row.id, row.current));
                 row.confirmGain = ratio;
@@ -832,6 +843,7 @@ class AutoDetect {
             }
         }
 
+        stillInRoom();
         panel.progress("Checking the graphics card", 0.82);
         const resolution = Number(baseline.game[game.RESOLUTION]) || 1;
         const half = await compare(
