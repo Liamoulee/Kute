@@ -21,6 +21,9 @@ pub fn init_fs() -> result::Result<(), io::Error> {
     let resources_dir = utils::exe_dir().join("resources");
 
     fs::create_dir_all(&swap_dir)?;
+    // the swap players make most, and get wrong most ("CSS", "Css"). An existing folder in any case counts as
+    // there, Windows paths do not care about case
+    fs::create_dir_all(swap_dir.join("css"))?;
     fs::create_dir_all(&scripts_dir)?;
     fs::create_dir_all(&resources_dir)?;
 
