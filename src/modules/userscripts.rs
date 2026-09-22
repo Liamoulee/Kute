@@ -76,8 +76,16 @@ fn split_key(key: &str) -> Option<(&'static str, String)> {
     valid_file(file).then(|| (group, file.to_string()))
 }
 
+// a name with something in front of ".js". Checked on the extension, never by slicing bytes: a folder can hold
+// any file, and a byte index into "a🦀" lands inside the crab and panics
 fn valid_file(file: &str) -> bool {
-    files::safe_name(file) && file.len() > 3 && file[file.len() - 3..].eq_ignore_ascii_case(".js")
+    let path = std::path::Path::new(file);
+    files::safe_name(file)
+        && path
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("js"))
+        && path.file_stem().is_some_and(|stem| !stem.is_empty())
 }
 
 fn path_for(key: &str) -> Option<PathBuf> {
@@ -320,4 +328,25 @@ pub fn social_document_scripts() -> Vec<String> {
             )
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::valid_file;
+
+    #[test]
+    fn valid_file_never_slices_inside_a_character() {
+        assert!(valid_file("ok.js"));
+        assert!(valid_file("OK.JS"));
+        assert!(valid_file("skript-🦀.js"));
+        assert!(!valid_file("readme.txt"));
+        // these used to panic: a byte index three from the end lands inside the last character
+        assert!(!valid_file("a🦀"));
+        assert!(!valid_file("🦀"));
+        assert!(!valid_file("ü"));
+        assert!(!valid_file(".js"));
+        assert!(!valid_file("js"));
+        assert!(!valid_file(""));
+        assert!(!valid_file("a.js.txt"));
+    }
 }
