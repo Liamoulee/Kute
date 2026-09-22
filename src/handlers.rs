@@ -764,14 +764,19 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         }
         // the distribution of the hook's present intervals since the last call (a call also starts a new window)
         ["get-present-intervals"] => {
-            let intervals = if config("hardFlip", true) { app::take_present_intervals() } else { None };
-            let reply = match intervals {
-                Some((p50, p99, max, arrive_p99, samples)) => serde_json::json!({ "presentIntervals": {
+            // take_present_intervals waits for the hook's next present (up to 150 ms): not on the UI thread
+            let hook = config("hardFlip", true);
+            let browser_id = browser.identifier();
+            std::thread::spawn(move || {
+                let intervals = if hook { app::take_present_intervals() } else { None };
+                let reply = match intervals {
+                    Some((p50, p99, max, arrive_p99, samples)) => serde_json::json!({ "presentIntervals": {
                     "p50": p50 as f64 / 1e6, "p99": p99 as f64 / 1e6, "max": max as f64 / 1e6, "arriveP99": arrive_p99 as f64 / 1e6, "samples": samples,
                 } }),
-                None => serde_json::json!({ "presentIntervals": false }),
-            };
-            bridge::post_json(browser, &reply.to_string());
+                    None => serde_json::json!({ "presentIntervals": false }),
+                };
+                bridge::post_json_later(browser_id, reply.to_string());
+            });
         }
         ["click", x, y] => {
             if let (Ok(x), Ok(y)) = (x.parse(), y.parse()) {
