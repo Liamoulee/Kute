@@ -303,28 +303,6 @@ pub fn reveal(key: Option<&str>) {
     }
 }
 
-// the .js files of the last external drag go into the group. Returns what was skipped and why
-pub fn import_dropped(group: &str) -> Vec<String> {
-    let mut problems = Vec::new();
-    let Some(dir) = group_dir(group) else { return problems };
-    fs::create_dir_all(&dir).ok();
-    for path in files::take_dropped() {
-        let name = path.file_name().and_then(|name| name.to_str()).unwrap_or_default().to_string();
-        if !path.is_file() || !valid_file(&name) {
-            problems.push(format!("{name}: not a .js file"));
-            continue;
-        }
-        if fs::metadata(&path).is_ok_and(|meta| meta.len() as usize > MAX_SOURCE) {
-            problems.push(format!("{name}: larger than 4 MB"));
-            continue;
-        }
-        if let Err(e) = fs::copy(&path, dir.join(&name)) {
-            problems.push(format!("{name}: {e}"));
-        }
-    }
-    problems
-}
-
 /// One self-contained document script per enabled social script: the runner plus that script, so a syntax error
 /// only costs that one.
 pub fn social_document_scripts() -> Vec<String> {

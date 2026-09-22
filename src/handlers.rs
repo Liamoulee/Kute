@@ -277,8 +277,8 @@ wrap_download_handler! {
     }
 }
 
-// external drops are refused (like SetAllowExternalDrop(false) did), except files while a manager popup is open:
-// the host keeps their paths and the page only says where they go, so no file passes through the page
+// mirrors SetAllowExternalDrop(false). CEF only asks this for Alloy style browsers, Kute's are Chrome style, so
+// external drops reach the page and the managers read the dropped files there (managers/popup.js)
 wrap_drag_handler! {
     struct KuteDragHandler;
 
@@ -286,21 +286,10 @@ wrap_drag_handler! {
         fn on_drag_enter(
             &self,
             _browser: Option<&mut Browser>,
-            drag_data: Option<&mut DragData>,
+            _drag_data: Option<&mut DragData>,
             _mask: DragOperationsMask,
         ) -> ::std::os::raw::c_int {
-            let Some(drag_data) = drag_data else { return 1 };
-            if !modules::files::drop_zone_open() || drag_data.is_file() == 0 {
-                return 1;
-            }
-            let mut names = CefStringList::new();
-            drag_data.file_paths(Some(&mut names));
-            let paths: Vec<std::path::PathBuf> = names.into_iter().map(|path| std::path::PathBuf::from(path.to_string())).collect();
-            if paths.is_empty() {
-                return 1;
-            }
-            modules::files::set_dropped(paths);
-            0
+            1
         }
     }
 }
@@ -535,7 +524,6 @@ fn handle_scripts_message(browser: &Browser, message: &str) {
         }
         "delete" => problems.extend(userscripts::delete(key).err()),
         "move" => problems.extend(userscripts::move_to(key, payload_str(&payload, "group")).err()),
-        "drop" => problems = userscripts::import_dropped(payload_str(&payload, "group")),
         "reveal" => {
             userscripts::reveal(if key.is_empty() { None } else { Some(key) });
             return;
@@ -547,6 +535,10 @@ fn handle_scripts_message(browser: &Browser, message: &str) {
         reply["managerError"] = serde_json::json!(problems.join("\n"));
     }
     bridge::post_json(browser, &reply.to_string());
+}
+
+fn reply_error(browser: &Browser, message: &str) {
+    bridge::post_json(browser, &serde_json::json!({ "managerError": message }).to_string());
 }
 
 // "swapper-<command> <json>": the swapper manager, answered like the scripts
@@ -564,7 +556,13 @@ fn handle_swapper_message(browser: &Browser, message: &str) {
         "mkdir" => problems.extend(swapper::make_dir(path).err()),
         "delete" => problems.extend(swapper::delete(path).err()),
         "move" => problems.extend(swapper::move_to(payload_str(&payload, "from"), payload_str(&payload, "to")).err()),
-        "drop" => problems = swapper::import_dropped(payload_str(&payload, "folder"), payload["name"].as_str()),
+        // one dropped file, base64. No list in reply: a pack is hundreds of these, the page asks for the list once
+        "upload" => {
+            if let Err(e) = swapper::upload(path, payload_str(&payload, "data")) {
+                reply_error(browser, &format!("{path}: {e}"));
+            }
+            return;
+        }
         "reveal" => {
             swapper::reveal(path);
             return;
@@ -644,7 +642,8 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         return;
     }
     if let Some(rest) = message_string.strip_prefix("swapper-") {
-        if is_krunker_frame(frame) && rest.len() <= 64 * 1024 {
+        // an upload carries a whole file (base64), everything else is a short command
+        if is_krunker_frame(frame) && rest.len() <= 48 * 1024 * 1024 {
             handle_swapper_message(browser, rest);
         }
         return;
@@ -768,10 +767,6 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         }
         ["open", target] => {
             open_documents_subpath(target);
-        }
-        // a manager popup opened or closed: only while one is open external file drags may enter the page
-        ["drop-zone", open] => {
-            modules::files::set_drop_zone(*open == "true");
         }
         ["open-url", url] => {
             open_in_default_browser(url);

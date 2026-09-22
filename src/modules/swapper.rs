@@ -194,34 +194,15 @@ pub fn move_to(from: &str, to: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Copies the files of the last external drag into `folder`. With `name`, the single dropped file is saved under
-/// that name (a drop onto one of the game's files). Returns what went wrong, per file.
-pub fn import_dropped(folder: &str, name: Option<&str>) -> Vec<String> {
-    let mut problems = Vec::new();
-    let Some(dir) = inside(folder) else {
-        problems.push("Invalid folder".into());
-        return problems;
-    };
-    let dropped = files::take_dropped();
-    if let Some(name) = name {
-        match dropped.as_slice() {
-            [single] if single.is_file() && files::safe_name(name) => {
-                if let Err(e) = files::copy_into(single, &dir.join(name)) {
-                    problems.push(format!("{name}: {e}"));
-                }
-            }
-            _ => problems.push("Drop exactly one file onto a game file".into()),
-        }
-    } else {
-        for path in dropped {
-            let name = path.file_name().map(|name| name.to_string_lossy().to_string()).unwrap_or_default();
-            if let Err(e) = files::copy_into(&path, &dir.join(&name)) {
-                problems.push(format!("{name}: {e}"));
-            }
-        }
+/// Saves one dropped file (base64) at `relative`, creating its folders. The index is rebuilt by the list the
+/// page asks for once all files of a drop are through.
+pub fn upload(relative: &str, data: &str) -> Result<(), String> {
+    let path = inside(relative).filter(|path| *path != swapper_dir()).ok_or("invalid path")?;
+    let bytes = files::decode_base64(data).ok_or("the file did not arrive intact")?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
-    reload();
-    problems
+    utils::atomic_write(&path, &bytes).map_err(|e| e.to_string())
 }
 
 pub fn reveal(relative: &str) {

@@ -2,38 +2,10 @@
 //! of our folders, everything here makes sure it stays inside that folder.
 
 use std::{
-    fs, io,
+    io,
     os::windows::process::CommandExt,
     path::{Path, PathBuf},
-    sync::{
-        Mutex,
-        atomic::{AtomicBool, Ordering},
-    },
 };
-
-// set while a manager popup is open: only then an external drag may enter the page
-static DROP_ZONE: AtomicBool = AtomicBool::new(false);
-// the files of the last external drag, the page only says where they go
-static DROPPED: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
-
-pub fn set_drop_zone(open: bool) {
-    DROP_ZONE.store(open, Ordering::Relaxed);
-    if !open {
-        DROPPED.lock().unwrap().clear();
-    }
-}
-
-pub fn drop_zone_open() -> bool {
-    DROP_ZONE.load(Ordering::Relaxed)
-}
-
-pub fn set_dropped(paths: Vec<PathBuf>) {
-    *DROPPED.lock().unwrap() = paths;
-}
-
-pub fn take_dropped() -> Vec<PathBuf> {
-    std::mem::take(&mut *DROPPED.lock().unwrap())
-}
 
 // one file or folder name as Windows accepts it
 pub fn safe_name(name: &str) -> bool {
@@ -98,17 +70,35 @@ pub fn reveal(path: &Path) {
     command.spawn().ok();
 }
 
-// copies a file, or a folder with everything in it, into `target` (which must not exist yet as a file)
-pub fn copy_into(source: &Path, target: &Path) -> io::Result<()> {
-    if source.is_dir() {
-        fs::create_dir_all(target)?;
-        for entry in fs::read_dir(source)?.flatten() {
-            copy_into(&entry.path(), &target.join(entry.file_name()))?;
+// standard base64 (the page sends dropped files as data URLs), None on anything else
+pub fn decode_base64(text: &str) -> Option<Vec<u8>> {
+    let value = |c: u8| -> Option<u32> {
+        Some(match c {
+            b'A'..=b'Z' => c - b'A',
+            b'a'..=b'z' => c - b'a' + 26,
+            b'0'..=b'9' => c - b'0' + 52,
+            b'+' => 62,
+            b'/' => 63,
+            _ => return None,
+        } as u32)
+    };
+    let bytes = text.trim_end_matches('=').as_bytes();
+    let mut out = Vec::with_capacity(bytes.len() * 3 / 4);
+    for chunk in bytes.chunks(4) {
+        if chunk.len() == 1 {
+            return None;
         }
-        return Ok(());
+        let mut buffer = 0u32;
+        for (i, &c) in chunk.iter().enumerate() {
+            buffer |= value(c)? << (18 - 6 * i);
+        }
+        out.push((buffer >> 16) as u8);
+        if chunk.len() > 2 {
+            out.push((buffer >> 8) as u8);
+        }
+        if chunk.len() > 3 {
+            out.push(buffer as u8);
+        }
     }
-    if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::copy(source, target).map(|_| ())
+    Some(out)
 }
