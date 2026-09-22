@@ -134,24 +134,7 @@ div #setHed_local,
 	--kute-top: #ff8a1f;
 }
 
-/* requires refresh / restart, behind a setting name and in the legend of the first folder */
-.kuteMark {
-	margin-left: 4px;
-	padding: 1px;
-	border: 1px solid currentColor;
-	border-radius: 3px;
-	font-size: 16px !important;
-	vertical-align: middle;
-}
-
-.kuteMarkRefresh {
-	color: #5b7cff;
-}
-
-.kuteMarkRestart {
-	color: #eb5656;
-}
-
+/* explains the stars behind setting names, in the first folder header (settings.js) */
 .kuteLegend {
 	float: right;
 	margin-right: 8px;
@@ -159,8 +142,6 @@ div #setHed_local,
 	font-size: 16px;
 }
 
-.kuteLegend .kuteMark {
-	font-size: 20px !important;
+.kuteLegend span {
 	margin-left: 12px;
-	margin-right: 2px;
 }

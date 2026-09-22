@@ -176,8 +176,8 @@ kute.settings.changeSetting = (id, rawValue, slider) => {
 };
 
 /** Marks behind a setting name, the legend in the first folder header explains them. */
-const REFRESH_MARK = '<span class="material-icons kuteMark kuteMarkRefresh" title="Requires refresh">sync</span>';
-const RESTART_MARK = '<span class="material-icons kuteMark kuteMarkRestart" title="Requires restart">power_settings_new</span>';
+const REFRESH_MARK = ' <span style="color: #3244a8" title="Requires Refresh">*</span>';
+const RESTART_MARK = ' <span style="color: #eb5656" title="Requires Restart">*</span>';
 
 /**
  * The buttons above the client settings: [label, material icon, color class, inline action].
@@ -340,8 +340,8 @@ class SettingsManager {
             rendered = true;
             tempHTML += `<div class='settName' ${setting.description ? `title="${setting.description}"` : ""}>
 								${setting.name.replaceAll("{{version}}", kute.version ?? "")}
-								${setting.needsRefresh ? REFRESH_MARK : ""}
 								${setting.needsRestart ? RESTART_MARK : ""}
+								${setting.needsRefresh ? REFRESH_MARK : ""}
 								${setting.html}</div>`;
         }
 
