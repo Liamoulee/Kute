@@ -4,6 +4,8 @@ import { hook, getElement, checkCompMode } from "./utils.js";
 // first, so that whatever throws further down gets heard of
 import "./modules/errorReports.js";
 import { postUrls as postIconUrls } from "./modules/kuteIcons/slots.js";
+// statically: it takes the userscript registry the host hands over only while this bundle is evaluated
+import "./modules/managers/registry.js";
 
 const isBenchPage = location.pathname === "/kute-bench";
 if (isBenchPage) import("./modules/autoDetect/bench.js");
@@ -126,6 +128,7 @@ Object.defineProperty(window, "gameLoaded", {
         import("./settings.js");
         import("./modules/changelog.js");
         import("./modules/about.js");
+        import("./modules/managers/index.js");
         import("./modules/autoDetect/index.js");
         if (kute?.settings?.data?.clanColors !== false) import("./modules/clanColors.js");
         // always: the setting only decides whether badges get drawn, the client announces itself either way
