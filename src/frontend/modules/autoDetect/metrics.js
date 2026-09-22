@@ -78,7 +78,9 @@ export class FrameRecorder {
             p999: percentile(0.999),
             maxMs: sorted[sorted.length - 1],
             hitches,
-            hitchesPerSec: hitches / seconds,
+            // over the time the stored gaps cover: past the buffer's capacity only the first part is stored, and
+            // dividing its hitches by the whole duration would make a long run look smoother than it was
+            hitchesPerSec: hitches / Math.max(0.001, sum / 1000),
         };
     }
 }
@@ -104,14 +106,20 @@ export class TaskProbe {
     start(){
         this.delays = [];
         this.sent = 0;
+        let due = performance.now() + 10;
         this.timer = setInterval(() => {
             this.sent++;
-            this.channel.port2.postMessage(performance.now());
+            // measured from when the timer was due, not from when it ran: a main thread busy for a second delays
+            // the timer itself first, and a probe timed from inside the late timer would report that as nothing
+            const now = performance.now();
+            this.channel.port2.postMessage(Math.min(now, due));
+            due = now + 10;
         }, 10);
     }
 
     /**
-     * @return {{sent: number, ran: number, p99: number, max: number}} Delays in ms
+     * @return {{sent: number, ran: number, p99: number|null, max: number|null}} Delays in ms, null when no probe ran:
+     *     no observation is no evidence, not a delay of zero
      */
     stop(){
         clearInterval(this.timer);
@@ -119,8 +127,8 @@ export class TaskProbe {
         return {
             sent: this.sent,
             ran: sorted.length,
-            p99: sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.99))] ?? 0,
-            max: sorted[sorted.length - 1] ?? 0,
+            p99: sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.99))] : null,
+            max: sorted.length ? sorted[sorted.length - 1] : null,
         };
     }
 }

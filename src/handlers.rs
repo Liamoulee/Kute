@@ -1,6 +1,6 @@
 use crate::{app, bridge, constants, debug_print, modules, utils, utils::config, window};
 use cef::{rc::*, *};
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex, mpsc};
 
 // args handed over by a second instance while the main window was being recreated
 static PENDING_ARGS: Mutex<Option<String>> = Mutex::new(None);
@@ -96,7 +96,7 @@ wrap_resource_request_handler! {
             // the player's own swapper folder first: their file beats ours for the same request
             if let Some(bytes) = modules::swapper::swap_for(&url) {
                 debug_print!("handlers: swapping {url}");
-                let filename = url.split("krunker.io/").nth(1).and_then(|s| s.split('?').next()).unwrap_or("");
+                let filename = utils::krunker_path(&url).unwrap_or("");
                 return modules::resource::serve(modules::swapper::mime_for(filename), bytes.to_vec());
             }
             let bytes = modules::icons::bytes_for(&url)?;
@@ -487,93 +487,117 @@ fn handle_accounts_message(browser: &Browser, message: &str) {
 // navigation) must not reach them: it could plant a userscript that runs in every later session
 fn is_krunker_frame(frame: &Frame) -> bool {
     let url = utils::cef_to_string(&frame.url());
-    let host = url.split("://").nth(1).and_then(|rest| rest.split(['/', '?', '#', ':']).next()).unwrap_or("");
-    url.starts_with("https://") && (host == "krunker.io" || host.ends_with(".krunker.io"))
+    url.starts_with("https://") && utils::krunker_path(&url).is_some()
 }
 
 fn payload_str<'a>(payload: &'a serde_json::Value, key: &str) -> &'a str {
     payload[key].as_str().unwrap_or_default()
 }
 
-// "scripts-<command> <json>": the userscript manager. Every command answers with the fresh list, plus
-// {managerError} when something did not work, so the popup always shows what is on disk
-fn handle_scripts_message(browser: &Browser, message: &str) {
+// the userscript and swapper managers read, write and walk files: uploads of up to 32 MB, whole swapper packs, the
+// recycle bin. One worker thread takes their commands in the order they came, so the UI thread (the window, input,
+// every other message) never waits on a disk, and two reloads of the swapper never race each other
+static MANAGER_QUEUE: LazyLock<Option<mpsc::Sender<(i32, String)>>> = LazyLock::new(|| {
+    let (sender, receiver) = mpsc::channel::<(i32, String)>();
+    std::thread::Builder::new()
+        .name("kute-managers".into())
+        .spawn(move || {
+            for (browser_id, message) in receiver {
+                let reply = match message.split_once('-') {
+                    Some(("scripts", rest)) => handle_scripts_message(rest),
+                    Some(("swapper", rest)) => handle_swapper_message(rest),
+                    _ => None,
+                };
+                if let Some(reply) = reply {
+                    bridge::post_json_later(browser_id, reply);
+                }
+            }
+        })
+        .ok()
+        .map(|_| sender)
+});
+
+fn queue_manager_message(browser: &Browser, message: &str) {
+    if let Some(queue) = MANAGER_QUEUE.as_ref() {
+        queue.send((browser.identifier(), message.to_string())).ok();
+    }
+}
+
+// the reply every command ends with: the fresh list, plus {managerError} when something did not work, so the popup
+// always shows what is on disk
+fn manager_reply(key: &str, list: serde_json::Value, problems: &[String]) -> Option<String> {
+    let mut reply = serde_json::json!({ key: list });
+    if !problems.is_empty() {
+        reply["managerError"] = serde_json::json!(problems.join("\n"));
+    }
+    Some(reply.to_string())
+}
+
+// "scripts-<command> <json>": the userscript manager, on the manager thread
+fn handle_scripts_message(message: &str) -> Option<String> {
     use modules::userscripts;
     let (command, payload) = message.split_once(' ').unwrap_or((message, "{}"));
-    let Ok(payload) = serde_json::from_str::<serde_json::Value>(payload) else {
-        return;
-    };
+    let payload = serde_json::from_str::<serde_json::Value>(payload).ok()?;
     let key = payload_str(&payload, "key");
     let mut problems: Vec<String> = Vec::new();
     match command {
         "list" => {}
         "read" => {
-            let reply = serde_json::json!({ "userscriptSource": { "key": key, "content": userscripts::read(key) } });
-            bridge::post_json(browser, &reply.to_string());
-            return;
+            return Some(serde_json::json!({ "userscriptSource": { "key": key, "content": userscripts::read(key) } }).to_string());
         }
         "write" => {
             let result = userscripts::write(payload_str(&payload, "group"), payload_str(&payload, "file"), payload_str(&payload, "content"));
             problems.extend(result.err());
+            // an import of many scripts asks for the list once at the end instead of once per script
+            if payload["noList"].as_bool() == Some(true) {
+                return (!problems.is_empty()).then(|| serde_json::json!({ "managerError": problems.join("\n") }).to_string());
+            }
         }
         "toggle" => userscripts::set_enabled(key, payload["enabled"].as_bool().unwrap_or(true)),
         "prefs" => {
             userscripts::set_prefs(key, payload["prefs"].clone());
             // the page already shows the change, no list needed
-            return;
+            return None;
         }
         "delete" => problems.extend(userscripts::delete(key).err()),
         "move" => problems.extend(userscripts::move_to(key, payload_str(&payload, "group")).err()),
         "reveal" => {
             userscripts::reveal(if key.is_empty() { None } else { Some(key) });
-            return;
+            return None;
         }
-        _ => return,
+        _ => return None,
     }
-    let mut reply = serde_json::json!({ "userscripts": userscripts::list() });
-    if !problems.is_empty() {
-        reply["managerError"] = serde_json::json!(problems.join("\n"));
-    }
-    bridge::post_json(browser, &reply.to_string());
+    manager_reply("userscripts", userscripts::list(), &problems)
 }
 
-fn reply_error(browser: &Browser, message: &str) {
-    bridge::post_json(browser, &serde_json::json!({ "managerError": message }).to_string());
-}
-
-// "swapper-<command> <json>": the swapper manager, answered like the scripts
-fn handle_swapper_message(browser: &Browser, message: &str) {
+// "swapper-<command> <json>": the swapper manager, on the manager thread
+fn handle_swapper_message(message: &str) -> Option<String> {
     use modules::swapper;
     let (command, payload) = message.split_once(' ').unwrap_or((message, "{}"));
-    let Ok(payload) = serde_json::from_str::<serde_json::Value>(payload) else {
-        return;
-    };
+    let payload = serde_json::from_str::<serde_json::Value>(payload).ok()?;
     let path = payload_str(&payload, "path");
     let mut problems: Vec<String> = Vec::new();
     match command {
-        // files the player put in with Explorer count from the next refresh on, like the ones added here
+        // files the player put in with Explorer count from the next refresh on, like the ones added here. The reload
+        // is done before the reply leaves, so a refresh after it gets the new files
         "list" => swapper::reload(),
         "mkdir" => problems.extend(swapper::make_dir(path).err()),
         "delete" => problems.extend(swapper::delete(path).err()),
         "move" => problems.extend(swapper::move_to(payload_str(&payload, "from"), payload_str(&payload, "to")).err()),
-        // one dropped file, base64. No list in reply: a pack is hundreds of these, the page asks for the list once
+        // one dropped file, base64. Acknowledged on its own, the page sends the next one only then (one file in flight
+        // instead of a pack in memory), and asks for the list once at the end
         "upload" => {
-            if let Err(e) = swapper::upload(path, payload_str(&payload, "data")) {
-                reply_error(browser, &format!("{path}: {e}"));
-            }
-            return;
+            let result = swapper::upload(path, payload_str(&payload, "data"));
+            let error = result.err().map(|e| format!("{path}: {e}"));
+            return Some(serde_json::json!({ "swapperUploaded": { "path": path, "error": error } }).to_string());
         }
         "reveal" => {
             swapper::reveal(path);
-            return;
+            return None;
         }
-        _ => return,
+        _ => return None,
     }
-    let mut reply = serde_json::json!({ "swapper": swapper::list() });
-    if !problems.is_empty() {
-        reply["managerError"] = serde_json::json!(problems.join("\n"));
-    }
-    bridge::post_json(browser, &reply.to_string());
+    manager_reply("swapper", swapper::list(), &problems)
 }
 
 pub fn open_documents_subpath(target: &str) {
@@ -603,7 +627,13 @@ pub fn open_in_default_browser(url: &str) {
 }
 
 pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str) {
-    debug_print!("web message: {message_string}");
+    // the start is enough to see which command it was: a swapper upload is a whole file as base64
+    if message_string.len() > 300 {
+        let cut = (0..=300).rev().find(|&index| message_string.is_char_boundary(index)).unwrap_or(0);
+        debug_print!("web message: {}... ({} bytes)", &message_string[..cut], message_string.len());
+    } else {
+        debug_print!("web message: {message_string}");
+    }
     // the payload is JSON, so it must not go through the ", " split
     if let Some(rest) = message_string.strip_prefix("telemetry ") {
         // "telemetry <kind> <json>". JSON, so it must not go through the ", " split. capped like the server caps it
@@ -637,14 +667,14 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
     // the userscript and swapper managers: JSON payloads, only from Krunker itself
     if let Some(rest) = message_string.strip_prefix("scripts-") {
         if is_krunker_frame(frame) && rest.len() <= 5 * 1024 * 1024 {
-            handle_scripts_message(browser, rest);
+            queue_manager_message(browser, message_string);
         }
         return;
     }
     if let Some(rest) = message_string.strip_prefix("swapper-") {
         // an upload carries a whole file (base64), everything else is a short command
         if is_krunker_frame(frame) && rest.len() <= 48 * 1024 * 1024 {
-            handle_swapper_message(browser, rest);
+            queue_manager_message(browser, message_string);
         }
         return;
     }
@@ -734,14 +764,19 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         }
         // the distribution of the hook's present intervals since the last call (a call also starts a new window)
         ["get-present-intervals"] => {
-            let intervals = if config("hardFlip", true) { app::take_present_intervals() } else { None };
-            let reply = match intervals {
-                Some((p50, p99, max, arrive_p99, samples)) => serde_json::json!({ "presentIntervals": {
+            // take_present_intervals waits for the hook's next present (up to 150 ms): not on the UI thread
+            let hook = config("hardFlip", true);
+            let browser_id = browser.identifier();
+            std::thread::spawn(move || {
+                let intervals = if hook { app::take_present_intervals() } else { None };
+                let reply = match intervals {
+                    Some((p50, p99, max, arrive_p99, samples)) => serde_json::json!({ "presentIntervals": {
                     "p50": p50 as f64 / 1e6, "p99": p99 as f64 / 1e6, "max": max as f64 / 1e6, "arriveP99": arrive_p99 as f64 / 1e6, "samples": samples,
                 } }),
-                None => serde_json::json!({ "presentIntervals": false }),
-            };
-            bridge::post_json(browser, &reply.to_string());
+                    None => serde_json::json!({ "presentIntervals": false }),
+                };
+                bridge::post_json_later(browser_id, reply.to_string());
+            });
         }
         ["click", x, y] => {
             if let (Ok(x), Ok(y)) = (x.parse(), y.parse()) {

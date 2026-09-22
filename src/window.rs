@@ -229,7 +229,9 @@ pub fn browser_by_id(id: i32) -> Option<Browser> {
 // Krunker's game page with a mod to load (krunker.io/?mod=<name>), what the "Use" button of a mod's detail view opens
 pub fn is_mod_page(url: &str) -> bool {
     let Some(rest) = url.strip_prefix("https://krunker.io") else { return false };
-    let Some(query) = rest.strip_prefix("/?").or_else(|| rest.strip_prefix('?')) else { return false };
+    let Some(query) = rest.strip_prefix("/?").or_else(|| rest.strip_prefix('?')) else {
+        return false;
+    };
     query.split('#').next().unwrap_or("").split('&').any(|pair| pair.split('=').next() == Some("mod"))
 }
 

@@ -1,6 +1,6 @@
 import panelHtml from "../../components/autoDetect.html";
 import { kute } from "../../client.js";
-import { activity, hostLobby, spawn } from "../privateMatch.js";
+import { activity, hostLobby, inRoom, spawn } from "../privateMatch.js";
 import { checkCompMode, request } from "../../utils.js";
 import { FrameRecorder } from "./metrics.js";
 import { decide, decideClient, HEADROOM, MIN_RESOLUTION, SIGNIFICANT_SETTING, TARGET_REFRESH_MULTIPLE } from "./decide.js";
@@ -91,7 +91,10 @@ const HOME = "https://krunker.io/";
  * @typedef {object} RunState
  * @property {"running"|"done"|"prompted"} status
  * @property {number} at
- * @property {{client: Record<string, any>, game: Record<string, string|null>}} snapshot
+ * @property {{client: Record<string, any>, game: Record<string, string|null>}} snapshot What Undo and a cancel put
+ *     back: the values from before the run, and before the setup's preset when the setup started it
+ * @property {{client: Record<string, any>, game: Record<string, string|null>}} [baseline] While running: what is
+ *     active when the run starts, after the preset and its reload. Everything the run measures and reverts to
  * @property {Summary} [summary]
  * @property {Report} [report]
  * @property {boolean} [showSummary] Set across the page load that ends a run
@@ -151,9 +154,12 @@ export function loggedIn(){
  * @return {Promise<import("./metrics.js").FrameStats>}
  */
 function measure(ms = SAMPLE_MS){
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         const recorder = new FrameRecorder();
         const start = performance.now();
+        // requestAnimationFrame never calls back on a page that stopped drawing (hidden, lost its context, a
+        // stuck game). Without this the run, and a cancel with it, would wait for that frame forever
+        const watchdog = setTimeout(() => reject(new Error("the game stopped drawing frames")), ms + 5000);
         const frame = () => {
             const now = performance.now();
             recorder.frame(now);
@@ -161,6 +167,7 @@ function measure(ms = SAMPLE_MS){
                 requestAnimationFrame(frame);
                 return;
             }
+            clearTimeout(watchdog);
             resolve(recorder.stats(8) ?? { frames: 0, seconds: 0, fps: 0, meanMs: 0, p50: 0, p95: 0, p99: 0, p999: 0, maxMs: 0, hitches: 0, hitchesPerSec: 0 });
         };
         requestAnimationFrame(frame);
@@ -222,7 +229,10 @@ async function measureClient(configs){
     const raw = await request(`run-bench-matrix ${JSON.stringify(configs.map((entry) => entry.config))}`, "benchMatrix", 20000 * configs.length);
     return configs.map((entry, index) => {
         const result = raw?.[index];
-        const stats = result?.page?.stats;
+        // the host drops "limit=auto" when the matrix has no uncapped result to take the number from, and the
+        // process then runs uncapped. That row measured something else than its label says: unavailable, not capped
+        const ranUncapped = entry.config.includes("limit=") && !(Number(result?.config?.limit) > 0);
+        const stats = ranUncapped ? undefined : result?.page?.stats;
         const present = result?.present;
         return {
             config: entry.config,
@@ -236,7 +246,7 @@ async function measureClient(configs){
             p50: stats?.p50 ?? 0,
             max: stats?.maxMs ?? 0,
             present: typeof present?.p99 === "number" ? { p50: present.p50, p99: present.p99, max: present.max } : null,
-            taskDelayP99: result?.page?.otherTasks?.p99 ?? 0,
+            taskDelayP99: result?.page?.otherTasks?.p99 ?? null,
             limit: result?.config?.limit ?? 0,
         };
     });
@@ -493,11 +503,20 @@ class AutoDetect {
             kute.showNotification("Nothing to undo", false, 3);
             return;
         }
+        // what Undo changes back that only applies after a reload (the preset's shadow and antialiasing settings)
+        // or a restart (the hook): written is not applied, so it says which, and reloads like the preset did
+        const reloadIds = new Set(game.SETTINGS.filter((setting) => setting.needsReload).map((setting) => setting.id));
+        const needsReload = Object.entries(state.snapshot.game).some(([id, value]) => reloadIds.has(id) && value !== null && game.read(id) !== value);
+        const needsRestart = state.snapshot.client.hardFlip !== undefined && kute.settings.data.hardFlip !== state.snapshot.client.hardFlip;
         this.restore(state.snapshot);
         state.undoable = false;
-        state.summary = { title: "Undone", line: "Your previous settings are back.", details: [], changed: false };
+        let line = "Your previous settings are back.";
+        if (needsReload) line = "Your previous settings are back, the game reloads once to apply them.";
+        if (needsRestart) line += " Restart Kute to finish.";
+        state.summary = { title: "Undone", line, details: [], changed: false, needsRestart };
         writeState(state);
-        kute.showNotification("Auto-detect undone, your previous settings are back", false, 4);
+        kute.showNotification(`Auto-detect undone. ${line.replace("Your previous settings are back", "Your settings are back")}`, false, 5);
+        if (needsReload) setTimeout(() => location.reload(), 1200);
     }
 
     /**
@@ -549,8 +568,12 @@ class AutoDetect {
             delete previous.wizard;
             delete previous.wizardDetails;
         }
+        // two different things once the setup's preset ran: Undo goes back to before the preset, the measurements
+        // start from what the preset left. Mixing them had the run "revert" a setting to its pre-preset value and so
+        // switch post-processing back on in the middle of measuring
+        const baseline = this.snapshot();
         /** @type {RunState} */
-        const state = { status: "running", at: Date.now(), snapshot: options.snapshot ?? this.snapshot(), previous };
+        const state = { status: "running", at: Date.now(), snapshot: options.snapshot ?? baseline, baseline, previous };
         writeState(state);
 
         const panel = new Panel();
@@ -595,6 +618,7 @@ class AutoDetect {
                 state.undoable = true;
             }
             delete state.previous;
+            delete state.baseline;
             // the raw numbers are for the shared report, the stored one only needs what the Advanced view shows
             state.report = { ...outcome.report };
             delete state.report.details;
@@ -641,6 +665,7 @@ class AutoDetect {
     async run(panel, state, venue, earlier = []){
         const started = performance.now();
         const dev = devOverrides();
+        const baseline = state.baseline ?? state.snapshot;
 
         panel.progress("Reading your hardware", 0.02);
         const specs = await request("get-specs", "specs");
@@ -688,10 +713,11 @@ class AutoDetect {
         venue.stage = "lobby";
         panel.progress("Opening a private test match", 0.05);
         panel.clickThrough(true);
-        let joined = await hostLobby();
-        if (joined){
+        const room = await hostLobby();
+        let joined = false;
+        if (room){
             panel.progress("Joining the test match", 0.1);
-            joined = await spawn();
+            joined = await spawn(room);
         }
         panel.clickThrough(false);
         if (!joined){
@@ -700,13 +726,20 @@ class AutoDetect {
         }
         venue.inMatch = true;
         venue.stage = "measure";
+        /**
+         * Stops the run when the page is no longer in the test match (a redirect, a kick, a lost connection): every
+         * number after that would belong to another match, and settings would get written into it.
+         */
+        const stillInRoom = () => {
+            if (!inRoom(room)) throw new Error("left the private test match");
+        };
         const lobbySeconds = (performance.now() - started) / 1000 - clientSeconds;
         if (this.cancelled) return null;
 
         // measure the game itself: no throttle, no limiter of ours, no frame cap of the game
         window.chrome.webview.postMessage("throttle, off");
         const fpsLimitBefore = Number(kute.settings.data.gameFpsLimit) || 0;
-        const frameCapBefore = Number(state.snapshot.game[game.GAME_FRAME_CAP]) || 0;
+        const frameCapBefore = Number(baseline.game[game.GAME_FRAME_CAP]) || 0;
         if (fpsLimitBefore > 0) applyClient("gameFpsLimit", 0);
         if (frameCapBefore > 0) game.write(game.GAME_FRAME_CAP, "0");
         // the first seconds of a match still stream assets and compile shaders
@@ -718,6 +751,7 @@ class AutoDetect {
 
         // a window that is minimized or behind another one renders differently, or not at all
         window.chrome.webview.postMessage("bring-to-front");
+        stillInRoom();
         panel.progress("Measuring your current settings", 0.15);
         // (the first call only starts a fresh window in the hook, the second one reads the baseline's presents)
         await request("get-present-intervals", "presentIntervals");
@@ -779,7 +813,7 @@ class AutoDetect {
         const settings = [];
         const live = game.SETTINGS.filter((setting) => !setting.needsReload && !setting.fightOnly);
         for (const setting of game.SETTINGS){
-            const current = state.snapshot.game[setting.id];
+            const current = baseline.game[setting.id];
             const cheap = String(setting.cheap);
             /** @type {MeasuredSetting} */
             const row = { id: setting.id, label: setting.label, current: current ?? "default", cheap, gain: null, steady: true };
@@ -798,6 +832,7 @@ class AutoDetect {
                 continue;
             }
             if (this.cancelled) return null;
+            stillInRoom();
 
             panel.progress(`Measuring ${setting.label}`, 0.2 + (0.6 * live.indexOf(setting)) / live.length);
             const flipped = game.opposite(current);
@@ -815,6 +850,7 @@ class AutoDetect {
             for (const row of settings){
                 if (row.gain === null || !row.steady || row.current === row.cheap || row.gain < SIGNIFICANT_SETTING) continue;
                 if (this.cancelled) return null;
+                stillInRoom();
                 panel.progress(`Confirming ${row.label}`, 0.8);
                 const { ratio, steady } = await compare(() => game.write(row.id, row.cheap), () => game.write(row.id, row.current));
                 row.confirmGain = ratio;
@@ -823,8 +859,9 @@ class AutoDetect {
             }
         }
 
+        stillInRoom();
         panel.progress("Checking the graphics card", 0.82);
-        const resolution = Number(state.snapshot.game[game.RESOLUTION]) || 1;
+        const resolution = Number(baseline.game[game.RESOLUTION]) || 1;
         const half = await compare(
             () => game.write(game.RESOLUTION, String(Math.max(0.1, resolution * 0.5))),
             () => game.write(game.RESOLUTION, String(resolution)),
@@ -841,7 +878,7 @@ class AutoDetect {
             {
                 hz,
                 onBattery: dev.battery ?? Boolean(specs.onBattery),
-                throttle: Number(state.snapshot.client.throttle) || 1,
+                throttle: Number(baseline.client.throttle) || 1,
                 gameFpsLimit: fpsLimitBefore,
                 gameFrameCap: frameCapBefore,
                 hardFlip: settingsNow.hardFlip,
@@ -868,12 +905,12 @@ class AutoDetect {
         let needsRestart = false;
         for (const change of plan.changes){
             if (change.scope === "game"){
-                details.push(`<b>${change.label}</b>: ${readable(state.snapshot.game[change.id])} → ${readable(change.value)} (${change.reason})`);
+                details.push(`<b>${change.label}</b>: ${readable(baseline.game[change.id])} → ${readable(change.value)} (${change.reason})`);
                 game.write(change.id, String(change.value));
                 if (change.id !== game.GAME_FRAME_CAP) gameChanged = true;
             }
             else {
-                details.push(`<b>${change.label}</b>: ${readable(state.snapshot.client[change.id])} → ${readable(change.value)} (${change.reason})`);
+                details.push(`<b>${change.label}</b>: ${readable(baseline.client[change.id])} → ${readable(change.value)} (${change.reason})`);
                 clientChanges.push(change);
                 if (change.id === "gameFpsLimit") limitChanged = true;
                 if (change.id === "hardFlip") needsRestart = true;
@@ -956,7 +993,7 @@ class AutoDetect {
                     },
                     clientSettings: Object.fromEntries(
                         ["hardFlip", "uncapFps", "gameFpsLimit", "throttle", "inMenuThrottle", "webviewPriority", "angleBackend", "colorProfile", "rawInput"]
-                            .map((key) => [key, key in state.snapshot.client ? state.snapshot.client[key] : kute.settings.data[key]]),
+                            .map((key) => [key, key in baseline.client ? baseline.client[key] : kute.settings.data[key]]),
                     ),
                     game: {
                         resolution,

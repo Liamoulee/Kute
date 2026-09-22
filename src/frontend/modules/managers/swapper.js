@@ -114,6 +114,8 @@ class SwapperManager {
         this.expandedGame = new Set();
         this.search = "";
         this.changed = false;
+        /** @type {((error: string|null) => void)|null} resolves when the host saved the upload on its way */
+        this.uploadDone = null;
     }
 
     open(){
@@ -127,6 +129,9 @@ class SwapperManager {
         const { shadow, signal } = this.popup;
         signal.addEventListener("abort", () => {
             this.popup = null;
+            // an upload in flight when the popup closes ends the loop, which checks for the popup
+            this.uploadDone?.(null);
+            this.uploadDone = null;
         });
         /** @type {HTMLElement} */ (shadow.querySelector("#swFolder")).onclick = () => this.send("reveal", { path: "" });
         /** @type {HTMLElement} */ (shadow.querySelector("#swReload")).onclick = () => this.send("list", {});
@@ -198,11 +203,19 @@ class SwapperManager {
         /** @type {string[]} */
         const problems = [];
         for (const { path, file } of files){
+            if (!this.popup) return;
             if (file.size > MAX_FILE_SIZE){
                 problems.push(`${path}: larger than 32 MB, put it in with Open swapper folder`);
                 continue;
             }
-            this.send("upload", { path, data: await readBase64(file) });
+            // one file at a time: the next is only read once the host saved this one, so a big pack never sits in
+            // memory as a queue of base64 strings
+            const data = await readBase64(file);
+            const error = await new Promise((resolve) => {
+                this.uploadDone = resolve;
+                this.send("upload", { path, data });
+            });
+            if (error) problems.push(error);
         }
         this.changed = true;
         // one list at the end instead of one per file: it rereads the folder and rebuilds the index
@@ -215,6 +228,11 @@ class SwapperManager {
      */
     receive(data){
         if (data.managerError) this.popup?.showError(data.managerError);
+        if (data.swapperUploaded){
+            const done = this.uploadDone;
+            this.uploadDone = null;
+            done?.(data.swapperUploaded.error ?? null);
+        }
         if (!data.swapper) return;
         this.list = data.swapper;
         this.render();

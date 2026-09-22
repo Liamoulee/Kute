@@ -47,9 +47,12 @@
  * @property {string} error
  * @property {Record<string, ScriptSetting>|null} settings
  * @property {boolean} canUnload
+ * @property {boolean} tainted It failed halfway (while running or unloading): whatever it set up may still be there,
+ *     so it only runs again after a page refresh
  * @property {Record<string, string>} meta
  * @property {() => void} start
- * @property {() => boolean} stop false when the script has no unload, a refresh is then needed
+ * @property {() => boolean} stop false when the script could not clean up (no unload, or unload threw), a refresh
+ *     is then needed
  * @property {(key: string, value: any) => boolean} setPref
  */
 
@@ -148,6 +151,8 @@ function runUserscripts(/** @type {HostScript[]} */ scripts, /** @type {Registry
     const createEntry = (script) => {
         /** @type {Function|null} */
         let unload = null;
+        /** @type {(() => void)|null} the DOMContentLoaded start a stop has to take back */
+        let pendingStart = null;
 
         /** @type {ScriptEntry} */
         const entry = {
@@ -156,6 +161,7 @@ function runUserscripts(/** @type {HostScript[]} */ scripts, /** @type {Registry
             error: script.compileError ?? "",
             settings: null,
             canUnload: false,
+            tainted: false,
             meta: script.meta,
             start: () => undefined,
             stop: () => false,
@@ -165,6 +171,8 @@ function runUserscripts(/** @type {HostScript[]} */ scripts, /** @type {Registry
                 try {
                     setting.value = value;
                     setting.changed(value);
+                    // a stop and start in this page applies what the player chose last, not what was saved at load
+                    script.prefs = { ...script.prefs, [key]: value };
                     return true;
                 }
                 catch (error){
@@ -204,7 +212,8 @@ function runUserscripts(/** @type {HostScript[]} */ scripts, /** @type {Registry
                 }
                 else {
                     entry.settings = isSettings(exported.settings) ? exported.settings : null;
-                    unload = typeof exported.unload === "function" ? exported.unload : null;
+                    // bound: an unload(){ this.x } written as a method needs its object, called bare it loses it
+                    unload = typeof exported.unload === "function" ? exported.unload.bind(exported) : null;
                 }
                 entry.canUnload = Boolean(unload);
                 entry.state = "running";
@@ -219,25 +228,37 @@ function runUserscripts(/** @type {HostScript[]} */ scripts, /** @type {Registry
             }
             catch (error){
                 fail(error);
+                // it may have set up half of what it does, running it again would do that part twice
+                entry.tainted = true;
             }
             notify();
         };
 
         entry.start = () => {
-            if (entry.state === "running" || entry.state === "waiting" || !script.run) return;
+            if (entry.state === "running" || entry.state === "waiting" || entry.tainted || !script.run) return;
             if (script.runAt === "document-end" && document.readyState === "loading"){
                 entry.state = "waiting";
-                document.addEventListener("DOMContentLoaded", () => {
+                pendingStart = () => {
+                    pendingStart = null;
                     entry.state = "idle";
                     entry.start();
-                }, { once: true });
+                };
+                document.addEventListener("DOMContentLoaded", pendingStart, { once: true });
                 return;
             }
             execute();
         };
 
         entry.stop = () => {
-            if (entry.state !== "running") return entry.state !== "error";
+            if (entry.state === "waiting" && pendingStart){
+                // never ran, so there is nothing to clean up
+                document.removeEventListener("DOMContentLoaded", pendingStart);
+                pendingStart = null;
+                entry.state = "stopped";
+                notify();
+                return true;
+            }
+            if (entry.state !== "running") return !entry.tainted;
             if (!unload) return false;
             try {
                 unload();
@@ -245,6 +266,10 @@ function runUserscripts(/** @type {HostScript[]} */ scripts, /** @type {Registry
             }
             catch (error){
                 fail(error);
+                entry.error += " (while unloading, refresh the page to clean up)";
+                entry.tainted = true;
+                notify();
+                return false;
             }
             notify();
             return true;
