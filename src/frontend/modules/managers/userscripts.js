@@ -96,6 +96,8 @@ class UserscriptManager {
         this.needsRefresh = false;
         this.renderQueued = false;
         this.forceClose = false;
+        /** @type {Map<string, number>} debounced preference saves per script */
+        this.prefsTimers = new Map();
 
         // the runner reports state changes (a script started, failed, stopped)
         if (registry) registry.onChange = () => this.queueRender();
@@ -267,8 +269,10 @@ class UserscriptManager {
             if (!await askConfirm(this.popup.shadow, "Replace scripts?", text, "Replace")) return;
         }
         for (const { file } of scripts){
-            this.send("write", { group: group.id, file: file.name, content: await file.text() });
+            this.send("write", { group: group.id, file: file.name, content: await file.text(), noList: true });
         }
+        // one list for the whole import: listing reads every script's header
+        this.send("list", {});
         if (scripts.length) this.needsRefresh = true;
         this.updateNotice();
         if (problems.length) this.popup?.showError(problems.join("\n"));
@@ -405,9 +409,14 @@ class UserscriptManager {
         const panel = element("div", "scriptSettings");
         const settings = entry.settings ?? {};
 
+        // a slider sends a value per pixel, the file gets the one it stops at
         const save = () => {
-            const prefs = Object.fromEntries(Object.entries(settings).map(([key, setting]) => [key, setting.value]));
-            this.send("prefs", { key: script.key, prefs });
+            clearTimeout(this.prefsTimers.get(script.key));
+            this.prefsTimers.set(script.key, setTimeout(() => {
+                this.prefsTimers.delete(script.key);
+                const prefs = Object.fromEntries(Object.entries(settings).map(([key, setting]) => [key, setting.value]));
+                this.send("prefs", { key: script.key, prefs });
+            }, 300));
         };
         /**
          * @param {string} key
