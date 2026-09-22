@@ -30,29 +30,83 @@ fn bundle_source() -> String {
     String::new()
 }
 
-fn eval(context: &V8Context, code: &str, name: &str) {
-    if code.is_empty() {
-        return;
-    }
+// the completion value of the script, or the message of what it threw
+fn eval_value(context: &V8Context, code: &str, name: &str) -> Result<V8Value, String> {
     let mut retval = None;
     let mut exception = None;
     let script_url = CefString::from(format!("kute://{name}").as_str());
     if context.eval(Some(&CefString::from(code)), Some(&script_url), 0, Some(&mut retval), Some(&mut exception)) == 0 {
-        let message = exception.map(|e| utils::cef_to_string(&e.message())).unwrap_or_default();
+        let message = exception
+            .map(|e| format!("{} (line {})", utils::cef_to_string(&e.message()), e.line_number()))
+            .unwrap_or_default();
         debug_print!("renderer: {name} threw: {message}");
+        return Err(message);
+    }
+    retval.ok_or_else(String::new)
+}
+
+fn eval(context: &V8Context, code: &str, name: &str) {
+    if !code.is_empty() {
+        eval_value(context, code, name).ok();
     }
 }
+
+// the bundle takes the userscript registry from this property while it is evaluated, it is gone again before
+// any script of the page runs
+const REGISTRY_KEY: &str = "__kuteUserscripts";
 
 // mirrors AddScriptToExecuteOnDocumentCreated for the main webview: runs before any script of the page.
 // popups get their (social) userscripts from the browser process instead, see handlers::on_after_created
 fn inject_scripts(url: &str, context: &V8Context) {
     debug_print!("renderer: injecting into {url}");
+    let registry = if config("userscripts", true) {
+        v8_value_create_object(None, None)
+    } else {
+        None
+    };
+    let global = context.global();
+    if let (Some(global), Some(registry)) = (&global, &registry) {
+        global.set_value_bykey(
+            Some(&CefString::from(REGISTRY_KEY)),
+            Some(&mut registry.clone()),
+            V8Propertyattribute::default(),
+        );
+    }
     eval(context, &bundle_source(), "bundle.js");
-    if config("userscripts", true) {
-        for (index, script) in modules::userscripts::load(false).iter().enumerate() {
-            eval(context, script, &format!("userscript-{index}.js"));
+    if let (Some(global), Some(registry)) = (global, registry) {
+        global.delete_value_bykey(Some(&CefString::from(REGISTRY_KEY)));
+        run_userscripts(context, registry);
+    }
+}
+
+// compiles every script of the game group here (Krunker traps eval and Function in the page, the bundle must never
+// compile anything) and hands them to the runner, see userscriptRunner.js
+fn run_userscripts(context: &V8Context, registry: V8Value) {
+    let scripts = modules::userscripts::load_group("game");
+    if scripts.is_empty() {
+        return;
+    }
+    let runner_source = format!("(function () {{\n{}\nreturn runUserscripts;\n}})()", modules::userscripts::RUNNER);
+    let Ok(runner) = eval_value(context, &runner_source, "userscript-runner.js") else {
+        return;
+    };
+    let described = serde_json::Value::Array(scripts.iter().map(|script| script.describe()).collect());
+    let Some(list) = json_parse(context, &described.to_string()) else { return };
+
+    for (index, script) in scripts.iter().enumerate() {
+        let Some(item) = list.value_byindex(index as i32) else { continue };
+        // the opening line holds the wrapper, so the script's own line numbers stay what they are in the file
+        let wrapped = format!("(function (module, exports) {{{}\n}})", script.source);
+        let (key, mut value) = match eval_value(context, &wrapped, &format!("scripts/{}", script.key)) {
+            Ok(function) if function.is_function() != 0 => ("run", Some(function)),
+            Ok(_) => continue,
+            Err(message) => ("compileError", v8_value_create_string(Some(&CefString::from(message.as_str())))),
+        };
+        if let Some(value) = value.as_mut() {
+            item.set_value_bykey(Some(&CefString::from(key)), Some(value), V8Propertyattribute::default());
         }
     }
+    runner.execute_function(None, Some(&[Some(list), Some(registry)]));
 }
 
 wrap_v8_handler! {
