@@ -91,7 +91,10 @@ const HOME = "https://krunker.io/";
  * @typedef {object} RunState
  * @property {"running"|"done"|"prompted"} status
  * @property {number} at
- * @property {{client: Record<string, any>, game: Record<string, string|null>}} snapshot
+ * @property {{client: Record<string, any>, game: Record<string, string|null>}} snapshot What Undo and a cancel put
+ *     back: the values from before the run, and before the setup's preset when the setup started it
+ * @property {{client: Record<string, any>, game: Record<string, string|null>}} [baseline] While running: what is
+ *     active when the run starts, after the preset and its reload. Everything the run measures and reverts to
  * @property {Summary} [summary]
  * @property {Report} [report]
  * @property {boolean} [showSummary] Set across the page load that ends a run
@@ -549,8 +552,12 @@ class AutoDetect {
             delete previous.wizard;
             delete previous.wizardDetails;
         }
+        // two different things once the setup's preset ran: Undo goes back to before the preset, the measurements
+        // start from what the preset left. Mixing them had the run "revert" a setting to its pre-preset value and so
+        // switch post-processing back on in the middle of measuring
+        const baseline = this.snapshot();
         /** @type {RunState} */
-        const state = { status: "running", at: Date.now(), snapshot: options.snapshot ?? this.snapshot(), previous };
+        const state = { status: "running", at: Date.now(), snapshot: options.snapshot ?? baseline, baseline, previous };
         writeState(state);
 
         const panel = new Panel();
@@ -595,6 +602,7 @@ class AutoDetect {
                 state.undoable = true;
             }
             delete state.previous;
+            delete state.baseline;
             // the raw numbers are for the shared report, the stored one only needs what the Advanced view shows
             state.report = { ...outcome.report };
             delete state.report.details;
@@ -641,6 +649,7 @@ class AutoDetect {
     async run(panel, state, venue, earlier = []){
         const started = performance.now();
         const dev = devOverrides();
+        const baseline = state.baseline ?? state.snapshot;
 
         panel.progress("Reading your hardware", 0.02);
         const specs = await request("get-specs", "specs");
@@ -706,7 +715,7 @@ class AutoDetect {
         // measure the game itself: no throttle, no limiter of ours, no frame cap of the game
         window.chrome.webview.postMessage("throttle, off");
         const fpsLimitBefore = Number(kute.settings.data.gameFpsLimit) || 0;
-        const frameCapBefore = Number(state.snapshot.game[game.GAME_FRAME_CAP]) || 0;
+        const frameCapBefore = Number(baseline.game[game.GAME_FRAME_CAP]) || 0;
         if (fpsLimitBefore > 0) applyClient("gameFpsLimit", 0);
         if (frameCapBefore > 0) game.write(game.GAME_FRAME_CAP, "0");
         // the first seconds of a match still stream assets and compile shaders
@@ -779,7 +788,7 @@ class AutoDetect {
         const settings = [];
         const live = game.SETTINGS.filter((setting) => !setting.needsReload && !setting.fightOnly);
         for (const setting of game.SETTINGS){
-            const current = state.snapshot.game[setting.id];
+            const current = baseline.game[setting.id];
             const cheap = String(setting.cheap);
             /** @type {MeasuredSetting} */
             const row = { id: setting.id, label: setting.label, current: current ?? "default", cheap, gain: null, steady: true };
@@ -824,7 +833,7 @@ class AutoDetect {
         }
 
         panel.progress("Checking the graphics card", 0.82);
-        const resolution = Number(state.snapshot.game[game.RESOLUTION]) || 1;
+        const resolution = Number(baseline.game[game.RESOLUTION]) || 1;
         const half = await compare(
             () => game.write(game.RESOLUTION, String(Math.max(0.1, resolution * 0.5))),
             () => game.write(game.RESOLUTION, String(resolution)),
@@ -841,7 +850,7 @@ class AutoDetect {
             {
                 hz,
                 onBattery: dev.battery ?? Boolean(specs.onBattery),
-                throttle: Number(state.snapshot.client.throttle) || 1,
+                throttle: Number(baseline.client.throttle) || 1,
                 gameFpsLimit: fpsLimitBefore,
                 gameFrameCap: frameCapBefore,
                 hardFlip: settingsNow.hardFlip,
@@ -868,12 +877,12 @@ class AutoDetect {
         let needsRestart = false;
         for (const change of plan.changes){
             if (change.scope === "game"){
-                details.push(`<b>${change.label}</b>: ${readable(state.snapshot.game[change.id])} → ${readable(change.value)} (${change.reason})`);
+                details.push(`<b>${change.label}</b>: ${readable(baseline.game[change.id])} → ${readable(change.value)} (${change.reason})`);
                 game.write(change.id, String(change.value));
                 if (change.id !== game.GAME_FRAME_CAP) gameChanged = true;
             }
             else {
-                details.push(`<b>${change.label}</b>: ${readable(state.snapshot.client[change.id])} → ${readable(change.value)} (${change.reason})`);
+                details.push(`<b>${change.label}</b>: ${readable(baseline.client[change.id])} → ${readable(change.value)} (${change.reason})`);
                 clientChanges.push(change);
                 if (change.id === "gameFpsLimit") limitChanged = true;
                 if (change.id === "hardFlip") needsRestart = true;
@@ -956,7 +965,7 @@ class AutoDetect {
                     },
                     clientSettings: Object.fromEntries(
                         ["hardFlip", "uncapFps", "gameFpsLimit", "throttle", "inMenuThrottle", "webviewPriority", "angleBackend", "colorProfile", "rawInput"]
-                            .map((key) => [key, key in state.snapshot.client ? state.snapshot.client[key] : kute.settings.data[key]]),
+                            .map((key) => [key, key in baseline.client ? baseline.client[key] : kute.settings.data[key]]),
                     ),
                     game: {
                         resolution,
