@@ -46,7 +46,7 @@ fn backend_supported(api: &ObsApi) -> bool {
     let ok = unsafe { (api.gs_get_device_type)() } == obsabi::GS_DEVICE_DIRECT3D_11;
     BACKEND_OK.store(if ok { 1 } else { 0 }, Ordering::Relaxed);
     if !ok {
-                debug_print!("capture: only D3D11 backend supported");
+        debug_print!("capture: only D3D11 backend supported");
     }
     ok
 }
