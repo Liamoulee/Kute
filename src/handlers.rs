@@ -41,7 +41,7 @@ wrap_task! {
     }
 }
 
-// a game page a popup asked for, loaded in the main window once on_before_popup has returned
+// a mod page a popup asked for, loaded in the main window once on_before_popup has returned
 wrap_task! {
     struct LoadInMainTask {
         url: String,
@@ -333,10 +333,10 @@ wrap_life_span_handler! {
         ) -> ::std::os::raw::c_int {
             let url = utils::cef_str(_target_url);
             debug_print!("handlers: popup requested for {url}");
-            // Krunker's own game page (the "Use" button of a mod's detail view opens krunker.io/?mod=..., lobby and
-            // invite links do the same): in a browser that is a new tab, here it was a second game window, and
-            // Krunker allows one session per account, so the first window lost its match. The main window loads it
-            if window::is_game_page(&url) && window::has_main_browser() {
+            // the "Use" button of a mod's detail view opens the game page with the mod (krunker.io/?mod=...): in a
+            // browser that is a new tab, here it was a second game window, and Krunker allows one session per
+            // account, so the first window lost its match. The main window loads it
+            if window::is_mod_page(&url) && window::has_main_browser() {
                 let mut task = LoadInMainTask::new(url);
                 post_task(ThreadId::UI, Some(&mut task));
                 return 1;

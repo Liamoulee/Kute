@@ -226,17 +226,18 @@ pub fn browser_by_id(id: i32) -> Option<Browser> {
     BROWSERS.with_borrow(|b| b.get(&id).cloned())
 }
 
-// Krunker's game page itself, with any lobby, mod or invite parameters (not social.html, the editor and so on)
-pub fn is_game_page(url: &str) -> bool {
+// Krunker's game page with a mod to load (krunker.io/?mod=<name>), what the "Use" button of a mod's detail view opens
+pub fn is_mod_page(url: &str) -> bool {
     let Some(rest) = url.strip_prefix("https://krunker.io") else { return false };
-    rest.is_empty() || rest == "/" || rest.starts_with('?') || rest.starts_with("/?") || rest.starts_with("/#")
+    let Some(query) = rest.strip_prefix("/?").or_else(|| rest.strip_prefix('?')) else { return false };
+    query.split('#').next().unwrap_or("").split('&').any(|pair| pair.split('=').next() == Some("mod"))
 }
 
 pub fn has_main_browser() -> bool {
     MAIN_BROWSER.with_borrow(|b| b.is_some())
 }
 
-// the game page in the main window instead of a second one (see on_before_popup in handlers.rs), the way F4 loads
+// a mod page in the main window instead of a second one (see on_before_popup in handlers.rs), the way F4 loads
 // a lobby: throttle off, pointer released, window to the front
 pub fn load_in_main(url: &str) {
     let Some(browser) = MAIN_BROWSER.with_borrow(|b| b.clone()) else { return };
