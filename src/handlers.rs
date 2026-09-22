@@ -97,7 +97,7 @@ wrap_resource_request_handler! {
             if let Some(bytes) = modules::swapper::swap_for(&url) {
                 debug_print!("handlers: swapping {url}");
                 let filename = url.split("krunker.io/").nth(1).and_then(|s| s.split('?').next()).unwrap_or("");
-                return modules::resource::serve(modules::swapper::mime_for(filename), bytes.clone());
+                return modules::resource::serve(modules::swapper::mime_for(filename), bytes.to_vec());
             }
             let bytes = modules::icons::bytes_for(&url)?;
             debug_print!("handlers: kute icon for {url}");
@@ -277,7 +277,8 @@ wrap_download_handler! {
     }
 }
 
-// mirrors SetAllowExternalDrop(false)
+// external drops are refused (like SetAllowExternalDrop(false) did), except files while a manager popup is open:
+// the host keeps their paths and the page only says where they go, so no file passes through the page
 wrap_drag_handler! {
     struct KuteDragHandler;
 
@@ -285,10 +286,21 @@ wrap_drag_handler! {
         fn on_drag_enter(
             &self,
             _browser: Option<&mut Browser>,
-            _drag_data: Option<&mut DragData>,
+            drag_data: Option<&mut DragData>,
             _mask: DragOperationsMask,
         ) -> ::std::os::raw::c_int {
-            1
+            let Some(drag_data) = drag_data else { return 1 };
+            if !modules::files::drop_zone_open() || drag_data.is_file() == 0 {
+                return 1;
+            }
+            let mut names = CefStringList::new();
+            drag_data.file_paths(Some(&mut names));
+            let paths: Vec<std::path::PathBuf> = names.into_iter().map(|path| std::path::PathBuf::from(path.to_string())).collect();
+            if paths.is_empty() {
+                return 1;
+            }
+            modules::files::set_dropped(paths);
+            0
         }
     }
 }
@@ -352,12 +364,10 @@ wrap_life_span_handler! {
                 // a same origin popup keeps the initial window and swaps the document, so the social
                 // userscripts are registered per document (like WebView2 did) instead of per V8 context
                 if config("userscripts", true) {
-                    let scripts = modules::userscripts::load(true);
-                    if !scripts.is_empty() {
-                        let source = format!(
-                            "if (window === window.top && location.href.includes(\"krunker.io/social.html\")) {{\n{}\n}}",
-                            scripts.join("\n")
-                        );
+                    // one document script per userscript, so a syntax error in one does not take the others along
+                    for script in modules::userscripts::social_document_scripts() {
+                        let source =
+                            format!("if (window === window.top && location.href.includes(\"krunker.io/social.html\")) {{\n{script}\n}}");
                         modules::devtools::add_document_script(browser, &source);
                     }
                 }
@@ -484,6 +494,90 @@ fn handle_accounts_message(browser: &Browser, message: &str) {
     bridge::post_json(browser, &serde_json::json!({ "accounts": modules::accounts::list() }).to_string());
 }
 
+// the manager commands write files, so a page that is not Krunker (a mod page in the main window, a hijacked
+// navigation) must not reach them: it could plant a userscript that runs in every later session
+fn is_krunker_frame(frame: &Frame) -> bool {
+    let url = utils::cef_to_string(&frame.url());
+    let host = url.split("://").nth(1).and_then(|rest| rest.split(['/', '?', '#', ':']).next()).unwrap_or("");
+    url.starts_with("https://") && (host == "krunker.io" || host.ends_with(".krunker.io"))
+}
+
+fn payload_str<'a>(payload: &'a serde_json::Value, key: &str) -> &'a str {
+    payload[key].as_str().unwrap_or_default()
+}
+
+// "scripts-<command> <json>": the userscript manager. Every command answers with the fresh list, plus
+// {managerError} when something did not work, so the popup always shows what is on disk
+fn handle_scripts_message(browser: &Browser, message: &str) {
+    use modules::userscripts;
+    let (command, payload) = message.split_once(' ').unwrap_or((message, "{}"));
+    let Ok(payload) = serde_json::from_str::<serde_json::Value>(payload) else {
+        return;
+    };
+    let key = payload_str(&payload, "key");
+    let mut problems: Vec<String> = Vec::new();
+    match command {
+        "list" => {}
+        "read" => {
+            let reply = serde_json::json!({ "userscriptSource": { "key": key, "content": userscripts::read(key) } });
+            bridge::post_json(browser, &reply.to_string());
+            return;
+        }
+        "write" => {
+            let result = userscripts::write(payload_str(&payload, "group"), payload_str(&payload, "file"), payload_str(&payload, "content"));
+            problems.extend(result.err());
+        }
+        "toggle" => userscripts::set_enabled(key, payload["enabled"].as_bool().unwrap_or(true)),
+        "prefs" => {
+            userscripts::set_prefs(key, payload["prefs"].clone());
+            // the page already shows the change, no list needed
+            return;
+        }
+        "delete" => problems.extend(userscripts::delete(key).err()),
+        "move" => problems.extend(userscripts::move_to(key, payload_str(&payload, "group")).err()),
+        "drop" => problems = userscripts::import_dropped(payload_str(&payload, "group")),
+        "reveal" => {
+            userscripts::reveal(if key.is_empty() { None } else { Some(key) });
+            return;
+        }
+        _ => return,
+    }
+    let mut reply = serde_json::json!({ "userscripts": userscripts::list() });
+    if !problems.is_empty() {
+        reply["managerError"] = serde_json::json!(problems.join("\n"));
+    }
+    bridge::post_json(browser, &reply.to_string());
+}
+
+// "swapper-<command> <json>": the swapper manager, answered like the scripts
+fn handle_swapper_message(browser: &Browser, message: &str) {
+    use modules::swapper;
+    let (command, payload) = message.split_once(' ').unwrap_or((message, "{}"));
+    let Ok(payload) = serde_json::from_str::<serde_json::Value>(payload) else {
+        return;
+    };
+    let path = payload_str(&payload, "path");
+    let mut problems: Vec<String> = Vec::new();
+    match command {
+        // files the player put in with Explorer count from the next refresh on, like the ones added here
+        "list" => swapper::reload(),
+        "mkdir" => problems.extend(swapper::make_dir(path).err()),
+        "delete" => problems.extend(swapper::delete(path).err()),
+        "move" => problems.extend(swapper::move_to(payload_str(&payload, "from"), payload_str(&payload, "to")).err()),
+        "drop" => problems = swapper::import_dropped(payload_str(&payload, "folder"), payload["name"].as_str()),
+        "reveal" => {
+            swapper::reveal(path);
+            return;
+        }
+        _ => return,
+    }
+    let mut reply = serde_json::json!({ "swapper": swapper::list() });
+    if !problems.is_empty() {
+        reply["managerError"] = serde_json::json!(problems.join("\n"));
+    }
+    bridge::post_json(browser, &reply.to_string());
+}
+
 pub fn open_documents_subpath(target: &str) {
     let path_to_open = match target {
         "blocklist" => utils::settings_dir().join("user_blocklist.json"),
@@ -539,6 +633,19 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         {
             crate::CONFIG.lock().unwrap().set(setting, value);
             crate::config::save_soon();
+        }
+        return;
+    }
+    // the userscript and swapper managers: JSON payloads, only from Krunker itself
+    if let Some(rest) = message_string.strip_prefix("scripts-") {
+        if is_krunker_frame(frame) && rest.len() <= 5 * 1024 * 1024 {
+            handle_scripts_message(browser, rest);
+        }
+        return;
+    }
+    if let Some(rest) = message_string.strip_prefix("swapper-") {
+        if is_krunker_frame(frame) && rest.len() <= 64 * 1024 {
+            handle_swapper_message(browser, rest);
         }
         return;
     }
@@ -661,6 +768,10 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         }
         ["open", target] => {
             open_documents_subpath(target);
+        }
+        // a manager popup opened or closed: only while one is open external file drags may enter the page
+        ["drop-zone", open] => {
+            modules::files::set_drop_zone(*open == "true");
         }
         ["open-url", url] => {
             open_in_default_browser(url);
