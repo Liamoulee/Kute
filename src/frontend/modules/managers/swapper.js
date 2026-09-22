@@ -1,6 +1,6 @@
 import { kute } from "../../client.js";
 import html from "../../components/managers/swapper.html";
-import { openManagerPopup, makeDropTarget, askText, askConfirm, hostSupportsManagers, formatSize } from "./popup.js";
+import { openManagerPopup, makeDropTarget, readBase64, askText, askConfirm, hostSupportsManagers, formatSize } from "./popup.js";
 
 /**
  * @typedef {object} SwapperList What the host lists (swapper.rs, list())
@@ -17,6 +17,9 @@ import { openManagerPopup, makeDropTarget, askText, askConfirm, hostSupportsMana
  * @property {Map<string, TreeFolder>} folders
  * @property {{ name: string, path: string, size: number }[]} files
  */
+
+// the host takes a message of up to 48 MB, which is this much file once it is base64
+const MAX_FILE_SIZE = 32 * 1024 * 1024;
 
 // the game tree gets long (a few thousand files after some matches), a search shows at most this many
 const MAX_SEARCH_ROWS = 400;
@@ -129,7 +132,7 @@ class SwapperManager {
         /** @type {HTMLElement} */ (shadow.querySelector("#swReload")).onclick = () => this.send("list", {});
         /** @type {HTMLElement} */ (shadow.querySelector("#swRefreshNow")).onclick = () => location.reload();
         /** @type {HTMLElement} */ (shadow.querySelector("#swNewFolder")).onclick = () => this.newFolder("");
-        makeDropTarget(/** @type {HTMLElement} */ (shadow.querySelector("#swOwnColumn")), () => this.drop(""), signal);
+        makeDropTarget(/** @type {HTMLElement} */ (shadow.querySelector("#swOwnColumn")), (files) => this.drop("", files));
         const search = /** @type {HTMLInputElement} */ (shadow.querySelector("#swSearch"));
         search.value = this.search;
         search.oninput = () => {
@@ -149,12 +152,62 @@ class SwapperManager {
     }
 
     /**
+     * Saves dropped files into `folder`, keeping the folders that were dropped along. A dropped "swapper" folder on
+     * the root is taken for what it is, a swapper pack, and its contents go to the root.
+     *
      * @param {string} folder
-     * @param {string} [name] Save the single dropped file under this name
+     * @param {import("./popup.js").DroppedFile[]} files
      */
-    drop(folder, name){
+    async drop(folder, files){
+        let dropped = files;
+        if (!folder && dropped.every(({ path }) => path.toLowerCase().startsWith("swapper/"))){
+            dropped = dropped.map(({ path, file }) => ({ path: path.slice("swapper/".length), file }));
+        }
+        await this.upload(dropped.map(({ path, file }) => ({ path: folder ? `${folder}/${path}` : path, file })));
+    }
+
+    /**
+     * A single file dropped onto one of the game's files takes exactly that path and name.
+     *
+     * @param {string} gamePath
+     * @param {import("./popup.js").DroppedFile[]} files
+     */
+    async replace(gamePath, files){
+        if (!this.popup) return;
+        if (files.length !== 1){
+            this.popup.showError("Drop exactly one file onto a game file. Drop several onto a folder instead.");
+            return;
+        }
+        const [{ file }] = files;
+        /**
+         * @param {string} name
+         * @return {string}
+         */
+        const extension = (name) => name.slice(name.lastIndexOf(".") + 1).toLowerCase();
+        if (extension(file.name) !== extension(gamePath)){
+            const text = `${file.name} is saved as ${baseName(gamePath)}, the game will read it as .${extension(gamePath)}. Go ahead?`;
+            if (!await askConfirm(this.popup.shadow, "Different file type", text, "Save anyway")) return;
+        }
+        await this.upload([{ path: gamePath, file }]);
+    }
+
+    /**
+     * @param {{ path: string, file: File }[]} files
+     */
+    async upload(files){
+        /** @type {string[]} */
+        const problems = [];
+        for (const { path, file } of files){
+            if (file.size > MAX_FILE_SIZE){
+                problems.push(`${path}: larger than 32 MB, put it in with Open swapper folder`);
+                continue;
+            }
+            this.send("upload", { path, data: await readBase64(file) });
+        }
         this.changed = true;
-        this.send("drop", name ? { folder, name } : { folder });
+        // one list at the end instead of one per file: it rereads the folder and rebuilds the index
+        this.send("list", {});
+        if (problems.length) this.popup?.showError(problems.join("\n"));
     }
 
     /**
@@ -225,7 +278,7 @@ class SwapperManager {
                     iconButton("folder_open", "Open in Explorer", () => this.send("reveal", { path: child.path })),
                     iconButton("delete", "Delete (goes to the recycle bin)", () => this.remove(child.path), "danger"),
                 );
-                makeDropTarget(row, () => this.drop(child.path), /** @type {AbortSignal} */ (this.popup?.signal));
+                makeDropTarget(row, (files) => this.drop(child.path, files));
                 tree.append(row);
                 if (!collapsed) walk(child, depth + 1);
             }
@@ -296,7 +349,7 @@ class SwapperManager {
         );
         row.append(actions);
         // a drop onto a file lands next to it
-        makeDropTarget(row, () => this.drop(dirName(file.path)), /** @type {AbortSignal} */ (this.popup?.signal));
+        makeDropTarget(row, (files) => this.drop(dirName(file.path), files));
         return row;
     }
 
@@ -307,7 +360,6 @@ class SwapperManager {
         const { seen } = this.list;
         this.get("#swGameCount").textContent = `${seen.length} loaded this session`;
         const own = new Set(this.list.files.map((file) => file.path.toLowerCase()));
-        const { signal } = this.popup;
 
         if (!seen.length){
             tree.append(element("div", "treeNote", "The game has not loaded any files yet. Play a round or open a menu, then Reload list."));
@@ -325,7 +377,7 @@ class SwapperManager {
             row.title = `krunker.io/${path}\nDrop a file here to replace it`;
             row.append(element("span", "mi", "insert_drive_file"), element("span", "nodeName", depth ? baseName(path) : path));
             if (own.has(path.toLowerCase())) row.append(element("span", "swapped", "swapped"));
-            makeDropTarget(row, () => this.drop(dirName(path), baseName(path)), signal);
+            makeDropTarget(row, (files) => this.replace(path, files));
             return row;
         };
 
@@ -352,7 +404,7 @@ class SwapperManager {
                     else this.expandedGame.add(child.path);
                     this.renderGame();
                 };
-                makeDropTarget(row, () => this.drop(child.path), signal);
+                makeDropTarget(row, (files) => this.drop(child.path, files));
                 tree.append(row);
                 if (open) walk(child, depth + 1);
             }

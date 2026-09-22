@@ -32,6 +32,9 @@ import { createCodeEditor } from "./editor.js";
  * @property {boolean} closeAfterSave
  */
 
+// the host refuses bigger scripts too (userscripts.rs)
+const MAX_SCRIPT_SIZE = 4 * 1024 * 1024;
+
 const TEMPLATE = `// ==UserScript==
 // @name        {{name}}
 // @author
@@ -235,12 +238,40 @@ class UserscriptManager {
         if (group.scripts.length === 0) section.append(element("div", "empty", "No scripts yet."));
         for (const script of group.scripts) this.renderScript(section, group, script);
 
-        const zone = element("div", "dropZone", `Drop .js files here to add them to ${group.label}`);
-        makeDropTarget(zone, () => this.send("drop", { group: group.id }), /** @type {AbortSignal} */ (this.popup?.signal));
         // the whole group takes drops, the zone is where it says so
-        makeDropTarget(section, () => this.send("drop", { group: group.id }), /** @type {AbortSignal} */ (this.popup?.signal));
-        section.append(zone);
+        section.append(element("div", "dropZone", `Drop .js files here to add them to ${group.label}`));
+        makeDropTarget(section, (files) => this.importFiles(group, files));
         return section;
+    }
+
+    /**
+     * Adds dropped .js files to a group, asking first when that replaces scripts of the same name.
+     *
+     * @param {ListedGroup} group
+     * @param {import("./popup.js").DroppedFile[]} files
+     */
+    async importFiles(group, files){
+        if (!this.popup) return;
+        /** @type {string[]} */
+        const problems = [];
+        const scripts = files.filter(({ file }) => {
+            if (!/\.js$/i.test(file.name)) problems.push(`${file.name}: not a .js file`);
+            else if (file.size > MAX_SCRIPT_SIZE) problems.push(`${file.name}: larger than 4 MB`);
+            else return true;
+            return false;
+        });
+        const existing = new Set(group.scripts.map((script) => script.file.toLowerCase()));
+        const replaced = scripts.filter(({ file }) => existing.has(file.name.toLowerCase())).map(({ file }) => file.name);
+        if (replaced.length){
+            const text = `${replaced.join(", ")} already exist in ${group.label}. Replace them with the dropped files?`;
+            if (!await askConfirm(this.popup.shadow, "Replace scripts?", text, "Replace")) return;
+        }
+        for (const { file } of scripts){
+            this.send("write", { group: group.id, file: file.name, content: await file.text() });
+        }
+        if (scripts.length) this.needsRefresh = true;
+        this.updateNotice();
+        if (problems.length) this.popup?.showError(problems.join("\n"));
     }
 
     /**

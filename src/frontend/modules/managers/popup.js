@@ -10,16 +10,88 @@ import sharedCss from "../../components/managers/manager.css";
  */
 
 /**
- * Whether the exe understands the manager commands (scripts-*, swapper-*, drop-zone).
+ * Whether the exe understands the manager commands (scripts-*, swapper-*).
  *
  * @return {boolean}
  */
 export const hostSupportsManagers = () => kute.hostFeatures?.includes("script-manager") ?? false;
 
 /**
- * The frame both managers live in: an overlay with a shadow root, keys kept away from Krunker's hotkeys, external
- * file drops allowed while it is open (the host only accepts them then), and the host's replies routed to
- * `onMessage` until it closes.
+ * @typedef {object} DroppedFile
+ * @property {string} path Relative to what was dropped: "a.js", or "textures/a.png" when a folder was dropped
+ * @property {File} file
+ */
+
+/** @type {WeakMap<HTMLElement, (files: DroppedFile[]) => void>} */
+const dropTargets = new WeakMap();
+
+// a pack with more files than this is a mistake (a whole drive), not a swapper pack
+const MAX_DROPPED_FILES = 5000;
+
+/**
+ * Marks an element as a place files can be dropped on. The popup finds the innermost one under the cursor, so nested
+ * targets (a folder row inside a column) each get the drop meant for them, and only that one lights up.
+ *
+ * @param {HTMLElement} element
+ * @param {(files: DroppedFile[]) => void} onDrop
+ */
+export function makeDropTarget(element, onDrop){
+    dropTargets.set(element, onDrop);
+}
+
+/**
+ * Everything that was dropped, folders walked. The entries have to be taken while the drop event runs, the
+ * DataTransfer is empty afterwards.
+ *
+ * @param {DataTransfer} dataTransfer
+ * @return {Promise<DroppedFile[]>}
+ */
+function collectDropped(dataTransfer){
+    const entries = [...dataTransfer.items]
+        .filter((item) => item.kind === "file")
+        .map((item) => item.webkitGetAsEntry())
+        .filter((entry) => entry !== null);
+    if (!entries.length) return Promise.resolve([...dataTransfer.files].map((file) => ({ path: file.name, file })));
+
+    /** @type {DroppedFile[]} */
+    const found = [];
+    /**
+     * @param {FileSystemEntry} entry
+     * @return {Promise<void>}
+     */
+    const walk = async(entry) => {
+        if (found.length >= MAX_DROPPED_FILES) return;
+        if (entry.isFile){
+            const file = await new Promise((resolve, reject) => /** @type {FileSystemFileEntry} */ (entry).file(resolve, reject));
+            found.push({ path: entry.fullPath.replace(/^\/+/, ""), file });
+            return;
+        }
+        const reader = /** @type {FileSystemDirectoryEntry} */ (entry).createReader();
+        // readEntries hands out a directory in batches, an empty one means done
+        for (;;){
+            /** @type {FileSystemEntry[]} */
+            const batch = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
+            if (!batch.length) break;
+            for (const child of batch) await walk(child);
+        }
+    };
+    return Promise.all(entries.map(walk)).then(() => found);
+}
+
+/**
+ * @param {File} file
+ * @return {Promise<string>} The content as base64
+ */
+export const readBase64 = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).slice(String(reader.result).indexOf(",") + 1));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+});
+
+/**
+ * The frame both managers live in: an overlay with a shadow root, keys kept away from Krunker's hotkeys, dropped
+ * files handed to the drop target under the cursor, and the host's replies routed to `onMessage` until it closes.
  *
  * @param {string} html Markup of the popup, the shared styles are added in front
  * @param {object} options
@@ -47,13 +119,11 @@ export function openManagerPopup(html, { onMessage, canClose, onEscape }){
         if (event.data && typeof event.data === "object") onMessage(event.data);
     };
     window.chrome.webview.addEventListener("message", listener);
-    window.chrome.webview.postMessage("drop-zone, true");
 
     const close = () => {
         if (signal.aborted || (canClose && !canClose())) return;
         controller.abort();
         window.chrome.webview.removeEventListener("message", listener);
-        window.chrome.webview.postMessage("drop-zone, false");
         overlay.remove();
     };
 
@@ -76,15 +146,6 @@ export function openManagerPopup(html, { onMessage, canClose, onEscape }){
     overlay.addEventListener("mousedown", (event) => {
         if (event.target === overlay) close();
     });
-    // a file dropped next to a drop zone must not make Chromium open it in place of the game
-    for (const type of ["dragover", "drop"]){
-        overlay.addEventListener(type, (event) => {
-            event.preventDefault();
-            if (event instanceof DragEvent && event.dataTransfer && type === "dragover") event.dataTransfer.dropEffect = "none";
-        });
-    }
-
-    shadow.querySelector("[data-close]")?.addEventListener("click", close);
 
     const errorBox = /** @type {HTMLElement|null} */ (shadow.querySelector("[data-error]"));
     /** @type {number} */
@@ -102,34 +163,57 @@ export function openManagerPopup(html, { onMessage, canClose, onEscape }){
         }, 8000);
     };
 
+    /** @type {HTMLElement|null} */
+    let hovered = null;
+    /**
+     * @param {HTMLElement|null} target
+     */
+    const setHovered = (target) => {
+        if (hovered === target) return;
+        hovered?.classList.remove("dropHover");
+        hovered = target;
+        target?.classList.add("dropHover");
+    };
+    /**
+     * @param {DragEvent} event
+     * @return {HTMLElement|null} The innermost drop target under the cursor
+     */
+    const targetOf = (event) => {
+        for (const node of event.composedPath()){
+            if (node === overlay) break;
+            if (node instanceof HTMLElement && dropTargets.has(node)) return node;
+        }
+        return null;
+    };
+    // every drag event is handled here: a file dropped next to a target must not make Chromium open it in place of
+    // the game, and a target must not stay lit because the drop went to a target inside it
+    overlay.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        const target = targetOf(event);
+        setHovered(target);
+        if (event.dataTransfer) event.dataTransfer.dropEffect = target ? "copy" : "none";
+    });
+    overlay.addEventListener("dragleave", (event) => {
+        // null: the drag left the window
+        if (!event.relatedTarget) setHovered(null);
+    });
+    overlay.addEventListener("drop", (event) => {
+        event.preventDefault();
+        const target = targetOf(event);
+        setHovered(null);
+        const onDrop = target && dropTargets.get(target);
+        if (!onDrop || !event.dataTransfer) return;
+        collectDropped(event.dataTransfer)
+            .then((files) => {
+                if (files.length) onDrop(files);
+            })
+            .catch((error) => showError(`Could not read the dropped files: ${error?.message ?? error}`));
+    });
+
+    shadow.querySelector("[data-close]")?.addEventListener("click", close);
+
     document.body.append(overlay);
     return { shadow, close, signal, showError };
-}
-
-/**
- * Makes an element a drop target for files from outside. The host already knows the paths (it took them from the
- * drag), the page only tells it where they go.
- *
- * @param {HTMLElement} element
- * @param {() => void} onDrop
- * @param {AbortSignal} signal
- */
-export function makeDropTarget(element, onDrop, signal){
-    element.addEventListener("dragover", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
-        element.classList.add("dropHover");
-    }, { signal });
-    element.addEventListener("dragleave", (event) => {
-        if (!element.contains(/** @type {Node|null} */ (event.relatedTarget))) element.classList.remove("dropHover");
-    }, { signal });
-    element.addEventListener("drop", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        element.classList.remove("dropHover");
-        if (event.dataTransfer?.files.length) onDrop();
-    }, { signal });
 }
 
 /**
