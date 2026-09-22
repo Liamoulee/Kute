@@ -41,6 +41,19 @@ wrap_task! {
     }
 }
 
+// a mod page a popup asked for, loaded in the main window once on_before_popup has returned
+wrap_task! {
+    struct LoadInMainTask {
+        url: String,
+    }
+
+    impl Task {
+        fn execute(&self) {
+            window::load_in_main(&self.url);
+        }
+    }
+}
+
 // mirrors the WebResourceRequested handler: blocklist, game-updated signal and the swapper
 wrap_resource_request_handler! {
     struct KuteResourceRequestHandler;
@@ -318,7 +331,16 @@ wrap_life_span_handler! {
             _extra_info: Option<&mut Option<DictionaryValue>>,
             _no_javascript_access: Option<&mut ::std::os::raw::c_int>,
         ) -> ::std::os::raw::c_int {
-            debug_print!("handlers: popup requested for {}", utils::cef_str(_target_url));
+            let url = utils::cef_str(_target_url);
+            debug_print!("handlers: popup requested for {url}");
+            // the "Use" button of a mod's detail view opens the game page with the mod (krunker.io/?mod=...): in a
+            // browser that is a new tab, here it was a second game window, and Krunker allows one session per
+            // account, so the first window lost its match. The main window loads it
+            if window::is_mod_page(&url) && window::has_main_browser() {
+                let mut task = LoadInMainTask::new(url);
+                post_task(ThreadId::UI, Some(&mut task));
+                return 1;
+            }
             window::create_popup_window(popup_features, window_info, client, settings);
             0
         }
