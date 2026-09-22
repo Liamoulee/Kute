@@ -2,7 +2,8 @@
 export const TARGET_REFRESH_MULTIPLE = 3;
 /**
  * The test match is empty and the PC is cool, a real match is neither. A laptop was measured to lose a
- * quarter to heat within a minute, so the goal has to be cleared by that much.
+ * quarter of its frames to heat within a minute. Clearing the goal by 1.25 keeps it through a drop of a fifth
+ * (1 / 1.25 = 0.8), not a full quarter: a deliberate middle, a quarter would ask for 1.33 and cost more settings.
  */
 export const HEADROOM = 1.25;
 /** Neighbouring samples agree within one to four percent in a test match. Less than five is not worth a visual loss either. */
@@ -49,7 +50,7 @@ export const SIGNIFICANT_CLIENT_FPS = 1.25;
  * @property {number} [p50] The rest is only there for the report: median and worst frame time in ms,
  * @property {number} [max]
  * @property {{p50: number, p99: number, max: number}|null} [present] the hook's own present intervals in ms,
- * @property {number} [taskDelayP99] how long other main thread work waited in ms,
+ * @property {number|null} [taskDelayP99] how long other main thread work waited in ms (null: no probe ran),
  * @property {number} [limit] and the FPS cap that "limit=auto" turned into
  */
 
@@ -268,6 +269,12 @@ export function decide(measured, facts){
         }
         if (facts.client.capped && fpsLimit === 0){
             changes.push({ scope: "client", id: "gameFpsLimit", label: "FPS Limit", value: limitFor(predictedFps * 0.9, facts.hz), reason });
+        }
+        // the uncapped configuration clearly beat the player's capped one, so the cap goes: keeping it would apply
+        // the configuration that lost. Only when nothing above already decided the limit (battery, frames piling
+        // up, the game's frame cap moving over), those reasons outrank this one
+        if (!facts.client.capped && fpsLimit > 0 && fpsLimit === facts.gameFpsLimit){
+            changes.push({ scope: "client", id: "gameFpsLimit", label: "FPS Limit", value: 0, reason: `${reason} without a cap` });
         }
         if (facts.client.throttled !== facts.throttle > 1){
             changes.push({ scope: "client", id: "throttle", label: "CPU Throttling", value: facts.client.throttled ? 1.5 : 1, reason });

@@ -154,9 +154,12 @@ export function loggedIn(){
  * @return {Promise<import("./metrics.js").FrameStats>}
  */
 function measure(ms = SAMPLE_MS){
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         const recorder = new FrameRecorder();
         const start = performance.now();
+        // requestAnimationFrame never calls back on a page that stopped drawing (hidden, lost its context, a
+        // stuck game). Without this the run, and a cancel with it, would wait for that frame forever
+        const watchdog = setTimeout(() => reject(new Error("the game stopped drawing frames")), ms + 5000);
         const frame = () => {
             const now = performance.now();
             recorder.frame(now);
@@ -164,6 +167,7 @@ function measure(ms = SAMPLE_MS){
                 requestAnimationFrame(frame);
                 return;
             }
+            clearTimeout(watchdog);
             resolve(recorder.stats(8) ?? { frames: 0, seconds: 0, fps: 0, meanMs: 0, p50: 0, p95: 0, p99: 0, p999: 0, maxMs: 0, hitches: 0, hitchesPerSec: 0 });
         };
         requestAnimationFrame(frame);
@@ -225,7 +229,10 @@ async function measureClient(configs){
     const raw = await request(`run-bench-matrix ${JSON.stringify(configs.map((entry) => entry.config))}`, "benchMatrix", 20000 * configs.length);
     return configs.map((entry, index) => {
         const result = raw?.[index];
-        const stats = result?.page?.stats;
+        // the host drops "limit=auto" when the matrix has no uncapped result to take the number from, and the
+        // process then runs uncapped. That row measured something else than its label says: unavailable, not capped
+        const ranUncapped = entry.config.includes("limit=") && !(Number(result?.config?.limit) > 0);
+        const stats = ranUncapped ? undefined : result?.page?.stats;
         const present = result?.present;
         return {
             config: entry.config,
@@ -239,7 +246,7 @@ async function measureClient(configs){
             p50: stats?.p50 ?? 0,
             max: stats?.maxMs ?? 0,
             present: typeof present?.p99 === "number" ? { p50: present.p50, p99: present.p99, max: present.max } : null,
-            taskDelayP99: result?.page?.otherTasks?.p99 ?? 0,
+            taskDelayP99: result?.page?.otherTasks?.p99 ?? null,
             limit: result?.config?.limit ?? 0,
         };
     });
@@ -496,11 +503,20 @@ class AutoDetect {
             kute.showNotification("Nothing to undo", false, 3);
             return;
         }
+        // what Undo changes back that only applies after a reload (the preset's shadow and antialiasing settings)
+        // or a restart (the hook): written is not applied, so it says which, and reloads like the preset did
+        const reloadIds = new Set(game.SETTINGS.filter((setting) => setting.needsReload).map((setting) => setting.id));
+        const needsReload = Object.entries(state.snapshot.game).some(([id, value]) => reloadIds.has(id) && value !== null && game.read(id) !== value);
+        const needsRestart = state.snapshot.client.hardFlip !== undefined && kute.settings.data.hardFlip !== state.snapshot.client.hardFlip;
         this.restore(state.snapshot);
         state.undoable = false;
-        state.summary = { title: "Undone", line: "Your previous settings are back.", details: [], changed: false };
+        let line = "Your previous settings are back.";
+        if (needsReload) line = "Your previous settings are back, the game reloads once to apply them.";
+        if (needsRestart) line += " Restart Kute to finish.";
+        state.summary = { title: "Undone", line, details: [], changed: false, needsRestart };
         writeState(state);
-        kute.showNotification("Auto-detect undone, your previous settings are back", false, 4);
+        kute.showNotification(`Auto-detect undone. ${line.replace("Your previous settings are back", "Your settings are back")}`, false, 5);
+        if (needsReload) setTimeout(() => location.reload(), 1200);
     }
 
     /**
