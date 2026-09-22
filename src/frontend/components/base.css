@@ -89,3 +89,78 @@ div #setHed_local,
 	cursor: not-allowed;
 	opacity: 1 !important;
 }
+
+/* the button grid above the client settings (settings.js) */
+.kuteTopButtons {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 8px;
+	margin: 10px 0 4px 0;
+}
+
+.kuteTopButton {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+	padding: 8px 10px;
+	border: 3px solid var(--kute-top, #35e0e8);
+	border-radius: 4px;
+	background: #222;
+	color: #fff;
+	font-size: 21px;
+	cursor: pointer;
+	user-select: none;
+	transition: background 0.1s;
+}
+
+.kuteTopButton:hover {
+	background: #333;
+}
+
+.kuteTopButton .material-icons {
+	font-size: 24px;
+}
+
+.kuteTopBlue {
+	--kute-top: #35e0e8;
+}
+
+.kuteTopPink {
+	--kute-top: #f5479b;
+}
+
+.kuteTopOrange {
+	--kute-top: #ff8a1f;
+}
+
+/* requires refresh / restart, behind a setting name and in the legend of the first folder */
+.kuteMark {
+	margin-left: 4px;
+	padding: 1px;
+	border: 1px solid currentColor;
+	border-radius: 3px;
+	font-size: 16px !important;
+	vertical-align: middle;
+}
+
+.kuteMarkRefresh {
+	color: #5b7cff;
+}
+
+.kuteMarkRestart {
+	color: #eb5656;
+}
+
+.kuteLegend {
+	float: right;
+	margin-right: 8px;
+	color: #aaa;
+	font-size: 16px;
+}
+
+.kuteLegend .kuteMark {
+	font-size: 20px !important;
+	margin-left: 12px;
+	margin-right: 2px;
+}

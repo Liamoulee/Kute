@@ -175,6 +175,31 @@ kute.settings.changeSetting = (id, rawValue, slider) => {
     window.chrome.webview.postMessage(`set-config, ${id}, ${value}`);
 };
 
+/** Marks behind a setting name, the legend in the first folder header explains them. */
+const REFRESH_MARK = '<span class="material-icons kuteMark kuteMarkRefresh" title="Requires refresh">sync</span>';
+const RESTART_MARK = '<span class="material-icons kuteMark kuteMarkRestart" title="Requires restart">power_settings_new</span>';
+
+/**
+ * The buttons above the client settings: [label, material icon, color class, inline action].
+ *
+ * @return {[string, string, string, string][]}
+ */
+const topButtons = () => {
+    /**
+     * @param {string} url One of the hosts the exe opens (constants.rs, OPEN_URL_ALLOWED)
+     * @return {string}
+     */
+    const openUrl = (url) => `window.chrome.webview.postMessage('open-url, ${url}')`;
+    return [
+        ["About", "info", "kuteTopBlue", `${globalRef}.showAboutPopup()`],
+        ["Website", "language", "kuteTopBlue", openUrl("https://kute.lol")],
+        ["Source Code", "code", "kuteTopPink", openUrl("https://github.com/NullDev/Kute")],
+        ["Report Issue", "bug_report", "kuteTopPink", openUrl("https://github.com/NullDev/Kute/issues/choose")],
+        ["Manage Swapper", "swap_horiz", "kuteTopOrange", `${globalRef}.swapperManager.open()`],
+        ["Manage Userscripts", "extension", "kuteTopOrange", `${globalRef}.userscriptManager.open()`],
+    ];
+};
+
 /**
  * Renders the client settings into Krunker's Advanced settings tab.
  */
@@ -282,6 +307,13 @@ class SettingsManager {
         }
 
         let tempHTML = "<div class='kuteSettings'>";
+        // the buttons belong to the client tab itself, not to a search result
+        if (!this.settingsWindow.settingSearch){
+            tempHTML += `<div class="kuteTopButtons">${topButtons()
+                .map(([label, icon, color, action]) => `<div class="kuteTopButton ${color}" onclick="${action.replaceAll('"', "&quot;")}">
+                    ${label}<span class="material-icons">${icon}</span></div>`)
+                .join("")}</div>`;
+        }
         let previousCategory = null;
         // a search that matches nothing of ours must render nothing at all, not an empty box with its closers
         let rendered = false;
@@ -295,17 +327,21 @@ class SettingsManager {
             if (previousCategory !== setting.category){
                 if (previousCategory) tempHTML += "</div>";
 
+                // the first folder header explains the marks, like the legend of a map
+                const legend = previousCategory === null
+                    ? `<span class="kuteLegend">${REFRESH_MARK} Requires refresh ${RESTART_MARK} Requires restart</span>`
+                    : "";
                 previousCategory = setting.category;
                 tempHTML += `<div class='setHed' id="setHed_kute_${setting.category}" onclick='window.windows[0].collapseFolder(this)'>
-										<span class='material-icons plusOrMinus'>keyboard_arrow_down</span> ${setting.category}</div>
+										<span class='material-icons plusOrMinus'>keyboard_arrow_down</span> ${setting.category}${legend}</div>
 										<div class='setBodH' id="setBod_kute_${setting.category}">`;
             }
 
             rendered = true;
             tempHTML += `<div class='settName' ${setting.description ? `title="${setting.description}"` : ""}>
 								${setting.name.replaceAll("{{version}}", kute.version ?? "")}
-								${setting.needsRestart ? ' <span style="color: #eb5656" title="Requires Restart">*</span>' : ""}
-								${setting.needsRefresh ? ' <span style="color: #3244a8" title="Requires Refresh">*</span>' : ""}
+								${setting.needsRefresh ? REFRESH_MARK : ""}
+								${setting.needsRestart ? RESTART_MARK : ""}
 								${setting.html}</div>`;
         }
 

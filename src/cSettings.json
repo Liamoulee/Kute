@@ -240,19 +240,19 @@
         "type": "checkbox",
         "category": "Customization",
         "defaultValue": true,
-        "button": "Open folder",
-        "buttonAction": "window.chrome.webview.postMessage('open, swapper')",
+        "button": "Manage",
+        "buttonAction": "{{kute}}.swapperManager.open()",
         "needsRestart": true
     },
     "userscripts": {
         "name": "Userscripts",
         "id": "userscripts",
-        "description": "Runs the .js files in your scripts folder",
+        "description": "Runs your userscripts (Crankshaft and idkr formats work too)",
         "type": "checkbox",
         "category": "Customization",
         "defaultValue": true,
-        "button": "Open folder",
-        "buttonAction": "window.chrome.webview.postMessage('open, userscripts')",
+        "button": "Manage",
+        "buttonAction": "{{kute}}.userscriptManager.open()",
         "needsRestart": true
     },
     "blocklist": {
@@ -344,14 +344,6 @@
         "category": "Advanced",
         "button": "Clear Now",
         "buttonAction": "if(confirm('Are you sure you want to clear cache and local storage?')) { localStorage.clear(); sessionStorage.clear(); window.chrome.webview.postMessage('clear-cache'); }"
-    },
-    "about": {
-        "name": "Kute {{version}}",
-        "id": "about",
-        "type": "none",
-        "category": "About",
-        "button": "About",
-        "buttonAction": "{{kute}}.showAboutPopup()"
     },
     "showChangelog": {
         "name": "Show Changelog After Updates",
