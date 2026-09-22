@@ -101,6 +101,17 @@ interface KrunkerSound {
     play(soundName: string, volume?: number, loop?: boolean): any;
 }
 
+/** howler.js, the library Krunker plays every sound through. Only what the audio test build reads from it. */
+interface HowlerGlobal {
+    ctx?: AudioContext & {
+        /** chromium's dropout counters for this context, not in the dom types yet */
+        playbackStats?: { toJSON(): Record<string, number> };
+    };
+    usingWebAudio?: boolean;
+    _howls?: unknown[];
+    volume?: () => number;
+}
+
 // client globals (everything else the client needs lives in modules, see client.js and utils.js)
 
 /** js_bundle_version from Cargo.toml, put in by esbuild */
@@ -116,6 +127,7 @@ declare var gameLoaded: boolean;
 
 declare var windows: any[];
 declare var SOUND: KrunkerSound;
+declare var Howler: HowlerGlobal;
 declare var getGameActivity: () => KrunkerGameActivity;
 declare var setSpect: (enabled: boolean) => void;
 declare var showWindow: (...args: any[]) => any;

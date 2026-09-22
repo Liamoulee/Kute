@@ -148,6 +148,8 @@ Object.defineProperty(window, "gameLoaded", {
         import("./modules/kuteIcons/index.js");
         // always: it applies the saved HUD layout, the editor itself only loads when it is opened
         import("./modules/hudEditor/index.js");
+        // only the audio cutout test build sends this, it writes the log the tester sends back
+        if (kute?.hostFeatures?.includes("audio-log")) import("./modules/audioLog.js").catch(() => {});
         if (kute?.settings?.data?.hsSound) import("./modules/hsSound.js");
         if (kute?.settings?.data?.betterChat) import("./modules/betterChat.js");
         if (kute?.settings?.data?.hpEnemyCounter) import("./modules/hpEnemyCounter.js");
