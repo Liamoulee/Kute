@@ -172,6 +172,11 @@ pub fn load_flags() {
     *FLAGS.lock().unwrap() = flags;
 }
 
+// the flags as they were applied, for the audio test build's log
+pub fn flags() -> Vec<String> {
+    FLAGS.lock().unwrap().clone()
+}
+
 pub fn has_flag(wanted: &str) -> bool {
     FLAGS.lock().unwrap().iter().any(|flag| flag == wanted)
 }
@@ -254,7 +259,8 @@ pub fn settings() -> Settings {
         persist_session_cookies: 1,
         background_color: 0xFF000000,
         log_file: CefString::from(log_file.to_string_lossy().as_ref()),
-        log_severity: if cfg!(feature = "verbose-logs") {
+        // the audio test build tails this log for chromium's own audio warnings (modules/audio_log.rs)
+        log_severity: if cfg!(feature = "verbose-logs") || cfg!(feature = "audio-log") {
             LogSeverity::WARNING
         } else {
             LogSeverity::DISABLE

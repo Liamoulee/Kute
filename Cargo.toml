@@ -27,6 +27,13 @@ strip = "symbols"
 packaged = []
 auto-update = ["packaged"]
 editor-ignore = []
+# a test build for the audio cutout reports: writes Downloads\kute-audio-log.txt, never enabled for a release
+audio-log = [
+    "windows/Win32_Media_Audio",
+    "windows/Win32_UI_Shell_PropertiesSystem",
+    "windows/Win32_System_Com_StructuredStorage",
+    "windows/Win32_System_Variant",
+]
 verbose-logs = [
     "obs-kute-capture/verbose-logs",
     "render-dll/verbose-logs",

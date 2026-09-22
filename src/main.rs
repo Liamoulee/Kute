@@ -15,6 +15,8 @@ mod utils;
 mod window;
 pub mod modules {
     pub mod accounts;
+    #[cfg(feature = "audio-log")]
+    pub mod audio_log;
     pub mod bench;
     pub mod blocklist;
     pub mod dev;
@@ -59,7 +61,11 @@ fn main() {
             // replaces the vk_swiftshader.dll hijack: the gpu process loads the DXGI hook itself
             "gpu-process" => modules::render_hook::load(),
             // the audio service plays the game sound, OBS captures it through this window
-            "utility" if utils::has_arg("--utility-sub-type=audio.mojom.AudioService") => modules::input::spawn_audio_window_thread(),
+            "utility" if utils::has_arg("--utility-sub-type=audio.mojom.AudioService") => {
+                modules::input::spawn_audio_window_thread();
+                #[cfg(feature = "audio-log")]
+                modules::audio_log::audio_process_start();
+            }
             _ => {}
         }
     }
@@ -106,6 +112,8 @@ fn main() {
     if app::has_flag("--raise-timer-frequency") {
         utils::raise_timer_frequency();
     }
+    #[cfg(feature = "audio-log")]
+    modules::audio_log::init();
     app::prepare_profile();
 
     let settings = app::settings();
