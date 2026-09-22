@@ -2,7 +2,7 @@
 #aboutPopup {
 	position: relative;
 	box-sizing: border-box;
-	width: 460px;
+	width: 540px;
 	max-width: 90vw;
 	max-height: 90vh;
 	overflow-y: auto;
@@ -84,13 +84,18 @@
 	color: #999;
 }
 
-#aboutCredits span {
+#aboutCredits [data-url] {
 	color: #4fc3f7;
 	cursor: pointer;
 }
 
-#aboutCredits span:hover {
+#aboutCredits [data-url]:hover {
 	text-decoration: underline;
+}
+
+/* a credit that does not fit breaks after the name, never inside what it is credited for */
+#aboutCredits .role {
+	white-space: nowrap;
 }
 
 #aboutClose {
@@ -126,12 +131,12 @@ li.main {
 	</div>
 	<div id="aboutCreditsTitle">CREDITS</div>
 	<ul id="aboutCredits">
-		<li class="main"><span data-url="https://github.com/NullDev">NullDev / NulPing</span> - Main Developer / Maintainer</li>
-		<li><span data-url="https://github.com/slavcp/glorp">slavcp/glorp</span> - base</li>
-		<li><span data-url="https://github.com/6ct/clientpp">6ct/clientpp</span> - flags</li>
-		<li><span data-url="https://github.com/KraXen72/crankshaft">KraXen72/crankshaft</span> - menu timer css</li>
-		<li><span data-url="https://github.com/idkr-client/idkr">idkr-client/idkr</span> - tweaks</li>
-		<li><span data-url="https://github.com/bigjakk/Electron-Websocket-Fix">bigjakk/Electron-Websocket-Fix</span> - aim-freeze fix</li>
-		<li><span data-url="https://github.com/bigjakk/Krunker-Civilian-Client">bigjakk/Krunker-Civilian-Client</span> - matchmaker, nuke counter</li>
+		<li class="main"><span data-url="https://github.com/NullDev">NullDev / NulPing</span> - <span class="role">Main Developer / Maintainer</span></li>
+		<li><span data-url="https://github.com/slavcp/glorp">slavcp/glorp</span> - <span class="role">base</span></li>
+		<li><span data-url="https://github.com/6ct/clientpp">6ct/clientpp</span> - <span class="role">flags</span></li>
+		<li><span data-url="https://github.com/KraXen72/crankshaft">KraXen72/crankshaft</span> - <span class="role">menu timer css</span></li>
+		<li><span data-url="https://github.com/idkr-client/idkr">idkr-client/idkr</span> - <span class="role">tweaks</span></li>
+		<li><span data-url="https://github.com/bigjakk/Electron-Websocket-Fix">bigjakk/Electron-Websocket-Fix</span> - <span class="role">aim-freeze fix</span></li>
+		<li><span data-url="https://github.com/bigjakk/Krunker-Civilian-Client">bigjakk/Krunker-Civilian-Client</span> - <span class="role">matchmaker, nuke counter</span></li>
 	</ul>
 </div>
