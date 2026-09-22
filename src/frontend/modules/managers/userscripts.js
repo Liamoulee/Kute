@@ -360,7 +360,8 @@ class UserscriptManager {
         }
         else if (script.enabled){
             entry.start();
-            if (entry.state !== "running" && entry.state !== "waiting" && entry.state !== "error") this.needsRefresh = true;
+            // a script that failed halfway only runs again after a refresh (the runner refuses to start it)
+            if (entry.tainted || (entry.state !== "running" && entry.state !== "waiting" && entry.state !== "error")) this.needsRefresh = true;
         }
         else if (!entry.stop()) this.needsRefresh = true;
         this.updateNotice();
