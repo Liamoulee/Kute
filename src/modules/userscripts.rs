@@ -5,7 +5,7 @@
 //! hands the compiled scripts (`renderer.rs::inject_scripts`). The page never compiles a script itself.
 
 use serde_json::{Map, Value, json};
-use std::{fs, path::PathBuf};
+use std::{fs, io::Read, path::PathBuf};
 
 use crate::{modules::files, utils};
 
@@ -18,6 +18,8 @@ pub const GROUPS: [(&str, &str, &str, &str); 2] = [
 ];
 
 const MAX_SOURCE: usize = 4 * 1024 * 1024;
+// the manager's list only needs the header, which sits at the top: this much of each file is read for it
+const HEADER_READ: u64 = 64 * 1024;
 
 pub struct Script {
     pub key: String,
@@ -28,7 +30,9 @@ pub struct Script {
     pub priority: i64,
     pub meta: Map<String, Value>,
     pub prefs: Value,
+    // the whole file for the renderer, only the first HEADER_READ bytes for the manager's list
     pub source: String,
+    pub size: u64,
 }
 
 impl Script {
@@ -147,11 +151,24 @@ fn parse_metadata(source: &str) -> Option<Map<String, Value>> {
     None
 }
 
-fn load_script(group: &'static str, file: String, tracker: &Map<String, Value>, prefs: &Map<String, Value>) -> Option<Script> {
+fn load_script(group: &'static str, file: String, tracker: &Map<String, Value>, prefs: &Map<String, Value>, whole: bool) -> Option<Script> {
     let path = group_dir(group)?.join(&file);
-    let source = match fs::read_to_string(&path) {
-        Ok(source) if source.len() <= MAX_SOURCE => source,
-        Ok(_) => return None,
+    let size = fs::metadata(&path).map(|meta| meta.len()).unwrap_or(0);
+    if size > MAX_SOURCE as u64 {
+        return None;
+    }
+    let read = if whole {
+        fs::read_to_string(&path)
+    } else {
+        // a cut in the middle of a character only costs that character, the header is long done by then
+        fs::File::open(&path).and_then(|file| {
+            let mut bytes = Vec::new();
+            file.take(HEADER_READ).read_to_end(&mut bytes)?;
+            Ok(String::from_utf8_lossy(&bytes).into_owned())
+        })
+    };
+    let source = match read {
+        Ok(source) => source,
         Err(e) => {
             eprintln!("userscripts: can't read {}: {}", path.display(), e);
             return None;
@@ -180,11 +197,16 @@ fn load_script(group: &'static str, file: String, tracker: &Map<String, Value>, 
         priority,
         meta,
         source,
+        size,
     })
 }
 
 /// Every script of a group, sorted by file name (the runner orders by priority).
 pub fn load_group(group: &str) -> Vec<Script> {
+    load_group_from(group, true)
+}
+
+fn load_group_from(group: &str, whole: bool) -> Vec<Script> {
     let Some(&(id, ..)) = group_by_id(group) else { return Vec::new() };
     let Some(dir) = group_dir(id) else { return Vec::new() };
     let tracker = read_json(&tracker_path());
@@ -200,7 +222,7 @@ pub fn load_group(group: &str) -> Vec<Script> {
         })
         .unwrap_or_default();
     names.sort_by_key(|name| name.to_lowercase());
-    names.into_iter().filter_map(|file| load_script(id, file, &tracker, &prefs)).collect()
+    names.into_iter().filter_map(|file| load_script(id, file, &tracker, &prefs, whole)).collect()
 }
 
 /// The list for the manager: every group with its scripts (no sources). Also drops tracker and prefs entries of
@@ -211,12 +233,12 @@ pub fn list() -> Value {
     let groups: Vec<Value> = GROUPS
         .iter()
         .map(|(id, _, label, runs)| {
-            let scripts: Vec<Value> = load_group(id)
+            let scripts: Vec<Value> = load_group_from(id, false)
                 .iter()
                 .map(|script| {
                     keys.push(script.key.clone());
                     let mut value = script.describe();
-                    value["size"] = json!(script.source.len());
+                    value["size"] = json!(script.size);
                     value.as_object_mut().map(|object| object.remove("prefs"));
                     value
                 })
