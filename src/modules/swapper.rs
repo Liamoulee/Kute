@@ -51,15 +51,8 @@ pub fn reload() {
 }
 
 // "https://assets.krunker.io/textures/a.png?build=x" -> "textures/a.png"
-fn relative_path(url: &str) -> Option<&str> {
-    if !url.contains("krunker.io") {
-        return None;
-    }
-    url.split("krunker.io/").nth(1).and_then(|s| s.split(['?', '#']).next())
-}
-
 pub fn swap_for(url: &str) -> Option<Arc<Vec<u8>>> {
-    let path = relative_path(url)?;
+    let path = utils::krunker_path(url)?;
     // only files: "game-list" and friends are api calls
     if path.contains('.') {
         let mut seen = SEEN.lock().unwrap();

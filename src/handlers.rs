@@ -96,7 +96,7 @@ wrap_resource_request_handler! {
             // the player's own swapper folder first: their file beats ours for the same request
             if let Some(bytes) = modules::swapper::swap_for(&url) {
                 debug_print!("handlers: swapping {url}");
-                let filename = url.split("krunker.io/").nth(1).and_then(|s| s.split('?').next()).unwrap_or("");
+                let filename = utils::krunker_path(&url).unwrap_or("");
                 return modules::resource::serve(modules::swapper::mime_for(filename), bytes.to_vec());
             }
             let bytes = modules::icons::bytes_for(&url)?;
@@ -487,8 +487,7 @@ fn handle_accounts_message(browser: &Browser, message: &str) {
 // navigation) must not reach them: it could plant a userscript that runs in every later session
 fn is_krunker_frame(frame: &Frame) -> bool {
     let url = utils::cef_to_string(&frame.url());
-    let host = url.split("://").nth(1).and_then(|rest| rest.split(['/', '?', '#', ':']).next()).unwrap_or("");
-    url.starts_with("https://") && (host == "krunker.io" || host.ends_with(".krunker.io"))
+    url.starts_with("https://") && utils::krunker_path(&url).is_some()
 }
 
 fn payload_str<'a>(payload: &'a serde_json::Value, key: &str) -> &'a str {

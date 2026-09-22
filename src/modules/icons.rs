@@ -173,7 +173,7 @@ fn slot_by_id(id: &str) -> Option<&'static Slot> {
 
 /// The file to answer this request with, or None to leave it alone.
 pub fn bytes_for(url: &str) -> Option<&'static [u8]> {
-    let path = url.split_once("krunker.io/").map(|(_, path)| path.split(['?', '#']).next().unwrap_or(path));
+    let path = utils::krunker_path(url);
 
     if let Some(file) = path.and_then(|path| path.strip_prefix(PREVIEW_PATH)) {
         return SLOTS.iter().find(|slot| slot.file == file).map(|slot| slot.bytes);
