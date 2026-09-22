@@ -226,6 +226,28 @@ pub fn browser_by_id(id: i32) -> Option<Browser> {
     BROWSERS.with_borrow(|b| b.get(&id).cloned())
 }
 
+// Krunker's game page itself, with any lobby, mod or invite parameters (not social.html, the editor and so on)
+pub fn is_game_page(url: &str) -> bool {
+    let Some(rest) = url.strip_prefix("https://krunker.io") else { return false };
+    rest.is_empty() || rest == "/" || rest.starts_with('?') || rest.starts_with("/?") || rest.starts_with("/#")
+}
+
+pub fn has_main_browser() -> bool {
+    MAIN_BROWSER.with_borrow(|b| b.is_some())
+}
+
+// the game page in the main window instead of a second one (see on_before_popup in handlers.rs), the way F4 loads
+// a lobby: throttle off, pointer released, window to the front
+pub fn load_in_main(url: &str) {
+    let Some(browser) = MAIN_BROWSER.with_borrow(|b| b.clone()) else { return };
+    modules::devtools::set_cpu_throttling(&browser, 1.0);
+    if let Some(frame) = browser.main_frame() {
+        frame.load_url(Some(&CefString::from(url)));
+    }
+    modules::input::set_pointer_locked(false);
+    bring_to_front(&browser);
+}
+
 // windows are created hidden so the first thing on screen is the page, not a black rectangle for as long as the
 // browser needs to come up. shown once the browser is attached, or by SHOW_TIMER should that never happen
 unsafe fn show_window(window: &Window) {
