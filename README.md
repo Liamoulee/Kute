@@ -31,10 +31,10 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] Auto-Detect: measures your PC in a private test match (about a minute) and sets up the game and the client for it, with undo
 - [x] Selectable graphics backend (ANGLE: D3D11, D3D11on12, OpenGL, Vulkan) and color profile
 - [x] Optimized URL blocklist (only ~50 entries, fully customizable), custom Chromium flags
-- [x] Resource swapper
+- [x] Resource swapper with an in-client manager: shows which game files your swaps replace, drop a file onto a game file to put it in the right place, folder names ignore case
 - [x] All settings togglable
 - [x] Battle pass claim-all
-- [x] Custom script support
+- [x] Userscripts (Crankshaft and idkr formats) with an in-client manager: live on/off, script settings, a built-in editor, drag and drop
 - [x] OBS capture plugin (shared texture game capture plus a dedicated audio window)
 - [x] Officially supported by Medal.tv
 - [x] Encrypted Account Manager
@@ -144,6 +144,20 @@ Only needed when you work on the server itself.
 - `bun run start:prod` runs it the way the VPS does (PM2 uses [`pm2.ecosystem.json`](/server/pm2.ecosystem.json)).
 - A client started with `bun run dev` sends its Auto-Detect reports to `127.0.0.1:3030` and never to the real server.
 - Lint and typecheck run from the repo root, see above.
+
+<hr>
+
+## :handshake: Contributing
+
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. In short:
+
+- Issues labeled [`help wanted`](https://github.com/NullDev/Kute/issues?q=is%3Aissue%20state%3Aopen%20label%3A%22help%20wanted%22) are the best place to start.
+- Ask in an issue before working on a new feature. There is no guarantee it gets merged.
+- All code must be audited and tested by a human. No AI generated or vibe coded PRs.
+- Code must never make performance worse. Anything that costs performance goes behind a setting that is off by default, or does not get added.
+
+> [!IMPORTANT]
+> Standalone forks may **not** use the [kute.lol](https://kute.lol) website or its API. If you ship your own client based on Kute, point it at your own server.
 
 <hr>
 

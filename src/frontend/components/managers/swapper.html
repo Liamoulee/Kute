@@ -1,0 +1,127 @@
+<style>
+.swapColumns {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 1.2em;
+	height: 100%;
+	min-height: 0;
+}
+
+.swapColumn {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	margin: 0;
+}
+
+.swapColumn .groupHead {
+	flex: 0 0 auto;
+}
+
+.tree {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+	padding: 0.3em 0;
+}
+
+.node {
+	display: flex;
+	align-items: center;
+	gap: 0.5em;
+	min-height: 30px;
+	padding: 0 0.6em 0 calc(0.6em + var(--depth, 0) * 1.2em);
+	border: 1px dashed transparent;
+	cursor: default;
+}
+
+.node:hover {
+	background: #2c2c2c;
+}
+
+.node .mi {
+	color: #888;
+}
+
+.node.folder .mi.kind {
+	color: #e8c547;
+}
+
+.node.folder {
+	cursor: pointer;
+}
+
+.nodeName {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.nodeSize {
+	color: #777;
+	font-size: 0.85em;
+}
+
+.node .scriptActions {
+	display: flex;
+	gap: 0.1em;
+	visibility: hidden;
+}
+
+.node:hover .scriptActions {
+	visibility: visible;
+}
+
+.swapped {
+	color: #5ce05a;
+	font-size: 0.85em;
+}
+
+.search {
+	margin: 0.6em 0.7em 0.2em 0.7em;
+	width: calc(100% - 1.4em);
+}
+
+.treeNote {
+	padding: 0.6em 0.9em;
+	color: #777;
+	font-size: 0.9em;
+	line-height: 1.4;
+}
+</style>
+<div class="managerPopup">
+	<div class="managerHeader">
+		<h2 class="managerTitle">Swapper</h2>
+		<div class="btn" id="swReload" title="Read the folder again and pick up what the game loaded since"><span class="mi">refresh</span>Reload list</div>
+		<div class="btn" id="swFolder"><span class="mi">folder_open</span>Open swapper folder</div>
+		<div class="managerClose" data-close>&times;</div>
+	</div>
+	<div class="managerHint">A file in the swapper folder replaces the game's file with the same path:
+		<code>swapper/textures/pistol.png</code> replaces <code>krunker.io/textures/pistol.png</code>. Easiest way: drop your file
+		onto the game file it should replace (right side), it gets the right folder and name. Folder names do not care about case.</div>
+	<div class="managerError" data-error hidden></div>
+	<div class="managerNotice" id="swNotice" hidden><span></span><div class="btn small primary" id="swRefreshNow">Refresh now</div></div>
+	<div class="managerBody">
+		<div class="swapColumns">
+			<div class="group swapColumn" id="swOwnColumn">
+				<div class="groupHead">
+					<div class="groupTitle">Your swaps</div>
+					<div class="groupRuns" id="swOwnCount"></div>
+					<div class="btn small" id="swNewFolder"><span class="mi">create_new_folder</span>New folder</div>
+				</div>
+				<div class="tree" id="swOwnTree"></div>
+				<div class="dropZone" id="swRootDrop">Drop files or folders here to put them into the swapper folder as they are</div>
+			</div>
+			<div class="group swapColumn">
+				<div class="groupHead">
+					<div class="groupTitle">Game files</div>
+					<div class="groupRuns" id="swGameCount"></div>
+				</div>
+				<input class="field search" id="swSearch" placeholder="Search, for example pistol or textures/weapons" spellcheck="false">
+				<div class="tree" id="swGameTree"></div>
+			</div>
+		</div>
+	</div>
+</div>

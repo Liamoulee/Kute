@@ -20,6 +20,7 @@ pub mod modules {
     pub mod dev;
     pub mod devtools;
     pub mod dpapi;
+    pub mod files;
     pub mod flaglist;
     pub mod icons;
     pub mod input;
