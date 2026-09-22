@@ -368,6 +368,12 @@ pub fn handle_accelerator_key(browser: &Browser, key: u16) {
             }
             modules::input::set_pointer_locked(false);
         }
+        // the audio test build: the tester heard a cut, mark it in the log and have the page dump its audio state
+        #[cfg(feature = "audio-log")]
+        VK_F9 => {
+            modules::audio_log::mark();
+            bridge::post_json(browser, "{\"audioMark\":true}");
+        }
         VK_F5 => {
             modules::devtools::set_cpu_throttling(browser, 1.0);
             browser.reload();

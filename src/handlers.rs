@@ -149,6 +149,8 @@ wrap_request_context_handler! {
 const VK_F4: i32 = 0x73;
 const VK_F5: i32 = 0x74;
 const VK_F6: i32 = 0x75;
+#[cfg(feature = "audio-log")]
+const VK_F9: i32 = 0x78;
 const VK_F11: i32 = 0x7A;
 const VK_F12: i32 = 0x7B;
 
@@ -167,6 +169,10 @@ wrap_keyboard_handler! {
             let (Some(browser), Some(event)) = (browser, event) else { return 0 };
             if event.type_ != KeyEventType::RAWKEYDOWN {
                 return 0;
+            }
+            #[cfg(feature = "audio-log")]
+            if event.windows_key_code == VK_F9 {
+                window::handle_accelerator_key(browser, VK_F9 as u16);
             }
             if matches!(event.windows_key_code, VK_F4 | VK_F5 | VK_F6 | VK_F11 | VK_F12) {
                 window::handle_accelerator_key(browser, event.windows_key_code as u16);
@@ -650,6 +656,14 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             && let Ok(value) = serde_json::from_str::<serde_json::Value>(rest)
         {
             modules::icons::set_player_urls(&value);
+        }
+        return;
+    }
+    // the audio test build's page module: "audio-log <json>", one line or one block of the log
+    #[cfg(feature = "audio-log")]
+    if let Some(rest) = message_string.strip_prefix("audio-log ") {
+        if rest.len() <= 8 * 1024 {
+            modules::audio_log::page(rest);
         }
         return;
     }
