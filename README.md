@@ -60,6 +60,9 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [ ] Skin Swapper (coming soon)
 - [ ] BetterKDR™️ (coming soon)
 - [ ] Bloomberg-style trading terminal & market analysis (coming soon)
+- [ ] Spotify and YouTube Music overlay (coming soon)
+- [ ] Custom CSS Manager (coming soon)
+- [ ] Custom username and clan name (coming soon)
 - [x] and more...
 
 <hr>
@@ -165,7 +168,7 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before
 
 ## :octocat: Credits
 
-- [slavcpglorp](https://github.com/slavcp/glorp) - base
+- [slavcp/glorp](https://github.com/slavcp/glorp) - base
 - [6ct/client-pp](https://github.com/6ct/clientpp) - flags
 - [KraXen72/crankshaft](https://github.com/KraXen72/crankshaft) - menu timer css
 - [idkr-client/idkr](https://github.com/idkr-client/idkr) - tweaks
