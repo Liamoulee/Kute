@@ -38,4 +38,4 @@ Code must **never** impact performance in a negative way. This is a performance-
 - Keep the PR focused on one thing. Unrelated changes make it harder to review.
 - Describe what you changed, why, and how you tested it.
 
-See the [Building](README.md#wrench-building) section of the README for how to set up and build the project.
+See [BUILDING.md](BUILDING.md) for how to set up and build the project.
