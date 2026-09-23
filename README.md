@@ -36,6 +36,7 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] All settings togglable
 - [x] Battle pass claim-all
 - [x] Userscripts (Crankshaft and idkr formats) with an in-client manager: live on/off, script settings, a built-in editor, drag and drop
+- [x] Mod compatibility: mods, lobby and invite links open in the game window instead of a second one that would end your match
 - [x] OBS capture plugin (shared texture game capture plus a dedicated audio window)
 - [x] Officially supported by Medal.tv
 - [x] Encrypted Account Manager
