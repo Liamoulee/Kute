@@ -16,6 +16,7 @@
         "build": "bun run esbuild && cargo build --workspace --release --features packaged,editor-ignore && bun postbuild.js release",
         "build:auto-update": "bun run esbuild && cargo build --workspace --release --features packaged,auto-update,editor-ignore && bun postbuild.js release",
         "package": "bun run build:auto-update && wix build ./resources/installer_script.wxs -ext WixToolset.Util.wixext -o target/kute-setup-x86_64.msi",
+        "package:diagnostics": "bun run esbuild && cargo build --workspace --release --features packaged,editor-ignore,diag-log && bun postbuild.js release && wix build ./resources/installer_script.wxs -ext WixToolset.Util.wixext -o target/kute-diagnostics-setup-x86_64.msi",
         "lint": "eslint .",
         "lint:fix": "eslint . --fix",
         "typecheck": "tsc -p jsconfig.json && tsc -p src/frontend/jsconfig.json && tsc -p server/tsconfig.json"
