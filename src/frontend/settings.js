@@ -18,6 +18,8 @@ import { confirmPopup } from "./modules/confirmPopup.js";
  * @property {string} [button]
  * @property {string} [buttonAction] Inline JS; "{{kute}}" is replaced with a reference to the client object
  * @property {boolean} [requiresLogin] The button is disabled while no account is logged in
+ * @property {string} [requires] Id of a checkbox setting this one only works with: the control is disabled while
+ *     that one is off (the present FPS counter reads the swap chain hook)
  * @property {number} [min]
  * @property {number} [max]
  * @property {number} [step]
@@ -270,7 +272,15 @@ class SettingsManager {
             button = `<div class="settingsBtn" style="margin-right: 20px; width: auto" onclick="${buttonAction}">${option.button}</div>`;
         }
         switch (option.type){
-            case "checkbox":
+            case "checkbox": {
+                const required = option.requires ? settings[option.requires] : null;
+                if (required && kute.settings.data[required.id] === false){
+                    return `<label class='switch' style="opacity: 0.35; cursor: not-allowed" title="Needs ${required.name}, which is off">
+                        <input id="${option.id}" type='checkbox' disabled ${value ? "checked" : ""}>
+                        <span class='slider'></span>
+                    </label>
+                    ${button}`;
+                }
                 return `<label class='switch'>
                     <input id="${option.id}" type='checkbox'
                         onclick='${globalRef}.settings.changeSetting("${option.id}", this.checked, false)'
@@ -278,6 +288,7 @@ class SettingsManager {
                     <span class='slider'></span>
                 </label>
                 ${button}`;
+            }
             case "slider":
                 return `<input type="number" class="sliderVal" id="slid_input_${option.id}" min="${option.min}" value="${value || option.min}"
                     step="${option.step}" oninput='${globalRef}.settings.changeSetting("${option.id}", this.value, true)' style="margin-right:0px;border-width:0px">

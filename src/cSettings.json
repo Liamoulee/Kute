@@ -231,7 +231,8 @@
         "type": "checkbox",
         "category": "Interface",
         "defaultValue": false,
-        "needsRestart": true
+        "needsRestart": true,
+        "requires": "hardFlip"
     },
     "swapper": {
         "name": "Resource Swapper",
