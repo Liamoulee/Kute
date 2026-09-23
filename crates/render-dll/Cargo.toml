@@ -19,6 +19,7 @@ windows = { version = "0.62.2", features = [
     "Win32_System_Memory",
     "Win32_System_Performance",
     "Win32_System_SystemServices",
+    "Win32_System_SystemInformation",
     "Win32_System_Threading",
 ]}
 minhook = "0.9.*"
@@ -29,3 +30,5 @@ toml = "1.1.*"
 
 [features]
 verbose-logs = []
+# counts the presents of every swap chain and logs them to the file the client names in KUTE_DIAG_LOG
+diagnostics = ["verbose-logs"]

@@ -26,6 +26,8 @@ use windows::Win32::{
 use windows::core::*;
 
 mod capture;
+#[cfg(feature = "diagnostics")]
+mod diagnostics;
 
 // Thread-safe wrapper for Win32 kernel handles
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -125,6 +127,9 @@ macro_rules! debug_print {
     ($($arg:tt)*) => {
         if cfg!(feature = "verbose-logs") {
             let msg = format!($($arg)*);
+            // the diagnostics build writes every line to the client's log file in Downloads too
+            #[cfg(feature = "diagnostics")]
+            $crate::diagnostics::log(&msg);
             let wide: Vec<u16> = msg.encode_utf16().chain(Some(0)).collect();
             #[allow(unused_unsafe)]
             unsafe {
@@ -255,6 +260,10 @@ fn attach() {
             panic!("Failed to get factory and swap chain");
         });
 
+        // the diagnostics build counts every swap chain's presents and logs what the machine has
+        #[cfg(feature = "diagnostics")]
+        diagnostics::attach(&factory, &swap_chain);
+
         let original_create_swapchain = MinHook::create_hook(
             factory.vtable().CreateSwapChainForComposition as *mut c_void,
             create_swapchain_hk as *mut c_void,
@@ -320,6 +329,10 @@ unsafe fn create_swapchain_unmodified(
     unsafe {
         let original_fn = ORIGINAL_CREATE_SWAPCHAIN.unwrap();
         let result = original_fn(this, pdevice, pdesc, prestricttooutput, ppswapchain);
+        #[cfg(feature = "diagnostics")]
+        if result.is_ok() && !ppswapchain.is_null() {
+            diagnostics::made_for_composition(*ppswapchain, false);
+        }
 
         // new swapchain creation can be on the same address as a destroyed one, so purge stale wait handle
         if result.is_ok() && !ppswapchain.is_null() && WAIT_HANDLE.write().unwrap().remove(&(*ppswapchain as usize)).is_some() {
@@ -377,6 +390,8 @@ unsafe extern "system" fn create_swapchain_hk(
             create_swapchain_unmodified(this, pdevice, pdesc, prestricttooutput, ppswapchain)
         } else {
             debug_print!("render: swap chain created pointer={:?}", *ppswapchain);
+            #[cfg(feature = "diagnostics")]
+            diagnostics::made_for_composition(*ppswapchain, true);
             let swap_chain = IDXGISwapChain1::from_raw(*ppswapchain);
             // Learn the real D3D11 device from this swap chain and hand it to the capture module
             // (it invalidates any shared texture so it is re-created against this swap chain).
@@ -433,6 +448,8 @@ unsafe extern "system" fn present_hk(
     mut present_flags: DXGI_PRESENT,
     p_present_parameters: *const DXGI_PRESENT_PARAMETERS,
 ) -> HRESULT {
+    #[cfg(feature = "diagnostics")]
+    diagnostics::present(p_this, false);
     let ptr = SHARED_MEM_PTR.load(Ordering::Acquire);
     if ptr == 0 {
         if !MISSING_TIMING_MAPPING_LOGGED.swap(true, Ordering::Relaxed) {
