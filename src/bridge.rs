@@ -44,6 +44,11 @@ pub fn send_info(frame: &Frame) {
         serde_json::json!(["matchmaker", "dev-proof", "kute-icons", "script-manager"]),
     );
 
+    // the page's side of the diagnostics build: it logs its frame rate next to the hook's count
+    if cfg!(feature = "diag-log") {
+        info_map.insert("diagnostics".to_string(), serde_json::Value::Bool(true));
+    }
+
     if crate::modules::dev::has_token() {
         info_map.insert("dev".to_string(), serde_json::Value::Bool(true));
     }

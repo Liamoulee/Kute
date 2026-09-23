@@ -241,7 +241,7 @@ fn cache_dir() -> std::path::PathBuf {
 
 pub fn settings() -> Settings {
     let cache_dir = cache_dir();
-    let log_file = utils::settings_dir().join("cef_debug.log");
+    let log_file = modules::diagnostics::cef_log_file().unwrap_or_else(|| utils::settings_dir().join("cef_debug.log"));
     Settings {
         // a normal exe cannot host CEF's windows sandbox (that needs the bootstrap.exe model)
         no_sandbox: 1,
@@ -254,7 +254,10 @@ pub fn settings() -> Settings {
         persist_session_cookies: 1,
         background_color: 0xFF000000,
         log_file: CefString::from(log_file.to_string_lossy().as_ref()),
-        log_severity: if cfg!(feature = "verbose-logs") {
+        // the diagnostics build wants Chromium's GPU and compositor messages too
+        log_severity: if cfg!(feature = "diag-log") {
+            LogSeverity::INFO
+        } else if cfg!(feature = "verbose-logs") {
             LogSeverity::WARNING
         } else {
             LogSeverity::DISABLE

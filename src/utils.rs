@@ -203,6 +203,8 @@ macro_rules! debug_print {
     ($($arg:tt)*) => {
         if cfg!(feature = "verbose-logs") {
             let msg = format!($($arg)*);
+            // the diagnostics build also writes every line to Downloads (nothing happens elsewhere)
+            $crate::modules::diagnostics::log(&msg);
             // dev builds keep a console, so the same line also goes to stderr
             eprintln!("{msg}");
             let wide: Vec<u16> = msg.encode_utf16().chain(Some(0)).collect();

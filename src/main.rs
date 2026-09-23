@@ -19,6 +19,7 @@ pub mod modules {
     pub mod blocklist;
     pub mod dev;
     pub mod devtools;
+    pub mod diagnostics;
     pub mod dpapi;
     pub mod files;
     pub mod flaglist;
@@ -47,6 +48,8 @@ fn main() {
     if modules::obs::handle_cli_flags() || modules::dev::handle_cli_flags() {
         return;
     }
+    // the diagnostics build: the browser process names the log file before any child process exists
+    modules::diagnostics::init();
 
     // every CEF subprocess (renderer, gpu, utility) is this exe again with --type=<kind>
     if let Some(process_type) = utils::process_type() {

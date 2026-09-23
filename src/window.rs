@@ -294,6 +294,7 @@ pub fn attach_browser(browser: &Browser) {
 
     if browser.is_popup() == 0 {
         MAIN_BROWSER.set(Some(browser.clone()));
+        modules::diagnostics::on_main_browser(browser, hwnd);
         if let Some(bench) = modules::bench::config() {
             modules::devtools::set_cpu_throttling(browser, bench.throttle);
             return;

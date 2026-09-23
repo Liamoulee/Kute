@@ -31,6 +31,9 @@ verbose-logs = [
     "obs-kute-capture/verbose-logs",
     "render-dll/verbose-logs",
 ]
+# a build to send a player whose PC behaves differently: packaged, no auto-update, every process logs to
+# Downloads\kute-diagnostics.log (modules/diagnostics.rs), render.dll counts every swap chain's presents
+diag-log = ["packaged", "verbose-logs", "render-dll/diagnostics"]
 
 [dependencies]
 windows = { version = "0.62.2", features = [
