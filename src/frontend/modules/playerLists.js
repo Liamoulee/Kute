@@ -135,12 +135,15 @@ class PlayerLists {
      * @param {{ observer: MutationObserver, target: Element, list: string, kind: ListKind }} entry
      */
     walk(entry){
-        // the containers hold more than the list (the menu window holds every window): one id lookup decides
-        const list = document.getElementById(entry.list);
-        if (list){
-            for (const element of list.querySelectorAll(NAME_ELEMENTS)){
-                const row = { element, name: nameOf(element), kind: entry.kind };
-                for (const decorator of this.decorators.keys()) decorator(row);
+        // the containers hold more than the list (the menu window holds every window): the id decides. Team modes
+        // show one table per team, all with the same id, and together they are still one list
+        const lists = document.querySelectorAll(`#${entry.list}`);
+        if (lists.length > 0){
+            for (const list of lists){
+                for (const element of list.querySelectorAll(NAME_ELEMENTS)){
+                    const row = { element, name: nameOf(element), kind: entry.kind };
+                    for (const decorator of this.decorators.keys()) decorator(row);
+                }
             }
             for (const onWalkEnd of this.decorators.values()) onWalkEnd?.(entry.kind);
         }
