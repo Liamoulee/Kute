@@ -75,14 +75,29 @@ If you want to support this Project, you can help with Code contributions :octoc
 
 ## :question: FAQ
 
-**My game stutters.** <br>
+<details>
+<summary><b>My game stutters.</b></summary>
+<br>
+
 Run **Auto-Detect Best Settings** (General settings). It plays a private test match, measures what each setting costs on your PC and sets only what makes a real difference (it needs a Krunker account). Leave CPU Throttling at 1 unless Auto-Detect sets it. Still stuttering? Open Auto-Detect's Advanced view, copy the report and [open an issue](https://github.com/NullDev/Kute/issues/choose).
 
-**I can't aim / my aim feels different.** <br>
+</details>
+
+<details>
+<summary><b>I can't aim / my aim feels different.</b></summary>
+<br>
+
 Kute uses pure raw input: your mouse's movement goes straight to the game, without Windows pointer acceleration, and none of it gets lost, not even the movement in the same instant as a click or a scroll. No other client passes every bit of it through. It is more accurate, and exactly because of that it can feel different for a few rounds if your aim is used to another client. Give it some time before you change your sensitivity.
 
-**My FPS is lower than in other clients, but Kute feels smoother.** <br>
+</details>
+
+<details>
+<summary><b>My FPS is lower than in other clients, but Kute feels smoother.</b></summary>
+<br>
+
 Uncapped, other clients count every frame the game computes, including frames that never reach your screen: they pile up behind the GPU and get replaced before they are shown. That makes a big number, but those extra frames are only extra load and extra input lag. Kute's swap chain hook and patched Chromium let the game run just one frame ahead, so it only computes frames that actually get shown, and the **Present FPS Counter** (Interface settings) shows the frames that reach your screen. A lower number that is real, instead of a higher one that is not.
+
+</details>
 
 <hr>
 
