@@ -3,6 +3,9 @@ import { kute, ready } from "./client.js";
 import { hook, getElement, checkCompMode } from "./utils.js";
 // first, so that whatever throws further down gets heard of
 import "./modules/errorReports.js";
+import { postUrls as postIconUrls } from "./modules/kuteIcons/slots.js";
+// statically: it takes the userscript registry the host hands over only while this bundle is evaluated
+import "./modules/managers/registry.js";
 
 const isBenchPage = location.pathname === "/kute-bench";
 if (isBenchPage) import("./modules/autoDetect/bench.js");
@@ -13,6 +16,8 @@ if (isBenchPage) import("./modules/autoDetect/bench.js");
 // it never removes the key, so an unset one really does mean "never chose". Written here because this file is
 // evaluated before any page script, which is the only point where Krunker still reads it for this page load
 if (!isBenchPage && localStorage.getItem("krk_advanced") === null) localStorage.setItem("krk_advanced", "1");
+// the images the player pointed the icon slots at, before the game asks for any of them
+if (!isBenchPage) postIconUrls();
 
 let initialLoad = true;
 window.OffCliV = true;
@@ -123,6 +128,7 @@ Object.defineProperty(window, "gameLoaded", {
         import("./settings.js");
         import("./modules/changelog.js");
         import("./modules/about.js");
+        import("./modules/managers/index.js");
         import("./modules/autoDetect/index.js");
         if (kute?.settings?.data?.clanColors !== false) import("./modules/clanColors.js");
         // always: the setting only decides whether badges get drawn, the client announces itself either way
@@ -138,6 +144,8 @@ Object.defineProperty(window, "gameLoaded", {
         import("./modules/matchmaker.js");
         // always: the customize button needs the module, which draws nothing while the setting is off
         import("./modules/nukeCounter.js");
+        // always: the customize button needs the module, and the host has to hear about changed icon urls
+        import("./modules/kuteIcons/index.js");
         // always: it applies the saved HUD layout, the editor itself only loads when it is opened
         import("./modules/hudEditor/index.js");
         if (kute?.settings?.data?.hsSound) import("./modules/hsSound.js");

@@ -1,3 +1,4 @@
+// @TODO: THIS NEEDS TO BE CLEANED AND SPLIT UP LMFAOOO WHAT
 use minhook::MinHook;
 use std::{
     cell,
@@ -55,6 +56,16 @@ struct SharedState {
     samples: u64,
 }
 const SHARED_STATE_SIZE: usize = std::mem::size_of::<SharedState>();
+
+// one field of the mapping as an atomic. The protocol and why every access is atomic: `shared!` in the host's
+// app.rs. `ptr` is the view from SHARED_MEM_PTR, page aligned, every field a u64 at a multiple of 8. Used inside
+// the hook's unsafe blocks, which is where from_ptr's requirements are met
+macro_rules! shared {
+    ($ptr:expr, $field:ident) => {
+        AtomicU64::from_ptr(($ptr as usize + std::mem::offset_of!(SharedState, $field)) as *mut u64)
+    };
+}
+
 const INTERVAL_SAMPLES: usize = 16384;
 
 // waiting on the swap chain's frame latency object: the regular timeout, how many timeouts in a row pause the
@@ -329,9 +340,10 @@ unsafe extern "system" fn create_swapchain_hk(
     ppswapchain: *mut *mut c_void,
 ) -> HRESULT {
     unsafe {
-        // small ones are chromium's own little surfaces. every big one is a window's, see MAIN_SWAPCHAIN
-        if (*pdesc).Width < 600 || (*pdesc).Height < 600 {
-            debug_print!("render: swap chain {}x{} left alone (under 600 px)", (*pdesc).Width, (*pdesc).Height);
+        // small ones are chromium's own little surfaces (the only one seen is 16x16), every other one is a window's,
+        // see MAIN_SWAPCHAIN. 200 and not 600 px: a game window under 600 physical px tall used to run without the hook
+        if (*pdesc).Width < 200 || (*pdesc).Height < 200 {
+            debug_print!("render: swap chain {}x{} left alone (under 200 px)", (*pdesc).Width, (*pdesc).Height);
             return create_swapchain_unmodified(this, pdevice, pdesc, prestricttooutput, ppswapchain);
         }
         debug_print!(
@@ -343,6 +355,8 @@ unsafe extern "system" fn create_swapchain_hk(
             (*pdesc).Flags
         );
         let mut desc = *pdesc;
+        // only RENDER_TARGET_OUTPUT, on purpose: keeping chromium's SHADER_INPUT bit ("needed to bind to GL texture")
+        // cut the uncapped present rate by a quarter to a half in interleaved runs, and nothing needs it
         desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
         desc.BufferCount = 2; // 2 is the minimum
         desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL; // discard crashes
@@ -508,12 +522,11 @@ unsafe extern "system" fn present_hk(
                         }
                         let next = if avg.get() == 0 { frame_ns } else { (avg.get() * 31 + frame_ns) / 32 };
                         avg.set(next);
-                        let shared = &mut *(ptr as *mut SharedState);
                         // back-to-back presents can land within timer resolution so keep the div safe
                         let fps = 1_000_000_000u64.checked_div(next).unwrap_or(0);
 
-                        shared.frame_ns = next;
-                        shared.fps = fps;
+                        shared!(ptr, frame_ns).store(next, Ordering::Relaxed);
+                        shared!(ptr, fps).store(fps, Ordering::Relaxed);
                     });
                 }
 
@@ -527,7 +540,7 @@ unsafe extern "system" fn present_hk(
                     if now.duration_since(diagnostic_start) >= std::time::Duration::from_secs(10) {
                         let ema_ns = FRAME_NS_EMA.get();
                         let ema_fps = 1_000_000_000u64.checked_div(ema_ns).unwrap_or(0);
-                        let target_fps = (*(ptr as *const SharedState)).target_fps;
+                        let target_fps = shared!(ptr, target_fps).load(Ordering::Relaxed);
                         let has_wait_handle = WAIT_HANDLE.read().unwrap().contains_key(&(p_this as usize));
                         debug_print!(
                             "render: 10s stats thread_id={} presents={} ema_fps={} ema_ms={:.3} max_frame_ms={:.3} target_fps={} wait_handle={}",
@@ -602,19 +615,6 @@ unsafe extern "system" fn present_hk(
         let present_started = std::time::Instant::now();
         if is_main {
             PRESENTS.with_borrow_mut(|presents| presents.mark(present_started));
-            let shared = &mut *(ptr as *mut SharedState);
-            if shared.stats_request != shared.stats_ack {
-                let (p50, p99, max, samples) = PRESENTS.with_borrow_mut(|presents| presents.take());
-                let (_, arrive_p99, _, _) = ARRIVALS.with_borrow_mut(|arrivals| arrivals.take());
-                shared.present_p50_ns = p50;
-                shared.present_p99_ns = p99;
-                shared.present_max_ns = max;
-                shared.arrive_p99_ns = arrive_p99;
-                shared.samples = samples;
-                // the host reads the values once it sees the ack, so they have to be written before it
-                std::sync::atomic::fence(Ordering::Release);
-                std::ptr::write_volatile(&raw mut shared.stats_ack, shared.stats_request);
-            }
         }
         let original_present = ORIGINAL_PRESENT.unwrap();
         let mut hr = original_present(p_this, sync_interval, present_flags, p_present_parameters);
@@ -627,6 +627,20 @@ unsafe extern "system" fn present_hk(
 
         if is_main {
             capture::capture_on_present(p_this);
+            // a request for the interval distribution is answered after the real present: sorting up to
+            // INTERVAL_SAMPLES values must not hold back the frame that is going out
+            let request = shared!(ptr, stats_request).load(Ordering::Acquire);
+            if request != shared!(ptr, stats_ack).load(Ordering::Relaxed) {
+                let (p50, p99, max, samples) = PRESENTS.with_borrow_mut(|presents| presents.take());
+                let (_, arrive_p99, _, _) = ARRIVALS.with_borrow_mut(|arrivals| arrivals.take());
+                shared!(ptr, present_p50_ns).store(p50, Ordering::Relaxed);
+                shared!(ptr, present_p99_ns).store(p99, Ordering::Relaxed);
+                shared!(ptr, present_max_ns).store(max, Ordering::Relaxed);
+                shared!(ptr, arrive_p99_ns).store(arrive_p99, Ordering::Relaxed);
+                shared!(ptr, samples).store(samples, Ordering::Relaxed);
+                // the host reads the payload once it sees this ack (Acquire), so it comes last
+                shared!(ptr, stats_ack).store(request, Ordering::Release);
+            }
         }
 
         // how long the real present took, without the limiter's sleep below
@@ -641,7 +655,7 @@ unsafe extern "system" fn present_hk(
         // frame had its input read and then sat out the whole sleep: at a cap of 144 the input was 13 ms old when the
         // frame went out. now the frame goes out as soon as it arrives, about 1 ms after the game read its input at
         // the median (Chromium trace from the rAF callbacks to Present1, caps 144 and 240, same frame pacing)
-        let target_fps = (*(ptr as *const SharedState)).target_fps;
+        let target_fps = shared!(ptr, target_fps).load(Ordering::Relaxed);
         if is_main && let Some(nanos) = 1_000_000_000u64.checked_div(target_fps) {
             let target_frame_time = std::time::Duration::from_nanos(nanos);
             let now = std::time::Instant::now();
@@ -677,7 +691,6 @@ unsafe extern "system" fn present_hk(
             };
             *GLOBAL_LIMIT_CLOCK.write().unwrap() = Some(next_ref);
         }
-        // end of limiter
 
         if cfg!(feature = "verbose-logs") {
             // report stalls (maybe it helps some other dev one day)

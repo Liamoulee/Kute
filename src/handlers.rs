@@ -1,6 +1,6 @@
 use crate::{app, bridge, constants, debug_print, modules, utils, utils::config, window};
 use cef::{rc::*, *};
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex, mpsc};
 
 // args handed over by a second instance while the main window was being recreated
 static PENDING_ARGS: Mutex<Option<String>> = Mutex::new(None);
@@ -37,6 +37,19 @@ wrap_task! {
             if let Some(browser) = window::browser_by_id(self.browser_id) {
                 bridge::post_string(&browser, "game-updated");
             }
+        }
+    }
+}
+
+// a mod page a popup asked for, loaded in the main window once on_before_popup has returned
+wrap_task! {
+    struct LoadInMainTask {
+        url: String,
+    }
+
+    impl Task {
+        fn execute(&self) {
+            window::load_in_main(&self.url);
         }
     }
 }
@@ -80,11 +93,15 @@ wrap_resource_request_handler! {
             if modules::bench::active() && url.contains(modules::bench::BENCH_PATH) {
                 return modules::resource::serve("text/html", modules::bench::STUB_PAGE.as_bytes().to_vec());
             }
-            let bytes = modules::swapper::swap_for(&url)?;
-            debug_print!("handlers: swapping {url}");
-
-            let filename = url.split("krunker.io/").nth(1).and_then(|s| s.split('?').next()).unwrap_or("");
-            modules::resource::serve(modules::swapper::mime_for(filename), bytes.clone())
+            // the player's own swapper folder first: their file beats ours for the same request
+            if let Some(bytes) = modules::swapper::swap_for(&url) {
+                debug_print!("handlers: swapping {url}");
+                let filename = utils::krunker_path(&url).unwrap_or("");
+                return modules::resource::serve(modules::swapper::mime_for(filename), bytes.to_vec());
+            }
+            let bytes = modules::icons::bytes_for(&url)?;
+            debug_print!("handlers: kute icon for {url}");
+            modules::resource::serve("image/png", bytes.to_vec())
         }
     }
 }
@@ -260,7 +277,8 @@ wrap_download_handler! {
     }
 }
 
-// mirrors SetAllowExternalDrop(false)
+// mirrors SetAllowExternalDrop(false). CEF only asks this for Alloy style browsers, Kute's are Chrome style, so
+// external drops reach the page and the managers read the dropped files there (managers/popup.js)
 wrap_drag_handler! {
     struct KuteDragHandler;
 
@@ -314,7 +332,16 @@ wrap_life_span_handler! {
             _extra_info: Option<&mut Option<DictionaryValue>>,
             _no_javascript_access: Option<&mut ::std::os::raw::c_int>,
         ) -> ::std::os::raw::c_int {
-            debug_print!("handlers: popup requested for {}", utils::cef_str(_target_url));
+            let url = utils::cef_str(_target_url);
+            debug_print!("handlers: popup requested for {url}");
+            // the "Use" button of a mod's detail view opens the game page with the mod (krunker.io/?mod=...): in a
+            // browser that is a new tab, here it was a second game window, and Krunker allows one session per
+            // account, so the first window lost its match. The main window loads it
+            if window::is_mod_page(&url) && window::has_main_browser() {
+                let mut task = LoadInMainTask::new(url);
+                post_task(ThreadId::UI, Some(&mut task));
+                return 1;
+            }
             window::create_popup_window(popup_features, window_info, client, settings);
             0
         }
@@ -326,12 +353,10 @@ wrap_life_span_handler! {
                 // a same origin popup keeps the initial window and swaps the document, so the social
                 // userscripts are registered per document (like WebView2 did) instead of per V8 context
                 if config("userscripts", true) {
-                    let scripts = modules::userscripts::load(true);
-                    if !scripts.is_empty() {
-                        let source = format!(
-                            "if (window === window.top && location.href.includes(\"krunker.io/social.html\")) {{\n{}\n}}",
-                            scripts.join("\n")
-                        );
+                    // one document script per userscript, so a syntax error in one does not take the others along
+                    for script in modules::userscripts::social_document_scripts() {
+                        let source =
+                            format!("if (window === window.top && location.href.includes(\"krunker.io/social.html\")) {{\n{script}\n}}");
                         modules::devtools::add_document_script(browser, &source);
                     }
                 }
@@ -458,6 +483,123 @@ fn handle_accounts_message(browser: &Browser, message: &str) {
     bridge::post_json(browser, &serde_json::json!({ "accounts": modules::accounts::list() }).to_string());
 }
 
+// the manager commands write files, so a page that is not Krunker (a mod page in the main window, a hijacked
+// navigation) must not reach them: it could plant a userscript that runs in every later session
+fn is_krunker_frame(frame: &Frame) -> bool {
+    let url = utils::cef_to_string(&frame.url());
+    url.starts_with("https://") && utils::krunker_path(&url).is_some()
+}
+
+fn payload_str<'a>(payload: &'a serde_json::Value, key: &str) -> &'a str {
+    payload[key].as_str().unwrap_or_default()
+}
+
+// the userscript and swapper managers read, write and walk files: uploads of up to 32 MB, whole swapper packs, the
+// recycle bin. One worker thread takes their commands in the order they came, so the UI thread (the window, input,
+// every other message) never waits on a disk, and two reloads of the swapper never race each other
+static MANAGER_QUEUE: LazyLock<Option<mpsc::Sender<(i32, String)>>> = LazyLock::new(|| {
+    let (sender, receiver) = mpsc::channel::<(i32, String)>();
+    std::thread::Builder::new()
+        .name("kute-managers".into())
+        .spawn(move || {
+            for (browser_id, message) in receiver {
+                let reply = match message.split_once('-') {
+                    Some(("scripts", rest)) => handle_scripts_message(rest),
+                    Some(("swapper", rest)) => handle_swapper_message(rest),
+                    _ => None,
+                };
+                if let Some(reply) = reply {
+                    bridge::post_json_later(browser_id, reply);
+                }
+            }
+        })
+        .ok()
+        .map(|_| sender)
+});
+
+fn queue_manager_message(browser: &Browser, message: &str) {
+    if let Some(queue) = MANAGER_QUEUE.as_ref() {
+        queue.send((browser.identifier(), message.to_string())).ok();
+    }
+}
+
+// the reply every command ends with: the fresh list, plus {managerError} when something did not work, so the popup
+// always shows what is on disk
+fn manager_reply(key: &str, list: serde_json::Value, problems: &[String]) -> Option<String> {
+    let mut reply = serde_json::json!({ key: list });
+    if !problems.is_empty() {
+        reply["managerError"] = serde_json::json!(problems.join("\n"));
+    }
+    Some(reply.to_string())
+}
+
+// "scripts-<command> <json>": the userscript manager, on the manager thread
+fn handle_scripts_message(message: &str) -> Option<String> {
+    use modules::userscripts;
+    let (command, payload) = message.split_once(' ').unwrap_or((message, "{}"));
+    let payload = serde_json::from_str::<serde_json::Value>(payload).ok()?;
+    let key = payload_str(&payload, "key");
+    let mut problems: Vec<String> = Vec::new();
+    match command {
+        "list" => {}
+        "read" => {
+            return Some(serde_json::json!({ "userscriptSource": { "key": key, "content": userscripts::read(key) } }).to_string());
+        }
+        "write" => {
+            let result = userscripts::write(payload_str(&payload, "group"), payload_str(&payload, "file"), payload_str(&payload, "content"));
+            problems.extend(result.err());
+            // an import of many scripts asks for the list once at the end instead of once per script
+            if payload["noList"].as_bool() == Some(true) {
+                return (!problems.is_empty()).then(|| serde_json::json!({ "managerError": problems.join("\n") }).to_string());
+            }
+        }
+        "toggle" => userscripts::set_enabled(key, payload["enabled"].as_bool().unwrap_or(true)),
+        "prefs" => {
+            userscripts::set_prefs(key, payload["prefs"].clone());
+            // the page already shows the change, no list needed
+            return None;
+        }
+        "delete" => problems.extend(userscripts::delete(key).err()),
+        "move" => problems.extend(userscripts::move_to(key, payload_str(&payload, "group")).err()),
+        "reveal" => {
+            userscripts::reveal(if key.is_empty() { None } else { Some(key) });
+            return None;
+        }
+        _ => return None,
+    }
+    manager_reply("userscripts", userscripts::list(), &problems)
+}
+
+// "swapper-<command> <json>": the swapper manager, on the manager thread
+fn handle_swapper_message(message: &str) -> Option<String> {
+    use modules::swapper;
+    let (command, payload) = message.split_once(' ').unwrap_or((message, "{}"));
+    let payload = serde_json::from_str::<serde_json::Value>(payload).ok()?;
+    let path = payload_str(&payload, "path");
+    let mut problems: Vec<String> = Vec::new();
+    match command {
+        // files the player put in with Explorer count from the next refresh on, like the ones added here. The reload
+        // is done before the reply leaves, so a refresh after it gets the new files
+        "list" => swapper::reload(),
+        "mkdir" => problems.extend(swapper::make_dir(path).err()),
+        "delete" => problems.extend(swapper::delete(path).err()),
+        "move" => problems.extend(swapper::move_to(payload_str(&payload, "from"), payload_str(&payload, "to")).err()),
+        // one dropped file, base64. Acknowledged on its own, the page sends the next one only then (one file in flight
+        // instead of a pack in memory), and asks for the list once at the end
+        "upload" => {
+            let result = swapper::upload(path, payload_str(&payload, "data"));
+            let error = result.err().map(|e| format!("{path}: {e}"));
+            return Some(serde_json::json!({ "swapperUploaded": { "path": path, "error": error } }).to_string());
+        }
+        "reveal" => {
+            swapper::reveal(path);
+            return None;
+        }
+        _ => return None,
+    }
+    manager_reply("swapper", swapper::list(), &problems)
+}
+
 pub fn open_documents_subpath(target: &str) {
     let path_to_open = match target {
         "blocklist" => utils::settings_dir().join("user_blocklist.json"),
@@ -485,7 +627,13 @@ pub fn open_in_default_browser(url: &str) {
 }
 
 pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str) {
-    debug_print!("web message: {message_string}");
+    // the start is enough to see which command it was: a swapper upload is a whole file as base64
+    if message_string.len() > 300 {
+        let cut = (0..=300).rev().find(|&index| message_string.is_char_boundary(index)).unwrap_or(0);
+        debug_print!("web message: {}... ({} bytes)", &message_string[..cut], message_string.len());
+    } else {
+        debug_print!("web message: {message_string}");
+    }
     // the payload is JSON, so it must not go through the ", " split
     if let Some(rest) = message_string.strip_prefix("telemetry ") {
         // "telemetry <kind> <json>". JSON, so it must not go through the ", " split. capped like the server caps it
@@ -493,6 +641,15 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             && report.len() <= 64 * 1024
         {
             modules::lifecycle::send_telemetry(kind, report.to_string());
+        }
+        return;
+    }
+    // "icon-urls <json>": the images the player pointed the icon slots at, so Kute icons answer those too
+    if let Some(rest) = message_string.strip_prefix("icon-urls ") {
+        if rest.len() <= 16 * 1024
+            && let Ok(value) = serde_json::from_str::<serde_json::Value>(rest)
+        {
+            modules::icons::set_player_urls(&value);
         }
         return;
     }
@@ -504,6 +661,20 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         {
             crate::CONFIG.lock().unwrap().set(setting, value);
             crate::config::save_soon();
+        }
+        return;
+    }
+    // the userscript and swapper managers: JSON payloads, only from Krunker itself
+    if let Some(rest) = message_string.strip_prefix("scripts-") {
+        if is_krunker_frame(frame) && rest.len() <= 5 * 1024 * 1024 {
+            queue_manager_message(browser, message_string);
+        }
+        return;
+    }
+    if let Some(rest) = message_string.strip_prefix("swapper-") {
+        // an upload carries a whole file (base64), everything else is a short command
+        if is_krunker_frame(frame) && rest.len() <= 48 * 1024 * 1024 {
+            queue_manager_message(browser, message_string);
         }
         return;
     }
@@ -593,14 +764,19 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         }
         // the distribution of the hook's present intervals since the last call (a call also starts a new window)
         ["get-present-intervals"] => {
-            let intervals = if config("hardFlip", true) { app::take_present_intervals() } else { None };
-            let reply = match intervals {
-                Some((p50, p99, max, arrive_p99, samples)) => serde_json::json!({ "presentIntervals": {
+            // take_present_intervals waits for the hook's next present (up to 150 ms): not on the UI thread
+            let hook = config("hardFlip", true);
+            let browser_id = browser.identifier();
+            std::thread::spawn(move || {
+                let intervals = if hook { app::take_present_intervals() } else { None };
+                let reply = match intervals {
+                    Some((p50, p99, max, arrive_p99, samples)) => serde_json::json!({ "presentIntervals": {
                     "p50": p50 as f64 / 1e6, "p99": p99 as f64 / 1e6, "max": max as f64 / 1e6, "arriveP99": arrive_p99 as f64 / 1e6, "samples": samples,
                 } }),
-                None => serde_json::json!({ "presentIntervals": false }),
-            };
-            bridge::post_json(browser, &reply.to_string());
+                    None => serde_json::json!({ "presentIntervals": false }),
+                };
+                bridge::post_json_later(browser_id, reply.to_string());
+            });
         }
         ["click", x, y] => {
             if let (Ok(x), Ok(y)) = (x.parse(), y.parse()) {
@@ -615,6 +791,11 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         }
         ["bring-to-front"] => {
             window::bring_to_front(browser);
+        }
+        // the page keeps the images it already has, so a changed icon only shows after this. Never "clear-cache"
+        // for that: it also wipes the origin's storage, which is every Krunker setting the player has
+        ["hard-reload"] => {
+            browser.reload_ignore_cache();
         }
         ["clear-cache"] => {
             modules::devtools::clear_cache(browser);

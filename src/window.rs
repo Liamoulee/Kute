@@ -226,6 +226,31 @@ pub fn browser_by_id(id: i32) -> Option<Browser> {
     BROWSERS.with_borrow(|b| b.get(&id).cloned())
 }
 
+// Krunker's game page with a mod to load (krunker.io/?mod=<name>), what the "Use" button of a mod's detail view opens
+pub fn is_mod_page(url: &str) -> bool {
+    let Some(rest) = url.strip_prefix("https://krunker.io") else { return false };
+    let Some(query) = rest.strip_prefix("/?").or_else(|| rest.strip_prefix('?')) else {
+        return false;
+    };
+    query.split('#').next().unwrap_or("").split('&').any(|pair| pair.split('=').next() == Some("mod"))
+}
+
+pub fn has_main_browser() -> bool {
+    MAIN_BROWSER.with_borrow(|b| b.is_some())
+}
+
+// a mod page in the main window instead of a second one (see on_before_popup in handlers.rs), the way F4 loads
+// a lobby: throttle off, pointer released, window to the front
+pub fn load_in_main(url: &str) {
+    let Some(browser) = MAIN_BROWSER.with_borrow(|b| b.clone()) else { return };
+    modules::devtools::set_cpu_throttling(&browser, 1.0);
+    if let Some(frame) = browser.main_frame() {
+        frame.load_url(Some(&CefString::from(url)));
+    }
+    modules::input::set_pointer_locked(false);
+    bring_to_front(&browser);
+}
+
 // windows are created hidden so the first thing on screen is the page, not a black rectangle for as long as the
 // browser needs to come up. shown once the browser is attached, or by SHOW_TIMER should that never happen
 unsafe fn show_window(window: &Window) {

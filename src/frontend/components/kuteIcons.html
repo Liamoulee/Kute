@@ -1,0 +1,108 @@
+<style>
+#kiPanel {
+	box-sizing: border-box;
+	width: 480px;
+	max-width: 92vw;
+	max-height: 88vh;
+	overflow-y: auto;
+	scrollbar-width: thin;
+	scrollbar-color: #444 #1e1e1e;
+	padding: 1.8em 2.2em 1.4em 2.2em;
+	background: #1e1e1e;
+	color: #fff;
+	border-radius: 14px;
+	box-shadow: 0 8px 48px #000c;
+	font-family: Consolas, monospace;
+}
+
+#kiPanel h2 {
+	margin: 0 0 0.3em 0;
+	font-size: 1.6em;
+	letter-spacing: 1px;
+	color: #35e0e8;
+	text-align: center;
+}
+
+#kiHint {
+	margin-bottom: 1.2em;
+	color: #999;
+	text-align: center;
+	line-height: 1.4;
+}
+
+.kiRow {
+	display: grid;
+	grid-template-columns: 40px 1fr auto;
+	align-items: center;
+	gap: 0 14px;
+	padding: 0.45em 0.2em;
+	border-bottom: 1px solid #2c2c2c;
+	color: #ccc;
+	cursor: pointer;
+}
+
+.kiRow img {
+	width: 32px;
+	height: 32px;
+	object-fit: contain;
+	justify-self: center;
+}
+
+.kiHidden {
+	display: block;
+	font-size: 0.8em;
+	color: #e8a735;
+}
+
+.kiShow {
+	color: #35e0e8;
+	text-decoration: underline;
+	cursor: pointer;
+}
+
+.kiRow input[type="checkbox"] {
+	width: 1.2em;
+	height: 1.2em;
+	accent-color: #35e0e8;
+	cursor: pointer;
+}
+
+#kiActions {
+	display: flex;
+	gap: 0.7em;
+	margin-top: 1.2em;
+}
+
+.kiButton {
+	flex: 1 1 0;
+	padding: 0.7em 0.5em;
+	border-radius: 8px;
+	background: #2a2a2a;
+	color: #999;
+	text-align: center;
+	cursor: pointer;
+	user-select: none;
+}
+
+.kiButton:hover {
+	background: #333;
+}
+
+#kiDone {
+	background: #1b5e63;
+	color: #fff;
+}
+
+#kiDone:hover {
+	background: #23777d;
+}
+</style>
+<div id="kiPanel">
+	<h2>Kute Icons</h2>
+	<div id="kiHint"></div>
+	<div id="kiRows"></div>
+	<div id="kiActions">
+		<div class="kiButton" id="kiAll">Tick all</div>
+		<div class="kiButton" id="kiDone">Done</div>
+	</div>
+</div>

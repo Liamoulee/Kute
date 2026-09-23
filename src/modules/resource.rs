@@ -1,13 +1,3 @@
-//! Serving our own bytes for a request the page made.
-//!
-//! The `cef` crate ships `StreamResourceHandler`, which answers with a mime type and nothing else. That is
-//! enough for a file of the page's own origin, and not enough for anything else: `assets.krunker.io` is a
-//! different origin than `krunker.io`, the game loads its textures with `crossOrigin`, and Chromium refuses a
-//! reply without `Access-Control-Allow-Origin` ("No 'Access-Control-Allow-Origin' header is present on the
-//! requested resource"). A swapped texture then silently does not appear while the file it replaced would have.
-//! The crate's handler does take a header map, but the headers never reach the response, so this is the same
-//! handler with the headers set one by one through `set_header_by_name`, which does arrive.
-
 use std::sync::{Arc, Mutex};
 
 use cef::{
@@ -90,7 +80,7 @@ wrap_resource_handler! {
     }
 }
 
-/// A handler that answers one request with these bytes.
+// A handler that answers one request with these bytes.
 pub fn serve(mime_type: &str, bytes: Vec<u8>) -> Option<ResourceHandler> {
     let mut read_handler = ByteReadHandler::new(Arc::new(Mutex::new(ByteStream::new(bytes))));
     let stream = stream_reader_create_for_handler(Some(&mut read_handler))?;

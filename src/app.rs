@@ -21,6 +21,9 @@ pub fn init_fs() -> result::Result<(), io::Error> {
     let resources_dir = utils::exe_dir().join("resources");
 
     fs::create_dir_all(&swap_dir)?;
+    // the swap players make most, and get wrong most ("CSS", "Css"). An existing folder in any case counts as
+    // there, Windows paths do not care about case
+    fs::create_dir_all(swap_dir.join("css"))?;
     fs::create_dir_all(&scripts_dir)?;
     fs::create_dir_all(&resources_dir)?;
 
@@ -47,6 +50,24 @@ const SHARED_STATS_SIZE: usize = std::mem::size_of::<SharedStats>();
 
 pub(crate) static SHARED_STATS_PTR: AtomicU64 = AtomicU64::new(0);
 
+// One field of the mapping, as an atomic. The GPU process writes the same memory, so no field is ever read or
+// written plainly or through a reference to the whole struct: only atomics synchronize between the two, fences
+// around plain or volatile accesses do not. The view is page aligned and every field is a u64 at an offset that
+// is a multiple of 8, which is what AtomicU64 needs; on x64 these are plain aligned moves, lock free across
+// processes. The protocol:
+// - `target_fps`: written by the host, read by the hook every frame. `fps`, `frame_ns`: the other way round.
+//   Each is one value on its own, Relaxed is enough.
+// - `stats_request`/`stats_ack`: the host stores a new request with Release, the hook loads it with Acquire,
+//   writes the payload (`present_*`, `arrive_p99_ns`, `samples`) and then the ack with Release. The host loads
+//   the ack with Acquire and only then reads the payload, so it sees the payload of that request. One request at a
+//   time: `take_present_intervals` holds a lock while it waits
+macro_rules! shared {
+    ($field:ident) => {{
+        let ptr = SHARED_STATS_PTR.load(Ordering::SeqCst);
+        (ptr != 0).then(|| unsafe { AtomicU64::from_ptr((ptr as usize + std::mem::offset_of!(SharedStats, $field)) as *mut u64) })
+    }};
+}
+
 // the gpu subprocess opens this mapping when render.dll attaches, so it has to exist before initialize()
 pub fn create_frame_timing_mapping() {
     let fps_limit = match modules::bench::config() {
@@ -58,60 +79,51 @@ pub fn create_frame_timing_mapping() {
         if let Ok(mapping) = CreateFileMappingW(INVALID_HANDLE_VALUE, None, PAGE_READWRITE, 0, SHARED_STATS_SIZE as u32, &name) {
             let view = MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0, 0, SHARED_STATS_SIZE);
             if !view.Value.is_null() {
+                // before the GPU process exists, nothing else can see the view yet
                 std::ptr::write_bytes(view.Value as *mut u8, 0, SHARED_STATS_SIZE);
-                (*(view.Value as *mut SharedStats)).target_fps = fps_limit;
                 SHARED_STATS_PTR.store(view.Value as u64, Ordering::SeqCst);
+                set_target_fps(fps_limit);
             }
         }
     }
 }
 
 pub fn set_target_fps(fps_limit: u64) {
-    let ptr = SHARED_STATS_PTR.load(Ordering::SeqCst);
-    if ptr != 0 {
-        unsafe {
-            (*(ptr as *mut SharedStats)).target_fps = fps_limit;
-        }
+    if let Some(target) = shared!(target_fps) {
+        target.store(fps_limit, Ordering::Relaxed);
     }
 }
 
-// asks the present hook for the distribution of its frame intervals since the last call
+// one request at a time, see the protocol at shared!
+static STATS_REQUEST_LOCK: Mutex<()> = Mutex::new(());
+
+// Asks the present hook for the distribution of its frame intervals since the last call. Waits up to 150 ms for
+// the answer (the hook answers on its next present), so it is never called on the UI thread.
 pub fn take_present_intervals() -> Option<(u64, u64, u64, u64, u64)> {
-    let ptr = SHARED_STATS_PTR.load(Ordering::SeqCst);
-    if ptr == 0 {
-        return None;
-    }
-    let shared = ptr as *mut SharedStats;
-    unsafe {
-        let request = std::ptr::read_volatile(&raw const (*shared).stats_request) + 1;
-        std::ptr::write_volatile(&raw mut (*shared).stats_request, request);
-        let started = std::time::Instant::now();
-        while std::ptr::read_volatile(&raw const (*shared).stats_ack) != request {
-            if started.elapsed() > std::time::Duration::from_millis(150) {
-                return None;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(1));
+    let _one_at_a_time = STATS_REQUEST_LOCK.lock().unwrap();
+    let (request_field, ack) = (shared!(stats_request)?, shared!(stats_ack)?);
+    let request = request_field.load(Ordering::Relaxed).wrapping_add(1);
+    request_field.store(request, Ordering::Release);
+    let started = std::time::Instant::now();
+    while ack.load(Ordering::Acquire) != request {
+        if started.elapsed() > std::time::Duration::from_millis(150) {
+            return None;
         }
-        // pairs with the fence before the hook writes the ack: the values below are the ones of this request
-        std::sync::atomic::fence(std::sync::atomic::Ordering::Acquire);
-        Some((
-            (*shared).present_p50_ns,
-            (*shared).present_p99_ns,
-            (*shared).present_max_ns,
-            (*shared).arrive_p99_ns,
-            (*shared).samples,
-        ))
+        std::thread::sleep(std::time::Duration::from_millis(1));
     }
+    // after the Acquire above: the payload the hook wrote before its Release of this ack
+    Some((
+        shared!(present_p50_ns)?.load(Ordering::Relaxed),
+        shared!(present_p99_ns)?.load(Ordering::Relaxed),
+        shared!(present_max_ns)?.load(Ordering::Relaxed),
+        shared!(arrive_p99_ns)?.load(Ordering::Relaxed),
+        shared!(samples)?.load(Ordering::Relaxed),
+    ))
 }
 
 // (fps, frame_ns) as published by the present hook
 pub fn render_stats() -> Option<(u64, u64)> {
-    let ptr = SHARED_STATS_PTR.load(Ordering::SeqCst);
-    if ptr == 0 {
-        return None;
-    }
-    let shared = unsafe { &*(ptr as *const SharedStats) };
-    Some((shared.fps, shared.frame_ns))
+    Some((shared!(fps)?.load(Ordering::Relaxed), shared!(frame_ns)?.load(Ordering::Relaxed)))
 }
 
 pub static DISCORD: Mutex<Option<DiscordIpcClient>> = Mutex::new(None);

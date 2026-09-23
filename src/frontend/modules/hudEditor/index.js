@@ -243,7 +243,8 @@ export class HudEditor {
 
         this.open = true;
         kute.showNotification?.("Opening a private match", false, 4);
-        const joined = (await hostLobby()) && (await spawn());
+        const room = await hostLobby();
+        const joined = room !== null && (await spawn(room));
         if (!joined){
             this.open = false;
             kute.showNotification?.("Could not open a private match. Is a host slot free?", false, 6);

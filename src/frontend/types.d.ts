@@ -82,6 +82,9 @@ interface Kute {
     matchmaker: { showFilters(): Promise<void> };
     nukeCounter: { showOptions(): Promise<void> };
     hudEditor: { edit(): void };
+    kuteIcons: { customize(): void; refresh(): void };
+    userscriptManager: { open(): void };
+    swapperManager: { open(): void };
 }
 
 interface KrunkerGameActivity {

@@ -266,7 +266,7 @@
           <button class="screen-card screen-main reveal" type="button" data-src="./assets/kute-settings.webp" data-title="Client settings">
             <span class="screen-number">01</span>
             <span class="screen-image">
-              <img src="./assets/kute-settings.webp" alt="Kute's settings in Krunker's settings menu, with the About dialog open" width="1890" height="1329" />
+              <img src="./assets/kute-settings.webp" alt="Kute's settings in Krunker's settings menu, with the About dialog open" width="1567" height="1101" />
             </span>
             <span class="screen-caption"><b>CLIENT SETTINGS</b><small>Kute's settings sit in Krunker's own menu</small><i>VIEW ↗</i></span>
           </button>
@@ -284,17 +284,20 @@
             </span>
             <span class="screen-caption"><b>MATCHMAKER</b><small>F6 finds the best lobby for your filters</small><i>VIEW ↗</i></span>
           </button>
-          <button class="screen-card reveal" type="button" data-src="./assets/kute-hud-edit.png" data-title="HUD editor">
+          <button class="screen-card reveal" type="button" data-src="./assets/kute-hud-edit.webp" data-title="HUD editor">
             <span class="screen-number">04</span>
             <span class="screen-image">
-              <img src="./assets/kute-hud-edit.png" alt="The HUD editor with a labelled box on every in-game HUD element" width="1918" height="1003" loading="lazy" />
+              <img src="./assets/kute-hud-edit.webp" alt="The HUD editor with a labelled box on every in-game HUD element" width="1918" height="1003" loading="lazy" />
             </span>
             <span class="screen-caption"><b>HUD EDITOR</b><small>Put every HUD element where you want it</small><i>VIEW ↗</i></span>
           </button>
-          <div class="screen-card screen-soon reveal" aria-hidden="true">
+          <button class="screen-card reveal" type="button" data-src="./assets/kute-swap.webp" data-title="Userscripts and swapper">
             <span class="screen-number">05</span>
-            <span>SOON™</span>
-          </div>
+            <span class="screen-image">
+              <img src="./assets/kute-swap.webp" alt="The userscript manager with script settings open, and the swapper manager next to the game's files" width="2459" height="1639" loading="lazy" />
+            </span>
+            <span class="screen-caption"><b>SCRIPTS &amp; SWAPPER</b><small>Manage userscripts and swaps in the client</small><i>VIEW ↗</i></span>
+          </button>
         </div>
       </section>
 
@@ -319,6 +322,7 @@
             <div><span></span><b>Bundled Chromium</b><p>Kute ships its own Chromium (CEF). Nothing else to install.</p></div>
             <div><span></span><b>Patched Chromium</b><p>Two patches: no aim freeze with uncapped FPS, no stutter when the GPU is the limit.</p></div>
             <div><span></span><b>Uncapped FPS</b><p>Removes the refresh rate cap.</p></div>
+            <div><span></span><b>NVIDIA profile</b><p>A driver profile for Kute alone lifts a global Max Frame Rate or forced V-Sync. Yours to change.</p></div>
             <div><span></span><b>Exact FPS limit</b><p>Held by the swap chain hook, so the CPU idles between frames.</p></div>
             <div><span></span><b>Present FPS counter</b><p>A second counter for the frames that reach your screen.</p></div>
             <div><span></span><b>Auto-Detect</b><p>Measures your PC in a private match and sets the client and the game up for it. Can be undone.</p></div>
@@ -355,6 +359,7 @@
             <div><span></span><b>Clan colors</b><p>Colored clan tags in the player lists.</p></div>
             <div><span></span><b>HUD editor</b><p>Drag, resize and hide every HUD element, snapping to the edges and to each other.</p></div>
             <div><span></span><b>Nuke counter</b><p>Your career nuke total in game, with an optional goal. Place it where you want it.</p></div>
+            <div><span></span><b>Kute icons</b><p>Kute's own counter, ammo, hitmarker, reticle and scope icons. Pick the ones you want, your settings stay untouched.</p></div>
             <div><span></span><b>Kute badge</b><p>Shows who else in the match runs Kute. The server only sees hashes, never names.</p></div>
             <div><span></span><b>Battle pass claim-all</b><p>Claims every open reward at once.</p></div>
             <div><span></span><b>Discord Rich Presence</b><p>Shows your mode and map on Discord.</p></div>
@@ -362,8 +367,9 @@
 
           <div class="feature-group" id="f-custom">
             <h3>Customization</h3>
-            <div><span></span><b>Resource swapper</b><p>Replaces game files with the ones in your swapper folder.</p></div>
-            <div><span></span><b>Userscripts</b><p>Runs the <code>.js</code> files in your scripts folder, the social page included.</p></div>
+            <div><span></span><b>Resource swapper</b><p>Replaces game files with your own. The manager shows what the game loads, drop a file onto the one it replaces and it lands in the right place.</p></div>
+            <div><span></span><b>Userscripts</b><p>Crankshaft and idkr scripts work as they are. Manage them in the client: turn them on and off live, change their settings, edit them in the built-in editor or drop new ones in.</p></div>
+            <div><span></span><b>Mods</b><p>Krunker mods load right in the game window. Mod, lobby and invite links never open a second game that would end your match.</p></div>
             <div><span></span><b>Settings import</b><p>Pick which parts to import: keybinds, sensitivity, sound.</p></div>
           </div>
 

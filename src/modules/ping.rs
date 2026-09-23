@@ -97,7 +97,12 @@ const REGION_PINGS_MAX_AGE: time::Duration = time::Duration::from_secs(60);
 
 pub fn ping_regions(browser_id: i32) {
     std::thread::spawn(move || {
-        let cached = REGION_PINGS.lock().unwrap().as_ref().filter(|(at, _)| at.elapsed() < REGION_PINGS_MAX_AGE).map(|(_, json)| json.clone());
+        let cached = REGION_PINGS
+            .lock()
+            .unwrap()
+            .as_ref()
+            .filter(|(at, _)| at.elapsed() < REGION_PINGS_MAX_AGE)
+            .map(|(_, json)| json.clone());
         let json = cached.unwrap_or_else(|| {
             let json = measure_region_pings();
             if json != "{}" {
@@ -128,9 +133,14 @@ fn measure_region_pings() -> String {
                 let ip = dns_lookup::lookup_host(host).ok()?.find(IpAddr::is_ipv4)?;
                 // a second try, a single lost packet would sort the region last
                 (0..2).find_map(|_| {
-                    ping_rs::send_ping(&ip, time::Duration::from_millis(1500), Default::default(), Some(&ping_rs::PingOptions { ttl: 128, dont_fragment: true }))
-                        .ok()
-                        .map(|reply| (region.clone(), serde_json::Value::from(reply.rtt)))
+                    ping_rs::send_ping(
+                        &ip,
+                        time::Duration::from_millis(1500),
+                        Default::default(),
+                        Some(&ping_rs::PingOptions { ttl: 128, dont_fragment: true }),
+                    )
+                    .ok()
+                    .map(|reply| (region.clone(), serde_json::Value::from(reply.rtt)))
                 })
             })
         })

@@ -46,7 +46,7 @@ fn backend_supported(api: &ObsApi) -> bool {
     let ok = unsafe { (api.gs_get_device_type)() } == obsabi::GS_DEVICE_DIRECT3D_11;
     BACKEND_OK.store(if ok { 1 } else { 0 }, Ordering::Relaxed);
     if !ok {
-                debug_print!("capture: only D3D11 backend supported");
+        debug_print!("capture: only D3D11 backend supported");
     }
     ok
 }
@@ -88,7 +88,7 @@ impl KuteSource {
     }
 
     // Open the producer's named shared texture on OBS's device and wrap it into a `gs_texture_t`.
-    // No-op if one already exists at the given size.
+    // noop otherwise
     fn open_texture(&mut self, w: u32, h: u32) {
         if !self.gs_tex.is_null() && self.width == w && self.height == h {
             return;

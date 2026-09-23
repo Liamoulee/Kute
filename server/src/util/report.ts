@@ -28,7 +28,8 @@ export type ClientResult = {
     max: number;
     // the hooks own present intervals, null without the hook
     present: Intervals | null;
-    taskDelayP99: number;
+    // null when no probe ran: no observation is not a delay of zero
+    taskDelayP99: number | null;
     limit: number;
 };
 
@@ -298,7 +299,7 @@ export function parseReport(body: unknown): Report | string {
                     p99: number(result.p99, "client p99", 0, MS_MAX),
                     max: numberOr(result.max, 0, "client max", 0, MS_MAX),
                     present: intervals(result.present, "client present"),
-                    taskDelayP99: numberOr(result.taskDelayP99, 0, "client taskDelayP99", 0, MS_MAX),
+                    taskDelayP99: numberOrNull(result.taskDelayP99, "client taskDelayP99", 0, MS_MAX),
                     limit: numberOr(result.limit, 0, "client limit", 0, FPS_MAX),
                 };
             }),

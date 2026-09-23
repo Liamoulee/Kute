@@ -20,9 +20,12 @@ pub mod modules {
     pub mod dev;
     pub mod devtools;
     pub mod dpapi;
+    pub mod files;
     pub mod flaglist;
+    pub mod icons;
     pub mod input;
     pub mod lifecycle;
+    pub mod nvidia;
     pub mod obs;
     pub mod ping;
     pub mod priority;
@@ -87,15 +90,22 @@ fn main() {
     if let Err(e) = app::init_fs() {
         eprintln!("failed to set all the files in place {}", e);
     }
-    // a big swapper folder gets read next to the start, not on the IO thread when the first request comes in
-    std::thread::spawn(|| {
-        std::sync::LazyLock::force(&modules::swapper::SWAPS);
-    });
+    // a big swapper folder gets read next to the start, not on the IO thread when the first request comes in. A bench
+    // child draws its own scene and needs none of it
+    if bench.is_none() {
+        std::thread::spawn(|| {
+            std::sync::LazyLock::force(&modules::swapper::SWAPS);
+        });
+    }
     #[cfg(feature = "packaged")]
     if bench.is_none() {
         modules::lifecycle::report_last_crash();
     }
 
+    // before CEF starts: the driver reads kute.exe's profile when the GPU process starts. Once per PC
+    if bench.is_none() {
+        modules::nvidia::ensure_profile();
+    }
     app::create_frame_timing_mapping();
     app::load_flags();
     if app::has_flag("--raise-timer-frequency") {
