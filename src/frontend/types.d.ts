@@ -84,6 +84,8 @@ interface Kute {
     hudEditor: { edit(): void };
     kuteIcons: { customize(): void; refresh(): void };
     userscriptManager: { open(): void };
+    /** set by a diagnostics build of the exe (feature diag-log), the page then logs its frame rate */
+    diagnostics?: boolean;
     swapperManager: { open(): void };
 }
 

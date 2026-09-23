@@ -129,6 +129,8 @@ Object.defineProperty(window, "gameLoaded", {
         import("./modules/changelog.js");
         import("./modules/about.js");
         import("./modules/managers/index.js");
+        // only a diagnostics build of the exe asks for it
+        if (kute.diagnostics) import("./modules/diagnostics.js");
         import("./modules/autoDetect/index.js");
         if (kute?.settings?.data?.clanColors !== false) import("./modules/clanColors.js");
         // always: the setting only decides whether badges get drawn, the client announces itself either way
