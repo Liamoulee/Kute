@@ -25,6 +25,7 @@ pub mod modules {
     pub mod icons;
     pub mod input;
     pub mod lifecycle;
+    pub mod nvidia;
     pub mod obs;
     pub mod ping;
     pub mod priority;
@@ -101,6 +102,10 @@ fn main() {
         modules::lifecycle::report_last_crash();
     }
 
+    // before CEF starts: the driver reads kute.exe's profile when the GPU process starts. Once per PC
+    if bench.is_none() {
+        modules::nvidia::ensure_profile();
+    }
     app::create_frame_timing_mapping();
     app::load_flags();
     if app::has_flag("--raise-timer-frequency") {
