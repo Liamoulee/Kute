@@ -36,11 +36,7 @@ pub fn settings_dir() -> path::PathBuf {
     path::PathBuf::from(env::var("USERPROFILE").unwrap()).join("Documents").join("kute")
 }
 
-/// The path of a krunker.io URL (any subdomain, http or https), without query and fragment: "textures/a.png".
-/// None for any other host. The host is taken from the authority as a URL parser does, so
-/// `https://krunker.io:pw@example.com/` (krunker.io is the user name there) is example.com, and a URL with user
-/// info is refused outright, Krunker never uses one. `krunker.io/` inside the path of another host is not Krunker.
-/// Chromium hands out canonical URLs (lowercase host, `\` turned into `/`), so the plain split holds.
+// Stuff like `https://krunker.io:pw@example.com/` is refused
 pub fn krunker_path(url: &str) -> Option<&str> {
     let (scheme, rest) = url.split_once("://")?;
     if scheme != "https" && scheme != "http" {
@@ -233,7 +229,7 @@ mod tests {
         assert_eq!(krunker_path("https://example.com/krunker.io/css/main.css"), None);
         assert_eq!(krunker_path("https://notkrunker.io/css/main.css"), None);
         assert_eq!(krunker_path("https://krunker.io.example.com/"), None);
-        assert_eq!(krunker_path("file:///C:/krunker.io/a.css"), None);
+        assert_eq!(krunker_path("file://C:/krunker.io/a.css"), None);
         assert_eq!(krunker_path("krunker.io/a.css"), None);
     }
 }

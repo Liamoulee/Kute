@@ -1,21 +1,4 @@
-//! Gives kute.exe its own NVIDIA driver profile ("Kute"), once per PC.
-//!
-//! A player's global "Max Frame Rate" of 180 in the NVIDIA Control Panel held Kute at 180 with Uncap FPS on: the
-//! driver sleeps inside Present and the whole game follows. A program profile overrides the global settings for
-//! that program alone, so Kute's profile switches off the driver's frame limit and leaves V-Sync to the application
-//! (Chromium presents without it, Uncap FPS decides). The player's global settings and other games stay as they are.
-//!
-//! Created once and never looked at again: whatever the player changes in it, or deleting it, is theirs, and
-//! `nvidiaProfileCreated` in settings.json keeps Kute from putting it back. When kute.exe already belongs to a
-//! profile (the player's own, or one NVIDIA ships), nothing is created either.
-//!
-//! It runs in the browser process before CEF starts: the driver reads a program's profile when a process starts,
-//! and the GPU process starts after this, so even the first start runs without the cap. NVAPI is loaded from the
-//! driver's nvapi64.dll at runtime (no SDK shipped, nothing happens without an NVIDIA driver). Function ids, setting
-//! ids and struct layouts are from NVIDIA's public headers (github.com/NVIDIA/nvapi: nvapi_interface.h,
-//! NvApiDriverSettings.h, nvapi.h, nvapi_lite_common.h). Needs no administrator rights on current drivers; one
-//! that wants them gets skipped quietly and is tried again on the next start, no prompt.
-
+// Gives kute.exe its own NVIDIA driver profile ("Kute"), once per PC.
 use std::{ffi::c_void, mem};
 
 use windows::{
@@ -205,7 +188,7 @@ unsafe fn create() -> Outcome {
     }
 }
 
-/// Browser process, before CEF starts. Does nothing once it has done its job on this PC.
+// Browser process, before CEF starts. Does nothing once it has done its job on this PC.
 pub fn ensure_profile() {
     if config(DONE_SETTING, false) {
         return;

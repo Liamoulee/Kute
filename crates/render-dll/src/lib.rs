@@ -1,3 +1,4 @@
+// @TODO: THIS NEEDS TO BE CLEANED AND SPLIT UP LMFAOOO WHAT
 use minhook::MinHook;
 use std::{
     cell,
@@ -690,7 +691,6 @@ unsafe extern "system" fn present_hk(
             };
             *GLOBAL_LIMIT_CLOCK.write().unwrap() = Some(next_ref);
         }
-        // end of limiter
 
         if cfg!(feature = "verbose-logs") {
             // report stalls (maybe it helps some other dev one day)

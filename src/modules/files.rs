@@ -1,6 +1,3 @@
-//! File operations the userscript and swapper managers ask for. The page only ever names a path relative to one
-//! of our folders, everything here makes sure it stays inside that folder.
-
 use std::{
     io,
     os::windows::process::CommandExt,

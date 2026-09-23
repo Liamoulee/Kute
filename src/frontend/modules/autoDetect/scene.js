@@ -6,6 +6,8 @@
  * @property {number} cpuIterations Fixed JS work per frame. Iterations, not time, so a slower CPU shows
  */
 
+// @TODO: Make this scene cuter
+
 /**
  * Calibrated on an RTX 3090 Ti at 3440x1440: about 1500 frames per second, which is what Krunker reaches there.
  *

@@ -88,7 +88,7 @@ impl KuteSource {
     }
 
     // Open the producer's named shared texture on OBS's device and wrap it into a `gs_texture_t`.
-    // No-op if one already exists at the given size.
+    // noop otherwise
     fn open_texture(&mut self, w: u32, h: u32) {
         if !self.gs_tex.is_null() && self.width == w && self.height == h {
             return;

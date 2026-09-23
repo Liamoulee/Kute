@@ -1,9 +1,3 @@
-//! Userscripts: `Documents\kute\scripts\*.js` run in the game window, `scripts\social\*.js` in social popups.
-//!
-//! This side reads the files, parses the metadata header, and keeps `tracker.json` (on/off, Crankshaft's format)
-//! and `prefs.json` (script settings). Running them is `src/frontend/host/userscriptRunner.js`, which the renderer
-//! hands the compiled scripts (`renderer.rs::inject_scripts`). The page never compiles a script itself.
-
 use serde_json::{Map, Value, json};
 use std::{fs, io::Read, path::PathBuf};
 
@@ -120,8 +114,7 @@ fn prefs_path() -> PathBuf {
     scripts_dir().join("prefs.json")
 }
 
-/// The `// ==UserScript==` block, Crankshaft's subset plus `description`. A key given twice keeps the last value.
-/// Returns None without a header.
+// `// ==UserScript==` block
 fn parse_metadata(source: &str) -> Option<Map<String, Value>> {
     let mut meta = Map::new();
     let mut inside = false;
@@ -201,7 +194,7 @@ fn load_script(group: &'static str, file: String, tracker: &Map<String, Value>, 
     })
 }
 
-/// Every script of a group, sorted by file name (the runner orders by priority).
+// Every script of a group, sorted by file name (the runner orders by priority).
 pub fn load_group(group: &str) -> Vec<Script> {
     load_group_from(group, true)
 }
@@ -225,8 +218,8 @@ fn load_group_from(group: &str, whole: bool) -> Vec<Script> {
     names.into_iter().filter_map(|file| load_script(id, file, &tracker, &prefs, whole)).collect()
 }
 
-/// The list for the manager: every group with its scripts (no sources). Also drops tracker and prefs entries of
-/// files that are gone.
+// The list for the manager: every group with its scripts (no sources). Also drops tracker and prefs entries of
+// files that are gone.
 pub fn list() -> Value {
     fs::create_dir_all(scripts_dir().join("social")).ok();
     let mut keys = Vec::new();
@@ -333,8 +326,8 @@ pub fn reveal(key: Option<&str>) {
     }
 }
 
-/// One self-contained document script per enabled social script: the runner plus that script, so a syntax error
-/// only costs that one.
+// One self-contained document script per enabled social script: the runner plus that script, so a syntax error
+// only costs that one.
 pub fn social_document_scripts() -> Vec<String> {
     let mut scripts = load_group("social");
     // document scripts run in the order they were added, so the priority order is decided here

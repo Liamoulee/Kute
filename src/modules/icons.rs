@@ -1,13 +1,3 @@
-//! Kute icons: our images answered in place of the ones the game loads, per slot.
-//!
-//! This is an override on the request layer and never touches a Krunker setting. The game asks for a URL, and while
-//! `kuteIcons` and the slot are on, the answer is our file. Which URL the game asks for is up to the player: with
-//! nothing set it is one of the fixed assets in `SLOTS`, otherwise it is whatever they pointed the slot at (their
-//! own image, an equipped scope from the loadout). The page reads those out of Krunker's storage and sends them as
-//! `icon-urls`, which is kept in the config as well so the first page load of a session already has them.
-//!
-//! The images are the ones the website serves (`server/public/kr`), compiled in so there is one copy of each.
-
 use std::{
     collections::HashMap,
     sync::{
@@ -19,12 +9,12 @@ use std::{
 use crate::{debug_print, utils};
 
 pub struct Slot {
-    /// how the page and the `kuteIconSlots` setting refer to it
+    // how the page and the `kuteIconSlots` setting refer to it
     pub id: &'static str,
     pub file: &'static str,
     pub bytes: &'static [u8],
-    /// what the game loads here by itself, as the path after "krunker.io/" (assets.krunker.io included, the same
-    /// way the swapper keys its files)
+    // what the game loads here by itself, as the path after "krunker.io/" (assets.krunker.io included, the same
+    // way the swapper keys its files)
     pub defaults: &'static [&'static str],
 }
 
@@ -94,35 +84,35 @@ pub const SLOTS: &[Slot] = &[
     },
 ];
 
-/// Where our files are served whatever the toggle says, for the previews in the customizer. Same origin as the
-/// page, so they show with kute.lol unreachable too.
+// Where our files are served whatever the toggle says, for the previews in the customizer. Same origin as the
+// page, so they show with kute.lol unreachable too.
 const PREVIEW_PATH: &str = "kute-icons/";
 
-/// The setting holding the player's own URLs, so they survive a restart.
+// The setting holding the player's own URLs, so they survive a restart.
 const URLS_SETTING: &str = "kuteIconUrls";
 
-/// Every default path, so a request that is none of ours costs one hash lookup. This runs for every request the
-/// page makes.
+// Every default path, so a request that is none of ours costs one hash lookup. This runs for every request the
+// page makes.
 static DEFAULT_PATHS: LazyLock<HashMap<&'static str, &'static Slot>> =
     LazyLock::new(|| SLOTS.iter().flat_map(|slot| slot.defaults.iter().map(move |path| (*path, slot))).collect());
 
-/// The player's own URLs (without the query) -> slot id.
+// The player's own URLs (without the query) -> slot id.
 static PLAYER_URLS: LazyLock<Mutex<HashMap<String, &'static str>>> = LazyLock::new(|| {
     let saved: serde_json::Value = utils::config(URLS_SETTING, serde_json::Value::Null);
     let urls = parse_urls(&saved);
     PLAYER_URL_COUNT.store(urls.len(), Ordering::Relaxed);
     Mutex::new(urls)
 });
-/// How many there are, so a player who set no image of their own never takes the lock.
+// How many there are, so a player who set no image of their own never takes the lock.
 static PLAYER_URL_COUNT: AtomicUsize = AtomicUsize::new(usize::MAX);
 
-/// A URL of the player's without its query, the way requests are compared. Empty for what can never be one.
+// A URL of the player's without its query, the way requests are compared. Empty for what can never be one.
 fn clean_url(url: &str) -> &str {
     let url = url.split(['?', '#']).next().unwrap_or(url).trim();
     if url.starts_with("http") { url } else { "" }
 }
 
-/// `{"kills": ["https://..."], ...}` -> url -> slot id. Unknown slots and anything that is not a URL are dropped.
+// `{"kills": ["https://..."], ...}` -> url -> slot id. Unknown slots and anything that is not a URL are dropped.
 fn parse_urls(json: &serde_json::Value) -> HashMap<String, &'static str> {
     let mut urls = HashMap::new();
     let Some(object) = json.as_object() else { return urls };
@@ -137,7 +127,7 @@ fn parse_urls(json: &serde_json::Value) -> HashMap<String, &'static str> {
     urls
 }
 
-/// `icon-urls <json>` from the page: sent at every page load and whenever one of those URLs changes.
+// `icon-urls <json>` from the page: sent at every page load and whenever one of those URLs changes.
 pub fn set_player_urls(json: &serde_json::Value) {
     let urls = parse_urls(json);
     let mut current = PLAYER_URLS.lock().unwrap();
@@ -161,7 +151,7 @@ pub fn set_player_urls(json: &serde_json::Value) {
     crate::config::save_soon();
 }
 
-/// Whether this slot is switched on. Every slot is on until the player unticks it in the customizer.
+// Whether this slot is switched on. Every slot is on until the player unticks it in the customizer.
 fn slot_on(id: &str) -> bool {
     let chosen: serde_json::Value = utils::config("kuteIconSlots", serde_json::Value::Null);
     chosen.get(id).and_then(serde_json::Value::as_bool).unwrap_or(true)
@@ -171,7 +161,7 @@ fn slot_by_id(id: &str) -> Option<&'static Slot> {
     SLOTS.iter().find(|slot| slot.id == id)
 }
 
-/// The file to answer this request with, or None to leave it alone.
+// The file to answer this request with, or None to leave it alone.
 pub fn bytes_for(url: &str) -> Option<&'static [u8]> {
     let path = utils::krunker_path(url);
 

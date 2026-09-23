@@ -50,17 +50,17 @@ const SHARED_STATS_SIZE: usize = std::mem::size_of::<SharedStats>();
 
 pub(crate) static SHARED_STATS_PTR: AtomicU64 = AtomicU64::new(0);
 
-/// One field of the mapping, as an atomic. The GPU process writes the same memory, so no field is ever read or
-/// written plainly or through a reference to the whole struct: only atomics synchronize between the two, fences
-/// around plain or volatile accesses do not. The view is page aligned and every field is a u64 at an offset that
-/// is a multiple of 8, which is what AtomicU64 needs; on x64 these are plain aligned moves, lock free across
-/// processes. The protocol:
-/// - `target_fps`: written by the host, read by the hook every frame. `fps`, `frame_ns`: the other way round.
-///   Each is one value on its own, Relaxed is enough.
-/// - `stats_request`/`stats_ack`: the host stores a new request with Release, the hook loads it with Acquire,
-///   writes the payload (`present_*`, `arrive_p99_ns`, `samples`) and then the ack with Release. The host loads
-///   the ack with Acquire and only then reads the payload, so it sees the payload of that request. One request at a
-///   time: `take_present_intervals` holds a lock while it waits
+// One field of the mapping, as an atomic. The GPU process writes the same memory, so no field is ever read or
+// written plainly or through a reference to the whole struct: only atomics synchronize between the two, fences
+// around plain or volatile accesses do not. The view is page aligned and every field is a u64 at an offset that
+// is a multiple of 8, which is what AtomicU64 needs; on x64 these are plain aligned moves, lock free across
+// processes. The protocol:
+// - `target_fps`: written by the host, read by the hook every frame. `fps`, `frame_ns`: the other way round.
+//   Each is one value on its own, Relaxed is enough.
+// - `stats_request`/`stats_ack`: the host stores a new request with Release, the hook loads it with Acquire,
+//   writes the payload (`present_*`, `arrive_p99_ns`, `samples`) and then the ack with Release. The host loads
+//   the ack with Acquire and only then reads the payload, so it sees the payload of that request. One request at a
+//   time: `take_present_intervals` holds a lock while it waits
 macro_rules! shared {
     ($field:ident) => {{
         let ptr = SHARED_STATS_PTR.load(Ordering::SeqCst);
@@ -97,8 +97,8 @@ pub fn set_target_fps(fps_limit: u64) {
 // one request at a time, see the protocol at shared!
 static STATS_REQUEST_LOCK: Mutex<()> = Mutex::new(());
 
-/// Asks the present hook for the distribution of its frame intervals since the last call. Waits up to 150 ms for
-/// the answer (the hook answers on its next present), so it is never called on the UI thread.
+// Asks the present hook for the distribution of its frame intervals since the last call. Waits up to 150 ms for
+// the answer (the hook answers on its next present), so it is never called on the UI thread.
 pub fn take_present_intervals() -> Option<(u64, u64, u64, u64, u64)> {
     let _one_at_a_time = STATS_REQUEST_LOCK.lock().unwrap();
     let (request_field, ack) = (shared!(stats_request)?, shared!(stats_ack)?);

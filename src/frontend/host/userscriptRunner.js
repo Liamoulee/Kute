@@ -1,18 +1,3 @@
-// The userscript runner. It is not part of the bundle: the exe embeds this file (userscripts.rs) and evaluates it
-// as text, in the game page right after the bundle and before any of Krunker's scripts, and in social popups as
-// a document script. The renderer compiles every script itself (V8Context::Eval) and hands the functions in, so
-// nothing in here compiles code: Krunker traps eval and Function.
-//
-// Formats, told apart by what a script leaves behind:
-// - Crankshaft: `this` is {_console, _css, settings, unload}, the script may `return this` (or any object with
-//   settings/unload). Settings are {title, desc, type, value, changed(value), opts, min, max, step}.
-// - idkr 1.0: returns {meta, config: {apiversion: "1.0", settings}, load, unload}.
-// - idkr before 1.0: `module.exports = {run, settings, ...}`.
-// - anything else just runs.
-//
-// The manager in the bundle reads the live state through `registry` (see userscriptManager.js). Everything that
-// lands there is part of the protocol between exe and bundle, change it only compatibly.
-
 /**
  * @typedef {object} HostScript What the host hands over per script
  * @property {string} key "file.js" or "social/file.js"

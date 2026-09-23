@@ -8,7 +8,7 @@ const VFT_APP: &str = "0x1L";
 #[allow(dead_code)]
 const VFT_DLL: &str = "0x2L";
 
-/// The version of the client (the root Cargo.toml), read from wherever the build script sits.
+// The version of the client (the root Cargo.toml), read from wherever the build script sits.
 #[allow(dead_code)]
 fn client_version(cargo_toml: &str) -> String {
     let content = std::fs::read_to_string(cargo_toml).unwrap();
@@ -16,7 +16,7 @@ fn client_version(cargo_toml: &str) -> String {
     toml["package"]["version"].as_str().unwrap().to_string()
 }
 
-/// Compiles the version resource into the crate being built.
+// Compiles the version resource into the crate being built.
 fn embed_version_resource(version: &str, product: &str, description: &str, file_name: &str, file_type: &str) {
     // FILEVERSION wants four numbers, "0.1.8" is three
     let numbers = version

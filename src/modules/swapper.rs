@@ -13,13 +13,7 @@ use crate::{
 };
 use serde_json::{Value, json};
 
-/// Files the client serves in place of the game's own, keyed like the player's swapper folder.
-///
-/// The clouds model is 774 KB of geometry that only ever draws clouds. This client used to block the request
-/// instead, and the game then built its cloud pass around a model that never arrived: every frame called
-/// `useProgram` on a program that never linked, a few hundred "program not valid" lines per load on any map
-/// with clouds. A valid model keeps that path whole, and one triangle a thousandth of a unit across costs
-/// nothing to draw or to download.
+// Files the client serves in place of the game's own, keyed like the player's swapper folder.
 const BUILT_IN: &[(&str, &str)] = &[("models/clouds_0.obj", include_str!("../../resources/swaps/clouds_0.obj"))];
 
 type Index = HashMap<String, Arc<Vec<u8>>>;
@@ -93,9 +87,9 @@ fn build_index(files: &[Scanned]) -> Index {
     swaps
 }
 
-/// Reads the folder again and publishes the new index, before it returns: the manager's reply comes after this, so
-/// a refresh right after it gets the new files. Runs on the manager's worker thread, never on the UI or IO thread.
-/// A folder that did not change since the last reload (same paths, sizes and change times) is not read again.
+// Reads the folder again and publishes the new index, before it returns: the manager's reply comes after this, so
+// a refresh right after it gets the new files. Runs on the manager's worker thread, never on the UI or IO thread.
+// A folder that did not change since the last reload (same paths, sizes and change times) is not read again.
 pub fn reload() {
     let mut published_from = PUBLISHED_FROM.lock().unwrap();
     let files = if utils::config("swapper", true) { scan() } else { Vec::new() };
@@ -175,7 +169,7 @@ fn list_folder(root: &PathBuf, dir: &PathBuf, files_out: &mut Vec<Value>, dirs_o
     }
 }
 
-/// What the manager shows: the folder's files and folders, and what the game requested this session.
+// What the manager shows: the folder's files and folders, and what the game requested this session.
 pub fn list() -> Value {
     let root = swapper_dir();
     fs::create_dir_all(&root).ok();
@@ -216,8 +210,8 @@ pub fn move_to(from: &str, to: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Saves one dropped file (base64) at `relative`, creating its folders. The index is rebuilt by the list the
-/// page asks for once all files of a drop are through.
+// Saves one dropped file (base64) at `relative`, creating its folders. The index is rebuilt by the list the
+// page asks for once all files of a drop are through.
 pub fn upload(relative: &str, data: &str) -> Result<(), String> {
     let path = inside(relative).filter(|path| *path != swapper_dir()).ok_or("invalid path")?;
     let bytes = files::decode_base64(data).ok_or("the file did not arrive intact")?;

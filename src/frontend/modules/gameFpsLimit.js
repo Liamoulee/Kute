@@ -12,6 +12,8 @@ import { kute, ready } from "../client.js";
 // CPU profile in a match, the old version (a closure, a settings lookup and a performance.now() per frame, limit
 // or not) was 0.89 % of the main thread and all of the bundle's cost. Without a limit nothing of ours runs in
 // the frame now, and with one the check uses the timestamp the browser hands over anyway.
+//
+// DONT TOUCH THIS UNLESS YOU KNOW WHAT YOU'RE DOING :sob:
 
 const nativeRAF = window.requestAnimationFrame;
 
