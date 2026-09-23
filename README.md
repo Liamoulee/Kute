@@ -64,7 +64,6 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
   - [] Spotify (In progress)
   - [] YouTube (coming soon)
 - [ ] Custom CSS Manager (coming soon)
-- [ ] Custom username and clan name (coming soon)
 - [x] and more...
 
 <hr>
@@ -165,6 +164,12 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before
 
 > [!IMPORTANT]
 > Standalone forks may **not** use the [kute.lol](https://kute.lol) website or its API. If you ship your own client based on Kute, point it at your own server.
+
+<a href="https://github.com/NullDev/Kute/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=NullDev/Kute&v=1" />
+</a>
+
+<sub>Made with [contrib.rocks](https://contrib.rocks).</sub>
 
 <hr>
 
