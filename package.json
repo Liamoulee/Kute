@@ -32,7 +32,7 @@
     },
     "homepage": "https://github.com/NullDev/Kute#readme",
     "dependencies": {
-        "marked": "^18.0.9"
+        "marked": "^18.0.14"
     },
     "devDependencies": {
         "@babel/core": "^8.0.5",

@@ -56,6 +56,7 @@ export const HUD_ELEMENTS = [
     { key: "zPerks", name: "Class perks", group: "Player", selector: "#zPerksHolder", size: [65, 40] },
 
     { key: "nuke", name: "Nuke counter", group: "Kute", selector: "#kuteNukeCounter", clientSetting: "nukeCounter", display: "flex", size: [90, 56] },
+    { key: "spotify", name: "Spotify", group: "Kute", selector: "#kuteSpotifyOverlay", clientSetting: "spotifyOverlay", display: "flex", size: [320, 82] },
 ];
 
 /**

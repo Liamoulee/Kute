@@ -214,6 +214,16 @@
         "buttonAction": "{{kute}}.hudEditor.edit()",
         "requiresLogin": true
     },
+    "spotifyOverlay": {
+        "name": "Spotify Overlay",
+        "id": "spotifyOverlay",
+        "description": "Shows the currently playing Spotify track in the HUD",
+        "type": "checkbox",
+        "category": "Interface",
+        "defaultValue": true,
+        "button": "Refresh Spotify",
+        "buttonAction": "{{kute}}.spotify.connect()"
+    },
     "nukeCounter": {
         "name": "Nuke Counter",
         "id": "nukeCounter",

@@ -64,11 +64,11 @@ fn save(accounts: &[Stored]) {
     }
 }
 
-fn protect(text: &str) -> Option<String> {
+pub(crate) fn protect(text: &str) -> Option<String> {
     dpapi::protect(text, ENTROPY, w!("kute account"))
 }
 
-fn unprotect(text: &str) -> Option<String> {
+pub(crate) fn unprotect(text: &str) -> Option<String> {
     dpapi::unprotect(text, ENTROPY)
 }
 

@@ -683,6 +683,16 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         handle_accounts_message(browser, rest);
         return;
     }
+    match message_string {
+        "spotify-status" => modules::spotify::status(browser.identifier()),
+        // Kept as a compatibility alias for older frontend bundles: local GSMTC only, never OAuth.
+        "spotify-connect" => modules::spotify::status(browser.identifier()),
+        "spotify-disconnect" => modules::spotify::disconnect(browser.identifier()),
+        _ => {}
+    }
+    if message_string.starts_with("spotify-") {
+        return;
+    }
     if message_string == "bench-sample-start" {
         // the settle phase is over: throw away what the hook collected so far (without the hook nobody would answer)
         if modules::bench::config().is_some_and(|bench| bench.hook) {

@@ -60,13 +60,20 @@ windows = { version = "0.62.2", features = [
     "Win32_System_Registry",
     "Win32_System_Power",
     "Win32_System_SystemInformation",
+    "Foundation",
+    "Media_Control",
+    "Storage_Streams",
 ] }
 cef = { version = "=151.5.0", default-features = false }
-ureq = { version = "3.3.*", features = ["rustls"], default-features = false }
+ureq = { version = "3.3.*", features = ["rustls", "json"], default-features = false }
 serde = { version = "1.0.*", features = ["derive"], default-features = false }
 regex = { version = "1.13.*", features = ["std", "perf", "perf-dfa-full", "unicode-perl"], default-features = false }
 semver = "1.0.*"
 serde_json = "1.0.*"
+base64 = "0.22.*"
+futures-executor = "0.3.*"
+rand = "0.9.*"
+sha2 = "0.10.*"
 discord-rich-presence = "1.1.*"
 ping-rs = "0.1.*"
 dns-lookup = "3.0.*"

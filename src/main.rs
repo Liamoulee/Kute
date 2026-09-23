@@ -32,6 +32,7 @@ pub mod modules {
     pub mod render_hook;
     pub mod resource;
     pub mod specs;
+    pub mod spotify;
     pub mod swapper;
     pub mod userscripts;
 }
