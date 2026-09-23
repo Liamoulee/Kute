@@ -628,7 +628,10 @@ pub fn open_in_default_browser(url: &str) {
 
 pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str) {
     // the start is enough to see which command it was: a swapper upload is a whole file as base64
-    if message_string.len() > 300 {
+    if let Some(rest) = message_string.strip_prefix("accounts-") {
+        // accounts-add and accounts-migrate carry passwords: only the command goes into a log, never the payload
+        debug_print!("web message: accounts-{} (payload not logged)", rest.split(' ').next().unwrap_or(""));
+    } else if message_string.len() > 300 {
         let cut = (0..=300).rev().find(|&index| message_string.is_char_boundary(index)).unwrap_or(0);
         debug_print!("web message: {}... ({} bytes)", &message_string[..cut], message_string.len());
     } else {
