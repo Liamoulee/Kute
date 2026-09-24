@@ -67,7 +67,7 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 <hr>
 
 <p align="center">
-If you want to support this Project, you can help with Code contributions :octocat: or a donations ❇️ <br> <br>
+If you want to support this Project, you can help with Code contributions :octocat: or a donation ❇️ <br> <br>
 <a href="https://ko-fi.com/null_dev"><img src="https://ko-fi.com/img/githubbutton_sm.svg"></a>
 </p>
 
