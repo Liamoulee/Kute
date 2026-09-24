@@ -1,4 +1,12 @@
-use std::{collections::HashSet, fs, io::Write, sync::LazyLock};
+use std::{
+    collections::HashSet,
+    fs,
+    io::Write,
+    sync::{
+        LazyLock,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
 use crate::{constants, utils};
 
@@ -11,8 +19,26 @@ struct UserBlocklist {
 // checked on the IO thread for every request
 pub static BLOCKLIST: LazyLock<Vec<String>> = LazyLock::new(|| if utils::config("blocklist", true) { load() } else { Vec::new() });
 
+// "disableOnlineFeatures": the bundle already stays quiet, this also stops an old or broken one
+static ONLINE_OFF: LazyLock<AtomicBool> = LazyLock::new(|| AtomicBool::new(utils::config("disableOnlineFeatures", false)));
+static API_HOST: LazyLock<String> = LazyLock::new(|| url_host(&utils::api_url()).unwrap_or_default().to_string());
+
+pub fn set_online_off(off: bool) {
+    ONLINE_OFF.store(off, Ordering::Relaxed);
+}
+
 pub fn is_blocked(url: &str) -> bool {
-    BLOCKLIST.iter().any(|pattern| glob_match(pattern, url))
+    (ONLINE_OFF.load(Ordering::Relaxed) && is_kute_server(url)) || BLOCKLIST.iter().any(|pattern| glob_match(pattern, url))
+}
+
+fn is_kute_server(url: &str) -> bool {
+    url_host(url).is_some_and(|host| host == "kute.lol" || host.ends_with(".kute.lol") || host == API_HOST.as_str())
+}
+
+fn url_host(url: &str) -> Option<&str> {
+    let (_, rest) = url.split_once("://")?;
+    let authority = &rest[..rest.find(['/', '?', '#']).unwrap_or(rest.len())];
+    authority.rsplit('@').next()?.split(':').next()
 }
 
 pub fn glob_match(pattern: &str, text: &str) -> bool {

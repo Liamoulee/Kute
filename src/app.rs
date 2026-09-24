@@ -147,6 +147,10 @@ pub fn load_flags() {
     if let Some(profile) = color_profile_switch(&config("colorProfile", "Default".to_string())) {
         flags.push(format!("--force-color-profile={profile}"));
     }
+    // websockets skip the resource handler, so kute.lol must not even resolve. live toggles are covered by the bundle and blocklist.rs
+    if config("disableOnlineFeatures", false) {
+        flags.push("--host-resolver-rules=MAP kute.lol ~NOTFOUND, MAP *.kute.lol ~NOTFOUND".to_string());
+    }
     // patch 03 of our libcef. disable it in user_flags.json to get the old input.rs WM_INPUT filter back
     flags.push("--enable-features=KuteRawInputMovementOnly".to_string());
     *FLAGS.lock().unwrap() = flags;
