@@ -148,8 +148,6 @@ Object.defineProperty(window, "gameLoaded", {
         import("./modules/kuteIcons/index.js");
         // always: it applies the saved HUD layout, the editor itself only loads when it is opened
         import("./modules/hudEditor/index.js");
-        // always: the settings button needs the connection entry point; the overlay itself stays empty when disabled
-        import("./modules/spotify.js");
         if (kute?.settings?.data?.hsSound) import("./modules/hsSound.js");
         if (kute?.settings?.data?.betterChat) import("./modules/betterChat.js");
         if (kute?.settings?.data?.hpEnemyCounter) import("./modules/hpEnemyCounter.js");
@@ -158,6 +156,7 @@ Object.defineProperty(window, "gameLoaded", {
         if (kute?.settings?.data?.realPing) import("./modules/realPing.js");
         if (kute?.settings?.data?.exitButton) getElement("#clientExit").style.display = "flex";
         if (kute?.settings?.data?.renderStats) import("./modules/renderFps.js");
+        if (kute?.settings?.data?.spotifyOverlay && kute.hostFeatures?.includes("spotify")) import("./modules/spotifyOverlay.js");
 
         if (kute?.settings?.data?.rampBoost && !checkCompMode()){
             window.chrome.webview.postMessage("toggle-rboost, true");

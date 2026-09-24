@@ -221,8 +221,7 @@
         "type": "checkbox",
         "category": "Interface",
         "defaultValue": true,
-        "button": "Refresh Spotify",
-        "buttonAction": "{{kute}}.spotify.connect()"
+        "hostFeature": "spotify"
     },
     "nukeCounter": {
         "name": "Nuke Counter",

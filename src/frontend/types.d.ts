@@ -81,7 +81,6 @@ interface Kute {
     dev?: boolean;
     matchmaker: { showFilters(): Promise<void> };
     nukeCounter: { showOptions(): Promise<void> };
-    spotify: { connect(): void; toggle(enabled: boolean): void };
     hudEditor: { edit(): void };
     kuteIcons: { customize(): void; refresh(): void };
     userscriptManager: { open(): void };

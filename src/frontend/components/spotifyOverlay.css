@@ -1,7 +1,10 @@
 #kuteSpotifyOverlay {
-	position: fixed;
+	position: absolute;
+	/* the anchor it hangs from. where it actually sits is the HUD editor's translate on top of this */
 	top: 7vh;
 	left: 50%;
+	transform: translateX(-50%);
+	z-index: 10;
 	display: flex;
 	align-items: center;
 	gap: 12px;
@@ -9,7 +12,6 @@
 	width: 320px;
 	min-height: 82px;
 	padding: 10px;
-	transform: translateX(-50%);
 	border: 1px solid rgba(29, 185, 84, 0.7);
 	border-radius: 8px;
 	background: rgba(12, 18, 15, 0.88);
@@ -17,14 +19,14 @@
 	color: #fff;
 	font-family: Arial, sans-serif;
 	pointer-events: none;
-	z-index: 100000;
 }
 
-#kuteSpotifyOverlay[hidden] {
+#kuteSpotifyOverlay[hidden],
+#uiBase.onMenu #kuteSpotifyOverlay {
 	display: none;
 }
 
-#kuteSpotifyOverlay[data-playback="paused"] {
+#kuteSpotifyOverlay.paused {
 	opacity: 0.72;
 }
 
@@ -68,9 +70,10 @@
 	overflow: hidden;
 }
 
+/* scaleX, not width: a width change lays out */
 #kuteSpotifyProgress > div {
 	height: 100%;
-	width: 0;
 	background: #1db954;
-	transition: width 0.5s linear;
+	transform: scaleX(0);
+	transform-origin: left;
 }

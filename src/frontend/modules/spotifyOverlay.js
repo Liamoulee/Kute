@@ -1,85 +1,116 @@
-import styles from "../components/spotify.css";
-import { kute, ready } from "../client.js";
+import styles from "../components/spotifyOverlay.css";
+import markup from "../components/spotifyOverlay.html";
+import { kute } from "../client.js";
 
-const OVERLAY_ID = "kuteSpotifyOverlay";
+/**
+ * What Spotify is playing, in the HUD. The host reads it from the Windows media session (no account, no network)
+ * and only posts when the song, play state or position jumps, the page moves the progress bar in between.
+ */
 
-/** @typedef {{title?: string, artist?: string, album?: string, artwork?: string, duration_ms?: number, progress_ms?: number, is_playing?: boolean, playback_status?: string, source?: string}} SpotifyTrack */
+// a running css/waapi animation, even transform only, cost 10 % fps uncapped in a match. one step a second is a pixel
+const PROGRESS_STEP_MS = 1000;
+
+/**
+ * @typedef {object} SpotifyState
+ * @property {boolean} playing
+ * @property {number} position ms
+ * @property {number} duration ms
+ */
+
+/**
+ * @typedef {SpotifyState & {title: string, artist: string, album: string, artwork: string|null}} SpotifySong
+ */
 
 class SpotifyOverlay {
     constructor(){
-        this.track = null;
-        this.status = "disconnected";
+        /** @type {HTMLElement|null} */
         this.overlay = null;
-        this.create();
-        window.chrome.webview.addEventListener("message", (event) => this.receive(event.data));
-        ready.then(() => {
-            if (kute.settings.data.spotifyOverlay !== false) this.enable();
-            window.chrome.webview.postMessage("spotify-status");
-        });
-    }
+        /** @type {SpotifyState & {at: number}|null} */
+        this.playback = null;
+        /** @type {number|null} */
+        this.timer = null;
+        /** @type {string|null} */
+        this.artwork = null;
+        /** @param {MessageEvent} event */
+        this.listener = (event) => {
+            const { data } = event;
+            if (typeof data !== "object" || data === null) return;
+            if ("spotify" in data) this.song(data.spotify);
+            else if ("spotifyState" in data) this.state(data.spotifyState);
+        };
 
-    create(){
-        const style = document.createElement("style");
-        style.id = "kute_spotifyCSS";
-        style.textContent = styles;
-        document.head.append(style);
-
-        this.overlay = document.createElement("div");
-        this.overlay.id = OVERLAY_ID;
-        this.overlay.hidden = true;
-        this.overlay.innerHTML = `<img id="kuteSpotifyArtwork" alt=""><div id="kuteSpotifyInfo"><div id="kuteSpotifyTitle"></div><div id="kuteSpotifyArtist"></div><div id="kuteSpotifyProgress"><div></div></div></div>`;
-        (document.querySelector("#uiBase") ?? document.body).append(this.overlay);
-    }
-
-    /**
-    * @param {{spotifyStatus?: string, spotifyDetail?: string, spotify?: SpotifyTrack|null}} data
-     */
-    receive(data){
-        if (typeof data?.spotifyStatus === "string") {
-            this.status = data.spotifyStatus;
-            if (this.status === "error") {
-                this.track = null;
-                const detail = typeof data.spotifyDetail === "string" ? data.spotifyDetail : "Erreur inconnue";
-                kute.showNotification?.(`Spotify: ${detail.slice(0, 500)}`, false, 8);
-            }
-        }
-        if (Object.hasOwn(data ?? {}, "spotify")) this.track = data.spotify;
-        this.render();
-    }
-
-    render(){
-        if (!this.overlay) return;
-        const enabled = kute.settings?.data?.spotifyOverlay !== false;
-        this.overlay.hidden = !enabled || !this.track;
-        if (!this.track) return;
-        const artwork = /** @type {HTMLImageElement} */ (this.overlay.querySelector("#kuteSpotifyArtwork"));
-        const title = /** @type {HTMLElement} */ (this.overlay.querySelector("#kuteSpotifyTitle"));
-        const artist = /** @type {HTMLElement} */ (this.overlay.querySelector("#kuteSpotifyArtist"));
-        const progress = /** @type {HTMLElement} */ (this.overlay.querySelector("#kuteSpotifyProgress > div"));
-        this.overlay.dataset.playback = this.track.is_playing ? "playing" : "paused";
-        this.overlay.dataset.source = this.track.source ?? "spotify-api";
-        artwork.src = this.track.artwork ?? "";
-        artwork.alt = this.track.album ?? "";
-        title.textContent = this.track.title ?? "";
-        artist.textContent = this.track.artist ?? "";
-        const duration = Math.max(1, this.track.duration_ms ?? 1);
-        progress.style.width = `${Math.min(100, ((this.track.progress_ms ?? 0) / duration) * 100)}%`;
-    }
-
-    connect(){
-        window.chrome.webview.postMessage("spotify-status");
+        kute.settings.toggleSpotifyOverlay = (enabled) => this.toggle(enabled);
+        this.toggle(!!kute.settings.data.spotifyOverlay);
     }
 
     /** @param {boolean} enabled */
     toggle(enabled){
-        if (!this.overlay) return;
-        if (!enabled) this.overlay.hidden = true;
-        else this.render();
+        if (!enabled){
+            window.chrome.webview.removeEventListener("message", this.listener);
+            window.chrome.webview.postMessage("spotify-stop");
+            this.stopProgress();
+            this.overlay?.remove();
+            this.overlay = null;
+            this.artwork = null;
+            document.querySelector("#kuteSpotifyOverlayCSS")?.remove();
+            return;
+        }
+        if (this.overlay) return;
+        const style = document.createElement("style");
+        style.id = "kuteSpotifyOverlayCSS";
+        style.textContent = styles;
+        document.head.append(style);
+
+        this.overlay = document.createElement("div");
+        this.overlay.id = "kuteSpotifyOverlay";
+        this.overlay.hidden = true;
+        this.overlay.innerHTML = markup;
+        (document.querySelector("#uiBase") ?? document.body).append(this.overlay);
+
+        window.chrome.webview.addEventListener("message", this.listener);
+        // the host answers with the current song, also when it was already watching for an earlier page
+        window.chrome.webview.postMessage("spotify-start");
     }
 
-    enable(){ this.render(); }
+    /** @param {SpotifySong|null} song */
+    song(song){
+        if (!this.overlay) return;
+        this.overlay.hidden = !song;
+        if (!song) return;
+        const artwork = /** @type {HTMLImageElement} */ (this.overlay.querySelector("#kuteSpotifyArtwork"));
+        // the artwork is a ~200 KB data url, only a new song replaces it
+        if (song.artwork !== this.artwork){
+            this.artwork = song.artwork;
+            artwork.src = song.artwork ?? "";
+        }
+        artwork.alt = song.album;
+        /** @type {HTMLElement} */ (this.overlay.querySelector("#kuteSpotifyTitle")).textContent = song.title;
+        /** @type {HTMLElement} */ (this.overlay.querySelector("#kuteSpotifyArtist")).textContent = song.artist;
+        this.state(song);
+    }
+
+    /** @param {SpotifyState} state */
+    state({ playing, position, duration }){
+        if (!this.overlay) return;
+        this.overlay.classList.toggle("paused", !playing);
+        this.playback = { playing, position, duration, at: performance.now() };
+        this.drawProgress();
+        if (playing && this.timer === null) this.timer = window.setInterval(() => this.drawProgress(), PROGRESS_STEP_MS);
+        else if (!playing) this.stopProgress();
+    }
+
+    drawProgress(){
+        const bar = /** @type {HTMLElement|null} */ (this.overlay?.querySelector("#kuteSpotifyProgress > div") ?? null);
+        if (!bar || !this.playback) return;
+        const { playing, position, duration, at } = this.playback;
+        const now = position + (playing ? performance.now() - at : 0);
+        bar.style.transform = `scaleX(${duration > 0 ? Math.min(1, now / duration).toFixed(4) : 0})`;
+    }
+
+    stopProgress(){
+        if (this.timer !== null) window.clearInterval(this.timer);
+        this.timer = null;
+    }
 }
 
-const spotify = new SpotifyOverlay();
-kute.spotify = spotify;
-kute.settings.toggleSpotifyOverlay = (enabled) => spotify.toggle(enabled);
+export default new SpotifyOverlay();
