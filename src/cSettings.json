@@ -2,7 +2,7 @@
     "autoDetect": {
         "name": "Auto-Detect Best Settings",
         "id": "autoDetect",
-        "description": "Measures this PC in a private test match (under a minute) and sets up the game for it. \nNeeds an account, and can be undone",
+        "description": "Tests your PC in a private match for under a minute and picks the best settings. You can undo it",
         "type": "none",
         "category": "General",
         "button": "Run",
@@ -12,7 +12,7 @@
     "autoDetectResult": {
         "name": "Last Auto-Detect Result",
         "id": "autoDetectResult",
-        "description": "What the last run measured and changed, with the undo",
+        "description": "See what the last run measured and changed, and undo it",
         "type": "none",
         "category": "General",
         "button": "Show",
@@ -21,7 +21,7 @@
     "startMode": {
         "name": "Start Mode",
         "id": "startMode",
-        "description": "How the window opens",
+        "description": "How the window opens when Kute starts",
         "type": "select",
         "category": "General",
         "defaultValue": "Remember Previous",
@@ -30,7 +30,7 @@
     "gameFpsLimit": {
         "name": "FPS Limit",
         "id": "gameFpsLimit",
-        "description": "0 = unlimited",
+        "description": "Caps your FPS to save power and heat. 0 means unlimited",
         "type": "slider",
         "category": "General",
         "defaultValue": 0,
@@ -41,7 +41,7 @@
     "discordRPC": {
         "name": "Discord Rich Presence",
         "id": "discordRPC",
-        "description": "Shows your mode and map on Discord",
+        "description": "Shows your current mode and map on your Discord profile",
         "type": "checkbox",
         "category": "General",
         "defaultValue": true,
@@ -50,7 +50,7 @@
     "accountManager": {
         "name": "Account Manager",
         "id": "accountManager",
-        "description": "Save accounts and switch between them from the menu",
+        "description": "Save your Krunker accounts and switch between them from the menu",
         "type": "checkbox",
         "category": "General",
         "defaultValue": true
@@ -58,7 +58,7 @@
     "obsCapturePlugin": {
         "name": "OBS Capture Plugin",
         "id": "obsCapturePlugin",
-        "description": "Adds a Kute Capture source to OBS. Close OBS first. \nFor sound, add an Application Audio Capture of the 'Kute audio window'",
+        "description": "Adds a Kute Capture source to OBS (close OBS first). For sound, add an Application Audio Capture of 'Kute audio window'",
         "type": "checkbox",
         "category": "General",
         "defaultValue": false
@@ -66,7 +66,7 @@
     "rawInput": {
         "name": "Raw Input",
         "id": "rawInput",
-        "description": "Unfiltered mouse input without acceleration",
+        "description": "Reads your mouse directly, without Windows mouse acceleration",
         "type": "checkbox",
         "category": "Game",
         "defaultValue": true,
@@ -75,7 +75,7 @@
     "rampBoost": {
         "name": "Ramp Boosting",
         "id": "rampBoost",
-        "description": "Jumps when you scroll, for easier ramp boosts. Off in competitive. \nTurn it off if you use external software for this",
+        "description": "Scrolling makes you jump, for easier ramp boosts. Off in competitive. Turn it off if another tool already does this",
         "type": "checkbox",
         "category": "Game",
         "defaultValue": false
@@ -83,7 +83,7 @@
     "autoSpec": {
         "name": "Auto Spectate",
         "id": "autoSpec",
-        "description": "Joins public matches as a spectator",
+        "description": "Joins public matches as a spectator instead of a player",
         "type": "checkbox",
         "category": "Game",
         "defaultValue": false
@@ -91,6 +91,7 @@
     "hsSound": {
         "name": "Headshot Sound on Every Kill",
         "id": "hsSound",
+        "description": "Plays the headshot sound on every kill, not just headshots",
         "category": "Game",
         "type": "checkbox",
         "defaultValue": false
@@ -98,7 +99,7 @@
     "hpEnemyCounter": {
         "name": "Hardpoint Enemy Counter",
         "id": "hpEnemyCounter",
-        "description": "Shows how many enemies are on the point in competitive matches",
+        "description": "Shows how many enemies are on the point in competitive Hardpoint",
         "type": "checkbox",
         "category": "Game",
         "defaultValue": true
@@ -106,7 +107,7 @@
     "showPing": {
         "name": "Player List Ping",
         "id": "showPing",
-        "description": "Shows everyone's ping in the player list",
+        "description": "Shows everyone's ping next to their name in the player list",
         "type": "checkbox",
         "category": "Game",
         "defaultValue": true,
@@ -115,7 +116,7 @@
     "realPing": {
         "name": "Real Ping™️",
         "id": "realPing",
-        "description": "Pings the lobby server and shows your real latency",
+        "description": "Pings the lobby server directly and shows your real latency",
         "type": "checkbox",
         "category": "Game",
         "defaultValue": false,
@@ -124,7 +125,7 @@
     "matchmaker": {
         "name": "Matchmaker (F6)",
         "id": "matchmaker",
-        "description": "F6 joins the lowest ping lobby that fits your filters instead of a random one",
+        "description": "F6 joins the lowest ping lobby that matches your filters instead of a random one",
         "type": "checkbox",
         "category": "Game",
         "defaultValue": true,
@@ -134,6 +135,7 @@
     "exitButton": {
         "name": "Exit Button",
         "id": "exitButton",
+        "description": "Adds an Exit button to the menu",
         "type": "checkbox",
         "category": "Interface",
         "defaultValue": true
@@ -141,7 +143,7 @@
     "menuTimer": {
         "name": "Menu Timer",
         "id": "menuTimer",
-        "description": "Shows the match timer in the menu",
+        "description": "Shows the match timer while you are in the menu",
         "type": "checkbox",
         "category": "Interface",
         "defaultValue": true
@@ -149,7 +151,7 @@
     "betterChat": {
         "name": "Better Chat",
         "id": "betterChat",
-        "description": "Team and all chat in one view. Tab switches where you send",
+        "description": "Team and all chat in one view. Press Tab to switch where you send",
         "type": "checkbox",
         "category": "Interface",
         "defaultValue": true
@@ -157,7 +159,7 @@
     "textSelect": {
         "name": "Selectable Chat",
         "id": "textSelect",
-        "description": "Select and copy chat text",
+        "description": "Lets you select and copy text from the chat",
         "type": "checkbox",
         "category": "Interface",
         "defaultValue": true
@@ -165,7 +167,7 @@
     "cleanUI": {
         "name": "Cleaner Menu",
         "id": "cleanUI",
-        "description": "Hides clutter in the menu",
+        "description": "Hides banners, ads and other clutter in the menu",
         "type": "checkbox",
         "category": "Interface",
         "defaultValue": false
@@ -173,7 +175,7 @@
     "hideBundles": {
         "name": "Hide Bundle Popups",
         "id": "hideBundles",
-        "description": "No store popups outside the store",
+        "description": "Stops store bundle popups from showing up outside the store",
         "type": "checkbox",
         "category": "Interface",
         "defaultValue": false
@@ -181,23 +183,25 @@
     "clanColors": {
         "name": "Show Clan Colors",
         "id": "clanColors",
-        "description": "Colors the clan tags of some clans in the player lists",
+        "description": "Colors the tags of some clans in the player lists",
         "type": "checkbox",
         "category": "Interface",
-        "defaultValue": true
+        "defaultValue": true,
+        "disabledBy": "disableOnlineFeatures"
     },
     "cuteBadge": {
         "name": "Show Kute Badge",
         "id": "cuteBadge",
-        "description": "A Kute badge next to everyone in the match who runs Kute",
+        "description": "Shows a badge next to other Kute players. This only affects what you see, others still see yours",
         "type": "checkbox",
         "category": "Interface",
-        "defaultValue": true
+        "defaultValue": true,
+        "disabledBy": "disableOnlineFeatures"
     },
     "kuteIcons": {
         "name": "Use Kute Icons",
         "id": "kuteIcons",
-        "description": "Kute's icons for the counters, ammo, hitmarker, reticle and scope. Your settings stay untouched",
+        "description": "Kute's own icons for counters, ammo, hitmarker, reticle and scope. Your game settings stay untouched",
         "type": "checkbox",
         "category": "Interface",
         "defaultValue": false,
@@ -207,7 +211,7 @@
     "hudLayout": {
         "name": "HUD Editor",
         "id": "hudLayout",
-        "description": "Move, resize and hide the in-game HUD. Opens a private match to measure it",
+        "description": "Move, resize and hide parts of the in-game HUD. Opens a private match while you edit",
         "type": "none",
         "category": "Interface",
         "button": "Edit",
@@ -217,7 +221,7 @@
     "nukeCounter": {
         "name": "Nuke Counter",
         "id": "nukeCounter",
-        "description": "Shows your nuke total in game. It updates when a match ends",
+        "description": "Shows your career nuke total in game. It updates when a match ends",
         "type": "checkbox",
         "category": "Interface",
         "defaultValue": false,
@@ -227,7 +231,7 @@
     "renderStats": {
         "name": "Present FPS Counter",
         "id": "renderStats",
-        "description": "Second FPS counter: the frames that reach your screen",
+        "description": "A second FPS counter for the frames that actually reach your screen",
         "type": "checkbox",
         "category": "Interface",
         "defaultValue": false,
@@ -237,7 +241,7 @@
     "swapper": {
         "name": "Resource Swapper",
         "id": "swapper",
-        "description": "Replaces game files with the ones in your swapper folder",
+        "description": "Replaces game files like textures and sounds with the files in your swapper folder",
         "type": "checkbox",
         "category": "Customization",
         "defaultValue": true,
@@ -248,7 +252,7 @@
     "userscripts": {
         "name": "Userscripts",
         "id": "userscripts",
-        "description": "Runs your userscripts (Crankshaft and idkr formats work too)",
+        "description": "Runs your own scripts. Crankshaft and idkr scripts work too",
         "type": "checkbox",
         "category": "Customization",
         "defaultValue": true,
@@ -259,7 +263,7 @@
     "blocklist": {
         "name": "URL Blocklist",
         "id": "blocklist",
-        "description": "Blocks ads and trackers. The file holds your own entries",
+        "description": "Blocks ads and trackers. Open the file to add your own entries",
         "type": "checkbox",
         "category": "Customization",
         "defaultValue": true,
@@ -270,7 +274,7 @@
     "uncapFps": {
         "name": "Uncap FPS",
         "id": "uncapFps",
-        "description": "Removes the refresh rate cap",
+        "description": "Removes the FPS cap at your monitor's refresh rate",
         "type": "checkbox",
         "category": "Advanced",
         "defaultValue": true,
@@ -288,7 +292,7 @@
     "angleBackend": {
         "name": "Graphics Backend (ANGLE)",
         "id": "angleBackend",
-        "description": "Default is D3D11. \nOpenGL and Vulkan turn off everything the swapchain hook does",
+        "description": "Leave it on Default (D3D11). OpenGL and Vulkan turn off everything the swapchain hook does",
         "type": "select",
         "category": "Advanced",
         "defaultValue": "Default",
@@ -298,7 +302,7 @@
     "colorProfile": {
         "name": "Color Profile",
         "id": "colorProfile",
-        "description": "Try sRGB when colors look washed out or oversaturated",
+        "description": "Try sRGB if colors look washed out or too strong",
         "type": "select",
         "category": "Advanced",
         "defaultValue": "Default",
@@ -308,7 +312,7 @@
     "webviewPriority": {
         "name": "Process Priority",
         "id": "webviewPriority",
-        "description": "Higher can help a little but may cause instability",
+        "description": "Higher can help a little, but may make your PC less stable",
         "type": "select",
         "category": "Advanced",
         "defaultValue": "Normal",
@@ -318,7 +322,7 @@
     "throttle": {
         "name": "CPU Throttling",
         "id": "throttle",
-        "description": "Pauses the game thousands of times a second so it runs slower (2 = half speed). \nOnly use it when the game is unstable, an FPS limit is the better way to do less work",
+        "description": "Slows the game down on purpose (2 = half speed). Only for an unstable game, an FPS limit is usually better",
         "type": "slider",
         "min": 1,
         "max": 3,
@@ -329,7 +333,7 @@
     "inMenuThrottle": {
         "name": "CPU Throttling in Menu",
         "id": "inMenuThrottle",
-        "description": "Same, but only while you are in the menu, where it also slows the match behind it",
+        "description": "Same, but only in the menu. It also slows the match that runs behind the menu",
         "type": "slider",
         "min": 1,
         "max": 3,
@@ -349,15 +353,26 @@
     "showChangelog": {
         "name": "Show Changelog After Updates",
         "id": "showChangelog",
+        "description": "Shows what's new after Kute updates",
         "type": "checkbox",
         "button": "Show Now",
         "buttonAction": "{{kute}}.showChangelogPopup({{kute}}.version)",
         "category": "About",
         "defaultValue": true
     },
+    "disableOnlineFeatures": {
+        "name": "Disable Kute Online Features",
+        "id": "disableOnlineFeatures",
+        "description": "Nothing is sent to or received from kute.lol. Turns off all Kute badges (yours too) and clan colors",
+        "type": "checkbox",
+        "category": "About",
+        "defaultValue": false,
+        "needsRestart": true
+    },
     "checkUpdates": {
         "name": "Check For Updates",
         "id": "checkUpdates",
+        "description": "Looks for a new Kute version when it starts",
         "type": "checkbox",
         "category": "About",
         "defaultValue": true,

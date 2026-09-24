@@ -18,6 +18,7 @@ import { getElement, getInput, checkCompMode } from "./utils.js";
  * @property {string} [buttonAction] Inline JS; "{{kute}}" is replaced with a reference to the client object
  * @property {boolean} [requiresLogin] The button is disabled while no account is logged in
  * @property {string} [requires] id of a checkbox setting this one depends on, disabled while that is off
+ * @property {string} [disabledBy] id of a checkbox setting that forces this one off while on, the stored value stays
  * @property {number} [min]
  * @property {number} [max]
  * @property {number} [step]
@@ -28,7 +29,54 @@ import { getElement, getInput, checkCompMode } from "./utils.js";
 /** @type {Map<string, number>} */
 const debounceTimers = new Map();
 
+const BLOCKED_STYLE = "opacity: 0.35; cursor: not-allowed";
+
 const settings = /** @type {Record<string, SettingOption>} */ (cSettings);
+
+/**
+ * @param {string} id
+ * @return {`toggle${string}`}
+ */
+function toggleName(id){
+    return `toggle${id.charAt(0).toUpperCase() + id.slice(1)}`;
+}
+
+/**
+ * @param {SettingOption} option
+ * @return {SettingOption|null} the setting that currently forces this one off
+ */
+function blockerOf(option){
+    const blocker = option.disabledBy ? settings[option.disabledBy] : null;
+    return blocker && kute.settings.data[blocker.id] === true ? blocker : null;
+}
+
+/**
+ * Shows the settings that `id` blocks as off (or their stored value again) and switches their modules to match.
+ *
+ * @param {string} id
+ * @param {boolean} blocking
+ */
+function applyBlocker(id, blocking){
+    for (const dependent of Object.values(settings)){
+        if (dependent.disabledBy !== id) continue;
+        const on = !blocking && Boolean(kute.settings.data[dependent.id]);
+
+        const input = document.querySelector(`#${dependent.id}`);
+        if (input instanceof HTMLInputElement){
+            input.checked = on;
+            input.disabled = blocking;
+            const label = input.closest("label");
+            if (label){
+                label.style.cssText = blocking ? BLOCKED_STYLE : "";
+                label.title = blocking ? `Off while ${settings[id].name} is on` : "";
+            }
+        }
+
+        const toggle = kute.settings[toggleName(dependent.id)];
+        if (typeof toggle === "function") toggle(on);
+        else if (on) import(`./modules/${dependent.id}.js`).catch(() => {});
+    }
+}
 
 /**
  * @param {string} id
@@ -130,7 +178,7 @@ kute.settings.changeSetting = (id, rawValue, slider) => {
             break;
     }
 
-    const toggleFunctionName = /** @type {const} */ (`toggle${id.charAt(0).toUpperCase() + id.slice(1)}`);
+    const toggleFunctionName = toggleName(id);
     if (typeof kute.settings[toggleFunctionName] !== "function"){
         try {
             import(`./modules/${id}.js`).catch(() => {});
@@ -145,6 +193,7 @@ kute.settings.changeSetting = (id, rawValue, slider) => {
 
     kute.settings.data[id] = value;
     window.chrome.webview.postMessage(`set-config, ${id}, ${value}`);
+    applyBlocker(id, value === true);
 };
 
 const REFRESH_MARK = ' <span style="color: #3244a8" title="Requires Refresh">*</span>';
@@ -193,6 +242,10 @@ class SettingsManager {
         };
 
         this.settingsWindow.getCSettings = () => this.getCSettings();
+        kute.openKuteSettings = () => {
+            window.showWindow(1);
+            this.settingsWindow.changeTab(this.settingsWindow.tabs[this.settingsWindow.settingType].length - 1);
+        };
         window.chrome.webview.addEventListener("message", (event) => {
             const response = event.data;
             if (response?.type !== "obs-plugin") return;
@@ -211,7 +264,7 @@ class SettingsManager {
      */
     searchMatches(setting){
         const query = this.settingsWindow.settingSearch.toLowerCase() || "";
-        return (setting.name.toLowerCase() || "").includes(query) || (setting.category.toLowerCase() || "").includes(query);
+        return [setting.name, setting.category, setting.description ?? ""].some((text) => text.toLowerCase().includes(query));
     }
 
     /**
@@ -232,9 +285,18 @@ class SettingsManager {
         }
         switch (option.type){
             case "checkbox": {
+                const blocker = blockerOf(option);
+                if (blocker){
+                    return `<label class='switch' style="${BLOCKED_STYLE}" title="Off while ${blocker.name} is on">
+                        <input id="${option.id}" type='checkbox' disabled
+                            onclick='${globalRef}.settings.changeSetting("${option.id}", this.checked, false)'>
+                        <span class='slider'></span>
+                    </label>
+                    ${button}`;
+                }
                 const required = option.requires ? settings[option.requires] : null;
                 if (required && kute.settings.data[required.id] === false){
-                    return `<label class='switch' style="opacity: 0.35; cursor: not-allowed" title="Needs ${required.name}, which is off">
+                    return `<label class='switch' style="${BLOCKED_STYLE}" title="Needs ${required.name}, which is off">
                         <input id="${option.id}" type='checkbox' disabled ${value ? "checked" : ""}>
                         <span class='slider'></span>
                     </label>
@@ -268,7 +330,8 @@ class SettingsManager {
      */
     getCSettings(){
         if (
-            this.settingsWindow.tabs.advanced.length !== this.settingsWindow.tabIndex + 1 &&
+            // our tab is the last one in basic mode too
+            this.settingsWindow.tabs[this.settingsWindow.settingType].length !== this.settingsWindow.tabIndex + 1 &&
             !this.settingsWindow.settingSearch
         ){
             return "";
@@ -303,11 +366,12 @@ class SettingsManager {
             }
 
             rendered = true;
-            tempHTML += `<div class='settName' ${setting.description ? `title="${setting.description}"` : ""}>
+            tempHTML += `<div class='settName'>
 								${setting.name.replaceAll("{{version}}", kute.version ?? "")}
 								${setting.needsRestart ? RESTART_MARK : ""}
 								${setting.needsRefresh ? REFRESH_MARK : ""}
-								${setting.html}</div>`;
+								${setting.html}
+								${setting.description ? `<div class="kuteDesc">${setting.description.replaceAll("<", "&lt;")}</div>` : ""}</div>`;
         }
 
         // closes category body and kuteSettings box only, rest is krunker's (see init)

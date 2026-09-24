@@ -75,7 +75,8 @@ wrap_resource_request_handler! {
                 return ReturnValue::CONTINUE;
             }
 
-            if modules::blocklist::is_blocked(&url) {
+            // kute icons answer the player's kute.lol/kr urls locally, that is no contact with the server
+            if modules::blocklist::is_blocked(&url) && modules::icons::bytes_for(&url).is_none() {
                 debug_print!("handlers: blocked {url}");
                 return ReturnValue::CANCEL;
             }
@@ -673,6 +674,9 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             crate::CONFIG.lock().unwrap().set(setting, parse_web_message_value(value));
             crate::config::save_soon();
 
+            if *setting == "disableOnlineFeatures" {
+                modules::blocklist::set_online_off(*value == "true");
+            }
             // present hook paces the game loop, gameFpsLimit.js has the fallback
             if *setting == "gameFpsLimit"
                 && let Ok(fps_limit) = value.parse::<u64>()

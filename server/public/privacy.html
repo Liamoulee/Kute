@@ -38,7 +38,7 @@
 
       <h3>Kute badge and player count</h3>
       <p>While the client runs, it keeps a connection to our server. When you are logged in to Krunker, it sends a hash of the lobby id and your in-game display name, so that other Kute users in the same match can see the Kute badge next to you. The hash is only held in memory while you are connected and is never stored. The server also counts open connections and how many clients were started for the first time. The client remembers itself that it was counted, the server keeps no list.</p>
-      <p>If you do not want any contact with our server, add <code>*://kute.lol/*</code> to <code>user_blocklist.json</code> in <code>Documents\kute</code>. The client plays the same without it.</p>
+      <p>To stop all contact with our server, turn on <b>Disable Kute Online Features</b> (Settings, About). The client then sends nothing to kute.lol and receives nothing from it. Hiding badges with <b>Show Kute Badge</b> only affects what you see.</p>
 
       <h3>Rate limiting</h3>
       <p>To protect the server from abuse, request counts are kept per IP address. The address is replaced by a salted hash in memory. The salt is never stored and changes on every restart. Entries are deleted within 75 minutes.</p>

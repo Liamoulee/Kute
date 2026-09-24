@@ -60,6 +60,7 @@ interface Kute {
     showNotification(message: string, reqUserInput: boolean, seconds: number): any;
     showChangelogPopup(version: string): Promise<void>;
     showAboutPopup(): Promise<void>;
+    openKuteSettings(): void;
     autoDetect: { start(): Promise<void>; setUp(): void; undo(): void; showLast(): void; dropUndo(): void; afterImport(): void };
     clanColors: { apply(styles: unknown): void; toggle(enabled: boolean): void };
     badges: { toggle(enabled: boolean): void };
