@@ -260,7 +260,7 @@ class SettingsManager {
      */
     searchMatches(setting){
         const query = this.settingsWindow.settingSearch.toLowerCase() || "";
-        return (setting.name.toLowerCase() || "").includes(query) || (setting.category.toLowerCase() || "").includes(query);
+        return [setting.name, setting.category, setting.description ?? ""].some((text) => text.toLowerCase().includes(query));
     }
 
     /**
@@ -361,11 +361,12 @@ class SettingsManager {
             }
 
             rendered = true;
-            tempHTML += `<div class='settName' ${setting.description ? `title="${setting.description}"` : ""}>
+            tempHTML += `<div class='settName'>
 								${setting.name.replaceAll("{{version}}", kute.version ?? "")}
 								${setting.needsRestart ? RESTART_MARK : ""}
 								${setting.needsRefresh ? REFRESH_MARK : ""}
-								${setting.html}</div>`;
+								${setting.html}
+								${setting.description ? `<div class="kuteDesc">${setting.description.replaceAll("<", "&lt;")}</div>` : ""}</div>`;
         }
 
         // closes category body and kuteSettings box only, rest is krunker's (see init)
