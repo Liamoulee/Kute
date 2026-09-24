@@ -1,7 +1,6 @@
 import cSettings from "../cSettings.json";
 import { kute, globalRef } from "./client.js";
 import { getElement, getInput, checkCompMode } from "./utils.js";
-import { confirmPopup } from "./modules/confirmPopup.js";
 
 /**
  * Shape of an entry in cSettings.json.
@@ -40,34 +39,9 @@ const settings = /** @type {Record<string, SettingOption>} */ (cSettings);
  * @param {string|number|boolean} rawValue
  * @param {boolean} slider Whether the change came from a range input (debounced)
  */
-/** Set while the player's "no" to the telemetry question is being applied, so it does not get asked twice. */
-let telemetryOffConfirmed = false;
-
 kute.settings.changeSetting = (id, rawValue, slider) => {
     if (rawValue === "") return;
 
-    // switching the telemetry off is allowed, but not without hearing us out first
-    if (id === "telemetry" && rawValue === false && !telemetryOffConfirmed){
-        getInput("#telemetry").checked = true;
-        confirmPopup({
-            title: "Whoa there, cutie",
-            paragraphs: [
-                "When we say anonymous telemetry, we literally mean anonymous telemetry.",
-                "Nothing except client performance metrics and hardware specs is sent, for example when you use Auto-Detect Best Settings. No account, no IP address, no ids.",
-                "If this is off, we are basically blind to how the client performs AND we also do not receive any error reports.",
-                "This helps us IMMENSELY to improve the client further. Please please please consider keeping this enabled. Pretty please?",
-            ],
-            stay: "Okay fine, keep it on",
-            leave: "No, I don't wanna help",
-        }).then((leave) => {
-            if (!leave) return;
-            telemetryOffConfirmed = true;
-            getInput("#telemetry").checked = false;
-            kute.settings.changeSetting("telemetry", false, false);
-            telemetryOffConfirmed = false;
-        });
-        return;
-    }
     getInput(`#${id}`).value = String(rawValue);
     let value = rawValue;
 
