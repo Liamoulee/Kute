@@ -157,6 +157,8 @@ pub fn load_flags() {
     if config("audioFix", false) {
         flags.push("--enable-features=KuteAudioPannerPerQuantum".to_string());
     }
+    // patch 05: without it the game's per frame setTargetAtTime piles up while Howler's context is suspended
+    flags.push("--enable-features=KuteAudioParamCoalesce".to_string());
     *FLAGS.lock().unwrap() = flags;
 }
 
