@@ -1,14 +1,11 @@
 import { kute } from "./client.js";
 import { getElement } from "./utils.js";
 
-/**
- * In-page toast notification. Optionally waits for a y/n keypress and resolves a promise with the answer.
- */
 class KuteNotification {
     /**
      * @param {string} message
      * @param {boolean} reqUserInput
-     * @param {number} duration Seconds until the notification hides itself
+     * @param {number} duration seconds
      */
     constructor(message, reqUserInput, duration){
         /** @type {string} */
@@ -35,8 +32,6 @@ class KuteNotification {
     }
 
     /**
-     * Builds the notification DOM from the html component and appends it to the body.
-     *
      * @return {Promise<void>}
      */
     async createNotificationElement(){
@@ -50,9 +45,6 @@ class KuteNotification {
         document.body.append(this.notificationEl);
     }
 
-    /**
-     * Counts the duration down once per second and hides the notification when it reaches zero.
-     */
     startTimer(){
         this.countdown = setInterval(() => {
             this.duration--;
@@ -65,9 +57,6 @@ class KuteNotification {
         }, 1000);
     }
 
-    /**
-     * Stops the timer, detaches the key listener and slides the notification out.
-     */
     hide(){
         clearInterval(this.countdown);
         if (this.handlePromise) document.removeEventListener("keydown", this.handlePromise);
@@ -75,9 +64,6 @@ class KuteNotification {
         setTimeout(() => this.notificationEl.remove(), 2000);
     }
 
-    /**
-     * Creates the element, slides it in, starts the timer and, if requested, listens for a y/n answer.
-     */
     show(){
         this.createNotificationElement();
         setTimeout(() => this.notificationEl.classList.add("slide-in"), 10);
@@ -100,7 +86,7 @@ class KuteNotification {
 }
 
 /**
- * Shows a notification. When user input is requested, resolves with true for "y" and false for "n" or timeout.
+ * with reqUserInput: resolves true on y, false on n or timeout
  *
  * @param {string} message
  * @param {boolean} reqUserInput

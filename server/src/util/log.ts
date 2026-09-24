@@ -9,18 +9,10 @@ import path from "node:path";
 
 const appNameFromPackageJson = await fs.readFile(path.resolve("./package.json"), "utf-8").then(d => JSON.parse(d).name);
 
-/**
- * Logging utility class
- *
- * @class Log
- */
 class Log {
     static #logDir = path.resolve("./logs");
     static #eLogDir = path.resolve("./logs/errors");
 
-    /**
-     * Get neatly formatted date
-     */
     static #getDate(): string{
         const options = {
             hour: "2-digit" as const,
@@ -38,9 +30,6 @@ class Log {
         return "[" + date + "]";
     }
 
-    /**
-     * Log to file
-     */
     static async #logTofile(input: string, error: boolean = false): Promise<void> {
         const date = new Date();
         const m = (date.getMonth() + 1).toString().padStart(2, "0");
@@ -59,9 +48,6 @@ class Log {
         }
     }
 
-    /**
-     * Make sure log directories exist
-     */
     static #ensureDirs(): void {
         if (!fss.existsSync(this.#logDir)){
             fss.mkdirSync(this.#logDir);
@@ -73,18 +59,12 @@ class Log {
         }
     }
 
-    /**
-     * Perform log action
-     */
     static #logger(str: string, log: string, error: boolean = false): void {
         console.log(str);
         this.#ensureDirs();
         this.#logTofile(log, error);
     }
 
-    /**
-     * Log an error
-     */
     static error(input: string, trace?: Error): void {
         const log = "[ERROR] " + this.#getDate() + " - " + input;
         this.#logger(" \x1b[41m\x1b[315m x \x1b[0m\x1b[31m " + log + "\x1b[0m", log, true);
@@ -94,51 +74,32 @@ class Log {
         }
     }
 
-    /**
-     * Log a warning
-     */
     static warn(input: string): void {
         const log = "[WARN]  " + this.#getDate() + " - " + input;
         this.#logger(" \x1b[43m\x1b[30m ! \x1b[0m\x1b[33m " + log + "\x1b[0m", log);
     }
 
-    /**
-     * Log a debug message
-     * (only if NODE_ENV is set to development)
-     */
     static debug(input: string, force: boolean = false): void {
         if (process.env.NODE_ENV !== "development" && !force) return;
         const log = "[DEBUG] " + this.#getDate() + " - " + input;
         this.#logger(" \x1b[45m\x1b[30m d \x1b[0m\x1b[35m " + log + "\x1b[0m", log);
     }
 
-    /**
-     * Log a wait message
-     */
     static wait(input: string): void {
         const log = "[WAIT]  " + this.#getDate() + " - " + input;
         this.#logger(" \x1b[46m\x1b[30m ⧖ \x1b[0m\x1b[36m " + log + "\x1b[0m", log);
     }
 
-    /**
-     * Log an info
-     */
     static info(input: string): void {
         const log = "[INFO]  " + this.#getDate() + " - " + input;
         this.#logger(" \x1b[44m\x1b[30m i \x1b[0m\x1b[36m " + log + "\x1b[0m", log);
     }
 
-    /**
-     * Log a success
-     */
     static done(input: string): void {
         const log = "[DONE]  " + this.#getDate() + " - " + input;
         this.#logger(" \x1b[42m\x1b[30m ✓ \x1b[0m\x1b[32m " + log + "\x1b[0m", log);
     }
 
-    /**
-     * Log a message without any formatting
-     */
     static raw(input: string): void {
         this.#logger(input, input);
     }

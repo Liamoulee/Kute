@@ -4,19 +4,15 @@ import { confirmPopup } from "../confirmPopup.js";
 import { SLOTS, postUrls } from "./slots.js";
 
 /**
- * Kute icons: the setting and its customizer.
- *
- * Nothing here writes a Krunker setting on its own. The host answers the icon requests with our images, the page
- * only keeps the host's list of URLs current and lets the player pick the slots. The one exception is asked for:
- * when a ticked icon is hidden by a Krunker setting, the player is offered to switch that setting on.
+ * never writes a krunker setting unless the player agrees in warnHidden()
  *
  * @typedef {import("./slots.js").IconSlot} IconSlot
  * @typedef {import("./slots.js").HidingSetting} HidingSetting
  */
 
-/** Where the host serves our images whatever the toggle says. */
+/** served by the host regardless of the toggle */
 const PREVIEW = "https://krunker.io/kute-icons/";
-/** Which slots the player picked, `{kills: false, ...}`. A slot missing from it is on. */
+/** `{kills: false, ...}`, missing = on */
 const SLOTS_SETTING = "kuteIconSlots";
 
 /**
@@ -28,7 +24,7 @@ function chosenSlots(){
 }
 
 /**
- * @return {boolean} Whether this exe answers the icon requests
+ * @return {boolean} exe handles the icon requests
  */
 function hostSupports(){
     return kute.hostFeatures?.includes("kute-icons") ?? false;
@@ -43,8 +39,6 @@ function slotOn(slot){
 }
 
 /**
- * The Krunker settings that currently hide this icon.
- *
  * @param {IconSlot} slot
  * @return {HidingSetting[]}
  */
@@ -57,7 +51,7 @@ function hidingSettings(slot){
         catch {
             return false;
         }
-        // never touched means Krunker's default, which shows all of these
+        // unset = krunker default, shows all of these
         if (value === null) return false;
         return setting.kind === "checkbox" ? value === "false" : Number(value) === 0;
     });
@@ -72,10 +66,9 @@ function describe(setting){
 }
 
 /**
- * Asks before reloading: the game keeps the images it already loaded, so a changed icon only shows after a reload
- * that skips the cache.
+ * the game keeps loaded images, a changed icon needs a hard reload
  *
- * @param {string} what What changed, one line
+ * @param {string} what what changed, one line
  * @return {Promise<void>}
  */
 async function offerReload(what){
@@ -90,7 +83,7 @@ async function offerReload(what){
 
 class KuteIcons {
     constructor(){
-        /** @type {boolean} A question is open, so Escape belongs to it and not to the customizer */
+        /** @type {boolean} a question is open, escape belongs to it */
         this.asking = false;
         /** @type {WeakSet<Element>} */
         this.watched = new WeakSet();
@@ -102,15 +95,14 @@ class KuteIcons {
         kute.settings.toggleKuteIcons = (enabled) => this.onToggle(!!enabled);
 
         this.refresh();
-        // the HUD images may only exist once the player spawned
+        // hud images may only exist after spawning
         document.addEventListener("pointerlockchange", () => {
             if (document.pointerLockElement) setTimeout(() => this.refresh(), 1500);
         });
     }
 
     /**
-     * Sends the current URLs and follows the HUD images. The game swaps their sources by itself (a scope skin on
-     * the weapon that comes up), so each gets an observer filtered to `src`, which costs nothing until it changes.
+     * sends the urls and watches hud image `src`, the game swaps them itself (e.g. scope skins)
      */
     refresh(){
         for (const slot of SLOTS){
@@ -127,7 +119,7 @@ class KuteIcons {
      */
     async onToggle(enabled){
         postUrls();
-        // an exe from before Kute icons ignores the setting, so there is nothing to show or reload for
+        // old exes ignore the setting
         if (!hostSupports()){
             if (enabled) kute.showNotification("Kute icons need a newer Kute, update the client", false, 4);
             return;
@@ -137,9 +129,6 @@ class KuteIcons {
     }
 
     /**
-     * Offers to switch on the Krunker settings that hide some of these icons. Nothing is written unless the player
-     * says yes.
-     *
      * @param {IconSlot[]} slots
      * @return {Promise<boolean>} true when settings were switched on
      */
@@ -170,15 +159,12 @@ class KuteIcons {
         });
         if (!turnOn) return false;
 
-        // the same values the settings window writes: a checkbox as a boolean, a slider as a string
+        // same types the settings window writes: checkbox bool, slider string
         for (const setting of settings.values()) window.setSetting(setting.id, setting.kind === "checkbox" ? true : "1");
         kute.showNotification("Switched on in your Krunker settings", false, 3);
         return true;
     }
 
-    /**
-     * One row per icon: preview, name, why it is hidden (with a way to fix that), and its checkbox.
-     */
     customize(){
         const overlay = document.createElement("div");
         overlay.style.cssText =

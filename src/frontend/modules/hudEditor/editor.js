@@ -3,9 +3,8 @@ import panelHtml from "../../components/hudEditorPanel.html";
 import { kute } from "../../client.js";
 import { HUD_ELEMENTS, gameSettingOn } from "./elements.js";
 
-/** How close two edges have to be for a drag to snap, in screen pixels. */
 const SNAP_PX = 6;
-/** The box an empty widget (an idle kill feed, an unused powerup slot) gets, in screen pixels. */
+// handle size for empty widgets, screen px
 const EMPTY_BOX = 24;
 
 /**
@@ -26,20 +25,16 @@ const round = (value) => Math.round(value * 100) / 100;
  * @typedef {object} Item
  * @property {import("./elements.js").HudElement} def
  * @property {HTMLElement} box
- * @property {number} x Where the widget sits in the match, without our offsets
+ * @property {number} x Position in the match, without our offsets
  * @property {number} y
  * @property {number} w
  * @property {number} h
- * @property {boolean} empty The widget had nothing in it when the snapshot was taken
- * @property {DOMRect|null} drawn Where its box is right now
+ * @property {boolean} empty Was empty at snapshot time
+ * @property {DOMRect|null} drawn Current box
  */
 
 /**
- * The editor: labelled boxes over a snapshot of the real in-match HUD.
- *
- * It never measures the page while it is open, because by then the pointer is unlocked and Krunker has laid the
- * HUD out for the menu. Everything drawn comes from the snapshot plus the offsets being edited, so what the boxes
- * show is what the match will look like.
+ * Labelled boxes drawn from the in-match snapshot, never from the live (menu) layout.
  *
  * @param {import("./index.js").HudEditor} hud
  * @param {import("./index.js").HudGeometry} geometry
@@ -47,7 +42,7 @@ const round = (value) => Math.round(value * 100) / 100;
  */
 export async function openEditor(hud, geometry){
     if (document.pointerLockElement) document.exitPointerLock();
-    // out of the key press that opened us: our own Escape and F7 handler would otherwise see that same event
+    // let the opening key press finish, else our Escape/F7 handler sees it too
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     const { layout } = hud;
@@ -63,12 +58,7 @@ export async function openEditor(hud, geometry){
     document.body.append(overlay);
 
     /**
-     * What a widget's box should be.
-     *
-     * A widget that was on screen when the layout was measured gives its own rect. One that this mode or a
-     * setting hides was measured through a probe, and a probe reports the holder it sits in (the round message
-     * is as wide as the screen, the team score strip is 600 px of nothing), so all it is trusted for is where
-     * the widget is anchored. Those get a small handle there instead of a made up size.
+     * Box for a widget. Probed (hidden) widgets report their holder's size, so only their anchor is trusted.
      *
      * @param {import("./elements.js").HudElement} def
      * @param {[number, number, number, number, number]} rect
@@ -77,7 +67,7 @@ export async function openEditor(hud, geometry){
     const boxFor = (def, rect) => {
         const [rx, ry, rw, rh, visible] = rect;
         const empty = !visible || rw <= 0 || rh <= 0;
-        // a holder reported instead of the widget: it covers half the screen or more
+        // half the screen or more = we got the holder, not the widget
         const oversizeX = rw > window.innerWidth * 0.5;
         const oversizeY = rh > window.innerHeight * 0.5;
 
@@ -93,7 +83,7 @@ export async function openEditor(hud, geometry){
             h = def.size?.[1] ?? EMPTY_BOX;
             y = ry + rh / 2 - h / 2;
         }
-        // an anchor on the right or bottom edge grows its handle back towards the middle
+        // right/bottom anchors grow towards the middle
         if (empty && rx > window.innerWidth / 2) x = rx - w;
         if (empty && ry > window.innerHeight / 2) y = ry - h;
 
@@ -103,13 +93,12 @@ export async function openEditor(hud, geometry){
     };
 
     /**
-     * Handles of widgets that were not on screen sit on their anchors, and anchors of a row (the powerup slots)
-     * are only a few pixels apart. This pushes the handles off each other so every one of them can be grabbed.
+     * Pushes overlapping empty handles apart (powerup slot anchors are a few px apart).
      *
      * @param {Item[]} all
      */
     const spreadHandles = (all) => {
-        // the widgets that were really on screen keep their place, the handles move around them
+        // real widgets stay put, handles move around them
         const placed = all.filter((item) => !item.empty);
         for (const item of all){
             if (!item.empty) continue;
@@ -144,8 +133,7 @@ export async function openEditor(hud, geometry){
     }
     spreadHandles(items);
 
-    // labels sit above their box. Small boxes standing next to each other (the powerup row) would stack their
-    // labels on each other, so every other one goes below, as long as there is screen left down there
+    // alternate small box labels above/below so a row of them doesn't overlap
     let flip = false;
     for (const item of items){
         if (item.w > 60){
@@ -168,8 +156,6 @@ export async function openEditor(hud, geometry){
     }
 
     /**
-     * Whether the widget is on in the game right now.
-     *
      * @param {import("./elements.js").HudElement} def
      * @return {boolean}
      */
@@ -186,9 +172,6 @@ export async function openEditor(hud, geometry){
     const placeOf = (key) => (layout[key] ??= {});
 
     /**
-     * An offset in vw/vh, in screen pixels. Krunker's UI scaling scales what an offset does, which is why the
-     * snapshot carries the factor it was measured with.
-     *
      * @param {number} vw
      * @param {number} vh
      * @return {[number, number]}
@@ -199,8 +182,7 @@ export async function openEditor(hud, geometry){
     ];
 
     /**
-     * Draws one box from the snapshot and the offsets being edited. Scale grows the widget around its middle,
-     * the way the CSS does it in the match.
+     * Scaled around its middle like the CSS does.
      *
      * @param {Item} item
      */
@@ -226,10 +208,7 @@ export async function openEditor(hud, geometry){
         for (const item of items) draw(item);
     };
 
-    /**
-     * Puts the working layout into the client object and repaints the stylesheet. The host only hears about it
-     * when the editor closes.
-     */
+    // host only gets the layout on close
     const applyLive = () => {
         kute.settings.data.hudLayout = layout;
         hud.apply();
@@ -240,9 +219,6 @@ export async function openEditor(hud, geometry){
     /** @type {Map<string, HTMLInputElement>} */
     const panelChecks = new Map();
 
-    /**
-     * Keeps the panel in sync with the layout: what moved, what is on.
-     */
     const refreshRows = () => {
         for (const item of items){
             const row = panelRows.get(item.def.key);
@@ -277,9 +253,9 @@ export async function openEditor(hud, geometry){
 
     /**
      * @param {Item} item
-     * @param {number} screenX Offset from where the move started, in screen pixels
+     * @param {number} screenX Offset from the move start, screen px
      * @param {number} screenY
-     * @param {import("./index.js").HudPlacement} from The placement when the move started
+     * @param {import("./index.js").HudPlacement} from Placement at move start
      */
     const moveTo = (item, screenX, screenY, from) => {
         const place = placeOf(item.def.key);
@@ -290,10 +266,8 @@ export async function openEditor(hud, geometry){
     };
 
     /**
-     * Snaps a dragged box to the screen edges and centers and to every other box, and draws the guides.
-     *
      * @param {Item} item
-     * @param {DOMRect} start Where the box was when the drag started
+     * @param {DOMRect} start Box at drag start
      * @param {number} dx
      * @param {number} dy
      * @return {[number, number]}
@@ -376,10 +350,8 @@ export async function openEditor(hud, geometry){
         };
     }
 
-    // ── the panel ──
-
     const host = document.createElement("div");
-    // the middle of the screen is the one place no HUD widget sits, and the panel can be dragged anyway
+    // center, no HUD widget sits there
     host.style.cssText = "position:fixed;top:50%;left:50%;transform:translate(-50%, -50%)";
     overlay.append(host);
     const shadow = host.attachShadow({ mode: "open" });
@@ -392,7 +364,7 @@ export async function openEditor(hud, geometry){
     const element = (id) => /** @type {HTMLElement} */ (shadow.querySelector(`#${id}`));
 
     /**
-     * Turns a widget on or off through the setting that owns it: Krunker's own for its widgets, ours for ours.
+     * Toggles a widget through the setting that owns it (krunker's or ours).
      *
      * @param {import("./elements.js").HudElement} def
      * @param {boolean} value
@@ -407,7 +379,7 @@ export async function openEditor(hud, geometry){
             window.chrome.webview.postMessage(`set-config, ${id}, ${value}`);
             const toggleName = /** @type {const} */ (`toggle${id.charAt(0).toUpperCase()}${id.slice(1)}`);
             if (typeof kute.settings[toggleName] === "function") kute.settings[toggleName](value);
-            // the client settings tab may be open behind the editor
+            // settings tab may be open behind the editor
             const input = /** @type {HTMLInputElement|null} */ (document.querySelector(`#${id}`));
             if (input) input.checked = value;
         }
@@ -499,7 +471,7 @@ export async function openEditor(hud, geometry){
     };
 
     element("hpDone").onclick = close;
-    // every box comes from a snapshot taken at one window size, so a resize makes all of them wrong
+    // snapshot is size specific, a resize invalidates it
     window.addEventListener(
         "resize",
         () => {

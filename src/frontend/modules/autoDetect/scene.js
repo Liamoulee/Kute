@@ -1,15 +1,15 @@
 /**
- * @typedef {object} SceneLoad - Synthetic WebGL2 load shaped like a Krunker frame
- * @property {number} draws Draw calls per frame
- * @property {number} meshSegments Sphere resolution, 10 gives 200 triangles per object
- * @property {number} overdraw Screen covering translucent passes per frame (the GPU fill cost)
- * @property {number} cpuIterations Fixed JS work per frame. Iterations, not time, so a slower CPU shows
+ * @typedef {object} SceneLoad - synthetic webgl2 load shaped like a krunker frame
+ * @property {number} draws draw calls per frame
+ * @property {number} meshSegments sphere resolution, 10 = 200 tris per object
+ * @property {number} overdraw fullscreen translucent passes per frame (gpu fill cost)
+ * @property {number} cpuIterations fixed js work per frame, iterations not time so a slow cpu shows
  */
 
-// @TODO: Make this scene cuter
+// @TODO: make this scene cuter
 
 /**
- * Calibrated on an RTX 3090 Ti at 3440x1440: about 1500 frames per second, which is what Krunker reaches there.
+ * ~1500 fps on a 3090 Ti at 3440x1440, same as krunker there
  *
  * @type {SceneLoad}
  */
@@ -70,11 +70,9 @@ out vec4 outColor;
 void main() { outColor = texture(uLabel, vUv); }`;
 
 /**
- * Text for the player, painted once into a bitmap. It is drawn as part of the scene: an HTML element over
- * the canvas would make the browser composite two layers per frame, which costs a good tenth of the frame
- * rate and would end up in the measurement.
+ * label drawn in gl, an html overlay costs ~10 % fps in compositing
  *
- * @param {string[]} lines The first one is the headline
+ * @param {string[]} lines first one is the headline
  * @return {HTMLCanvasElement}
  */
 function paintLabel(lines){
@@ -169,7 +167,7 @@ function perspective(out, fovY, aspect, near, far){
 }
 
 /**
- * Column major a * b.
+ * column major a * b
  *
  * @param {Float32Array} out
  * @param {Float32Array} a
@@ -184,7 +182,7 @@ function multiply(out, a, b){
 }
 
 /**
- * Rotation around Y, uniform scale and translation.
+ * y rotation, uniform scale, translation
  *
  * @param {Float32Array} out
  * @param {number} x
@@ -221,22 +219,22 @@ function cpuWork(iterations){
         cpuBuffer[j] = cpuBuffer[j] * 0.999 + Math.sqrt(i + 1) * 0.001;
         acc += cpuBuffer[j];
     }
-    // keeps the loop from being optimized away
+    // so the loop doesn't get optimized away
     cpuSink += acc;
 }
 
 /**
  * @typedef {object} Scene
- * @property {(timeMs: number) => void} render Draws one frame
+ * @property {(timeMs: number) => void} render
  * @property {(width: number, height: number) => void} resize
- * @property {() => boolean} lost Whether the GL context is gone, which is what a closing window looks like
+ * @property {() => boolean} lost gl context gone, i.e. the window is closing
  * @property {() => void} destroy
  */
 
 /**
  * @param {HTMLCanvasElement} canvas
  * @param {SceneLoad} [load]
- * @param {string[]} [labelLines] Shown in the middle of the scene for the whole run
+ * @param {string[]} [labelLines]
  * @return {Scene}
  */
 export function createScene(canvas, load = DEFAULT_LOAD, labelLines = []){
@@ -279,7 +277,7 @@ export function createScene(canvas, load = DEFAULT_LOAD, labelLines = []){
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
     gl.bindVertexArray(null);
 
-    // the label: one textured quad, the same single draw call in every configuration
+    // one textured quad, same single draw call in every config
     const labelBitmap = labelLines.length > 0 ? paintLabel(labelLines) : null;
     const labelProgram = labelBitmap ? link(gl, LABEL_VS, LABEL_FS) : null;
     const uLabelScale = labelProgram ? gl.getUniformLocation(labelProgram, "uScale") : null;
@@ -299,7 +297,7 @@ export function createScene(canvas, load = DEFAULT_LOAD, labelLines = []){
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     }
 
-    // fixed seed: the same objects on every run and every machine
+    // fixed seed, same objects everywhere
     let seed = 1337;
     const rand = () => {
         seed = (seed * 1664525 + 1013904223) >>> 0;
@@ -366,7 +364,7 @@ export function createScene(canvas, load = DEFAULT_LOAD, labelLines = []){
             }
 
             if (labelBitmap && labelProgram){
-                // at its own pixel size whatever the canvas measures
+                // native pixel size regardless of canvas size
                 gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
                 gl.useProgram(labelProgram);
                 gl.bindVertexArray(labelVao);

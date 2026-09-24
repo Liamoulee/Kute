@@ -11,7 +11,6 @@ js_bundle_version = "0.1.37"
 [workspace]
 members = ["crates/*"]
 
-# https://doc.rust-lang.org/rustc/codegen-options/index.html
 [profile.dev]
 incremental = true
 
@@ -19,8 +18,7 @@ incremental = true
 codegen-units = 1
 lto = true
 opt-level = 3
-# no debug-assertions: the crash log (panic hook, panic location, backtrace) works without them. all the flag did
-# was compile debug_assert! and integer overflow checks into our code and every dependency
+# no debug-assertions, the crash log doesn't need them
 strip = "symbols"
 
 [features]

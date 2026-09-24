@@ -1,8 +1,6 @@
 /**
- * The live state of the userscripts the exe runs (src/frontend/host/userscriptRunner.js). The renderer puts the
- * registry on window only while it evaluates the bundle and deletes it again before any page script runs, so this
- * module has to be imported statically from main.js: a dynamic import would come too late.
- * Null with an exe older than the runner, or with userscripts switched off.
+ * Live userscript state from the runner. Only on window during bundle eval, so import statically.
+ * Null on an old exe or with userscripts off.
  *
  * @type {Registry|null}
  */

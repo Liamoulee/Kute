@@ -4,8 +4,6 @@ button.id = "claimAllBtn";
 button.textContent = "Claim All";
 
 /**
- * Returns the visible battle pass reward buttons that can still be claimed.
- *
  * @return {HTMLElement[]}
  */
 function findClaimables(){
@@ -14,9 +12,6 @@ function findClaimables(){
     );
 }
 
-/**
- * Enables or disables the claim-all button depending on whether anything is claimable.
- */
 function updateButtonState(){
     const hasClaimable = findClaimables().length > 0;
     hasClaimable ? button.classList.remove("disabled") : button.classList.add("disabled");
@@ -24,8 +19,6 @@ function updateButtonState(){
 }
 
 /**
- * Clicks every claimable reward with a short delay in between.
- *
  * @return {Promise<void>}
  */
 async function claimEverything(){
@@ -47,9 +40,6 @@ button.onclick = () => {
     claimEverything();
 };
 
-/**
- * Appends the claim-all button to the battle pass window.
- */
 function addClaimAllButton(){
     const bar = document.querySelector(".bpBotH");
     if (!bar) return;
@@ -60,7 +50,7 @@ function addClaimAllButton(){
 
 const originalshowWindow = window.showWindow;
 /**
- * Wraps Krunker's showWindow to inject the button when the battle pass window (6) opens.
+ * window 6 is the battle pass
  *
  * @param {...any} args
  * @return {any}

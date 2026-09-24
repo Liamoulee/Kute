@@ -7,17 +7,9 @@ import Log from "../util/log.js";
 // =     - SPDX: MIT -     = //
 // ========================= //
 
-/**
- * Handle log cleanups and other operations
- *
- * @class LogHandler
- */
 class LogHandler {
-    /**
-     * Get date from filename
-     */
     static #getDateFromFilename(filename: string): number | null{
-        // Format: PROJECTNAME-DD-MM-YYYY-output.log and PROJECTNAME-DD-MM-YYYY-errors.log
+        // format: PROJECTNAME-DD-MM-YYYY-output.log and PROJECTNAME-DD-MM-YYYY-errors.log
         const regex = /(\d{2})-(\d{2})-(\d{4})/;
         const match = filename.match(regex);
 
@@ -34,9 +26,6 @@ class LogHandler {
         return null;
     }
 
-    /**
-     * Remove logs that are older than 31 days
-     */
     static async removeOldLogs(): Promise<void> {
         Log.wait("[CRON] Deleting old logs...");
 

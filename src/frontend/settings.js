@@ -3,7 +3,7 @@ import { kute, globalRef } from "./client.js";
 import { getElement, getInput, checkCompMode } from "./utils.js";
 
 /**
- * Shape of an entry in cSettings.json.
+ * a cSettings.json entry
  *
  * @typedef {object} SettingOption
  * @property {string} id
@@ -17,8 +17,7 @@ import { getElement, getInput, checkCompMode } from "./utils.js";
  * @property {string} [button]
  * @property {string} [buttonAction] Inline JS; "{{kute}}" is replaced with a reference to the client object
  * @property {boolean} [requiresLogin] The button is disabled while no account is logged in
- * @property {string} [requires] Id of a checkbox setting this one only works with: the control is disabled while
- *     that one is off (the present FPS counter reads the swap chain hook)
+ * @property {string} [requires] id of a checkbox setting this one depends on, disabled while that is off
  * @property {number} [min]
  * @property {number} [max]
  * @property {number} [step]
@@ -32,12 +31,9 @@ const debounceTimers = new Map();
 const settings = /** @type {Record<string, SettingOption>} */ (cSettings);
 
 /**
- * Applies a changed setting: updates the UI, runs side effects for special ids, calls the module's
- * toggle function (or imports the module) and persists the value through the host.
- *
  * @param {string} id
  * @param {string|number|boolean} rawValue
- * @param {boolean} slider Whether the change came from a range input (debounced)
+ * @param {boolean} slider from a range input, gets debounced
  */
 kute.settings.changeSetting = (id, rawValue, slider) => {
     if (rawValue === "") return;
@@ -151,18 +147,17 @@ kute.settings.changeSetting = (id, rawValue, slider) => {
     window.chrome.webview.postMessage(`set-config, ${id}, ${value}`);
 };
 
-/** Marks behind a setting name, the legend in the first folder header explains them. */
 const REFRESH_MARK = ' <span style="color: #3244a8" title="Requires Refresh">*</span>';
 const RESTART_MARK = ' <span style="color: #eb5656" title="Requires Restart">*</span>';
 
 /**
- * The buttons above the client settings: [label, material icon, color class, inline action].
+ * [label, material icon, color class, inline action]
  *
  * @return {[string, string, string, string][]}
  */
 const topButtons = () => {
     /**
-     * @param {string} url One of the hosts the exe opens (constants.rs, OPEN_URL_ALLOWED)
+     * @param {string} url must be under OPEN_URL_ALLOWED (constants.rs), the host drops anything else
      * @return {string}
      */
     const openUrl = (url) => `window.chrome.webview.postMessage('open-url, ${url}')`;
@@ -176,18 +171,12 @@ const topButtons = () => {
     ];
 };
 
-/**
- * Renders the client settings into Krunker's Advanced settings tab.
- */
 class SettingsManager {
     constructor(){
-        /** @type {any} Krunker's settings window object */
+        /** @type {any} krunker's settings window */
         this.settingsWindow = window.windows[0];
         this.init();
     }
-    /**
-     * Hooks Krunker's settings renderer and listens for OBS plugin install results.
-     */
     init(){
         const origGetSettings = this.settingsWindow.getSettings;
         /**
@@ -198,9 +187,7 @@ class SettingsManager {
             const original = origGetSettings.call(this.settingsWindow, ...args);
             const ours = this.getCSettings();
             if (!ours) return original;
-            // the client settings belong inside the container krunker closes first, so that closer moves behind
-            // them instead of being dropped: dropping it left the settings window one `</div>` short, and while
-            // a search was open two short, which closes krunker's own boxes early and swallows the rows after them
+            // our settings go inside krunker's first closing div, so move that closer behind them
             const closesFirst = original.startsWith("</div>");
             return (closesFirst ? original.slice("</div>".length) : original) + ours + (closesFirst ? "</div>" : "");
         };
@@ -228,14 +215,12 @@ class SettingsManager {
     }
 
     /**
-     * Renders the input control for a single setting.
-     *
      * @param {SettingOption} option
      * @return {string}
      */
     generateHtml(option){
         const value = kute.settings.data[option.id];
-        // globalRef contains double quotes, which would end the onclick attribute
+        // globalRef has double quotes, would end the onclick attribute
         const buttonAction = option.buttonAction?.replaceAll("{{kute}}", globalRef).replaceAll('"', "&quot;") ?? "";
         const locked = option.requiresLogin && document.querySelector("#signedInHeaderBar") === null;
         let button = "";
@@ -279,8 +264,6 @@ class SettingsManager {
     }
 
     /**
-     * Renders all client settings grouped by category, or nothing when another tab is active.
-     *
      * @return {string}
      */
     getCSettings(){
@@ -292,7 +275,6 @@ class SettingsManager {
         }
 
         let tempHTML = "<div class='kuteSettings'>";
-        // the buttons belong to the client tab itself, not to a search result
         if (!this.settingsWindow.settingSearch){
             tempHTML += `<div class="kuteTopButtons">${topButtons()
                 .map(([label, icon, color, action]) => `<div class="kuteTopButton ${color}" onclick="${action.replaceAll('"', "&quot;")}">
@@ -300,11 +282,10 @@ class SettingsManager {
                 .join("")}</div>`;
         }
         let previousCategory = null;
-        // a search that matches nothing of ours must render nothing at all, not an empty box with its closers
+        // empty search result must render nothing, not an empty box
         let rendered = false;
 
         for (const setting of Object.values(settings)){
-            // filter first: while searching, the controls of everything that does not match got built for nothing
             if (this.settingsWindow.settingSearch && !this.searchMatches(setting)) continue;
 
             setting.html = this.generateHtml(setting);
@@ -312,7 +293,6 @@ class SettingsManager {
             if (previousCategory !== setting.category){
                 if (previousCategory) tempHTML += "</div>";
 
-                // the first folder header explains the marks, like the legend of a map
                 const legend = previousCategory === null
                     ? `<span class="kuteLegend">${REFRESH_MARK} Requires refresh ${RESTART_MARK} Requires restart</span>`
                     : "";
@@ -330,8 +310,7 @@ class SettingsManager {
 								${setting.html}</div>`;
         }
 
-        // closes the open category body and the kuteSettings box, and nothing else: whatever krunker left open
-        // is krunker's to close (see the wrapper in init)
+        // closes category body and kuteSettings box only, rest is krunker's (see init)
         return rendered ? `${tempHTML}</div></div>` : "";
     }
 }

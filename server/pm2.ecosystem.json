@@ -1,7 +1,7 @@
 {
     "apps": [
         {
-            "_comment": "bun is started as a plain process. pm2's own bun mode (interpreter bun) requires() the script, and server.ts has top level awaits, which require() cannot load",
+            "_comment": "plain process: pm2's bun mode require()s the script, which breaks on top level await",
             "name": "kute-server",
             "cwd": ".",
             "script": "bun",

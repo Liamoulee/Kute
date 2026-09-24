@@ -13,14 +13,11 @@ use crate::{
 };
 use serde_json::{Value, json};
 
-// Files the client serves in place of the game's own, keyed like the player's swapper folder.
 const BUILT_IN: &[(&str, &str)] = &[("models/clouds_0.obj", include_str!("../../resources/swaps/clouds_0.obj"))];
 
 type Index = HashMap<String, Arc<Vec<u8>>>;
 
-// lowercased relative url path (forward slashes) -> file bytes. The player's own folder is loaded over the built
-// in ones, so a file of theirs always wins. Lowercase because players name folders `CSS` or `Textures` and the
-// game asks for `css` and `textures`, which used to fail without a word
+// lowercased url path -> bytes. player files override built ins. lowercase because players name folders `CSS`
 pub static SWAPS: LazyLock<RwLock<Arc<Index>>> = LazyLock::new(|| {
     let files = if utils::config("swapper", true) && !bench::active() {
         scan()
@@ -30,16 +27,14 @@ pub static SWAPS: LazyLock<RwLock<Arc<Index>>> = LazyLock::new(|| {
     RwLock::new(Arc::new(build_index(&files)))
 });
 
-// what the published index was built from (see reload). Held for the whole of a reload, so reloads run one after
-// the other and the last one to start is the one that stays
+// fingerprint of the published index, held during a reload so reloads run in order
 static PUBLISHED_FROM: Mutex<Option<u64>> = Mutex::new(None);
 
-// every krunker.io file the game asked for this session, lowercased -> as requested. The swapper manager marks
-// swaps the game never asked for with it, and offers these paths as drop targets
+// every krunker.io path requested this session, lowercased -> original. used by the manager
 static SEEN: Mutex<BTreeMap<String, String>> = Mutex::new(BTreeMap::new());
 const MAX_SEEN: usize = 20_000;
 
-// one file of the swapper folder: relative path (forward slashes), full path, size, last change
+// (relative path, full path, size, mtime)
 type Scanned = (String, PathBuf, u64, Option<SystemTime>);
 
 fn scan_folder(root: &Path, dir: &Path, out: &mut Vec<Scanned>) {
@@ -61,7 +56,7 @@ fn scan_folder(root: &Path, dir: &Path, out: &mut Vec<Scanned>) {
     }
 }
 
-// the swapper folder without reading a single file
+// metadata only, reads no file
 fn scan() -> Vec<Scanned> {
     let root = swapper_dir();
     fs::create_dir_all(&root).ok();
@@ -87,9 +82,7 @@ fn build_index(files: &[Scanned]) -> Index {
     swaps
 }
 
-// Reads the folder again and publishes the new index, before it returns: the manager's reply comes after this, so
-// a refresh right after it gets the new files. Runs on the manager's worker thread, never on the UI or IO thread.
-// A folder that did not change since the last reload (same paths, sizes and change times) is not read again.
+// manager thread only. skips the read if paths, sizes and mtimes are unchanged
 pub fn reload() {
     let mut published_from = PUBLISHED_FROM.lock().unwrap();
     let files = if utils::config("swapper", true) { scan() } else { Vec::new() };
@@ -100,7 +93,7 @@ pub fn reload() {
         return;
     }
     let index = Arc::new(build_index(&files));
-    // the old index is dropped after the lock is released: freeing a big pack must not hold up a request
+    // drop the old index outside the lock, freeing a big pack must not block requests
     let old = std::mem::replace(&mut *SWAPS.write().unwrap(), index);
     drop(old);
     *published_from = Some(signature);
@@ -109,7 +102,7 @@ pub fn reload() {
 // "https://assets.krunker.io/textures/a.png?build=x" -> "textures/a.png"
 pub fn swap_for(url: &str) -> Option<Arc<Vec<u8>>> {
     let path = utils::krunker_path(url)?;
-    // only files: "game-list" and friends are api calls
+    // files only, "game-list" etc are api calls
     if path.contains('.') {
         let mut seen = SEEN.lock().unwrap();
         if seen.len() < MAX_SEEN {
@@ -143,7 +136,7 @@ pub fn swapper_dir() -> PathBuf {
     utils::settings_dir().join("swapper")
 }
 
-// a path inside the swapper folder, or None when the page named something outside of it
+// None if it points outside the swapper folder
 fn inside(relative: &str) -> Option<PathBuf> {
     Some(swapper_dir().join(files::safe_relative(relative)?))
 }
@@ -169,7 +162,6 @@ fn list_folder(root: &PathBuf, dir: &PathBuf, files_out: &mut Vec<Value>, dirs_o
     }
 }
 
-// What the manager shows: the folder's files and folders, and what the game requested this session.
 pub fn list() -> Value {
     let root = swapper_dir();
     fs::create_dir_all(&root).ok();
@@ -198,7 +190,7 @@ pub fn move_to(from: &str, to: &str) -> Result<(), String> {
     if target.starts_with(&source) {
         return Err("A folder cannot move into itself".into());
     }
-    // a rename that only changes the case is allowed, the old file "exists" under the new name on Windows
+    // case only renames are fine, windows says the target exists
     if target.exists() && from.to_lowercase() != to.to_lowercase() {
         return Err(format!("{to} already exists"));
     }
@@ -210,8 +202,7 @@ pub fn move_to(from: &str, to: &str) -> Result<(), String> {
     Ok(())
 }
 
-// Saves one dropped file (base64) at `relative`, creating its folders. The index is rebuilt by the list the
-// page asks for once all files of a drop are through.
+// one dropped file, the index gets rebuilt by the list call after the drop
 pub fn upload(relative: &str, data: &str) -> Result<(), String> {
     let path = inside(relative).filter(|path| *path != swapper_dir()).ok_or("invalid path")?;
     let bytes = files::decode_base64(data).ok_or("the file did not arrive intact")?;

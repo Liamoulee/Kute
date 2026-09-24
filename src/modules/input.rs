@@ -74,7 +74,6 @@ static SCROLL_SENDER: LazyLock<Sender<()>> = LazyLock::new(|| {
 static mut PREV_WNDPROC_1: WNDPROC = None;
 static mut PREV_WNDPROC_2: WNDPROC = None;
 
-// true while the game holds the pointer
 static POINTER_LOCKED: AtomicBool = AtomicBool::new(false);
 static F20_DOWN: AtomicBool = AtomicBool::new(false);
 static RAMPBOOST: AtomicBool = AtomicBool::new(false);
@@ -103,7 +102,7 @@ impl ChromeWindows {
         windows
     }
 
-    // chromium creates placeholder render widget windows first, the one showing the page covers the parent
+    // chromium makes placeholder widgets first, the real one covers the parent
     fn complete(&self, parent: HWND) -> bool {
         if self.chrome_window.0.is_null() || self.chrome_renderwidget.0.is_null() {
             return false;
@@ -119,8 +118,7 @@ impl ChromeWindows {
         }
     }
 
-    // each window on its own: every page load brings a new render widget while the outer window stays, and
-    // returning once the outer one was ours left every widget after the first page load without its hook
+    // check each window, every page load brings a new widget while the outer window stays
     unsafe fn set_window_procs(&self) {
         unsafe {
             let original_proc_1 = GetWindowLongPtrW(self.chrome_window, GWLP_WNDPROC);
@@ -149,7 +147,7 @@ pub fn set_pointer_locked(locked: bool) {
     debug_print!("input: pointer locked={locked}");
 }
 
-// the procedure the render widget gets, remembered so a widget hooked later (after a page load) gets the same
+// remembered so widgets hooked after a page load get the same one
 fn widget_proc() -> isize {
     if RAMPBOOST.load(sync::atomic::Ordering::Relaxed) {
         wnd_proc_widget_rampboost as *const () as isize
@@ -158,7 +156,6 @@ fn widget_proc() -> isize {
     }
 }
 
-// switches the render widget between the plain and the ramp boost window procedure
 pub fn set_rampboost(enabled: bool) {
     RAMPBOOST.store(enabled, sync::atomic::Ordering::Relaxed);
     let widget = HWND(RENDER_WIDGET.load(sync::atomic::Ordering::Relaxed));
@@ -171,7 +168,7 @@ pub fn set_rampboost(enabled: bool) {
     debug_print!("input: rampboost={enabled}");
 }
 
-// the browser's child windows may appear a little after on_after_created, so keep looking
+// child windows can show up after on_after_created, keep looking
 pub fn attach(parent: HWND) {
     WINDOW_HANDLE.store(parent.0, sync::atomic::Ordering::Relaxed);
 
@@ -191,9 +188,7 @@ pub fn attach(parent: HWND) {
         return;
     }
 
-    // re-hook if the main window gets recreated (see the subwindow WM_COPYDATA path) or
-    // chromium replaced the render widget window, which it does on every page load (a new lobby). every
-    // second, because until then the new page runs without the wheel handling. a tick is one IsWindow call
+    // re-hook when the main window gets recreated or chromium swaps the widget (every page load)
     thread::spawn(move || {
         loop {
             unsafe {
@@ -222,8 +217,7 @@ pub fn attach(parent: HWND) {
     thread::spawn(move || {
         unsafe {
             debug_print!("input: WinEvent message thread started id={}", GetCurrentThreadId());
-            // whenever a window gets created check if it has the Chrome.WindowTranslucent attribute
-            // (the one that warns about pointer lock) and if it does, destroy it
+            // kills the Chrome.WindowTranslucent pointer lock warning
             let hook = SetWinEventHook(
                 EVENT_OBJECT_CREATE,
                 EVENT_OBJECT_CREATE,
@@ -249,9 +243,7 @@ unsafe extern "system" fn dummy_wnd_proc(hwnd: HWND, msg: u32, wparam: WPARAM, l
     unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
 }
 
-// OBS "Application Audio Capture" needs a window owned by the process that plays the audio, which is the audio
-// service utility process (main.rs). This used to run here as well, from the days this file was a DLL loaded into
-// several processes, and the browser process it now lives in plays no audio: that window was a silent duplicate
+// OBS app audio capture needs a window in the process playing audio, runs in the audio utility process only
 pub fn spawn_audio_window_thread() {
     thread::spawn(|| {
         let hinstance = unsafe { GetModuleHandleW(None).unwrap().into() };
@@ -284,11 +276,9 @@ pub fn spawn_audio_window_thread() {
         };
 
         unsafe {
-            // makes window transparent
             let _ = SetLayeredWindowAttributes(hwnd, COLORREF(0), 0, LWA_ALPHA);
 
-            // set an invisible owner window
-            // drops it from the taskbar
+            // owner window keeps it off the taskbar
             let desktop_hwnd = GetDesktopWindow();
             SetWindowLongPtrW(hwnd, GWLP_HWNDPARENT, desktop_hwnd.0 as isize);
 
@@ -331,10 +321,9 @@ unsafe extern "system" fn wnd_proc_1(window: HWND, message: u32, wparam: WPARAM,
                 CallWindowProcW(PREV_WNDPROC_1, window, message, WPARAM(wparam.0 & !MK_LBUTTON.0 as usize), lparam)
             }
             WM_CHAR => LRESULT(1),
-            // when you press esc chromium puts a few seconds of delay before the pointer can get locked again as a security measure
+            // chromium delays the next pointer lock for a few seconds after esc
             WM_KEYDOWN | WM_KEYUP => {
                 if wparam.0 == VK_ESCAPE.0 as usize && POINTER_LOCKED.load(sync::atomic::Ordering::Relaxed) {
-                    // the kute window, not the browser widget
                     let kute = WINDOW_HANDLE.load(sync::atomic::Ordering::Relaxed);
                     let _result = SetFocus(Some(HWND(kute)));
                     debug_print!("input: redirected Escape focus to client result={_result:?}");
@@ -350,13 +339,12 @@ unsafe extern "system" fn wnd_proc_1(window: HWND, message: u32, wparam: WPARAM,
             WM_INPUT => {
                 let mut buffer = std::mem::MaybeUninit::<RAWINPUT>::uninit();
                 let mut size = std::mem::size_of::<RAWINPUT>() as u32;
-                // with our libcef chromium itself keeps the movement and ignores the button in these packets (app.rs,
-                // KuteRawInputMovementOnly), and dropping them here would throw the movement away again
+                // our libcef handles these itself (KuteRawInputMovementOnly), dropping them would lose movement
                 static CHROMIUM_FILTERS: LazyLock<bool> = LazyLock::new(|| crate::app::feature_enabled("KuteRawInputMovementOnly"));
                 if *CHROMIUM_FILTERS {
                     return CallWindowProcW(PREV_WNDPROC_1, window, message, wparam, lparam);
                 }
-                // we only deny raw input events carrying a mouse button press, the movement itself is handled by chromium
+                // only drop packets with a button press, chromium does the movement
                 if GetRawInputData(
                     HRAWINPUT(lparam.0 as _),
                     RID_INPUT,
@@ -367,7 +355,6 @@ unsafe extern "system" fn wnd_proc_1(window: HWND, message: u32, wparam: WPARAM,
                 {
                     let raw = buffer.assume_init_ref();
 
-                    // the union only holds mouse data in a mouse packet
                     if raw.header.dwType == RIM_TYPEMOUSE.0 && raw.data.mouse.Anonymous.Anonymous.usButtonFlags != 0 {
                         return LRESULT(1);
                     };
@@ -379,7 +366,6 @@ unsafe extern "system" fn wnd_proc_1(window: HWND, message: u32, wparam: WPARAM,
     }
 }
 
-// mirrors SetIsZoomControlEnabled(false)
 fn is_zoom_wheel(wparam: WPARAM) -> bool {
     (wparam.0 & MK_CONTROL.0 as usize) != 0
 }
@@ -394,8 +380,7 @@ unsafe extern "system" fn wnd_proc_widget(window: HWND, message: u32, wparam: WP
                 }
                 if POINTER_LOCKED.load(sync::atomic::Ordering::Relaxed) {
                     let kute = WINDOW_HANDLE.load(sync::atomic::Ordering::Relaxed);
-                    // send the message to the kute window, from where it gets sent as a js event
-                    // best fix i could find for the fps dropping when scrolling whilst still keeping scroll behaviour intact
+                    // goes to the page as a js event, fixes fps drops when scrolling
                     PostMessageW(Some(HWND(kute)), message, wparam, lparam).ok();
                     return LRESULT(1);
                 }

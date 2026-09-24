@@ -1,16 +1,16 @@
 /**
  * @typedef {object} ConfirmOptions
  * @property {string} title
- * @property {string[]} paragraphs Plain text, one paragraph each
- * @property {string} stay Label of the highlighted button (resolves false)
- * @property {string} leave Label of the other button (resolves true)
+ * @property {string[]} paragraphs plain text
+ * @property {string} stay highlighted button, resolves false
+ * @property {string} leave resolves true
  */
 
 /**
- * A modal question with two answers. Closing it any other way (Escape, a click next to it) counts as "stay".
+ * escape or outside click counts as stay
  *
  * @param {ConfirmOptions} options
- * @return {Promise<boolean>} true when the player chose the "leave" button
+ * @return {Promise<boolean>}
  */
 export async function confirmPopup(options){
     const html = await import("../components/confirm.html");

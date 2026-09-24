@@ -22,7 +22,6 @@ const sheduleCrons = async function(): Promise<void> {
     const cronCount = cron.getTasks().size;
     Log.done("Scheduled " + cronCount + " Crons.");
 
-    // start on Init
     await LogHandler.removeOldLogs();
 };
 

@@ -1,5 +1,3 @@
-/* shared by the userscript and swapper managers, put in front of their markup by managers/popup.js */
-
 :host {
 	--accent: #35e0e8;
 	--bg: #1e1e1e;
@@ -218,7 +216,6 @@
 	color: var(--accent);
 }
 
-/* toggle switch */
 .toggle {
 	position: relative;
 	flex: 0 0 auto;
@@ -276,7 +273,6 @@
 	cursor: help;
 }
 
-/* in-popup question */
 .askBackdrop {
 	position: absolute;
 	inset: 0;
@@ -333,7 +329,6 @@
 	margin-top: 1em;
 }
 
-/* code editor (managers/editor.js) */
 .editor {
 	position: relative;
 	display: flex;

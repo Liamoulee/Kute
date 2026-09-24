@@ -44,7 +44,7 @@ export function countFirstStart(): void {
     write("total_players", String(total));
 }
 
-// peak and total stay in the stats table for us, only the current number is public
+// peak and total stay private, only online is public
 export function playerStats(): { online: number } {
     return { online };
 }

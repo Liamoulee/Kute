@@ -20,17 +20,17 @@ use windows::{
 static WINDOW_COUNT: AtomicUsize = AtomicUsize::new(0);
 static BROWSER_COUNT: AtomicUsize = AtomicUsize::new(0);
 const RENDER_STATS_TIMER: usize = 1;
-// safety net: shows a window whose browser never arrived, so a failed browser is a visible window, not a missing one
+// shows the window anyway if the browser never arrives
 const SHOW_TIMER: usize = 2;
 const SHOW_TIMEOUT_MS: u32 = 4000;
 
-// CEF objects are UI thread only, the same thread that owns every window
+// cef objects are UI thread only
 thread_local! {
     static BROWSERS: RefCell<HashMap<i32, Browser>> = RefCell::new(HashMap::new());
-    // browser id -> the kute window hosting it, valid even once CEF tore its own windows down
+    // browser id -> our window, still valid after cef tore down its own windows
     static BROWSER_WINDOWS: RefCell<HashMap<i32, HWND>> = RefCell::new(HashMap::new());
     static MAIN_BROWSER: RefCell<Option<Browser>> = const { RefCell::new(None) };
-    // every window we own, browser or not: BROWSER_WINDOWS misses one whose browser is already gone
+    // includes windows whose browser is already gone
     static OUR_WINDOWS: RefCell<Vec<HWND>> = const { RefCell::new(Vec::new()) };
 }
 
@@ -56,9 +56,7 @@ impl From<RECT> for Position {
 #[derive(Copy, Clone, serde::Serialize, serde::Deserialize, Default, Debug)]
 pub struct WindowState {
     pub fullscreen: bool,
-    // a maximized window's rect overhangs the screen by the border width, so restoring it as a plain window gave a
-    // window slightly too big and shifted down, which then needed a click on the title bar to really maximize.
-    // the position is the size to restore DOWN to, the flag maximizes on top of it
+    // position is the restore size, this maximizes on top of it
     #[serde(default)]
     pub maximized: bool,
     pub position: Position,
@@ -69,7 +67,7 @@ pub struct Window {
     pub browser: Option<Browser>,
     pub state: WindowState,
     pub is_subwindow: bool,
-    // set once CEF acknowledged the close, the next WM_CLOSE then destroys the window
+    // cef acked the close, next WM_CLOSE destroys the window
     pub closing: bool,
 }
 
@@ -89,7 +87,6 @@ impl Window {
                     SWP_NOZORDER | SWP_FRAMECHANGED,
                 )
                 .ok();
-                // a window that was maximized before F11 goes back to being maximized, not to a window of that size
                 if self.state.maximized {
                     let _ = ShowWindow(self.hwnd, SW_MAXIMIZE);
                 }
@@ -106,7 +103,7 @@ impl Window {
                     GetWindowRect(self.hwnd, &mut rect).ok();
                 }
                 self.state.position = Position::from(rect);
-                // leaving the maximized state behind avoids a window that is borderless AND still counts as maximized
+                // borderless and still maximized breaks things
                 if self.state.maximized {
                     let _ = ShowWindow(self.hwnd, SW_RESTORE);
                 }
@@ -162,7 +159,6 @@ pub fn window_from_hwnd(hwnd: HWND) -> Option<&'static mut Window> {
     }
 }
 
-// our top-level window that hosts the browser
 pub fn root_hwnd(browser: &Browser) -> Option<HWND> {
     let host = browser.host()?;
     let handle = host.window_handle().0;
@@ -180,7 +176,7 @@ pub fn window_from_browser(browser: &Browser) -> Option<&'static mut Window> {
     window_from_hwnd(hwnd)
 }
 
-// hides or shows the browser's own child window. a hidden page stops rendering
+// a hidden page stops rendering
 pub fn set_browser_visible(browser: &Browser, visible: bool) {
     let Some(host) = browser.host() else { return };
     let handle = host.window_handle().0;
@@ -208,7 +204,7 @@ pub fn bring_to_front(browser: &Browser) {
     }
 }
 
-// left, top, right, bottom of the window's client area in screen pixels
+// client area in screen pixels, [left, top, right, bottom]
 pub fn client_rect_on_screen(browser: &Browser) -> Option<[i32; 4]> {
     let hwnd = root_hwnd(browser)?;
     unsafe {
@@ -226,7 +222,7 @@ pub fn browser_by_id(id: i32) -> Option<Browser> {
     BROWSERS.with_borrow(|b| b.get(&id).cloned())
 }
 
-// Krunker's game page with a mod to load (krunker.io/?mod=<name>), what the "Use" button of a mod's detail view opens
+// krunker.io/?mod=<name>, opened by a mod's "Use" button
 pub fn is_mod_page(url: &str) -> bool {
     let Some(rest) = url.strip_prefix("https://krunker.io") else { return false };
     let Some(query) = rest.strip_prefix("/?").or_else(|| rest.strip_prefix('?')) else {
@@ -239,8 +235,7 @@ pub fn has_main_browser() -> bool {
     MAIN_BROWSER.with_borrow(|b| b.is_some())
 }
 
-// a mod page in the main window instead of a second one (see on_before_popup in handlers.rs), the way F4 loads
-// a lobby: throttle off, pointer released, window to the front
+// same as F4 does it: throttle off, pointer released, window to the front
 pub fn load_in_main(url: &str) {
     let Some(browser) = MAIN_BROWSER.with_borrow(|b| b.clone()) else { return };
     modules::devtools::set_cpu_throttling(&browser, 1.0);
@@ -251,8 +246,7 @@ pub fn load_in_main(url: &str) {
     bring_to_front(&browser);
 }
 
-// windows are created hidden so the first thing on screen is the page, not a black rectangle for as long as the
-// browser needs to come up. shown once the browser is attached, or by SHOW_TIMER should that never happen
+// windows start hidden so there's no black rectangle while the browser comes up
 unsafe fn show_window(window: &Window) {
     unsafe {
         KillTimer(Some(window.hwnd), SHOW_TIMER).ok();
@@ -270,12 +264,11 @@ unsafe fn show_window(window: &Window) {
     }
 }
 
-// on_after_created: link the browser to the window it was created in
 pub fn attach_browser(browser: &Browser) {
     BROWSER_COUNT.fetch_add(1, Ordering::SeqCst);
     BROWSERS.with_borrow_mut(|b| b.insert(browser.identifier(), browser.clone()));
 
-    // a browser outside our windows is chromium acting on its own (session restore and the like), drop it
+    // not ours, chromium acting on its own (session restore etc)
     let Some((hwnd, window)) = root_hwnd(browser).and_then(|hwnd| window_from_hwnd(hwnd).map(|w| (hwnd, w))) else {
         debug_print!("window: browser {} has no kute window, closing it", browser.identifier());
         if let Some(host) = browser.host() {
@@ -311,7 +304,6 @@ pub fn attach_browser(browser: &Browser) {
     }
 }
 
-// do_close: CEF accepted the close, the next WM_CLOSE destroys the window
 pub fn mark_closing(browser: &Browser) {
     debug_print!("window: browser {} closing", browser.identifier());
     if let Some(window) = window_from_browser(browser) {
@@ -319,7 +311,6 @@ pub fn mark_closing(browser: &Browser) {
     }
 }
 
-// on_before_close: the browser object is gone, so the window that hosted it goes too
 pub fn detach_browser(browser: &Browser) {
     let id = browser.identifier();
     debug_print!("window: browser {id} closed");
@@ -352,7 +343,7 @@ pub fn close_all() {
 
 pub fn handle_accelerator_key(browser: &Browser, key: u16) {
     match VIRTUAL_KEY(key) {
-        // the page's matchmaker picks the lobby (modules/matchmaker.js)
+        // matchmaker.js handles it
         VK_F6 if utils::config("matchmaker", true) => {}
         VK_F4 | VK_F6 => {
             modules::devtools::set_cpu_throttling(browser, 1.0);
@@ -398,14 +389,13 @@ pub fn create_main_window() {
     if let Some([left, top, right, bottom]) = modules::bench::config().and_then(|bench| bench.rect) {
         let locked = modules::bench::config().is_some_and(|bench| bench.locked);
         let state = WindowState {
-            // borderless, so the rect is the client area
             fullscreen: locked,
             maximized: false,
             position: Position { left, top, right, bottom },
         };
         let hwnd = create_window("Remember Previous", false, Some(state));
         if locked {
-            // in front of the client without taking its focus, no taskbar entry, and deaf to mouse and keyboard
+            // on top without focus, no taskbar entry, no input
             unsafe {
                 SetWindowLongPtrW(hwnd, GWL_EXSTYLE, (WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE).0 as _);
                 SetWindowPos(
@@ -462,15 +452,13 @@ fn create_browser(hwnd: HWND, url: &str) {
     }
 }
 
-// popup (window.open) requested by the page, mirrors the NewWindowRequested handler
 pub fn create_popup_window(
     features: Option<&PopupFeatures>,
     window_info: Option<&mut WindowInfo>,
     client: Option<&mut Option<Client>>,
     settings: Option<&mut BrowserSettings>,
 ) {
-    // a page can set any of x, y, width and height. what it leaves out keeps the default size and stays centered,
-    // instead of the whole request being dropped because one of the four was missing
+    // missing x/y/width/height fall back to default size, centered
     let mut window_state = None;
     if let Some(features) = features
         && (features.x_set != 0 || features.y_set != 0 || features.width_set != 0 || features.height_set != 0)
@@ -522,7 +510,7 @@ pub fn create_popup_window(
     }
 }
 
-// kute.ico carries simplified art for 16 to 32 px and the detailed logo above that (resources/make-ico.py)
+// ask for the exact sizes so windows picks the right ico entry
 unsafe fn set_window_icons(hwnd: HWND, hinstance: HINSTANCE) {
     unsafe {
         for (kind, width, height) in [(ICON_SMALL, SM_CXSMICON, SM_CYSMICON), (ICON_BIG, SM_CXICON, SM_CYICON)] {
@@ -541,7 +529,7 @@ pub fn create_window(start_mode: &str, is_subwindow: bool, init_state: Option<Wi
             Ok(icon) => icon,
             Err(_) => LoadIconW(None, IDI_APPLICATION).unwrap(),
         };
-        // input.rs and the single instance check find the client by these names, a bench window must not match
+        // input.rs and the single instance check look for these names, bench must not match
         let class_name = if modules::bench::active() {
             w!("kute_bench")
         } else if is_subwindow {
@@ -549,7 +537,7 @@ pub fn create_window(start_mode: &str, is_subwindow: bool, init_state: Option<Wi
         } else {
             w!("kute_webview")
         };
-        // the class survives the window, so registering it again (every popup) only leaked another brush
+        // register once, every popup leaked a brush otherwise
         thread_local! {
             static REGISTERED_CLASSES: RefCell<Vec<PCWSTR>> = const { RefCell::new(Vec::new()) };
         }
@@ -592,7 +580,6 @@ pub fn create_window(start_mode: &str, is_subwindow: bool, init_state: Option<Wi
         }
 
         let mut state: WindowState = {
-            //fallback
             let mut creation_state = WindowState {
                 fullscreen: true,
                 maximized: false,
@@ -606,9 +593,7 @@ pub fn create_window(start_mode: &str, is_subwindow: bool, init_state: Option<Wi
             match start_mode {
                 "Borderless Fullscreen" => {}
                 "Maximized" => {
-                    // a real maximize: it keeps the taskbar visible, snapping and the restore button work, and the
-                    // windowed size is what the window restores down to. sizing a bordered window to the whole
-                    // screen only looked maximized (title bar inside the screen, borders and taskbar covered)
+                    // real maximize, not a screen sized window
                     creation_state.fullscreen = false;
                     creation_state.maximized = true;
                     windowed_size(&mut creation_state);
@@ -639,7 +624,7 @@ pub fn create_window(start_mode: &str, is_subwindow: bool, init_state: Option<Wi
             bottom: state.position.bottom,
         };
 
-        // check if its on another monitor or off-screen
+        // off-screen or monitor gone
         let h_monitor = MonitorFromRect(&rect, MONITOR_DEFAULTTONULL);
         let (x, y, width, height) = if h_monitor.is_invalid() {
             state.fullscreen = false;
@@ -680,10 +665,7 @@ pub fn create_window(start_mode: &str, is_subwindow: bool, init_state: Option<Wi
 
         if state.fullscreen {
             SetWindowLongPtrW(hwnd, GWL_STYLE, (WS_VISIBLE.0) as _);
-            // the style change alone does not recompute the frame. without this the client area keeps the size it had
-            // WITH the title bar and border, the browser gets created for that size and a strip on the right and at the
-            // bottom stays unpainted (WM_ERASEBKGND is suppressed once a browser exists), which showed up as a black or
-            // white border until the window was resized once (pressing F11 twice was the workaround)
+            // frame has to be recomputed, otherwise an unpainted strip stays at the right and bottom
             SetWindowPos(hwnd, None, x, y, width, height, SWP_FRAMECHANGED | SWP_NOZORDER | SWP_NOACTIVATE).ok();
         }
         SetTimer(Some(hwnd), SHOW_TIMER, SHOW_TIMEOUT_MS, None);
@@ -720,7 +702,7 @@ unsafe extern "system" fn wnd_proc_setup(hwnd: HWND, msg: u32, wparam: WPARAM, l
     }
 }
 
-// messages both window kinds handle the same way, Some(result) when handled
+// shared by both window kinds, Some when handled
 unsafe fn wnd_proc_common(window: &mut Window, hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> Option<LRESULT> {
     unsafe {
         match msg {
@@ -732,7 +714,6 @@ unsafe fn wnd_proc_common(window: &mut Window, hwnd: HWND, msg: u32, wparam: WPA
             WM_SIZE => {
                 window.resize_browser(utils::LOWORD(lparam.0 as usize) as i32, utils::HIWORD(lparam.0 as usize) as i32);
             }
-            // per monitor v2: windows hands us the rect the window should take on the new monitor's scaling
             WM_DPICHANGED if !window.state.fullscreen => {
                 let suggested = *(lparam.0 as *const RECT);
                 SetWindowPos(
@@ -762,7 +743,7 @@ unsafe fn wnd_proc_common(window: &mut Window, hwnd: HWND, msg: u32, wparam: WPA
                 }
             }
             WM_CLOSE => {
-                // ask CEF first, it sends WM_CLOSE again once the browser agreed (see do_close)
+                // ask cef first, it sends WM_CLOSE again from do_close
                 if !window.closing
                     && let Some(host) = window.browser.as_ref().and_then(|b| b.host())
                 {
@@ -775,8 +756,7 @@ unsafe fn wnd_proc_common(window: &mut Window, hwnd: HWND, msg: u32, wparam: WPA
                 KillTimer(Some(hwnd), SHOW_TIMER).ok();
                 OUR_WINDOWS.with_borrow_mut(|windows| windows.retain(|known| *known != hwnd));
                 if !window.is_subwindow {
-                    // the placement knows the restore size and the maximized state, GetWindowRect only sees the rect
-                    // of the moment (maximized: overhanging the screen, minimized: -32000)
+                    // GetWindowRect is wrong when maximized or minimized
                     let mut placement = WINDOWPLACEMENT {
                         length: std::mem::size_of::<WINDOWPLACEMENT>() as u32,
                         ..Default::default()
@@ -820,7 +800,7 @@ unsafe extern "system" fn wnd_proc_main(hwnd: HWND, msg: u32, wparam: WPARAM, lp
 
         match msg {
             WM_MOUSEWHEEL => {
-                // forwarded by the input hooks while the game holds the pointer
+                // from the input hooks while pointer locked
                 let delta = (utils::HIWORD(wparam.0) as i16) as i32;
                 let scroll_amount = delta as f32 / WHEEL_DELTA as f32;
                 if let Some(browser) = window.browser.as_ref() {
@@ -873,7 +853,7 @@ unsafe extern "system" fn wnd_proc_subwindow(hwnd: HWND, msg: u32, wparam: WPARA
 
         match msg {
             WM_COPYDATA => {
-                // only the social window is left, bring the game back and hand it the args
+                // only social is left, bring the game back
                 if WINDOW_COUNT.load(Ordering::SeqCst) != 1 {
                     return DefWindowProcW(hwnd, msg, wparam, lparam);
                 }

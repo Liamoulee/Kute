@@ -11,7 +11,7 @@ use windows::core::{PCWSTR, w};
 
 const ARG: &str = "--set-dev-token=";
 const FILE_VERSION: u32 = 1;
-// ties the blobs to this use, a blob made for the account store does not decrypt here
+// account store blobs don't decrypt here
 const ENTROPY: &[u8] = b"kute-dev-v1";
 const MAX_USER: usize = 32;
 const MIN_TOKEN: usize = 32;
@@ -46,7 +46,7 @@ fn message(text: PCWSTR, style: windows::Win32::UI::WindowsAndMessaging::MESSAGE
     unsafe { MessageBoxW(None, text, w!("Kute"), MB_OK | style) };
 }
 
-// "--set-dev-token=<username>:<token>" stores the pair, "--set-dev-token=" alone forgets it again.
+// "--set-dev-token=<username>:<token>" stores, empty value forgets
 pub fn handle_cli_flags() -> bool {
     let Some(value) = std::env::args().find_map(|arg| arg.strip_prefix(ARG).map(str::to_string)) else {
         return false;

@@ -36,18 +36,15 @@ static INFO_PTR: AtomicU64 = AtomicU64::new(0);
 
 struct Capture {
     pid: u32,
-    // when the last frame was copied for OBS, see MIN_COPY_INTERVAL
     last_copy: Option<Instant>,
     mapping: usize,
     frame_event: usize,
-    // Open NT handle (as `usize`) that keeps the `KuteCaptureTex_<pid>` name resolvable. Must
-    // stay open for as long as the texture is published (a name only resolves while alive).
+    // keeps the KuteCaptureTex_<pid> name alive while published
     shared_handle: Option<usize>,
-    // The real D3D11 device/context from the WebView2 composition swap chain.
     device: Option<ID3D11Device>,
     context: Option<ID3D11DeviceContext>,
     shared_tex: Option<ID3D11Texture2D>,
-    // the device the shared texture was made on: a copy needs both on the same device
+    // device the shared texture lives on, a copy needs both on the same one
     tex_device: usize,
     cached_w: u32,
     cached_h: u32,
@@ -70,7 +67,6 @@ impl Drop for Capture {
                 let _ = CloseHandle(HANDLE(h as *mut _));
             }
         }
-        // COM fields (device/context/shared_tex) are dropped here, releasing their references.
     }
 }
 
@@ -95,11 +91,9 @@ fn wide(s: &str) -> Vec<u16> {
 }
 
 const READER_ACTIVE: u32 = 0x1;
-// OBS shows 60 (at most a few hundred) frames a second, an uncapped game presents a thousand and more. Copying every one
-// moved a whole frame per present for nothing (18.6 MB at 3440x1351, so 18.6 GB/s at 1000 FPS: noise on a big GPU, a real
-// share of a small one's memory bandwidth). At most 240 copies a second, so OBS gets a frame at most about 4 ms old
+// max 240 copies/s, copying every frame of an uncapped game eats memory bandwidth for nothing
 const MIN_COPY_INTERVAL: std::time::Duration = std::time::Duration::from_micros(4_150);
-// Control block mapping size (fixed; struct is 48 bytes).
+// control block mapping, the struct is 48 bytes
 const INFO_SIZE: usize = 64;
 
 pub fn capture_init() {
@@ -124,7 +118,6 @@ pub fn capture_init() {
             return;
         }
 
-        // Zero, then stamp the producer-owned header fields.
         std::ptr::write_bytes(view.Value as *mut u8, 0, INFO_SIZE);
         let info = view.Value as *mut KuteCaptureInfo;
         std::ptr::addr_of_mut!((*info).magic).write_unaligned(MAGIC);
@@ -167,15 +160,13 @@ pub fn capture_on_swapchain(_swapchain: *mut c_void, device: Option<ID3D11Device
         && let Some(c) = guard.as_mut()
     {
         crate::debug_print!("capture: swap chain changed, device available: {}", device.is_some());
-        // c.release_shared();
         if device.is_some() {
             c.device = device;
         }
     }
 }
 
-// Ensure a shared texture matching (`w`, `h`, `format`) exists on the real device, then publish
-// dims/format in the control block. Currently holding the state lock.
+// caller holds the lock
 fn ensure_shared_tex(c: &mut Capture, w: u32, h: u32, format: u32) {
     let device_ptr = c.device.as_ref().map_or(0, |device| device.as_raw() as usize);
     if let Some(_tex) = c.shared_tex.as_ref()
@@ -246,7 +237,6 @@ fn ensure_shared_tex(c: &mut Capture, w: u32, h: u32, format: u32) {
 
     crate::debug_print!("capture: shared texture ready {w}x{h}, format {format}");
 
-    // Publish dims/format so the reader knows what to open.
     unsafe {
         let info_ptr = INFO_PTR.load(Ordering::Acquire) as *mut KuteCaptureInfo;
         if !info_ptr.is_null() {
@@ -257,8 +247,6 @@ fn ensure_shared_tex(c: &mut Capture, w: u32, h: u32, format: u32) {
     }
 }
 
-// Called from `present_hk` (after the original present, so the buffer is stable). Gated on
-// READER_ACTIVE: when no reader is attached this returns almost immediately.
 pub fn capture_on_present(swapchain: *mut c_void) {
     let info_ptr = INFO_PTR.load(Ordering::Acquire);
     if info_ptr == 0 {
@@ -285,10 +273,6 @@ pub fn capture_on_present(swapchain: *mut c_void) {
         let mut desc = D3D11_TEXTURE2D_DESC::default();
         unsafe { back.GetDesc(&mut desc) };
 
-        // which swap chain is the game's is decided by the present hook (only the game's calls this). capture used to
-        // keep its own choice with a 1.5 s silence rule, so after a resize OBS kept the old frame for up to a second.
-        // a new swap chain needs no new shared texture unless its size or format differ (ensure_shared_tex below)
-
         let w = desc.Width;
         let h = desc.Height;
         let fmt = desc.Format.0 as u32;
@@ -300,7 +284,6 @@ pub fn capture_on_present(swapchain: *mut c_void) {
             c.context = None;
         }
 
-        // returns at once while size, format and device are the same
         ensure_shared_tex(c, w, h, fmt);
 
         let Some(device) = c.device.as_ref() else { return };
@@ -323,8 +306,6 @@ pub fn capture_on_present(swapchain: *mut c_void) {
     }
 }
 
-// Best-effort cleanup on `DLL_PROCESS_DETACH`. Dropping the state closes the kernel handles and
-// releases the COM objects; named objects vanish when their last handle closes (process exit too).
 pub fn capture_cleanup() {
     crate::debug_print!("capture: cleanup started");
     if let Ok(mut guard) = CAPTURE.lock() {

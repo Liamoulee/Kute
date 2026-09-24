@@ -1,9 +1,7 @@
 import { kute } from "../client.js";
 import { getElement, checkCompMode } from "../utils.js";
 
-/**
- * Shows how many objective points the enemy team just gained next to the score counters in comp matches.
- */
+// hardpoint, comp only: points the enemy just gained, next to the score counters
 class HpEnemyCounter {
     constructor(){
         /** @type {HTMLDivElement} */
@@ -26,8 +24,6 @@ class HpEnemyCounter {
         /** @type {HTMLElement|null} */
         this.pointCounter = null;
         /**
-         * Sets up the display once a comp match is detected.
-         *
          * @param {MessageEvent} event
          */
         this.gameUpdateListener = (event) => {
@@ -62,9 +58,6 @@ class HpEnemyCounter {
         }
     }
 
-    /**
-     * Compares the enemy score against the last seen value and shows the difference briefly.
-     */
     processTeamScores = () => {
         const {pointCounter} = this;
         if (!pointCounter) return;
@@ -72,8 +65,7 @@ class HpEnemyCounter {
             if (team && !team.className.includes("you")){
                 const scoreElement = /** @type {HTMLElement|null} */ (team.nextElementSibling);
                 if (!scoreElement) continue;
-                // textContent, not innerText: reading innerText makes the browser lay the page out first,
-                // and this runs on every score change in the middle of a match
+                // not innerText, that forces layout mid match
                 const currentEnemyOBJ = Number.parseInt(scoreElement.textContent ?? "", 10);
                 if (Number.isNaN(currentEnemyOBJ)) continue;
                 if (currentEnemyOBJ > this.enemyOBJ){
@@ -89,15 +81,12 @@ class HpEnemyCounter {
         }
     };
 
-    /**
-     * Appends the counter to the top right counters and starts observing the team scores.
-     */
     setupDisplay(){
         const pointCounter = getElement(".pointVal", this.numberDisplay);
         this.pointCounter = pointCounter;
         getElement(".topRightCounters").append(this.numberDisplay);
 
-        // re-enabling must not stack a second observer
+        // don't stack observers on re-enable
         this.observer?.disconnect();
         this.observer = new MutationObserver(this.processTeamScores);
         this.observer.observe(getElement("#teamScores"), {

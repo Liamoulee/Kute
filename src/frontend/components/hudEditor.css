@@ -1,6 +1,4 @@
-/* only in the page while the HUD editor is open */
-
-/* the menu gets out of the way without being unmounted */
+/* fade the menu instead of unmounting it */
 html.kuteHudEdit #app,
 html.kuteHudEdit #fullMenHider {
 	opacity: 0.1 !important;
@@ -36,12 +34,11 @@ html.kuteHudEdit #kuteHudEditor {
 	cursor: grabbing;
 }
 
-/* it had nothing in it when the layout was measured, so this is only its anchor */
+/* empty at snapshot, only the anchor */
 .hudBox.hudEmpty {
 	border-style: dashed;
 }
 
-/* its setting has it turned off */
 .hudBox.hudOff {
 	border-color: rgba(255, 255, 255, 0.3);
 	background: rgba(255, 255, 255, 0.06);
@@ -61,7 +58,7 @@ html.kuteHudEdit #kuteHudEditor {
 	pointer-events: none;
 }
 
-/* neighbouring anchors (the powerup row) would stack their labels on each other */
+/* keeps labels of neighbouring anchors from stacking */
 .hudBox.hudLabelBelow .hudLabel {
 	top: 100%;
 	bottom: auto;

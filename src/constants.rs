@@ -1,15 +1,13 @@
 pub const DISCORD_CLIENT_ID: &str = "1549875633276981249";
 pub const UPDATE_URL: &str = "https://api.github.com/repos/NullDev/Kute/releases/latest";
 pub const API_URL: &str = "https://kute.lol/api";
-// the only places "open-url" may lead to (the links of the about popup). any script on the page can post that
-// command and the host hands the url to the shell, so this stays a short list. every entry ends with a slash
+// any page script can post open-url, keep this short. trailing slash so look-alike domains don't match
 pub const OPEN_URL_ALLOWED: [&str; 3] = ["https://github.com/", "https://kute.lol/", "https://discord.com/invite/"];
 pub const JS_VERSION_URL: &str = "https://raw.githubusercontent.com/NullDev/Kute/master/target/bundle_version";
 pub const JS_BUNDLE_URL: &str = "https://raw.githubusercontent.com/NullDev/Kute/master/target/bundle.js";
 pub const INSTANCE_MUTEX: &str = "Global\\9e29aac4-cd01-442b-bec2-ddd99403ca14";
 pub const KRUNKER_URL: &str = "https://krunker.io";
 
-// process message names between the browser process and the renderer
 pub const MSG_TO_PAGE: &str = "kute-message";
 pub const MSG_FROM_PAGE: &str = "kute-post";
 
@@ -62,9 +60,7 @@ pub const DEFAULT_BLOCKLIST: &str = r#"[
   "*://user-assets.krunker.io/61823/model.obj*"
 ]"#;
 
-// every entry is checked against the Chromium 151.0.7922.174 source (switch or feature exists and is read on Windows under CEF),
-// check them again when the cef crate is bumped. --raise-timer-frequency is applied by utils::raise_timer_frequency,
-// chromium only reads it in chrome.exe
+// checked against chromium 151.0.7922.174, recheck on a cef bump
 pub const DEFAULT_FLAGS: &str = r#"[
   "--disable-features=NativeNotifications,MediaRouter,CalculateNativeWinOcclusion,HappinessTrackingSurveysForDesktopDemo,HardwareMediaKeyHandling",
   "--disable-backgrounding-occluded-windows",

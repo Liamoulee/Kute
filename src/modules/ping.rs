@@ -9,15 +9,14 @@ use std::{
 
 use crate::{bridge, modules::devtools};
 
-// the lobby the game connected to: its host name, and its address once the ping thread resolved it
+// lobby host, plus its address once the ping thread resolved it
 static LAST_CONNECTED_LOBBY: Mutex<Option<(String, Option<IpAddr>)>> = Mutex::new(None);
 
-// the observer is dropped when its registration is
+// observer dies with its registration
 thread_local! {
     static REGISTRATIONS: RefCell<Vec<Registration>> = const { RefCell::new(Vec::new()) };
 }
 
-// replaces GetDevToolsProtocolEventReceiver: remember the lobby the game connected to
 wrap_dev_tools_message_observer! {
     struct LobbyObserver;
 
@@ -37,7 +36,7 @@ wrap_dev_tools_message_observer! {
             let Some(host) = url.split("://").nth(1).and_then(|s| s.split('/').next()) else { return };
             let host = host.split(':').next().unwrap_or(host);
 
-            // no DNS lookup here, this runs on the browser's UI thread. the ping thread resolves it
+            // no DNS here, this is the UI thread
             let mut lobby = LAST_CONNECTED_LOBBY.lock().unwrap();
             if lobby.as_ref().is_none_or(|(known, _)| known != host) {
                 *lobby = Some((host.to_string(), None));
@@ -55,7 +54,6 @@ pub fn load(browser: &Browser) {
     }
 }
 
-// pinged off the UI thread so a timeout never stalls the browser
 pub fn ping(browser_id: i32) {
     std::thread::spawn(move || {
         let Some(addr) = lobby_address() else { return };
@@ -71,7 +69,7 @@ pub fn ping(browser_id: i32) {
     });
 }
 
-// before the game connected anywhere this is localhost, like it always was
+// localhost until the game connected somewhere
 fn lobby_address() -> Option<IpAddr> {
     let lobby = LAST_CONNECTED_LOBBY.lock().unwrap().clone();
     let Some((host, resolved)) = lobby else {
@@ -82,7 +80,7 @@ fn lobby_address() -> Option<IpAddr> {
     }
     let ip = dns_lookup::lookup_host(&host).ok()?.next()?;
     let mut lobby = LAST_CONNECTED_LOBBY.lock().unwrap();
-    // the game may have moved on to another lobby during the lookup
+    // the lobby might have changed during the lookup
     if let Some((known, resolved)) = lobby.as_mut()
         && *known == host
     {
@@ -91,7 +89,7 @@ fn lobby_address() -> Option<IpAddr> {
     Some(ip)
 }
 
-// the last region pings as a JSON object and when they were taken
+// (taken at, json)
 static REGION_PINGS: Mutex<Option<(time::Instant, String)>> = Mutex::new(None);
 const REGION_PINGS_MAX_AGE: time::Duration = time::Duration::from_secs(60);
 
@@ -124,14 +122,13 @@ fn measure_region_pings() -> String {
         .and_then(|body| serde_json::from_str(&body).ok())
         .unwrap_or_default();
 
-    // every region at once, so the slowest one decides how long this takes
     let pings: Vec<_> = servers
         .into_iter()
         .map(|(region, address)| {
             std::thread::spawn(move || {
                 let host = address.split(':').next()?;
                 let ip = dns_lookup::lookup_host(host).ok()?.find(IpAddr::is_ipv4)?;
-                // a second try, a single lost packet would sort the region last
+                // retry once, one lost packet would sort it last
                 (0..2).find_map(|_| {
                     ping_rs::send_ping(
                         &ip,

@@ -19,7 +19,7 @@ export function initDb(): void {
 
     db.run("PRAGMA journal_mode = WAL;");
 
-    // plain counters (the player numbers of /api/health), never rows about anybody
+    // plain counters only, never rows about anybody
     db.run(`
         CREATE TABLE IF NOT EXISTS stats (
             key    TEXT PRIMARY KEY,

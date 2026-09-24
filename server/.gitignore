@@ -1,14 +1,11 @@
-# Dependencies
 node_modules/
 
-# Logs
 logs
 *.log
 
-# Config (the template is tracked, the real one is not)
+# the template is tracked
 config/config.custom.ts
 
-# DB
 data/*.db
 data/*.db-shm
 data/*.db-wal

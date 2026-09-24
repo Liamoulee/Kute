@@ -20,7 +20,6 @@ fn blob(bytes: &[u8]) -> CRYPT_INTEGER_BLOB {
     }
 }
 
-// the bytes of a blob DPAPI allocated, freed afterwards
 fn take(out: CRYPT_INTEGER_BLOB) -> Vec<u8> {
     let bytes = unsafe { std::slice::from_raw_parts(out.pbData, out.cbData as usize).to_vec() };
     unsafe { LocalFree(Some(HLOCAL(out.pbData as *mut _))) };

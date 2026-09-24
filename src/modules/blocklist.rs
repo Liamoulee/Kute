@@ -8,14 +8,13 @@ struct UserBlocklist {
     disabled_defaults: HashSet<String>,
 }
 
-// resolved once, checked on the IO thread for every request
+// checked on the IO thread for every request
 pub static BLOCKLIST: LazyLock<Vec<String>> = LazyLock::new(|| if utils::config("blocklist", true) { load() } else { Vec::new() });
 
 pub fn is_blocked(url: &str) -> bool {
     BLOCKLIST.iter().any(|pattern| glob_match(pattern, url))
 }
 
-// WebView2 took these glob filters directly, CEF needs us to match them ourselves
 pub fn glob_match(pattern: &str, text: &str) -> bool {
     let p: Vec<char> = pattern.chars().collect();
     let t: Vec<char> = text.chars().collect();

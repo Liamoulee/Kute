@@ -8,25 +8,24 @@ declare module "*.html" {
     export default content;
 }
 
-/** Imported as base64. */
+/** base64 */
 declare module "*.ogg" {
     const content: string;
     export default content;
 }
 
-/** The minified source of a script that gets injected somewhere else, see popupScriptPlugin in esbuild.config.mjs. */
+/** minified source as a string, see popupScriptPlugin in esbuild.config.mjs */
 declare module "popup-script:*" {
     const content: string;
     export default content;
 }
 
-/** Imported as a data URL. */
+/** data url */
 declare module "*.webp" {
     const content: string;
     export default content;
 }
 
-/** Messages posted by the host (Rust) to the page. */
 type HostMessage =
     | "game-updated"
     | { fpsInfo: number }
@@ -41,7 +40,6 @@ type HostMessage =
 
 type HostMessageListener = (event: MessageEvent<any>) => void;
 
-/** The WebView2 script bridge (window.chrome.webview). */
 interface WebViewBridge {
     postMessage(message: string): void;
     addEventListener(type: "message", listener: HostMessageListener): void;
@@ -49,14 +47,11 @@ interface WebViewBridge {
 }
 
 interface KuteSettings {
-    /** Current setting values by id. */
     data: Record<string, any>;
     changeSetting(id: string, rawValue: string | number | boolean, slider: boolean): void;
-    /** toggle<Id>(value) functions registered by modules. Called with the new value of the setting. */
     [toggleFunction: `toggle${string}`]: (value: any) => void;
 }
 
-/** The client object exported by client.js: host info plus the functions modules attach to it. */
 interface Kute {
     settings: KuteSettings;
     version: string;
@@ -68,16 +63,15 @@ interface Kute {
     autoDetect: { start(): Promise<void>; setUp(): void; undo(): void; showLast(): void; dropUndo(): void; afterImport(): void };
     clanColors: { apply(styles: unknown): void; toggle(enabled: boolean): void };
     badges: { toggle(enabled: boolean): void };
-    /** the socket to the Kute server and who else in the lobby runs Kute (devs: hash -> their clan tag) */
+    /** devs: hash -> clan tag */
     presence: { game: string; roster: Set<string>; devs: Map<string, string>; receive(data: unknown): void };
-    /** where the Kute server is, from the host (absent with an older exe) */
+    /** absent on older exes */
     apiBase?: string;
-    /** the door to the Kute server */
     api: { base: string; down: boolean; available(): Promise<boolean> };
     bindShoot(): void;
-    /** what the exe supports beyond the basics (absent with an older exe) */
+    /** absent on older exes */
     hostFeatures?: string[];
-    /** true when this PC holds a Kute developer token (the token itself never leaves the host) */
+    /** this PC has a dev token, the token itself never leaves the host */
     dev?: boolean;
     matchmaker: { showFilters(): Promise<void> };
     nukeCounter: { showOptions(): Promise<void> };
@@ -91,9 +85,9 @@ interface KrunkerGameActivity {
     mode: string;
     map: string | null;
     custom: boolean;
-    /** the game id, "FRA:4c2f8", also the ?game= parameter */
+    /** "FRA:4c2f8", same as ?game= */
     id?: string;
-    /** the own name, the account name when logged in */
+    /** own display name, not the account name */
     user?: string;
 }
 
@@ -101,10 +95,8 @@ interface KrunkerSound {
     play(soundName: string, volume?: number, loop?: boolean): any;
 }
 
-// client globals (everything else the client needs lives in modules, see client.js and utils.js)
-
 declare var chrome: { webview: WebViewBridge };
-/** Called by Krunker's own client exit button. */
+/** called by krunker's own exit button */
 declare var closeClient: () => void;
 declare var OffCliV: boolean;
 declare var gameLoaded: boolean;

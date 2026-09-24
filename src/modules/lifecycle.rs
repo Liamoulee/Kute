@@ -77,7 +77,6 @@ pub fn check_minor_update() -> Option<String> {
 }
 
 pub fn check_major_update() {
-    // fetch latest version form github
     let Ok(buf) = string_download(constants::UPDATE_URL) else {
         return;
     };
@@ -101,7 +100,6 @@ pub fn check_major_update() {
         return;
     };
 
-    // download
     let download_url = match json["assets"][0]["browser_download_url"].as_str() {
         Some(url) => url,
         None => return,
@@ -169,7 +167,6 @@ pub fn installer_cleanup() -> io::Result<()> {
     Ok(())
 }
 
-// with the rest of the user's Kute files, where it can be found and where it can always be written
 fn crash_log_path() -> std::path::PathBuf {
     utils::settings_dir().join("crash_log.txt")
 }
@@ -235,8 +232,7 @@ pub fn set_panic_hook() -> io::Result<()> {
 
 const WAIT_PID_ARG: &str = "--wait-pid=";
 
-// settings that only apply on a start (the swapchain hook, flags): start a second client that waits for this
-// one to be gone, then close this one the regular way so the config gets saved and the profile is released
+// spawns a client that waits for this one, then closes normally so config and profile get released
 pub fn restart() {
     let args: Vec<String> = crate::LAUNCH_ARGS.lock().unwrap().clone();
     if let Ok(exe) = env::current_exe() {
@@ -245,7 +241,7 @@ pub fn restart() {
     crate::window::close_all();
 }
 
-// started by restart(): the old client still holds the instance mutex and the chromium profile
+// after restart() the old client still holds the mutex and the profile
 pub fn wait_for_previous_instance() {
     let Some(pid) = env::args().find_map(|arg| arg.strip_prefix(WAIT_PID_ARG).and_then(|pid| pid.parse::<u32>().ok())) else {
         return;

@@ -11,12 +11,10 @@ fn post(frame: &Frame, is_json: bool, payload: &str) {
     frame.send_process_message(ProcessId::RENDERER, Some(&mut message));
 }
 
-// mirrors PostWebMessageAsJson: the page receives the parsed object as event.data
 pub fn post_json_to_frame(frame: &Frame, json: &str) {
     post(frame, true, json);
 }
 
-// mirrors PostWebMessageAsString
 pub fn post_string_to_frame(frame: &Frame, text: &str) {
     post(frame, false, text);
 }
