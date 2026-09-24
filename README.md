@@ -50,7 +50,7 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] HUD editor: drag, resize and hide every in-game HUD element, snapping included
 - [x] Rank progress
 - [x] Clan colors
-- [x] Kute badge
+- [x] Kute badge (one setting turns off every Kute online feature, nothing is sent then)
 - [x] Kute icons: our own counter, ammo, hitmarker, reticle and scope icons, each one optional, without touching your settings
 - [x] Discord Rich Presence
 - [x] CPU throttler (a last resort, see below)
