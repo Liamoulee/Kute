@@ -25,6 +25,7 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 
 - [x] Runs on its own bundled Chromium (CEF), no browser or runtime install needed
   - [x] Patched CEF: fixes the aim freeze and the GPU bottleneck stutter of uncapped clients
+  - [x] Fix Audio Stutters (optional): sound that cuts out at high FPS costs the audio thread about 60 % less
 - [x] Uncapped FPS with a DXGI present hook: waitable flip swapchain, frame pacing, present FPS counter and an exact FPS limiter that keeps the CPU idle
 - [x] **Proper** Raw input
 - [x] Increased performance tweaks (chromium & CEF flags, game settings, system optimizations)
