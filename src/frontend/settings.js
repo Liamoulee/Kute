@@ -326,7 +326,8 @@ class SettingsManager {
      */
     getCSettings(){
         if (
-            this.settingsWindow.tabs.advanced.length !== this.settingsWindow.tabIndex + 1 &&
+            // our tab is the last one in basic mode too
+            this.settingsWindow.tabs[this.settingsWindow.settingType].length !== this.settingsWindow.tabIndex + 1 &&
             !this.settingsWindow.settingSearch
         ){
             return "";
