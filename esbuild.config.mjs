@@ -80,10 +80,6 @@ export const popupScriptPlugin = {
     },
 };
 
-// the bundle reports its own version with an error (it is hot updated, so the client version says nothing about it)
-const cargoToml = await readFile("./Cargo.toml", "utf8");
-const bundleVersion = /js_bundle_version\s*=\s*"([^"]+)"/.exec(cargoToml)?.[1] ?? "0.0.0";
-
 console.log("Starting esbuild process...");
 await build({
     entryPoints: ["./src/frontend/main.js"],
@@ -94,9 +90,6 @@ await build({
     minifyWhitespace: true,
     minifySyntax: true,
     ignoreAnnotations: true,
-    define: {
-        KUTE_BUNDLE_VERSION: JSON.stringify(bundleVersion),
-    },
     loader: {
         ".html": "text",
         ".webp": "dataurl",

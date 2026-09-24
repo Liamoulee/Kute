@@ -103,9 +103,6 @@ interface KrunkerSound {
 
 // client globals (everything else the client needs lives in modules, see client.js and utils.js)
 
-/** js_bundle_version from Cargo.toml, put in by esbuild */
-declare const KUTE_BUNDLE_VERSION: string;
-
 declare var chrome: { webview: WebViewBridge };
 /** Called by Krunker's own client exit button. */
 declare var closeClient: () => void;

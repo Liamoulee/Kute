@@ -23,8 +23,7 @@ export const hook = (target, method, wrapper) => {
  *
  * While it waits it observes the whole body and looks the selector up on every change anywhere in the page. That
  * is fine for the second it normally takes, and expensive forever: an element that never shows up (a Krunker
- * update renamed it) would leave that running through every match. So it gives up after timeoutMs and rejects,
- * which also gets the missing element reported (errorReports.js).
+ * update renamed it) would leave that running through every match. So it gives up after timeoutMs and rejects.
  *
  * @template {Element} [T=HTMLElement]
  * @param {string} selector

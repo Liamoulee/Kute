@@ -2,7 +2,6 @@ import styles from "./components/base.css";
 import { kute, ready } from "./client.js";
 import { hook, getElement, checkCompMode } from "./utils.js";
 // first, so that whatever throws further down gets heard of
-import "./modules/errorReports.js";
 import { postUrls as postIconUrls } from "./modules/kuteIcons/slots.js";
 // statically: it takes the userscript registry the host hands over only while this bundle is evaluated
 import "./modules/managers/registry.js";
