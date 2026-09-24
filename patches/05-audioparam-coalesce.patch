@@ -1,0 +1,52 @@
+diff --git a/third_party/blink/renderer/modules/webaudio/audio_param_handler.cc b/third_party/blink/renderer/modules/webaudio/audio_param_handler.cc
+index 073f145b1c..7400a6248a 100644
+--- a/third_party/blink/renderer/modules/webaudio/audio_param_handler.cc
++++ b/third_party/blink/renderer/modules/webaudio/audio_param_handler.cc
+@@ -9,6 +9,7 @@
+ #include <memory>
+ 
+ #include "base/check_op.h"
++#include "base/feature_list.h"
+ #include "base/containers/span.h"
+ #include "base/memory/ptr_util.h"
+ #include "build/build_config.h"
+@@ -40,6 +41,17 @@ namespace blink {
+ 
+ namespace {
+ 
++// Kute: every setTargetAtTime/setValueAtTime start time is clamped to currentTime, and while a context is suspended
++// currentTime does not move. A game that moves sounds once per rendered frame (Krunker's Howler after its 30 s
++// autoSuspend) then appends one event per frame with the same time, forever: the list grows without bound and the
++// overlap scan in InsertEvent walks all of it on every call (659 ms/s of main thread after 3.5 min at 240 FPS).
++// An event followed by another at the same time lasts zero time, so a trailing SetTarget is dead once a SetTarget or
++// SetValue with the same time arrives, and so is a trailing SetValue before another SetValue. This replaces the
++// dead event instead of appending. Enabled by Kute with --enable-features=KuteAudioParamCoalesce.
++BASE_FEATURE(kKuteAudioParamCoalesce,
++             "KuteAudioParamCoalesce",
++             base::FEATURE_DISABLED_BY_DEFAULT);
++
+ // For a SetTarget event, we want the event to terminate eventually so that we
+ // can stop using the timeline to compute the values.  See
+ // `HasSetTargetConverged()` for the algorithm.  `kSetTargetThreshold` is
+@@ -884,6 +896,21 @@ bool AudioParamHandler::InsertEvent(std::unique_ptr<ParamEvent> event,
+     }
+   }
+ 
++  // Kute: see kKuteAudioParamCoalesce. SetValue followed by SetTarget stays, the SetTarget starts from that value
++  if (!events_.empty() && events_.back()->Time() == insert_time &&
++      base::FeatureList::IsEnabled(kKuteAudioParamCoalesce)) {
++    const ParamEvent::Type last_type = events_.back()->GetType();
++    const ParamEvent::Type type = event->GetType();
++    if ((last_type == ParamEvent::Type::kSetTarget &&
++         (type == ParamEvent::Type::kSetTarget ||
++          type == ParamEvent::Type::kSetValue)) ||
++        (last_type == ParamEvent::Type::kSetValue &&
++         type == ParamEvent::Type::kSetValue)) {
++      new_events_.erase(events_.back().get());
++      events_.pop_back();
++    }
++  }
++
+   if (events_.empty() &&
+       (event->GetType() == ParamEvent::Type::kLinearRampToValue ||
+        event->GetType() == ParamEvent::Type::kExponentialRampToValue)) {
