@@ -28,7 +28,7 @@ pub fn init_fs() -> result::Result<(), io::Error> {
     Ok(())
 }
 
-// layout must match SharedState in render-dll/src/lib.rs
+// layout must match SharedState in render-dll/src/shared.rs
 #[repr(C)]
 pub(crate) struct SharedStats {
     pub(crate) frame_ns: u64,
