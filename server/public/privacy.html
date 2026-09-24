@@ -24,10 +24,10 @@
     <main class="legal">
       <p class="eyebrow">[ PRIVACY POLICY ]</p>
       <h1>Privacy Policy</h1>
-      <p class="legal-date">Last updated: 19 September 2026</p>
+      <p class="legal-date">Last updated: 24 September 2026</p>
 
       <div class="legal-summary">
-        <p><b>Short version.</b> Kute needs no account with us, shows no ads and sells nothing. What the client sends to our server is data-minimized and pseudonymized: no names, no account data, no IP addresses, no ids, and times only to the day. Telemetry is on by default and can be turned off at any time.</p>
+        <p><b>Short version.</b> Kute needs no account with us, shows no ads and sells nothing. What the client sends to our server is data-minimized and pseudonymized: no names, no account data, no IP addresses, no ids, and times only to the day. The client sends no telemetry, no benchmark results and no error reports.</p>
       </div>
 
       <h2>1. Who is responsible</h2>
@@ -48,18 +48,12 @@
 
       <h2>3. The Kute client</h2>
 
-      <h3>Telemetry (opt-out)</h3>
-      <p>Unless you turn off the telemetry setting (Settings, About), the client sends us:</p>
-      <ul>
-        <li><b>Auto-Detect results</b> after a run: GPU and CPU model, thread count, RAM, Windows build, display resolution and refresh rate, whether the PC runs on battery, the client and game graphics settings, and the measured frame rates.</li>
-        <li><b>Crash reports</b>: client version, where the crash happened, the error message and stack trace. Paths of your user folder are removed before sending.</li>
-        <li><b>Script errors</b> of the client itself (not of Krunker or your userscripts), at most three per page load.</li>
-      </ul>
-      <p>The server rebuilds every report from a fixed list of fields and drops everything else. Reports are stored with the day only, without IP address, account or any id. Hardware details can still describe a PC, which is why we call this pseudonymized and not anonymous. Legal basis: our legitimate interest in fixing and tuning the client (Art. 6(1)(f) GDPR). You can object at any time by turning the setting off. We keep reports while they help development and delete them when they no longer do.</p>
+      <h3>No telemetry</h3>
+      <p>The client sends no telemetry: no Auto-Detect results, no hardware details, no crash reports and no script errors. Auto-Detect results and crash logs stay on your PC. Earlier versions of the client sent these reports. The server no longer accepts them.</p>
 
       <h3>Kute badge and player count</h3>
       <p>While the client runs, it keeps a connection to our server. When you are logged in to Krunker, it sends a hash of the lobby id and your in-game display name, so that other Kute users in the same match can see the Kute badge next to you. The hash is only held in memory while you are connected and is never stored. The server also counts open connections (current number and peak) and how many clients were started for the first time. The client remembers itself that it was counted, the server keeps no list.</p>
-      <p>This is part of how the client works, so the telemetry setting does not affect it. If you do not want any contact with our server, add <code>*://kute.lol/*</code> to <code>user_blocklist.json</code> in <code>Documents\kute</code>. The client plays the same without it.</p>
+      <p>This is part of how the client works. If you do not want any contact with our server, add <code>*://kute.lol/*</code> to <code>user_blocklist.json</code> in <code>Documents\kute</code>. The client plays the same without it.</p>
 
       <h3>Rate limiting</h3>
       <p>To protect the server from abuse, request counts are kept per IP address. The address is replaced by a salted hash in memory. The salt is never stored and changes on every restart. Entries are deleted within 75 minutes. The same hash keeps a first start from being counted twice on one day and is dropped the next day.</p>
@@ -75,7 +69,7 @@
       <p>Settings, userscripts, swapped files, the browser cache and saved accounts stay in <code>Documents\kute</code>. Saved account passwords are encrypted with Windows (DPAPI) and are never sent to us.</p>
 
       <h2>4. Your rights</h2>
-      <p>You have the right to access, rectification, erasure, restriction of processing, data portability and to object (Art. 15 to 21 GDPR). Because we store no ids, names or IP addresses, we usually cannot tell which reports came from you (Art. 11 GDPR). If you can point us to data that is yours, contact <a href="mailto:legal@kute.lol">legal@kute.lol</a>. We answer without undue delay and within one month at the latest (Art. 12(3) GDPR).</p>
+      <p>You have the right to access, rectification, erasure, restriction of processing, data portability and to object (Art. 15 to 21 GDPR). Because we store no ids, names or IP addresses, we usually cannot tell which data came from you (Art. 11 GDPR). If you can point us to data that is yours, contact <a href="mailto:legal@kute.lol">legal@kute.lol</a>. We answer without undue delay and within one month at the latest (Art. 12(3) GDPR).</p>
       <p>You also have the right to lodge a complaint with a supervisory authority, in particular in the EU Member State of your habitual residence, place of work or place of the alleged infringement (Art. 77 GDPR). The competent authority in Austria is:</p>
       <address class="legal-address">
         Österreichische Datenschutzbehörde<br />
