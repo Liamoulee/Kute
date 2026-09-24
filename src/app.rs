@@ -153,6 +153,10 @@ pub fn load_flags() {
     }
     // patch 03 of our libcef. disable it in user_flags.json to get the old input.rs WM_INPUT filter back
     flags.push("--enable-features=KuteRawInputMovementOnly".to_string());
+    // patch 04, off by default: trades a little panning precision for audio thread time (patches/README.md)
+    if config("audioFix", false) {
+        flags.push("--enable-features=KuteAudioPannerPerQuantum".to_string());
+    }
     *FLAGS.lock().unwrap() = flags;
 }
 

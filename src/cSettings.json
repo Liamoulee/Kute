@@ -280,6 +280,15 @@
         "defaultValue": true,
         "needsRestart": true
     },
+    "audioFix": {
+        "name": "Fix Audio Stutters",
+        "id": "audioFix",
+        "description": "For sound that cuts out at high FPS. Moves sounds every 8 ms instead of every sample",
+        "type": "checkbox",
+        "category": "Advanced",
+        "defaultValue": false,
+        "needsRestart": true
+    },
     "hardFlip": {
         "name": "DXGI Swapchain Hook",
         "id": "hardFlip",
