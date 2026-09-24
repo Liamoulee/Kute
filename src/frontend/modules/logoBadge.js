@@ -1,13 +1,11 @@
 import logo from "../components/logo.webp";
 
 /**
- * Pins the client icon to the bottom right corner of the Krunker logo in the menu.
- * Pure CSS on purpose: the menu is mounted (and re-rendered) by Svelte, a pseudo element survives that.
- * The badge is anchored to #mainLogo, so it follows the logo whatever size the game gives it.
+ * pure css so it survives svelte re-renders
  */
 class LogoBadge {
     constructor(){
-        // only the game page has the menu mount
+        // game page only
         if (!document.querySelector("#mainMenuUIMount")) return;
 
         const style = document.createElement("style");

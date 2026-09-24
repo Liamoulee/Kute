@@ -5,14 +5,14 @@ use crate::{modules::files, utils};
 
 pub const RUNNER: &str = include_str!("../frontend/host/userscriptRunner.js");
 
-// id, subfolder of scripts/, shown name, where it runs
+// id, subfolder of scripts/, display name, where it runs
 pub const GROUPS: [(&str, &str, &str, &str); 2] = [
     ("game", "", "Game", "krunker.io in the main window"),
     ("social", "social", "Social", "social / hub popups"),
 ];
 
 const MAX_SOURCE: usize = 4 * 1024 * 1024;
-// the manager's list only needs the header, which sits at the top: this much of each file is read for it
+// enough for the header in the manager's list
 const HEADER_READ: u64 = 64 * 1024;
 
 pub struct Script {
@@ -24,13 +24,12 @@ pub struct Script {
     pub priority: i64,
     pub meta: Map<String, Value>,
     pub prefs: Value,
-    // the whole file for the renderer, only the first HEADER_READ bytes for the manager's list
+    // whole file for the renderer, HEADER_READ bytes for the manager
     pub source: String,
     pub size: u64,
 }
 
 impl Script {
-    // what the runner and the manager get, without the source
     pub fn describe(&self) -> Value {
         json!({
             "key": self.key,
@@ -65,7 +64,7 @@ fn key_for(group: &str, file: &str) -> String {
     }
 }
 
-// "social/x.js" -> ("social", "x.js"), "x.js" -> ("game", "x.js"). Only names a script can have
+// "social/x.js" -> ("social", "x.js"), "x.js" -> ("game", "x.js")
 fn split_key(key: &str) -> Option<(&'static str, String)> {
     let (group, file) = match key.split_once('/') {
         Some((sub, file)) => (GROUPS.iter().find(|group| !group.1.is_empty() && group.1 == sub)?.0, file),
@@ -74,8 +73,7 @@ fn split_key(key: &str) -> Option<(&'static str, String)> {
     valid_file(file).then(|| (group, file.to_string()))
 }
 
-// a name with something in front of ".js". Checked on the extension, never by slicing bytes: a folder can hold
-// any file, and a byte index into "a🦀" lands inside the crab and panics
+// check the extension, byte slicing panics on names like "a🦀"
 fn valid_file(file: &str) -> bool {
     let path = std::path::Path::new(file);
     files::safe_name(file)
@@ -114,7 +112,6 @@ fn prefs_path() -> PathBuf {
     scripts_dir().join("prefs.json")
 }
 
-// `// ==UserScript==` block
 fn parse_metadata(source: &str) -> Option<Map<String, Value>> {
     let mut meta = Map::new();
     let mut inside = false;
@@ -153,7 +150,6 @@ fn load_script(group: &'static str, file: String, tracker: &Map<String, Value>, 
     let read = if whole {
         fs::read_to_string(&path)
     } else {
-        // a cut in the middle of a character only costs that character, the header is long done by then
         fs::File::open(&path).and_then(|file| {
             let mut bytes = Vec::new();
             file.take(HEADER_READ).read_to_end(&mut bytes)?;
@@ -169,7 +165,6 @@ fn load_script(group: &'static str, file: String, tracker: &Map<String, Value>, 
     };
     let key = key_for(group, &file);
     let header = parse_metadata(&source);
-    // no header: the old glorp behavior, straight away. With one: Crankshaft's default, after the document
     let run_at_start = match header.as_ref().and_then(|meta| meta.get("run-at")).and_then(Value::as_str) {
         Some(run_at) => run_at == "document-start" || run_at == "document.start",
         None => header.is_none(),
@@ -194,7 +189,7 @@ fn load_script(group: &'static str, file: String, tracker: &Map<String, Value>, 
     })
 }
 
-// Every script of a group, sorted by file name (the runner orders by priority).
+// sorted by file name, the runner orders by priority
 pub fn load_group(group: &str) -> Vec<Script> {
     load_group_from(group, true)
 }
@@ -218,8 +213,7 @@ fn load_group_from(group: &str, whole: bool) -> Vec<Script> {
     names.into_iter().filter_map(|file| load_script(id, file, &tracker, &prefs, whole)).collect()
 }
 
-// The list for the manager: every group with its scripts (no sources). Also drops tracker and prefs entries of
-// files that are gone.
+// also drops tracker and prefs entries of deleted files
 pub fn list() -> Value {
     fs::create_dir_all(scripts_dir().join("social")).ok();
     let mut keys = Vec::new();
@@ -290,7 +284,6 @@ pub fn delete(key: &str) -> Result<(), String> {
     files::recycle(&path).map_err(|e| e.to_string())
 }
 
-// moves a script into another group, keeping its tracker and prefs entries
 pub fn move_to(key: &str, group: &str) -> Result<(), String> {
     let (_, file) = split_key(key).ok_or("Unknown script")?;
     let from = path_for(key).ok_or("Unknown script")?;
@@ -326,11 +319,10 @@ pub fn reveal(key: Option<&str>) {
     }
 }
 
-// One self-contained document script per enabled social script: the runner plus that script, so a syntax error
-// only costs that one.
+// runner + script per social script, so a syntax error only kills that one
 pub fn social_document_scripts() -> Vec<String> {
     let mut scripts = load_group("social");
-    // document scripts run in the order they were added, so the priority order is decided here
+    // document scripts run in insertion order
     scripts.sort_by_key(|script| std::cmp::Reverse(script.priority));
     scripts
         .into_iter()
@@ -355,7 +347,7 @@ mod tests {
         assert!(valid_file("OK.JS"));
         assert!(valid_file("skript-🦀.js"));
         assert!(!valid_file("readme.txt"));
-        // these used to panic: a byte index three from the end lands inside the last character
+        // used to panic
         assert!(!valid_file("a🦀"));
         assert!(!valid_file("🦀"));
         assert!(!valid_file("ü"));

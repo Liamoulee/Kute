@@ -24,45 +24,24 @@
     <main class="legal">
       <p class="eyebrow">[ PRIVACY POLICY ]</p>
       <h1>Privacy Policy</h1>
-      <p class="legal-date">Last updated: 19 September 2026</p>
+      <p class="legal-date">Last updated: 24 September 2026</p>
 
       <div class="legal-summary">
-        <p><b>Short version.</b> Kute needs no account with us, shows no ads and sells nothing. What the client sends to our server is data-minimized and pseudonymized: no names, no account data, no IP addresses, no ids, and times only to the day. Telemetry is on by default and can be turned off at any time.</p>
+        <p><b>Short version.</b> Kute is free and open source. It needs no account with us, shows no ads and sells nothing. What the client sends to our server is only what it needs to work. The client sends no telemetry.</p>
       </div>
 
-      <h2>1. Who is responsible</h2>
-      <p>Kute is developed by NullDev e.U. This policy follows Regulation (EU) 2016/679 (General Data Protection Regulation, "GDPR") and the Austrian Data Protection Act (Datenschutzgesetz, "DSG"). The data controller within the meaning of Art. 4(7) GDPR is:</p>
-      <address class="legal-address">
-        NullDev e.U.<br />
-        Bergmanngasse 61a, TOP 4<br />
-        8010 Graz, Austria<br />
-        Firmenbuch: FN 677239 (LG für ZRS Graz)<br />
-        VAT ID: ATU80745035<br />
-        Email: <a href="mailto:legal@kute.lol">legal@kute.lol</a>
-      </address>
-      <p>We have not appointed a Data Protection Officer, as the conditions of Art. 37 GDPR do not apply. For all data protection enquiries, contact <a href="mailto:legal@kute.lol">legal@kute.lol</a>.</p>
-
-      <h2>2. This website</h2>
-      <p>kute.lol is served by our own server behind Cloudflare. To deliver the pages, Cloudflare and our server process your IP address and the usual request data (URL, browser, time). This is technically necessary (Art. 6(1)(f) GDPR). Our server's application log records the requested path, not your IP address, and is deleted after 31 days.</p>
+      <h2>1. This website</h2>
+      <p>kute.lol is served by our own server behind Cloudflare. To deliver the pages, Cloudflare and our server process your IP address and the usual request data (URL, browser, time). Our server's log records the requested path, not your IP address, and is deleted after 31 days.</p>
       <p>The website sets no cookies and uses no analytics or tracking. It loads the current player count from our own server.</p>
 
-      <h2>3. The Kute client</h2>
-
-      <h3>Telemetry (opt-out)</h3>
-      <p>Unless you turn off the telemetry setting (Settings, About), the client sends us:</p>
-      <ul>
-        <li><b>Auto-Detect results</b> after a run: GPU and CPU model, thread count, RAM, Windows build, display resolution and refresh rate, whether the PC runs on battery, the client and game graphics settings, and the measured frame rates.</li>
-        <li><b>Crash reports</b>: client version, where the crash happened, the error message and stack trace. Paths of your user folder are removed before sending.</li>
-        <li><b>Script errors</b> of the client itself (not of Krunker or your userscripts), at most three per page load.</li>
-      </ul>
-      <p>The server rebuilds every report from a fixed list of fields and drops everything else. Reports are stored with the day only, without IP address, account or any id. Hardware details can still describe a PC, which is why we call this pseudonymized and not anonymous. Legal basis: our legitimate interest in fixing and tuning the client (Art. 6(1)(f) GDPR). You can object at any time by turning the setting off. We keep reports while they help development and delete them when they no longer do.</p>
+      <h2>2. The Kute client</h2>
 
       <h3>Kute badge and player count</h3>
-      <p>While the client runs, it keeps a connection to our server. When you are logged in to Krunker, it sends a hash of the lobby id and your in-game display name, so that other Kute users in the same match can see the Kute badge next to you. The hash is only held in memory while you are connected and is never stored. The server also counts open connections (current number and peak) and how many clients were started for the first time. The client remembers itself that it was counted, the server keeps no list.</p>
-      <p>This is part of how the client works, so the telemetry setting does not affect it. If you do not want any contact with our server, add <code>*://kute.lol/*</code> to <code>user_blocklist.json</code> in <code>Documents\kute</code>. The client plays the same without it.</p>
+      <p>While the client runs, it keeps a connection to our server. When you are logged in to Krunker, it sends a hash of the lobby id and your in-game display name, so that other Kute users in the same match can see the Kute badge next to you. The hash is only held in memory while you are connected and is never stored. The server also counts open connections and how many clients were started for the first time. The client remembers itself that it was counted, the server keeps no list.</p>
+      <p>To stop all contact with our server, turn on <b>Disable Kute Online Features</b> (Settings, About). The client then sends nothing to kute.lol and receives nothing from it. Hiding badges with <b>Show Kute Badge</b> only affects what you see.</p>
 
       <h3>Rate limiting</h3>
-      <p>To protect the server from abuse, request counts are kept per IP address. The address is replaced by a salted hash in memory. The salt is never stored and changes on every restart. Entries are deleted within 75 minutes. The same hash keeps a first start from being counted twice on one day and is dropped the next day.</p>
+      <p>To protect the server from abuse, request counts are kept per IP address. The address is replaced by a salted hash in memory. The salt is never stored and changes on every restart. Entries are deleted within 75 minutes.</p>
 
       <h3>Other services</h3>
       <ul>
@@ -72,32 +51,12 @@
       </ul>
 
       <h3>Stored only on your PC</h3>
-      <p>Settings, userscripts, swapped files, the browser cache and saved accounts stay in <code>Documents\kute</code>. Saved account passwords are encrypted with Windows (DPAPI) and are never sent to us.</p>
+      <p>Settings, userscripts, swapped files, the browser cache, crash logs and saved accounts stay in <code>Documents\kute</code>. Saved account passwords are encrypted with Windows (DPAPI) and are never sent to us.</p>
 
-      <h2>4. Your rights</h2>
-      <p>You have the right to access, rectification, erasure, restriction of processing, data portability and to object (Art. 15 to 21 GDPR). Because we store no ids, names or IP addresses, we usually cannot tell which reports came from you (Art. 11 GDPR). If you can point us to data that is yours, contact <a href="mailto:legal@kute.lol">legal@kute.lol</a>. We answer without undue delay and within one month at the latest (Art. 12(3) GDPR).</p>
-      <p>You also have the right to lodge a complaint with a supervisory authority, in particular in the EU Member State of your habitual residence, place of work or place of the alleged infringement (Art. 77 GDPR). The competent authority in Austria is:</p>
-      <address class="legal-address">
-        Österreichische Datenschutzbehörde<br />
-        Barichgasse 40-42, 1030 Vienna, Austria<br />
-        Phone: +43 1 52 152-0<br />
-        Email: <a href="mailto:dsb@dsb.gv.at">dsb@dsb.gv.at</a><br />
-        Web: <a href="https://www.dsb.gv.at" target="_blank" rel="noreferrer">www.dsb.gv.at</a>
-      </address>
+      <h2>3. Contact</h2>
+      <p>Questions about this policy: <a href="mailto:legal@kute.lol">legal@kute.lol</a>.</p>
 
-      <h2>5. Data security</h2>
-      <p>We protect the data we process with appropriate technical and organisational measures (Art. 32 GDPR), including encryption in transit (TLS) and restricted access to the server. No method of transmission over the Internet is 100 % secure.</p>
-
-      <h2>6. International data transfers</h2>
-      <p>Cloudflare, which delivers kute.lol, is based in the United States. Where personal data is transferred to a country outside the EEA, it is protected by an adequacy decision of the European Commission (the EU-US Data Privacy Framework) or by Standard Contractual Clauses (Art. 46(2)(c) GDPR). A copy of the safeguards can be requested at <a href="mailto:legal@kute.lol">legal@kute.lol</a>.</p>
-
-      <h2>7. Automated decision-making</h2>
-      <p>We do not use personal data for automated decision-making, including profiling, within the meaning of Art. 22 GDPR.</p>
-
-      <h2>8. Children</h2>
-      <p>Kute asks nobody for consent and processes no data that names a person, so it collects nothing extra about minors. If you believe we hold data about a child, contact <a href="mailto:legal@kute.lol">legal@kute.lol</a> and we will delete it without undue delay.</p>
-
-      <h2>9. Changes</h2>
+      <h2>4. Changes</h2>
       <p>We update this policy when the client or the website changes what they process. The date at the top shows the current version.</p>
     </main>
 

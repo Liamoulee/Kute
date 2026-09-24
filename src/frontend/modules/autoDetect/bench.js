@@ -13,12 +13,7 @@ function numberParam(key, fallback){
     return query.has(key) && Number.isFinite(value) ? value : fallback;
 }
 
-/**
- * How long the scene keeps drawing after the result went out. The host answers `bench-finish` by asking the
- * present hook for its interval distribution, and the hook only answers that on its next Present. Tearing the
- * scene down first stopped the presents, so the request waited out its 150 ms and the row came back without
- * any present numbers. The process exits on its own about a second later.
- */
+// keep presenting after the result, the hook answers the host's interval request on its next present
 const FINISH_GRACE_MS = 400;
 
 const settleMs = numberParam("settle", 700);
@@ -42,9 +37,6 @@ function finish(result){
     window.chrome.webview.postMessage(`bench-finish ${JSON.stringify(result)}`);
 }
 
-/**
- * Runs the scene and reports.
- */
 function run(){
     const canvas = document.createElement("canvas");
     canvas.style.cssText = "position:fixed;inset:0;width:100vw;height:100vh;display:block";
@@ -61,8 +53,7 @@ function run(){
     let sampling = false;
     let finishedAt = 0;
     let nextSlot = start;
-    // the host closes this window as soon as it has the result, and the window takes the GL context with it.
-    // drawing on a lost context does nothing but fill the log with "useProgram: program not valid"
+    // host closes the window once it has the result, drawing after that just spams "program not valid"
     let contextLost = false;
     canvas.addEventListener("webglcontextlost", () => {
         contextLost = true;
@@ -79,11 +70,9 @@ function run(){
             nextSlot = Math.max(nextSlot + 1000 / cap, performance.now());
         }
         const now = performance.now();
-        // the event is the normal signal, the direct question covers a teardown that never gets to fire it.
-        // only asked after the result went out, so the measured loop stays as it was
+        // scene.lost() covers a teardown that never fires the event, only asked after the result so the measured loop stays clean
         if (contextLost || (finishedAt > 0 && scene.lost())){
-            // after the result went out this is the normal way the grace period ends, before it the run is
-            // over and the host may as well hear it now instead of waiting for its timeout
+            // before the result: tell the host now instead of letting it time out
             if (finishedAt === 0) finish({ ok: false, error: "webgl context lost" });
             scene.destroy();
             return;
@@ -124,9 +113,7 @@ function run(){
     requestAnimationFrame(frame);
 }
 
-/**
- * A failed run still has to report, the host waits for it.
- */
+// a failed run still has to report, the host waits for it
 function runSafely(){
     try {
         run();

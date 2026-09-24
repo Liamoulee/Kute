@@ -1,0 +1,76 @@
+diff --git a/third_party/blink/renderer/modules/webaudio/panner_handler.cc b/third_party/blink/renderer/modules/webaudio/panner_handler.cc
+index 866571a823..f9c4a5278d 100644
+--- a/third_party/blink/renderer/modules/webaudio/panner_handler.cc
++++ b/third_party/blink/renderer/modules/webaudio/panner_handler.cc
+@@ -7,6 +7,8 @@
+ #include <array>
+ 
+ #include "base/compiler_specific.h"
++#include "base/feature_list.h"
++#include "base/metrics/field_trial_params.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/synchronization/lock.h"
+ #include "third_party/blink/renderer/modules/webaudio/audio_listener.h"
+@@ -28,6 +30,22 @@ namespace {
+ constexpr unsigned kMinimumOutputChannels = 1;
+ constexpr unsigned kMaximumOutputChannels = 2;
+ 
++// Kute: `panner.positionX.value = x` schedules an automation event (audio_param.cc), so a game that writes sound
++// positions once per rendered frame leaves every panner with a non-empty timeline forever. The panner then takes
++// the sample accurate path below and recomputes azimuth, elevation and distance gain for every single frame of
++// every quantum. Measured with 48 moving HRTF voices: PannerHandler::Process costs 4.7 us per quantum with no
++// position writes and 18.8 us with them, and the whole audio thread goes from 150 to 375 ms per second of audio.
++// The values a plain assignment produces are constant across the quantum anyway, so with this feature the panner
++// keeps using the per quantum path. Enabled by Kute with --enable-features=KuteAudioPannerPerQuantum.
++BASE_FEATURE(kKuteAudioPannerPerQuantum,
++             "KuteAudioPannerPerQuantum",
++             base::FEATURE_DISABLED_BY_DEFAULT);
++
++// On top of that, a sound whose angle changes in every quantum makes the HRTF panner crossfade between two kernel
++// sets all the time, which is why the convolver runs twice per quantum per voice. Re-panning every N quanta instead
++// (3 quanta of 128 frames at 48 kHz is every 8 ms) keeps that cost down. 1 re-pans in every quantum.
++constexpr base::FeatureParam<int> kKuteAudioPannerQuanta{&kKuteAudioPannerPerQuantum, "quanta", 3};
++
+ void FixNANs(double& x) {
+   if (!std::isfinite(x)) {
+     x = 0.0;
+@@ -192,7 +210,8 @@ void PannerHandler::Process(uint32_t frames_to_process) {
+       listener_handler_->WaitForHRTFDatabaseLoaderThreadCompletion();
+     }
+ 
+-    if ((HasSampleAccurateValues() ||
++    if (!base::FeatureList::IsEnabled(kKuteAudioPannerPerQuantum) &&
++        (HasSampleAccurateValues() ||
+          listener_handler_->HasSampleAccurateValues()) &&
+         (IsAudioRate() || listener_handler_->IsAudioRate())) {
+       // It's tempting to skip sample-accurate processing if
+@@ -641,6 +660,16 @@ void PannerHandler::AzimuthElevation(double* out_azimuth,
+   // Calculate new azimuth and elevation if the panner or the listener changed
+   // position or orientation in any way.
+   if (IsAzimuthElevationDirty() || listener_handler_->IsListenerDirty()) {
++    // Kute: hold the last angles until enough quanta passed, see kKuteAudioPannerQuanta. The panner stays dirty, so
++    // the move is applied at the next allowed quantum instead of being dropped
++    if (base::FeatureList::IsEnabled(kKuteAudioPannerPerQuantum) &&
++        ++kute_quanta_since_pan_ <
++            static_cast<unsigned>(std::max(1, kKuteAudioPannerQuanta.Get()))) {
++      *out_azimuth = cached_azimuth_;
++      *out_elevation = cached_elevation_;
++      return;
++    }
++    kute_quanta_since_pan_ = 0;
+     CalculateAzimuthElevation(
+         &cached_azimuth_, &cached_elevation_, GetPosition(),
+         listener_handler_->GetPosition(),
+diff --git a/third_party/blink/renderer/modules/webaudio/panner_handler.h b/third_party/blink/renderer/modules/webaudio/panner_handler.h
+index 1a182300e4..b7affce1d1 100644
+--- a/third_party/blink/renderer/modules/webaudio/panner_handler.h
++++ b/third_party/blink/renderer/modules/webaudio/panner_handler.h
+@@ -142,6 +142,8 @@ class PannerHandler final : public AudioHandler {
+   double cached_azimuth_ = 0;
+   double cached_elevation_ = 0;
+   bool is_azimuth_elevation_dirty_ = true;
++  // Kute: render quanta since this panner was last re-panned, see kKuteAudioPannerQuanta
++  unsigned kute_quanta_since_pan_ = 0;
+ 
+   DistanceEffect distance_effect_;
+   ConeEffect cone_effect_;

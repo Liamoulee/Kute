@@ -7,7 +7,7 @@ use std::fs;
 use windows::core::w;
 
 const FILE_VERSION: u32 = 1;
-// ties the blobs to this use, a DPAPI blob made by another program with the same user does not decrypt here
+// other programs of the same user can't decrypt our blobs
 const ENTROPY: &[u8] = b"kute-accounts-v1";
 const MAX_ACCOUNTS: usize = 64;
 const MAX_FIELD: usize = 256;
@@ -26,14 +26,12 @@ struct Stored {
     color: String,
 }
 
-// what the page gets
 #[derive(Serialize)]
 pub struct Public {
     pub username: String,
     pub color: String,
 }
 
-// what the page sends for add and migrate
 #[derive(Deserialize)]
 pub struct Credentials {
     pub username: String,
@@ -93,7 +91,7 @@ pub fn list() -> Vec<Public> {
         .collect()
 }
 
-// false when nothing was stored: invalid fields, a name that exists already, or the list is full
+// false on invalid fields, duplicate name or full list
 pub fn add(credentials: &Credentials) -> bool {
     if !valid(&credentials.username) || !valid(&credentials.password) {
         return false;
@@ -124,14 +122,13 @@ pub fn remove(username: &str) {
     save(&accounts);
 }
 
-// fills Krunker's open login form (the page opened it and switched it to username mode) and submits it.
-// evaluated over CDP, which page scripts cannot observe, unlike a bridge message
+// fills and submits krunker's open login form over CDP, page scripts can't see that
 pub fn login(browser: &Browser, username: &str) {
     let Some(stored) = load().into_iter().find(|stored| unprotect(&stored.username).as_deref() == Some(username)) else {
         return;
     };
     let Some(password) = unprotect(&stored.password) else { return };
-    // serde's string encoding is a valid JS string literal
+    // serde string = valid JS string literal
     let (Ok(name), Ok(pass)) = (serde_json::to_string(username), serde_json::to_string(&password)) else {
         return;
     };

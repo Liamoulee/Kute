@@ -1,14 +1,14 @@
 /**
  * @typedef {object} GameSetting
- * @property {string} id Krunker's setting id
+ * @property {string} id krunker's setting id
  * @property {string} label
- * @property {string|boolean} cheap The value that costs the least
- * @property {boolean} [needsReload] Krunker only applies it after the page reloads (marked * in its settings), so it cannot be measured inside one test match
- * @property {boolean} [fightOnly] Only costs something while it is on screen (shots, explosions), which an empty test match never shows. Not measured and never changed
+ * @property {string|boolean} cheap the value that costs the least
+ * @property {boolean} [needsReload] only applies after a reload (* in krunker's ui), can't be measured
+ * @property {boolean} [fightOnly] only costs in a fight, empty test match can't measure it, never changed
  */
 
 /**
- * Ordered by how little a player misses them. The order only breaks ties between equal gains.
+ * least missed first, order only breaks ties
  *
  * @type {GameSetting[]}
  */
@@ -35,29 +35,22 @@ export const SETTINGS = [
 ];
 
 /**
- * A performance baseline for a player who has never set the game up. Krunker's defaults are not made for a
- * shooter, and the first start is the moment to fix that.
- *
- * What may be in here is narrow on purpose, because nothing in the client ever raises quality again: either the
- * run can never measure the setting (`needsReload`, `fightOnly`), or its cheap value is not something a player
- * misses. Everything that really makes the game look worse (shadows, textures, map details, the weapon and the
- * hands, old shading) stays out and is left to the run, which only sacrifices it on a PC that was measured to
- * need it. Personal settings (sensitivity, keybinds, crosshair, FOV, volumes, HUD) are never touched.
+ * first start baseline, only settings the run can't measure or nobody misses
  *
  * @type {Record<string, string|boolean>}
  */
 export const PRESET = {
-    // all three, and Krunker starts with it on: a colour pass that costs frames and washes the image out
+    // on by default, costs frames and washes the image out
     postProcessing: false,
-    // all three. fightOnly, so the run can never measure these four
+    // fightOnly
     particles: false,
     showExplo: false,
     bulletCasings: false,
     impactHoles: false,
-    // needsReload, same reason: the run can never touch them
+    // needsReload
     reflection: "1",
     lighting: "0",
-    // the expensive shadow variants go, the shadows themselves stay
+    // expensive shadow variants go, shadows stay
     softShad: false,
     highResShad: false,
     noPaintAnim: true,
@@ -66,12 +59,9 @@ export const PRESET = {
 export const RESOLUTION = "resolution";
 export const GAME_FRAME_CAP = "updateRate";
 
-/** Every game setting a run or the preset may touch, for the undo snapshot. */
 export const ALL_IDS = [...SETTINGS.map((setting) => setting.id), RESOLUTION, GAME_FRAME_CAP];
 
 /**
- * The name a setting has in the game, for the list of what changed.
- *
  * @param {string} id
  * @return {string}
  */
@@ -83,7 +73,7 @@ export function label(id){
 let settingsDocument = null;
 
 /**
- * Krunker only stores a setting once it was changed, so defaults are read from its rendered settings page.
+ * krunker only stores changed settings, defaults come from its rendered settings page
  *
  * @return {Document}
  */
@@ -108,16 +98,14 @@ function renderedSettings(){
     return settingsDocument;
 }
 
-/**
- * Forget the parsed settings page, its values are stale after a run.
- */
+// parsed page is stale after a run
 export function resetCache(){
     settingsDocument = null;
 }
 
 /**
  * @param {string} id
- * @return {string|null} The current value as Krunker stores it ("true", "0.5", ...), null when unknown
+ * @return {string|null} value as krunker stores it ("true", "0.5", ...), null when unknown
  */
 export function read(id){
     const stored = localStorage.getItem(`kro_setngss_${id}`);
@@ -144,8 +132,6 @@ export function write(id, value){
 }
 
 /**
- * The value to flip a checkbox setting to for a measurement.
- *
  * @param {string} value
  * @return {string}
  */

@@ -120,7 +120,7 @@ fn power() -> (bool, bool) {
     (laptop, on_battery)
 }
 
-// the windows build number ("26200"), the presentation path differs between builds
+// e.g. "26200", the presentation path differs between builds
 fn os_build() -> String {
     let mut buf = [0u16; 32];
     let mut size = (buf.len() * 2) as u32;
@@ -143,7 +143,7 @@ pub fn collect(hwnd: HWND) -> Value {
     let (user_flags, disabled_defaults) = crate::modules::flaglist::user_flag_names();
     json!({
         "osBuild": os_build(),
-        // names only: a flag's value can be a path with a user name in it
+        // names only, values can contain user paths
         "userFlags": user_flags,
         "disabledDefaults": disabled_defaults,
         "displays": displays(hwnd),

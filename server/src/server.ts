@@ -9,7 +9,6 @@ import { createRateLimit } from "./util/rateLimit";
 import { initDb } from "./db";
 import { loadPlayerStats } from "./util/playerStats";
 import { metaRoutes } from "./routes/meta";
-import { telemetryRoutes } from "./routes/telemetry";
 import { presenceRoutes } from "./routes/presence";
 import { config, meta } from "../config/config";
 import sheduleCrons from "./util/cron";
@@ -65,13 +64,11 @@ loadPlayerStats();
 sheduleCrons();
 
 app.register(cors, { origin: "*" });
-// the files under public/kr exist to be embedded by krunker.io (crosshairs, hitmarkers, kill icons). Helmet
-// defaults Cross-Origin-Resource-Policy to same-origin, and the game's page then refuses every one of them with
-// ERR_BLOCKED_BY_RESPONSE.NotSameOrigin, whatever CORS says, because CORP is checked before it
+// public/kr gets embedded by krunker.io, helmet's default same-origin CORP would block it
 app.register(helmet, { crossOriginResourcePolicy: { policy: "cross-origin" } });
 app.register(websocket);
 
-// the API only: one visit of the website alone loads more than 10 files
+// api only, one website visit alone loads 10+ files
 const globalLimit = createRateLimit("global", 10, 1000, "Rate limit exceeded. Max 10 requests per second.");
 app.addHook("onRequest", async(req, reply) => {
     if (req.url.startsWith("/api")) await globalLimit(req, reply);
@@ -84,7 +81,6 @@ app.register(fastifyStatic, {
 });
 
 app.register(metaRoutes, { prefix: "/api" });
-app.register(telemetryRoutes, { prefix: "/api/telemetry" });
 app.register(presenceRoutes, { prefix: "/api" });
 
 const port = parseInt(config.server.port ?? "3030", 10);

@@ -1,6 +1,4 @@
 /**
- * Generates a random lowercase identifier.
- *
  * @param {number} length
  * @return {string}
  */
@@ -11,16 +9,13 @@ function randomKey(length){
 }
 
 /**
- * The client object. Filled with the host's "get-info" reply once it arrives and extended by the modules.
- * Modules import it from here; it is never exposed as window.kute.
+ * filled by the get-info reply. never put it on window.kute
  *
  * @type {Kute}
  */
 export const kute = /** @type {Kute} */ ({});
 
 /**
- * Resolves once the host answered "get-info", i.e. once settings, version and launch args are available.
- *
  * @type {Promise<Kute>}
  */
 export const ready = new Promise((resolve) => {
@@ -39,7 +34,7 @@ export const ready = new Promise((resolve) => {
     window.chrome.webview.postMessage("get-info");
 });
 
-// just in case krunker decideds to pull a bs move like with idkr
+// random hidden global, in case krunker pulls a bs move like with idkr
 const globalKey = randomKey(12);
 Object.defineProperty(window, globalKey, {
     value: kute,
@@ -49,7 +44,7 @@ Object.defineProperty(window, globalKey, {
 });
 
 /**
- * JS expression that resolves to the client object, for use in inline event handler strings.
+ * for inline handler strings
  *
  * @type {string}
  */

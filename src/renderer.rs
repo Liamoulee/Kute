@@ -1,9 +1,8 @@
-// render process side: provides window.chrome.webview to the page and injects the bundle
 use crate::{constants, debug_print, modules, utils, utils::config};
 use cef::{rc::*, *};
 use std::{cell::RefCell, collections::HashMap};
 
-// "message" listeners per frame, keyed by the frame identifier
+// "message" listeners per frame id
 thread_local! {
     static LISTENERS: RefCell<HashMap<String, Vec<V8Value>>> = RefCell::new(HashMap::new());
 }
@@ -13,7 +12,7 @@ fn frame_key(frame: &Frame) -> String {
 }
 
 fn bundle_source() -> String {
-    // the updater writes resources/bundle.js, every page load picks up the newest one
+    // bundle from the updater wins over the embedded one
     #[cfg(feature = "auto-update")]
     if let Ok(bundle) = std::fs::read_to_string(utils::exe_dir().join("resources").join("bundle.js"))
         && !bundle.is_empty()
@@ -30,7 +29,6 @@ fn bundle_source() -> String {
     String::new()
 }
 
-// the completion value of the script, or the message of what it threw
 fn eval_value(context: &V8Context, code: &str, name: &str) -> Result<V8Value, String> {
     let mut retval = None;
     let mut exception = None;
@@ -51,12 +49,10 @@ fn eval(context: &V8Context, code: &str, name: &str) {
     }
 }
 
-// the bundle takes the userscript registry from this property while it is evaluated, it is gone again before
-// any script of the page runs
+// bundle grabs the userscript registry from here, removed before page scripts run
 const REGISTRY_KEY: &str = "__kuteUserscripts";
 
-// mirrors AddScriptToExecuteOnDocumentCreated for the main webview: runs before any script of the page.
-// popups get their (social) userscripts from the browser process instead, see handlers::on_after_created
+// runs before any page script. popups get theirs from handlers::on_after_created
 fn inject_scripts(url: &str, context: &V8Context) {
     debug_print!("renderer: injecting into {url}");
     let registry = if config("userscripts", true) {
@@ -79,8 +75,7 @@ fn inject_scripts(url: &str, context: &V8Context) {
     }
 }
 
-// compiles every script of the game group here (Krunker traps eval and Function in the page, the bundle must never
-// compile anything) and hands them to the runner, see userscriptRunner.js
+// compiled here because krunker traps eval and Function, the bundle must never compile anything
 fn run_userscripts(context: &V8Context, registry: V8Value) {
     let scripts = modules::userscripts::load_group("game");
     if scripts.is_empty() {
@@ -95,7 +90,7 @@ fn run_userscripts(context: &V8Context, registry: V8Value) {
 
     for (index, script) in scripts.iter().enumerate() {
         let Some(item) = list.value_byindex(index as i32) else { continue };
-        // the opening line holds the wrapper, so the script's own line numbers stay what they are in the file
+        // wrapper on the first line keeps line numbers intact
         let wrapped = format!("(function (module, exports) {{{}\n}})", script.source);
         let (key, mut value) = match eval_value(context, &wrapped, &format!("scripts/{}", script.key)) {
             Ok(function) if function.is_function() != 0 => ("run", Some(function)),
@@ -128,7 +123,7 @@ wrap_v8_handler! {
 
             match name.as_str() {
                 "postMessage" => {
-                    // WebView2 only accepted strings through TryGetWebMessageAsString
+                    // strings only, like WebView2
                     let Some(Some(value)) = args.first() else { return 1 };
                     if value.is_string() == 0 {
                         return 1;
@@ -176,7 +171,6 @@ fn set_function(object: &V8Value, name: &str, handler: &mut V8Handler) {
     }
 }
 
-// window.chrome.webview with the three functions the bundle uses
 fn install_bridge(context: &V8Context) {
     let Some(global) = context.global() else { return };
     let chrome_key = CefString::from("chrome");
@@ -205,7 +199,6 @@ fn json_parse(context: &V8Context, json: &str) -> Option<V8Value> {
     parse.execute_function(Some(&mut this), Some(&[Some(text)]))
 }
 
-// deliver a host message as {data} to every listener of the frame
 fn dispatch(frame: &Frame, is_json: bool, payload: &str) {
     let key = frame_key(frame);
     let listeners: Vec<V8Value> = LISTENERS.with_borrow(|map| map.get(&key).cloned().unwrap_or_default());

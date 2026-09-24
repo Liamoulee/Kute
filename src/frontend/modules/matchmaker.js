@@ -2,7 +2,11 @@ import styles from "../components/matchmaker.css";
 import { kute } from "../client.js";
 import { request } from "../utils.js";
 
-// the index is the gamemode id of the game list (game[4].g)
+// ---
+// ported from the Krunker Civilian Client (GPL-3.0) <3
+// ---
+
+// index = gamemode id in the game list (game[4].g)
 const GAMEMODES = [
     "Free for All", "Team Deathmatch", "Hardpoint", "Capture the Flag", "Parkour", "Hide & Seek", "Infected", "Race",
     "Last Man Standing", "Simon Says", "Gun Game", "Prop Hunt", "Boss Hunt", "Classic FFA", "Deposit", "Stalker",
@@ -10,20 +14,19 @@ const GAMEMODES = [
     "Blitz", "Domination", "Squad Deathmatch", "Kranked FFA", "Team Defender", "Deposit FFA", "Chaos Snipers", "Bighead FFA",
 ];
 
-// the modes offered in the filters
 const MODE_FILTER = [
     "Free for All", "Team Deathmatch", "Hardpoint", "Capture the Flag", "Parkour", "Gun Game", "Classic FFA", "Deposit",
     "Kill Confirmed", "Sharp Shooter", "Domination", "Kranked FFA", "Team Defender", "Deposit FFA", "Chaos Snipers",
     "Bighead FFA",
 ];
 
-/** @type {Record<string, string>} the prefix of a game id */
+/** @type {Record<string, string>} keyed by game id prefix */
 const REGIONS = {
     SV: "Silicon Valley", TOK: "Tokyo", FRA: "Frankfurt", MBI: "Mumbai", SYD: "Sydney",
     SIN: "Singapore", DAL: "Dallas", BHN: "Bahrain", BRZ: "Brazil", NY: "New York",
 };
 
-// the position is the number of the map's preview image on assets.krunker.io
+// index = preview image number on assets.krunker.io
 const MAP_ICONS = [
     "Burg", "Littletown", "Sandstorm", "Subzero", "Undergrowth", "Shipment", "Freight", "Lostworld", "Citadel", "Oasis",
     "Kanji", "Industry", "Lumber", "Evacuation", "Site", "SkyTemple", "Lagoon", "Bureau", "Tortuga", "Tropicano",
@@ -31,7 +34,7 @@ const MAP_ICONS = [
     "Shipyard", "Soul Sanctum", "Bazaar", "Erupt", "HQ", "Khepri", "Lush", "Vivo", "Slide Moonlight", "Eterno Simulator",
 ];
 
-// the official maps offered in the filters. with none picked these are the filter, which keeps community maps out
+// official maps. none picked means all of these, keeps community maps out
 const MAP_FILTER = [
     "Burg", "Littletown", "Sandstorm", "Subzero", "Undergrowth", "Freight", "Lostworld", "Citadel", "Oasis", "Kanji",
     "Industry", "Lumber", "Evacuation", "Site", "SkyTemple", "Lagoon", "Tropicano", "Habitat", "Atomic", "Old_Burg",
@@ -43,7 +46,7 @@ const MAP_FILTER = [
 const MAP_NAMES = { SkyTemple: "Sky Temple", Krunk_Plaza: "Krunk Plaza", Old_Burg: "Old Burg" };
 
 /**
- * The game list writes map ids its own way ("slide_moonlight" for "Slide Moonlight"), so both sides get compared like this.
+ * game list writes map ids its own way ("slide_moonlight"), so compare normalized
  *
  * @param {string} name
  * @return {string}
@@ -51,12 +54,12 @@ const MAP_NAMES = { SkyTemple: "Sky Temple", Krunk_Plaza: "Krunk Plaza", Old_Bur
 const normalizeMap = (name) => name.toLowerCase().replace(/[^a-z0-9]/g, "");
 
 const MAP_ICON_BY_NAME = new Map(MAP_ICONS.map((name, index) => [normalizeMap(name), index]));
-// maps added after the list above, their images exist beyond it
+// newer maps, their images come after the list
 MAP_ICON_BY_NAME.set(normalizeMap("Eterno Jump"), 41);
 MAP_ICON_BY_NAME.set(normalizeMap("Frontier"), 42);
 
 const DEFAULT_MAPS = new Set(MAP_FILTER.map(normalizeMap));
-// the parkour maps run without a round timer. an untimed lobby on any other map is a hosted custom game
+// parkour maps have no round timer. untimed on any other map = custom game
 const UNTIMED_MAPS = new Set(["Eterno Jump", "Slide Moonlight"].map(normalizeMap));
 
 const GAME_LIST_URL = "https://matchmaker.krunker.io/game-list?hostname=krunker.io";
@@ -71,16 +74,16 @@ const NOT_FOUND_HOLD_MS = 1100;
 
 /**
  * @typedef {object} MatchmakerFilter
- * @property {string[]} regions Region codes (the prefix of a game id)
+ * @property {string[]} regions game id prefixes
  * @property {string[]} modes
  * @property {string[]} maps
- * @property {string[]} preferredMaps Tried first, in this order, before ping and players. Then any other allowed map
+ * @property {string[]} preferredMaps tried first in this order, before ping and players
  * @property {number} minPlayers
  * @property {number} maxPlayers
- * @property {number} minTime Seconds left in the round
- * @property {boolean} sortByPlayers Most players first instead of lowest ping first
- * @property {boolean} serverBrowser Open the server browser when nothing matches
- * @property {boolean} animation Show the search popup
+ * @property {number} minTime seconds left in the round
+ * @property {boolean} sortByPlayers most players first instead of lowest ping
+ * @property {boolean} serverBrowser open the server browser when nothing matches
+ * @property {boolean} animation show the search popup
  */
 
 /** @type {MatchmakerFilter} */
@@ -100,13 +103,13 @@ const DEFAULT_FILTER = {
 /**
  * @typedef {object} Lobby
  * @property {string} id
- * @property {string} region Region code, the prefix of the id
- * @property {string} server The region's server id, what the pings are keyed by
+ * @property {string} region id prefix
+ * @property {string} server region server id, pings are keyed by it
  * @property {number} players
  * @property {number} limit
  * @property {string} map
  * @property {string} mode
- * @property {number} timeLeft Seconds, 0 without a round timer
+ * @property {number} timeLeft seconds, 0 = no round timer
  * @property {boolean} passes
  */
 
@@ -169,7 +172,7 @@ function lobbyEntry(lobby, className){
 }
 
 /**
- * @return {Promise<any[]>} The raw game list entries
+ * @return {Promise<any[]>} raw game list entries
  */
 async function fetchGameList(){
     const response = await fetch(GAME_LIST_URL, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
@@ -216,7 +219,7 @@ function readLobbies(games, filter){
 
 class Matchmaker {
     constructor(){
-        // id of the running search, 0 when idle. a new id per search, so a stale continuation knows it was cancelled
+        // 0 = idle. new id per search so stale continuations notice they got cancelled
         this.activeRun = 0;
         this.runCounter = 0;
         /** @type {Lobby[]} */
@@ -246,10 +249,10 @@ class Matchmaker {
         };
 
         kute.matchmaker = { showFilters: () => this.showFilters() };
-        // F6 checks the setting on every press, and the host leaves F6 alone while it is on
+        // F6 checks the setting per press, the host leaves F6 alone while it's on
         kute.settings.toggleMatchmaker = () => {};
 
-        // the host announces that it leaves F6 to the page, an older exe would load a new lobby at the same time
+        // older exes load a new lobby on F6 themselves
         if (!kute.hostFeatures?.includes("matchmaker")) return;
         window.addEventListener(
             "keydown",
@@ -321,8 +324,6 @@ class Matchmaker {
     }
 
     /**
-     * Scrolls through the lobbies and, with a match, settles on it.
-     *
      * @param {number} run
      * @param {Lobby[]} lobbies
      * @param {Lobby} [best]
@@ -350,7 +351,7 @@ class Matchmaker {
     }
 
     /**
-     * Leaves the page for the lobby, the way F4 does it on the host.
+     * same as F4 on the host
      *
      * @param {string} id
      */
@@ -370,8 +371,7 @@ class Matchmaker {
     }
 
     /**
-     * The picked lobby may have filled up during the animation: checks the live list again and joins the first
-     * candidate that still has room.
+     * lobby may have filled up during the animation, joins the first candidate with room
      *
      * @param {number} run
      * @param {Lobby} best
@@ -398,9 +398,6 @@ class Matchmaker {
         else this.openServerBrowser(filter);
     }
 
-    /**
-     * Repeated presses during a search are ignored, Escape or the button cancel it.
-     */
     async start(){
         if (this.activeRun !== 0) return;
         const run = ++this.runCounter;
@@ -418,7 +415,6 @@ class Matchmaker {
      */
     async search(run){
         const { filter } = this;
-        // without the popup there is nothing to cancel either
         if (filter.animation) this.showPopup();
 
         /** @type {Lobby[]} */
@@ -443,7 +439,6 @@ class Matchmaker {
 
         /** @param {Lobby} lobby */
         const ping = (lobby) => pings[lobby.server] ?? 999;
-        // preferred maps come first in their order, every other map shares the last rank
         const mapRanks = new Map(filter.preferredMaps.map((map, index) => [normalizeMap(map), index]));
         /** @param {Lobby} lobby */
         const rank = (lobby) => mapRanks.get(normalizeMap(lobby.map)) ?? mapRanks.size;
@@ -457,7 +452,7 @@ class Matchmaker {
         });
         this.candidates = passing;
 
-        // a random one of the lobbies about as good as the best, so everyone pressing F6 does not end up in the same one
+        // random pick among near-best lobbies so everyone pressing F6 doesn't pile into one
         /** @type {Lobby|undefined} */
         let best;
         if (passing.length > 0){
@@ -500,9 +495,6 @@ class Matchmaker {
         await this.verifyAndJoin(run, best, filter);
     }
 
-    /**
-     * The filter popup behind the setting's button. Saves when it closes.
-     */
     async showFilters(){
         const html = await import("../components/matchmakerFilters.html");
         const { filter } = this;
@@ -522,11 +514,9 @@ class Matchmaker {
         const element = (id) => /** @type {HTMLInputElement} */ (shadow.querySelector(`#${id}`));
 
         /**
-         * One toggle chip per item, bound to the list of picked values.
-         *
          * @param {string} gridId
          * @param {{value: string, label: string, icon?: string|null}[]} items
-         * @param {string[]} picked Changed in place
+         * @param {string[]} picked changed in place
          */
         const chips = (gridId, items, picked) => {
             const grid = element(gridId);
@@ -553,10 +543,7 @@ class Matchmaker {
             }
         };
 
-        /**
-         * The preferred maps as a ranked row: drag a chip to reorder, click it to move it to the top. Pointer events
-         * instead of HTML5 drag and drop, the host refuses every drag that enters the browser window.
-         */
+        // drag to reorder, click to move to top. pointer events since the host refuses html5 drags
         const renderPreferred = () => {
             const list = element("mmPreferred");
             element("mmPreferredBox").hidden = filter.preferredMaps.length === 0;
@@ -616,10 +603,7 @@ class Matchmaker {
             renumber();
         };
 
-        /**
-         * The map chips: a click allows the map, the star prefers it. Kept true after every change: with any map
-         * picked, every preferred map is picked too, so a preference never points at a map the filter keeps out.
-         */
+        // a preferred map always stays allowed
         const renderMaps = () => {
             const grid = element("mmMaps");
             grid.replaceChildren();
@@ -655,7 +639,7 @@ class Matchmaker {
                         filter.maps.splice(index, 1);
                         if (preferred) filter.preferredMaps.splice(filter.preferredMaps.indexOf(value), 1);
                     }
-                    // the first pick turns "all maps" into a list, which has to keep the preferred ones
+                    // first pick turns "all maps" into a list, keep the preferred ones in it
                     else if (filter.maps.length === 0) filter.maps.push(...new Set([...filter.preferredMaps, value]));
                     else filter.maps.push(value);
                     renderMaps();

@@ -4,7 +4,7 @@ import path from "node:path";
 const args = process.argv.slice(2);
 const buildType = args[0];
 
-// cef-dll-sys copies the CEF runtime (libcef.dll, *.pak, locales/, ...) next to the exe when its build script runs
+// cef-dll-sys drops the CEF runtime next to the exe, but only when its build script runs
 const targetDir = path.join(process.cwd(), "target", buildType);
 const targetResourcesDir = path.join(targetDir, "resources");
 const distDir = path.join(targetDir, "dist");
@@ -30,8 +30,6 @@ const cefRuntimeFiles = [
 const vcRuntimeFiles = ["msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll"];
 
 /**
- * Copies a file when it exists, returns whether it did.
- *
  * @param {string} source
  * @param {string} destination
  * @return {boolean}
@@ -44,8 +42,6 @@ function copyIfExists(source, destination){
 }
 
 /**
- * Copies all files and directories from the source to the destination recursively.
- *
  * @param {string} source
  * @param {string} destination
  */
@@ -62,9 +58,7 @@ function copyDirAll(source, destination){
 }
 
 /**
- * The CEF distribution cef-dll-sys downloaded for the version in Cargo.lock. Its build script copies the runtime next
- * to the exe only when it runs, and a restored CI cache (rust-cache prunes loose files in the target dir) skips it,
- * so the runtime gets taken from here. Old distributions of an earlier cef bump may still be around, hence the check.
+ * CEF distribution matching the cef-dll-sys version in Cargo.lock, fallback source for the runtime
  *
  * @return {string|null}
  */
@@ -112,13 +106,12 @@ try {
         console.warn("OBS plugin was not built; skipping bundled plugin copy.");
     }
 
-    // our own CEF build (aim freeze patches, see CLAUDE.md) replaces the stock files cef-dll-sys copied.
-    // same CEF version, so the downloaded headers, wrapper and resources still match
+    // our patched libcef (aim freeze fixes) over the stock one. same CEF version, so headers and wrapper still match
     const patchedCefDir = path.join(process.cwd(), "resources", "cef");
     if (fs.existsSync(patchedCefDir)){
         for (const file of fs.readdirSync(patchedCefDir)){
             const source = path.join(patchedCefDir, file);
-            // a checkout without git lfs leaves a small pointer file behind, never ship that
+            // no git lfs = tiny pointer file, never ship that
             if (fs.statSync(source).size < 1024){
                 console.warn(`${file} in resources/cef is a git lfs pointer, run "git lfs pull". Keeping the stock file.`);
                 continue;
@@ -127,10 +120,10 @@ try {
         }
     }
 
-    // installer payload, everything except the exe itself (which the wxs references directly)
+    // installer payload, everything but the exe (the wxs points at that directly)
     fs.rmSync(distDir, { recursive: true, force: true });
     fs.mkdirSync(distDir, { recursive: true });
-    // a missing file here is an installer that cannot start, so it fails the build instead of warning
+    // missing file = installer that can't start, so fail instead of warn
     const missing = [...cefRuntimeFiles, ...vcRuntimeFiles, "render.dll"].filter(
         (file) => !copyIfExists(path.join(targetDir, file), path.join(distDir, file)),
     );

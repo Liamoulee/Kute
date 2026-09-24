@@ -11,12 +11,10 @@ fn post(frame: &Frame, is_json: bool, payload: &str) {
     frame.send_process_message(ProcessId::RENDERER, Some(&mut message));
 }
 
-// mirrors PostWebMessageAsJson: the page receives the parsed object as event.data
 pub fn post_json_to_frame(frame: &Frame, json: &str) {
     post(frame, true, json);
 }
 
-// mirrors PostWebMessageAsString
 pub fn post_string_to_frame(frame: &Frame, text: &str) {
     post(frame, false, text);
 }
@@ -41,7 +39,7 @@ pub fn send_info(frame: &Frame) {
     info_map.insert("apiBase".to_string(), serde_json::Value::String(crate::utils::api_url()));
     info_map.insert(
         "hostFeatures".to_string(),
-        serde_json::json!(["matchmaker", "dev-proof", "kute-icons", "script-manager"]),
+        serde_json::json!(["matchmaker", "dev-proof", "kute-icons", "script-manager", "audio-fix"]),
     );
 
     if crate::modules::dev::has_token() {

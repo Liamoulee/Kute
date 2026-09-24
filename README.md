@@ -25,6 +25,7 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 
 - [x] Runs on its own bundled Chromium (CEF), no browser or runtime install needed
   - [x] Patched CEF: fixes the aim freeze and the GPU bottleneck stutter of uncapped clients
+  - [x] Fix Audio Stutters (optional): sound that cuts out at high FPS costs the audio thread about 60 % less
 - [x] Uncapped FPS with a DXGI present hook: waitable flip swapchain, frame pacing, present FPS counter and an exact FPS limiter that keeps the CPU idle
 - [x] **Proper** Raw input
 - [x] Increased performance tweaks (chromium & CEF flags, game settings, system optimizations)
@@ -50,7 +51,7 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] HUD editor: drag, resize and hide every in-game HUD element, snapping included
 - [x] Rank progress
 - [x] Clan colors
-- [x] Kute badge
+- [x] Kute badge (one setting turns off every Kute online feature, nothing is sent then)
 - [x] Kute icons: our own counter, ammo, hitmarker, reticle and scope icons, each one optional, without touching your settings
 - [x] Discord Rich Presence
 - [x] CPU throttler (a last resort, see below)
@@ -67,7 +68,7 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 <hr>
 
 <p align="center">
-If you want to support this Project, you can help with Code contributions :octocat: or a donations ❇️ <br> <br>
+If you want to support this Project, you can help with Code contributions :octocat: or a donation ❇️ <br> <br>
 <a href="https://ko-fi.com/null_dev"><img src="https://ko-fi.com/img/githubbutton_sm.svg"></a>
 </p>
 

@@ -1,10 +1,9 @@
 import cSettings from "../cSettings.json";
 import { kute, globalRef } from "./client.js";
 import { getElement, getInput, checkCompMode } from "./utils.js";
-import { confirmPopup } from "./modules/confirmPopup.js";
 
 /**
- * Shape of an entry in cSettings.json.
+ * a cSettings.json entry
  *
  * @typedef {object} SettingOption
  * @property {string} id
@@ -18,8 +17,9 @@ import { confirmPopup } from "./modules/confirmPopup.js";
  * @property {string} [button]
  * @property {string} [buttonAction] Inline JS; "{{kute}}" is replaced with a reference to the client object
  * @property {boolean} [requiresLogin] The button is disabled while no account is logged in
- * @property {string} [requires] Id of a checkbox setting this one only works with: the control is disabled while
- *     that one is off (the present FPS counter reads the swap chain hook)
+ * @property {string} [requires] id of a checkbox setting this one depends on, disabled while that is off
+ * @property {string} [disabledBy] id of a checkbox setting that forces this one off while on, the stored value stays
+ * @property {string} [hostFeature] hostFeatures entry the exe must list, the setting is not shown without it
  * @property {number} [min]
  * @property {number} [max]
  * @property {number} [step]
@@ -30,44 +30,63 @@ import { confirmPopup } from "./modules/confirmPopup.js";
 /** @type {Map<string, number>} */
 const debounceTimers = new Map();
 
+const BLOCKED_STYLE = "opacity: 0.35; cursor: not-allowed";
+
 const settings = /** @type {Record<string, SettingOption>} */ (cSettings);
 
 /**
- * Applies a changed setting: updates the UI, runs side effects for special ids, calls the module's
- * toggle function (or imports the module) and persists the value through the host.
+ * @param {string} id
+ * @return {`toggle${string}`}
+ */
+function toggleName(id){
+    return `toggle${id.charAt(0).toUpperCase() + id.slice(1)}`;
+}
+
+/**
+ * @param {SettingOption} option
+ * @return {SettingOption|null} the setting that currently forces this one off
+ */
+function blockerOf(option){
+    const blocker = option.disabledBy ? settings[option.disabledBy] : null;
+    return blocker && kute.settings.data[blocker.id] === true ? blocker : null;
+}
+
+/**
+ * Shows the settings that `id` blocks as off (or their stored value again) and switches their modules to match.
  *
  * @param {string} id
- * @param {string|number|boolean} rawValue
- * @param {boolean} slider Whether the change came from a range input (debounced)
+ * @param {boolean} blocking
  */
-/** Set while the player's "no" to the telemetry question is being applied, so it does not get asked twice. */
-let telemetryOffConfirmed = false;
+function applyBlocker(id, blocking){
+    for (const dependent of Object.values(settings)){
+        if (dependent.disabledBy !== id) continue;
+        const on = !blocking && Boolean(kute.settings.data[dependent.id]);
 
+        const input = document.querySelector(`#${dependent.id}`);
+        if (input instanceof HTMLInputElement){
+            input.checked = on;
+            input.disabled = blocking;
+            const label = input.closest("label");
+            if (label){
+                label.style.cssText = blocking ? BLOCKED_STYLE : "";
+                label.title = blocking ? `Off while ${settings[id].name} is on` : "";
+            }
+        }
+
+        const toggle = kute.settings[toggleName(dependent.id)];
+        if (typeof toggle === "function") toggle(on);
+        else if (on) import(`./modules/${dependent.id}.js`).catch(() => {});
+    }
+}
+
+/**
+ * @param {string} id
+ * @param {string|number|boolean} rawValue
+ * @param {boolean} slider from a range input, gets debounced
+ */
 kute.settings.changeSetting = (id, rawValue, slider) => {
     if (rawValue === "") return;
 
-    // switching the telemetry off is allowed, but not without hearing us out first
-    if (id === "telemetry" && rawValue === false && !telemetryOffConfirmed){
-        getInput("#telemetry").checked = true;
-        confirmPopup({
-            title: "Whoa there, cutie",
-            paragraphs: [
-                "When we say anonymous telemetry, we literally mean anonymous telemetry.",
-                "Nothing except client performance metrics and hardware specs is sent, for example when you use Auto-Detect Best Settings. No account, no IP address, no ids.",
-                "If this is off, we are basically blind to how the client performs AND we also do not receive any error reports.",
-                "This helps us IMMENSELY to improve the client further. Please please please consider keeping this enabled. Pretty please?",
-            ],
-            stay: "Okay fine, keep it on",
-            leave: "No, I don't wanna help",
-        }).then((leave) => {
-            if (!leave) return;
-            telemetryOffConfirmed = true;
-            getInput("#telemetry").checked = false;
-            kute.settings.changeSetting("telemetry", false, false);
-            telemetryOffConfirmed = false;
-        });
-        return;
-    }
     getInput(`#${id}`).value = String(rawValue);
     let value = rawValue;
 
@@ -160,7 +179,7 @@ kute.settings.changeSetting = (id, rawValue, slider) => {
             break;
     }
 
-    const toggleFunctionName = /** @type {const} */ (`toggle${id.charAt(0).toUpperCase() + id.slice(1)}`);
+    const toggleFunctionName = toggleName(id);
     if (typeof kute.settings[toggleFunctionName] !== "function"){
         try {
             import(`./modules/${id}.js`).catch(() => {});
@@ -175,20 +194,20 @@ kute.settings.changeSetting = (id, rawValue, slider) => {
 
     kute.settings.data[id] = value;
     window.chrome.webview.postMessage(`set-config, ${id}, ${value}`);
+    applyBlocker(id, value === true);
 };
 
-/** Marks behind a setting name, the legend in the first folder header explains them. */
 const REFRESH_MARK = ' <span style="color: #3244a8" title="Requires Refresh">*</span>';
 const RESTART_MARK = ' <span style="color: #eb5656" title="Requires Restart">*</span>';
 
 /**
- * The buttons above the client settings: [label, material icon, color class, inline action].
+ * [label, material icon, color class, inline action]
  *
  * @return {[string, string, string, string][]}
  */
 const topButtons = () => {
     /**
-     * @param {string} url One of the hosts the exe opens (constants.rs, OPEN_URL_ALLOWED)
+     * @param {string} url must be under OPEN_URL_ALLOWED (constants.rs), the host drops anything else
      * @return {string}
      */
     const openUrl = (url) => `window.chrome.webview.postMessage('open-url, ${url}')`;
@@ -202,18 +221,12 @@ const topButtons = () => {
     ];
 };
 
-/**
- * Renders the client settings into Krunker's Advanced settings tab.
- */
 class SettingsManager {
     constructor(){
-        /** @type {any} Krunker's settings window object */
+        /** @type {any} krunker's settings window */
         this.settingsWindow = window.windows[0];
         this.init();
     }
-    /**
-     * Hooks Krunker's settings renderer and listens for OBS plugin install results.
-     */
     init(){
         const origGetSettings = this.settingsWindow.getSettings;
         /**
@@ -224,14 +237,16 @@ class SettingsManager {
             const original = origGetSettings.call(this.settingsWindow, ...args);
             const ours = this.getCSettings();
             if (!ours) return original;
-            // the client settings belong inside the container krunker closes first, so that closer moves behind
-            // them instead of being dropped: dropping it left the settings window one `</div>` short, and while
-            // a search was open two short, which closes krunker's own boxes early and swallows the rows after them
+            // our settings go inside krunker's first closing div, so move that closer behind them
             const closesFirst = original.startsWith("</div>");
             return (closesFirst ? original.slice("</div>".length) : original) + ours + (closesFirst ? "</div>" : "");
         };
 
         this.settingsWindow.getCSettings = () => this.getCSettings();
+        kute.openKuteSettings = () => {
+            window.showWindow(1);
+            this.settingsWindow.changeTab(this.settingsWindow.tabs[this.settingsWindow.settingType].length - 1);
+        };
         window.chrome.webview.addEventListener("message", (event) => {
             const response = event.data;
             if (response?.type !== "obs-plugin") return;
@@ -250,18 +265,16 @@ class SettingsManager {
      */
     searchMatches(setting){
         const query = this.settingsWindow.settingSearch.toLowerCase() || "";
-        return (setting.name.toLowerCase() || "").includes(query) || (setting.category.toLowerCase() || "").includes(query);
+        return [setting.name, setting.category, setting.description ?? ""].some((text) => text.toLowerCase().includes(query));
     }
 
     /**
-     * Renders the input control for a single setting.
-     *
      * @param {SettingOption} option
      * @return {string}
      */
     generateHtml(option){
         const value = kute.settings.data[option.id];
-        // globalRef contains double quotes, which would end the onclick attribute
+        // globalRef has double quotes, would end the onclick attribute
         const buttonAction = option.buttonAction?.replaceAll("{{kute}}", globalRef).replaceAll('"', "&quot;") ?? "";
         const locked = option.requiresLogin && document.querySelector("#signedInHeaderBar") === null;
         let button = "";
@@ -273,9 +286,18 @@ class SettingsManager {
         }
         switch (option.type){
             case "checkbox": {
+                const blocker = blockerOf(option);
+                if (blocker){
+                    return `<label class='switch' style="${BLOCKED_STYLE}" title="Off while ${blocker.name} is on">
+                        <input id="${option.id}" type='checkbox' disabled
+                            onclick='${globalRef}.settings.changeSetting("${option.id}", this.checked, false)'>
+                        <span class='slider'></span>
+                    </label>
+                    ${button}`;
+                }
                 const required = option.requires ? settings[option.requires] : null;
                 if (required && kute.settings.data[required.id] === false){
-                    return `<label class='switch' style="opacity: 0.35; cursor: not-allowed" title="Needs ${required.name}, which is off">
+                    return `<label class='switch' style="${BLOCKED_STYLE}" title="Needs ${required.name}, which is off">
                         <input id="${option.id}" type='checkbox' disabled ${value ? "checked" : ""}>
                         <span class='slider'></span>
                     </label>
@@ -305,20 +327,18 @@ class SettingsManager {
     }
 
     /**
-     * Renders all client settings grouped by category, or nothing when another tab is active.
-     *
      * @return {string}
      */
     getCSettings(){
         if (
-            this.settingsWindow.tabs.advanced.length !== this.settingsWindow.tabIndex + 1 &&
+            // our tab is the last one in basic mode too
+            this.settingsWindow.tabs[this.settingsWindow.settingType].length !== this.settingsWindow.tabIndex + 1 &&
             !this.settingsWindow.settingSearch
         ){
             return "";
         }
 
         let tempHTML = "<div class='kuteSettings'>";
-        // the buttons belong to the client tab itself, not to a search result
         if (!this.settingsWindow.settingSearch){
             tempHTML += `<div class="kuteTopButtons">${topButtons()
                 .map(([label, icon, color, action]) => `<div class="kuteTopButton ${color}" onclick="${action.replaceAll('"', "&quot;")}">
@@ -326,11 +346,12 @@ class SettingsManager {
                 .join("")}</div>`;
         }
         let previousCategory = null;
-        // a search that matches nothing of ours must render nothing at all, not an empty box with its closers
+        // empty search result must render nothing, not an empty box
         let rendered = false;
 
         for (const setting of Object.values(settings)){
-            // filter first: while searching, the controls of everything that does not match got built for nothing
+            // an exe older than the setting would store the value and ignore it
+            if (setting.hostFeature && !kute.hostFeatures?.includes(setting.hostFeature)) continue;
             if (this.settingsWindow.settingSearch && !this.searchMatches(setting)) continue;
 
             setting.html = this.generateHtml(setting);
@@ -338,7 +359,6 @@ class SettingsManager {
             if (previousCategory !== setting.category){
                 if (previousCategory) tempHTML += "</div>";
 
-                // the first folder header explains the marks, like the legend of a map
                 const legend = previousCategory === null
                     ? `<span class="kuteLegend">${REFRESH_MARK} Requires refresh ${RESTART_MARK} Requires restart</span>`
                     : "";
@@ -349,15 +369,15 @@ class SettingsManager {
             }
 
             rendered = true;
-            tempHTML += `<div class='settName' ${setting.description ? `title="${setting.description}"` : ""}>
+            tempHTML += `<div class='settName'>
 								${setting.name.replaceAll("{{version}}", kute.version ?? "")}
 								${setting.needsRestart ? RESTART_MARK : ""}
 								${setting.needsRefresh ? REFRESH_MARK : ""}
-								${setting.html}</div>`;
+								${setting.html}
+								${setting.description ? `<div class="kuteDesc">${setting.description.replaceAll("<", "&lt;")}</div>` : ""}</div>`;
         }
 
-        // closes the open category body and the kuteSettings box, and nothing else: whatever krunker left open
-        // is krunker's to close (see the wrapper in init)
+        // closes category body and kuteSettings box only, rest is krunker's (see init)
         return rendered ? `${tempHTML}</div></div>` : "";
     }
 }

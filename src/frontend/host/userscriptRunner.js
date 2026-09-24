@@ -32,12 +32,10 @@
  * @property {string} error
  * @property {Record<string, ScriptSetting>|null} settings
  * @property {boolean} canUnload
- * @property {boolean} tainted It failed halfway (while running or unloading): whatever it set up may still be there,
- *     so it only runs again after a page refresh
+ * @property {boolean} tainted Failed halfway (run or unload), only runs again after a refresh
  * @property {Record<string, string>} meta
  * @property {() => void} start
- * @property {() => boolean} stop false when the script could not clean up (no unload, or unload threw), a refresh
- *     is then needed
+ * @property {() => boolean} stop false when it could not clean up, needs a refresh then
  * @property {(key: string, value: any) => boolean} setPref
  */
 
@@ -49,7 +47,7 @@
 
 // eslint-disable-next-line no-unused-vars
 function runUserscripts(/** @type {HostScript[]} */ scripts, /** @type {Registry|null} */ registry){
-    // Krunker replaces the console methods later on, keep the real ones for the scripts (Crankshaft's _console)
+    // krunker swaps the console methods later, keep the real ones (crankshaft's _console)
     const nativeConsole = {
         log: console.log.bind(console),
         warn: console.warn.bind(console),
@@ -62,7 +60,7 @@ function runUserscripts(/** @type {HostScript[]} */ scripts, /** @type {Registry
     const insertedCss = new Map();
 
     /**
-     * Crankshaft's _css: toggles a <style> by identifier.
+     * Crankshaft's _css.
      *
      * @param {string} css
      * @param {string} identifier
@@ -136,7 +134,7 @@ function runUserscripts(/** @type {HostScript[]} */ scripts, /** @type {Registry
     const createEntry = (script) => {
         /** @type {Function|null} */
         let unload = null;
-        /** @type {(() => void)|null} the DOMContentLoaded start a stop has to take back */
+        /** @type {(() => void)|null} pending DOMContentLoaded start, undone by stop */
         let pendingStart = null;
 
         /** @type {ScriptEntry} */
@@ -156,7 +154,7 @@ function runUserscripts(/** @type {HostScript[]} */ scripts, /** @type {Registry
                 try {
                     setting.value = value;
                     setting.changed(value);
-                    // a stop and start in this page applies what the player chose last, not what was saved at load
+                    // so a restart in this page gets the latest value
                     script.prefs = { ...script.prefs, [key]: value };
                     return true;
                 }
@@ -197,13 +195,13 @@ function runUserscripts(/** @type {HostScript[]} */ scripts, /** @type {Registry
                 }
                 else {
                     entry.settings = isSettings(exported.settings) ? exported.settings : null;
-                    // bound: an unload(){ this.x } written as a method needs its object, called bare it loses it
+                    // bound, a method-style unload needs its this
                     unload = typeof exported.unload === "function" ? exported.unload.bind(exported) : null;
                 }
                 entry.canUnload = Boolean(unload);
                 entry.state = "running";
 
-                // saved values, applied the way Crankshaft does: only of the same type, only when they differ
+                // saved prefs like crankshaft: same type and changed only
                 for (const [key, value] of Object.entries(script.prefs ?? {})){
                     const setting = entry.settings?.[key];
                     if (setting && typeof setting.value === typeof value && JSON.stringify(setting.value) !== JSON.stringify(value)){
@@ -213,7 +211,7 @@ function runUserscripts(/** @type {HostScript[]} */ scripts, /** @type {Registry
             }
             catch (error){
                 fail(error);
-                // it may have set up half of what it does, running it again would do that part twice
+                // rerunning would double whatever it already set up
                 entry.tainted = true;
             }
             notify();
@@ -236,7 +234,6 @@ function runUserscripts(/** @type {HostScript[]} */ scripts, /** @type {Registry
 
         entry.stop = () => {
             if (entry.state === "waiting" && pendingStart){
-                // never ran, so there is nothing to clean up
                 document.removeEventListener("DOMContentLoaded", pendingStart);
                 pendingStart = null;
                 entry.state = "stopped";
@@ -265,7 +262,6 @@ function runUserscripts(/** @type {HostScript[]} */ scripts, /** @type {Registry
 
     const entries = scripts
         .map((script, index) => ({ script, index }))
-        // higher priority first, then the folder order
         .sort((a, b) => (b.script.priority - a.script.priority) || (a.index - b.index))
         .map(({ script }) => ({ script, entry: createEntry(script) }));
 

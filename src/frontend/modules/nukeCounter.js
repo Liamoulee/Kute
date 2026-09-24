@@ -1,27 +1,23 @@
 import styles from "../components/nukeCounter.css";
 import { kute } from "../client.js";
 
-/**
- * The career nuke total, in game. Ported from the Krunker Civilian Client (GPL-3.0 like Kute).
- *
- * The total comes from the public profile API, which the game server only updates when a match ends, so the
- * counter refetches after the end screen shows up instead of polling.
- */
+// career nuke total, ported from the Krunker Civilian Client (GPL-3.0)
+// profile API only updates at match end, so refetch after the end screen instead of polling
 
 /**
  * @typedef {object} NukeCounterConfig
- * @property {number} goal Total to aim for, 0 hides it
- * @property {boolean} background Dark backdrop behind the counter
+ * @property {number} goal 0 hides it
+ * @property {boolean} background
  */
 
 /** @type {NukeCounterConfig} */
 const DEFAULT_CONFIG = { goal: 0, background: true };
 
 const PLAYER_API = "https://gapi.svc.krunker.io/players/";
-// one timer drives reattaching, the first fetch and the end screen. it only reads ids and inline styles, never layout
+// one timer for reattach, first fetch and end screen. never reads layout
 const TICK_MS = 2000;
 const RETRY_MS = 30000;
-// the stat commit usually lands within a few seconds of the end screen, but not always
+// stat commit usually lands a few seconds after the end screen, not always
 const COMMIT_DELAYS = [5000, 20000];
 const GAIN_MS = 8000;
 
@@ -47,11 +43,11 @@ class NukeCounter {
     constructor(){
         /** @type {HTMLElement|null} */
         this.overlay = null;
-        /** @type {number|null} The total, null while it is unknown */
+        /** @type {number|null} null while unknown */
         this.nukes = null;
-        /** @type {string} Who the total belongs to, so a switched account drops it */
+        /** @type {string} owner of the total, account switch drops it */
         this.nukesFor = "";
-        /** @type {boolean} The profile answered without a nuke stat, so idle retries are pointless */
+        /** @type {boolean} profile has no nuke stat, don't retry */
         this.noStat = false;
         /** @type {boolean} */
         this.fetching = false;
@@ -71,7 +67,7 @@ class NukeCounter {
     }
 
     /**
-     * The account name, which is what the profile API is keyed by. Empty while logged out.
+     * profile api key, empty while logged out
      *
      * @return {string}
      */
@@ -118,9 +114,7 @@ class NukeCounter {
         this.tick ??= setInterval(() => this.onTick(), TICK_MS);
     }
 
-    /**
-     * Takes the counter off the page. The total stays cached, so switching the setting back on shows it right away.
-     */
+    // total stays cached
     destroy(){
         if (this.tick !== null){
             clearInterval(this.tick);
@@ -134,9 +128,6 @@ class NukeCounter {
         this.endWasUp = false;
     }
 
-    /**
-     * Builds the counter and hangs it into the game UI. Nothing is drawn while logged out, there is no total then.
-     */
     inject(){
         if (!this.accountName()) return;
         if (this.overlay?.isConnected) return;
@@ -153,15 +144,12 @@ class NukeCounter {
     }
 
     /**
-     * The backdrop. Where the counter sits and how big it is comes from the HUD layout stylesheet.
+     * backdrop only, position and size come from the HUD layout
      */
     applyConfig(){
         this.overlay?.classList.toggle("nukeBg", this.config.background);
     }
 
-    /**
-     * Writes the total and the goal into the counter.
-     */
     render(){
         const { overlay } = this;
         if (!overlay) return;
@@ -177,8 +165,6 @@ class NukeCounter {
     }
 
     /**
-     * Shows what the last match added, next to the total.
-     *
      * @param {number} gain
      */
     showGain(gain){
@@ -192,9 +178,6 @@ class NukeCounter {
         setTimeout(() => element.remove(), GAIN_MS);
     }
 
-    /**
-     * Asks the profile API for the current total.
-     */
     refresh(){
         const name = this.accountName();
         if (!name || this.fetching) return;
@@ -213,28 +196,24 @@ class NukeCounter {
                     this.render();
                     this.showGain(gain);
                 }
-                // a profile that answers without the stat has no nukes to show, asking again changes nothing
                 else if (body){
                     this.noStat = true;
                     this.nukesFor = name;
                 }
             })
             .catch(() => {
-                // offline, blocked or rate limited: the tick tries again in RETRY_MS
+                // offline or rate limited, tick retries after RETRY_MS
             })
             .finally(() => {
                 this.fetching = false;
             });
     }
 
-    /**
-     * Reattaches the counter, retries the first fetch and refetches once a match is over.
-     */
     onTick(){
         this.inject();
         const name = this.accountName();
         if (name !== this.nukesFor && (this.nukes !== null || this.noStat)){
-            // logged out or switched account: the cached total is somebody else's
+            // logged out or switched account
             this.nukes = null;
             this.noStat = false;
             this.lastTry = 0;
@@ -246,7 +225,7 @@ class NukeCounter {
         const endIsUp = !!endUI && endUI.style.display !== "none";
         if (endIsUp && !this.endWasUp && this.commitTimers.length === 0){
             this.commitTimers = COMMIT_DELAYS.map((delay, index) => setTimeout(() => {
-                // the last one frees the slot, so the next end screen schedules again
+                // last one frees the slot for the next end screen
                 if (index === COMMIT_DELAYS.length - 1) this.commitTimers = [];
                 this.refresh();
             }, delay));
@@ -254,10 +233,7 @@ class NukeCounter {
         this.endWasUp = endIsUp;
     }
 
-    /**
-     * The options popup behind the setting's button. Changes apply right away, and are saved when it closes.
-     * Position and size are not here, they belong to the HUD editor.
-     */
+    // position and size live in the HUD editor
     async showOptions(){
         const html = await import("../components/nukeCounterOptions.html");
         const { config } = this;

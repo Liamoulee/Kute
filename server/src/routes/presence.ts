@@ -12,20 +12,19 @@ import { connectionClosed, connectionOpened, countFirstStart } from "../util/pla
 // =     - SPDX: MIT -     = //
 // ========================= //
 
-/** the ws layer of Bun ignores maxPayload, so the size gets checked by hand */
+/** bun's ws layer ignores maxPayload, so size is checked by hand */
 const MAX_MESSAGE_BYTES = 512;
 const MAX_MESSAGES = 10;
 const MESSAGE_WINDOW_MS = 10 * 1000;
 const MAX_SOCKETS_PER_SOURCE = isDevelopment ? 400 : 4;
 const PING_INTERVAL_MS = 25 * 1000;
-/** the game page, on the main domain or one of Krunker's subdomains */
 const ORIGIN = /^https:\/\/([a-z0-9-]+\.)?krunker\.io$/;
 
 type Connection = { socket: WebSocket; alive: boolean };
 
 const connections = new Set<Connection>();
 const socketsPerSource = new Map<string, number>();
-/** source -> the day it last counted as a first start: one per source and day */
+/** source -> day it last counted a first start (one per source per day) */
 const firstStarts = new Map<string, string>();
 
 const today = (): string => new Date().toISOString().slice(0, 10);
@@ -33,7 +32,6 @@ const today = (): string => new Date().toISOString().slice(0, 10);
 function mayCountFirstStart(source: string): boolean {
     const day = today();
     if (firstStarts.get(source) === day) return false;
-    // yesterday's entries are of no use anymore
     for (const [key, value] of firstStarts){
         if (value !== day) firstStarts.delete(key);
     }
@@ -41,7 +39,7 @@ function mayCountFirstStart(source: string): boolean {
     return true;
 }
 
-// the server pings, not the client
+// server pings, not the client
 setInterval(() => {
     for (const connection of connections){
         if (!connection.alive){
@@ -55,7 +53,7 @@ setInterval(() => {
 
 export async function presenceRoutes(app: FastifyInstance): Promise<void> {
     app.get("/ws", { websocket: true }, (socket: WebSocket, req) => {
-        // keeps scripts that are not the game page out. not a security boundary, a header is easy to fake
+        // keeps non-game scripts out, not a security boundary (origin is easy to fake)
         if (!isDevelopment && !ORIGIN.test(req.headers.origin ?? "")){
             socket.close(1008);
             return;
@@ -78,7 +76,7 @@ export async function presenceRoutes(app: FastifyInstance): Promise<void> {
             hash: "",
             dev: null,
         };
-        // this connection's half of a developer's proof, so a recorded proof cannot be replayed on another one
+        // per-connection nonce so a recorded dev proof can't be replayed
         const nonce = randomBytes(16).toString("hex");
         member.send(JSON.stringify({ t: "hello", nonce }));
         let counted = false;

@@ -1,9 +1,6 @@
 import { kute } from "../client.js";
 import { getElement, getInput } from "../utils.js";
 
-/**
- * Chat improvements: tab to switch channel, clear on blur, channel tags and chat notice removal.
- */
 class BetterChat {
     constructor(){
         /** @type {Set<string>} */
@@ -58,8 +55,6 @@ class BetterChat {
     }
 
     /**
-     * Switches the chat channel on Tab.
-     *
      * @param {KeyboardEvent} event
      */
     switchChat = (event) => {
@@ -68,24 +63,19 @@ class BetterChat {
         event.preventDefault();
     };
 
-    /**
-     * Clears and unfocuses the chat input.
-     */
     clearChat = () => {
         this.chatInput.value = "";
         this.chatInput.blur();
     };
 
     /**
-     * Tags new team-mode messages with their channel and drops the "Text & Voice Chat" notice.
-     *
      * @param {MutationRecord[]} mutations
      */
     parseMessages(mutations){
         let tagged = false;
         for (const mutation of mutations){
             for (const node of mutation.addedNodes){
-                // text nodes have no querySelector, and a throw here aborts the whole mutation batch
+                // text nodes have no querySelector, a throw kills the whole batch
                 if (!(node instanceof HTMLElement)) continue;
                 const chatItem = node.querySelector(".chatItem");
                 if (!chatItem) continue;
@@ -95,7 +85,7 @@ class BetterChat {
                     node.remove();
                     continue;
                 }
-                // cheapest check first: kill feed lines have no tab, and they are most of what arrives here
+                // cheap check first, kill feed lines have no tab
                 const { tab } = node.dataset;
                 if (!tab || !chatItem.textContent.includes("\u200E:") || !this.teamModes.has(window.getGameActivity().mode)) continue;
                 if (tab === "0") chatMsg.insertBefore(this.channelA.cloneNode(true), chatMsg.firstChild);
@@ -103,8 +93,7 @@ class BetterChat {
                 tagged = true;
             }
         }
-        // to the bottom, once per batch: setting scrollTop lays the page out on the spot, in the middle of a frame.
-        // not scrollHeight, reading it does the same. a value past the end gets clamped to the end
+        // once per batch, scrollTop forces layout. no scrollHeight read, 1e9 gets clamped
         if (tagged) this.chatList.scrollTop = 1e9;
     }
 

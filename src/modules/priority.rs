@@ -16,7 +16,7 @@ fn priority_class(level: &str) -> PROCESS_CREATION_FLAGS {
     }
 }
 
-// subprocesses call this on startup so later spawned renderers and utilities get it too
+// subprocesses call this so late spawned ones get it too
 pub fn apply_to_self() {
     let level = config("webviewPriority", "Normal".to_string());
     if level == "Normal" {
@@ -27,7 +27,6 @@ pub fn apply_to_self() {
     }
 }
 
-// the browser process plus every CEF subprocess it spawned
 pub fn set(level: impl AsRef<str>) {
     let priority_class = priority_class(level.as_ref());
 

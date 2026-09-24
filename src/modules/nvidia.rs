@@ -1,4 +1,3 @@
-// Gives kute.exe its own NVIDIA driver profile ("Kute"), once per PC.
 use std::{ffi::c_void, mem};
 
 use windows::{
@@ -10,7 +9,7 @@ use crate::{debug_print, utils::config};
 
 const PROFILE_NAME: &str = "Kute";
 const APP_NAME: &str = "kute.exe";
-// settings.json: set once the profile exists (or kute.exe has one), after that NVAPI is never loaded again
+// once set, NVAPI is never loaded again
 const DONE_SETTING: &str = "nvidiaProfileCreated";
 
 // NvAPI_Status (nvapi_lite_common.h)
@@ -72,7 +71,7 @@ const _: () = assert!(mem::size_of::<DrsProfile>() == 4116);
 
 type Handle = *mut c_void;
 
-// a zeroed struct with its version set (MAKE_NVAPI_VERSION: the size, the version above it), boxed: kilobytes big
+// zeroed, MAKE_NVAPI_VERSION set, boxed because it's kilobytes
 fn versioned<T>(ver: u32) -> Box<T> {
     unsafe {
         let mut value: Box<T> = Box::new(mem::zeroed());
@@ -91,9 +90,9 @@ fn unicode(text: &str) -> UnicodeString {
 
 enum Outcome {
     Created,
-    // a "Kute" profile exists, or kute.exe belongs to another profile: nothing to do, ever
+    // "Kute" exists or kute.exe is in another profile, never touch it
     AlreadyThere,
-    // no NVIDIA driver, no rights, an error: try again next start
+    // no driver, no rights, error: retry next start
     NotNow(String),
 }
 
@@ -106,7 +105,7 @@ unsafe fn create() -> Outcome {
             return Outcome::NotNow("no nvapi_QueryInterface".into());
         };
         let query: unsafe extern "C" fn(u32) -> *const c_void = mem::transmute(query);
-        // an entry point by its id (nvapi_interface.h); a missing one is a driver too old for this
+        // ids from nvapi_interface.h, missing = driver too old
         macro_rules! function {
             ($id:expr, $kind:ty) => {{
                 let pointer = query($id);
@@ -136,7 +135,6 @@ unsafe fn create() -> Outcome {
         if status != NVAPI_OK {
             return Outcome::NotNow(format!("DRS_CreateSession {status}"));
         }
-        // everything below ends the session on its way out
         let outcome = (|| {
             let status = load_settings(session);
             if status != NVAPI_OK {
@@ -159,7 +157,7 @@ unsafe fn create() -> Outcome {
             application.user_friendly_name = unicode("Kute");
             let status = create_application(session, profile, application.as_mut());
             if status != NVAPI_OK {
-                // unsaved, so dropping the profile again leaves the database as it was
+                // unsaved, so this leaves the db untouched
                 delete_profile(session, profile);
                 return if status == NVAPI_EXECUTABLE_ALREADY_IN_USE {
                     Outcome::AlreadyThere
@@ -188,7 +186,7 @@ unsafe fn create() -> Outcome {
     }
 }
 
-// Browser process, before CEF starts. Does nothing once it has done its job on this PC.
+// browser process, before cef starts
 pub fn ensure_profile() {
     if config(DONE_SETTING, false) {
         return;

@@ -1,80 +1,59 @@
-/** Frames per second the game should hold, as a multiple of the display's refresh rate. */
 export const TARGET_REFRESH_MULTIPLE = 3;
-/**
- * The test match is empty and the PC is cool, a real match is neither. A laptop was measured to lose a
- * quarter of its frames to heat within a minute. Clearing the goal by 1.25 keeps it through a drop of a fifth
- * (1 / 1.25 = 0.8), not a full quarter: a deliberate middle, a quarter would ask for 1.33 and cost more settings.
- */
+/** margin over the goal, test match is empty and cool, a real one isn't */
 export const HEADROOM = 1.25;
-/** Neighbouring samples agree within one to four percent in a test match. Less than five is not worth a visual loss either. */
+/** min gain for a setting to be worth a visual loss (samples jitter 1-4 %) */
 export const SIGNIFICANT_SETTING = 1.05;
-/** Half the resolution scale (a quarter of the pixels) has to gain this much before the graphics card counts as the limit. */
+/** half res scale has to gain this much before we call it gpu bound */
 export const SIGNIFICANT_RESOLUTION = 1.1;
-/** Auto-detect never lowers the resolution scale below this. */
 export const MIN_RESOLUTION = 0.75;
-/** no limit this module sets goes below this or below the refresh rate */
+/** no limit we set goes below this or below the refresh rate */
 const LOWEST_LIMIT = 60;
-/** a present count below this share of the game's frame rate is a broken reading, not a measurement */
+/** present count below this share of the game's fps is a broken reading */
 const IMPLAUSIBLE_PRESENT_SHARE = 0.1;
 
-/** One client configuration has to beat another by this much in its slowest frames before it replaces it. */
+/** a client config has to beat another by this much in p99 to replace it */
 export const SIGNIFICANT_CLIENT = 1.1;
-/**
- * ... and by this share of one refresh interval of the display (1.4 ms at 180 Hz, 4.2 ms at 60 Hz), never less
- * than half a millisecond. The client test is there to find a configuration that stutters on this PC, which
- * shows as several milliseconds. Below a quarter of a refresh the same picture reaches the screen either way:
- * at 2000 frames per second the hook measures 1.0 ms against 0.7 ms without it, which reads as "30 % smoother"
- * and means nothing, while the hook is what keeps the input latency short and the FPS limit exact.
- */
+/** ... and by this share of a refresh interval, at least SIGNIFICANT_CLIENT_MIN_MS */
 export const SIGNIFICANT_CLIENT_REFRESH_SHARE = 0.25;
 export const SIGNIFICANT_CLIENT_MIN_MS = 0.5;
-/**
- * Between configurations that are equally smooth, more frames only count from a quarter more. CPU throttling costs
- * 40 %, that is a reason to switch. The hook costs 3 to 15 % at 2000 frames per second from one run to the next,
- * that is not: it would flip with the weather, and it buys the short input latency and the exact FPS limit.
- */
+/** between equally smooth configs, more fps only counts from +25 % */
 export const SIGNIFICANT_CLIENT_FPS = 1.25;
 
 /**
- * A client configuration as one bench process measured it.
- *
  * @typedef {object} ClientResult
- * @property {string} config What was started, e.g. "hook=0,limit=auto"
+ * @property {string} config e.g. "hook=0,limit=auto"
  * @property {string} label
- * @property {boolean} hook The DXGI swapchain hook
+ * @property {boolean} hook DXGI swapchain hook
  * @property {boolean} capped
  * @property {boolean} throttled
- * @property {number} fps Average frames per second, 0 when the process failed
- * @property {number} p99 Frame time of the slowest 1 % of frames in ms, what stutter feels like
- * @property {number} low The same as frames per second (1000 / p99), for showing it
- * @property {number} [p50] The rest is only there for the report: median and worst frame time in ms,
+ * @property {number} fps avg fps, 0 when the process failed
+ * @property {number} p99 frame time of the slowest 1 % in ms
+ * @property {number} low 1000 / p99, for display
+ * @property {number} [p50] report only from here on: median frame time ms
  * @property {number} [max]
- * @property {{p50: number, p99: number, max: number}|null} [present] the hook's own present intervals in ms,
- * @property {number|null} [taskDelayP99] how long other main thread work waited in ms (null: no probe ran),
- * @property {number} [limit] and the FPS cap that "limit=auto" turned into
+ * @property {{p50: number, p99: number, max: number}|null} [present] hook's present intervals in ms
+ * @property {number|null} [taskDelayP99] main thread task delay in ms, null when no probe ran
+ * @property {number} [limit] the cap "limit=auto" turned into
  */
 
 /**
  * @typedef {object} ClientPlan
- * @property {ClientResult|null} current The measured configuration that matches the player's settings
+ * @property {ClientResult|null} current config matching the player's settings
  * @property {ClientResult|null} best
- * @property {boolean} change Whether best is clearly better than current
+ * @property {boolean} change whether best clearly beats current
  */
 
 /**
- * Ranks the measured client configurations. The slowest frames decide (a high average with stalls in it is
- * the old GPU bottleneck bug), the average breaks ties, and between equals the one with fewer restrictions
- * wins (the list is ordered that way).
+ * ranks the measured client configs, p99 first, avg fps breaks ties
  *
  * @param {ClientResult[]} results
  * @param {{hardFlip: boolean, capped: boolean, throttled: boolean}} settings
- * @param {number} hz Refresh rate of the display that hosts the window
+ * @param {number} hz refresh rate of the window's display
  * @return {ClientPlan}
  */
 export function decideClient(results, settings, hz){
     const significantMs = Math.max(SIGNIFICANT_CLIENT_MIN_MS, (1000 / hz) * SIGNIFICANT_CLIENT_REFRESH_SHARE);
-    // a row without frame times is not a smooth row, it is a row that failed to report: p99 defaults to 0 when
-    // the bench process wrote no stats, and 0 ms beats every real measurement in the comparison below
+    // p99 is 0 when the bench wrote no stats, that would beat every real row
     const usable = results.filter((result) => result.fps > 0 && result.p99 > 0 && Number.isFinite(result.p99));
     const current =
         usable.find((result) => result.hook === settings.hardFlip && result.capped === settings.capped && result.throttled === settings.throttled) ??
@@ -83,27 +62,17 @@ export function decideClient(results, settings, hz){
     /**
      * @param {ClientResult} a
      * @param {ClientResult} b
-     * @return {boolean} Whether a is clearly better than b
+     * @return {boolean} whether a clearly beats b
      */
     const beats = (a, b) => {
-        // a cap buys evenness with frames, and it can only buy something that is missing: as long as the
-        // uncapped configuration already lands every frame inside one refresh interval, the same picture
-        // reaches the screen either way and the cap is pure loss. Without this rule a cap at 725 beat an
-        // uncapped 1063 FPS on a PC whose slowest frames were 2.8 ms out of 5.6, and the run then applied a
-        // completely different cap on top, because the one it measured came from the bench scene
+        // a cap is pure loss while uncapped already lands every frame inside one refresh
         if (a.capped && !b.capped && b.p99 <= 1000 / hz) return false;
         const smoother = a.p99 * SIGNIFICANT_CLIENT <= b.p99 && b.p99 - a.p99 >= significantMs;
         const notRougher = a.p99 <= b.p99 + significantMs;
-        // more frames are only a reason while the display can still use them, so the same goal the rest of the
-        // run works towards decides that. Above it the frames are free of charge and paid for with everything
-        // the loser's configuration does besides counting frames: turning the hook off for 15 % of 1800 FPS on
-        // a 60 Hz screen costs the exact FPS limiter, the present statistics this run judges frame pacing by,
-        // and the OBS capture, and gives back nothing anybody can see. Below the goal frames are scarce and a
-        // quarter more is worth having
         const framesMatter = b.fps < hz * TARGET_REFRESH_MULTIPLE;
         return smoother || (framesMatter && notRougher && a.fps >= b.fps * SIGNIFICANT_CLIENT_FPS);
     };
-    // the configuration in use defends its place: another one has to clearly beat it, and the best challenger wins
+    // current config defends its place, best challenger wins
     let best = current ?? usable[0] ?? null;
     for (const result of usable){
         if (best && result !== best && beats(result, best)) best = result;
@@ -115,35 +84,35 @@ export function decideClient(results, settings, hz){
  * @typedef {object} MeasuredSetting
  * @property {string} id
  * @property {string} label
- * @property {string} current The value before the run
+ * @property {string} current value before the run
  * @property {string} cheap
- * @property {number|null} gain Frame rate with the cheap value divided by the rate with the other, null when not measured
- * @property {boolean} steady Whether the samples around the measurement agreed
- * @property {string} [note] Why there is no usable number
- * @property {number[]} [raw] For the report: frames per second before, with the value flipped, and after
- * @property {number} [confirmGain] The second measurement, when there was one
+ * @property {number|null} gain fps with cheap / fps with the other, null when not measured
+ * @property {boolean} steady whether the samples around it agreed
+ * @property {string} [note] why there's no usable number
+ * @property {number[]} [raw] report only: fps before, flipped, after
+ * @property {number} [confirmGain] second measurement, if any
  */
 
 /**
  * @typedef {object} Measurements
- * @property {number} baseFps At the player's current settings, the median of every unchanged sample of the run
- * @property {number} p50 Median frame time, ms
+ * @property {number} baseFps median of every unchanged sample of the run
+ * @property {number} p50 median frame time, ms
  * @property {number} p99
- * @property {number} presentFps Frames reaching the swap chain, 0 without the hook
- * @property {number} windowFps What the frame loop ran at in exactly the window presentFps was counted over
- * @property {number|null} halfResolutionGain Frame rate at half the resolution scale divided by the normal one
+ * @property {number} presentFps frames reaching the swap chain, 0 without the hook
+ * @property {number} windowFps loop fps over the same window presentFps was counted in
+ * @property {number|null} halfResolutionGain fps at half res scale / fps at normal
  * @property {MeasuredSetting[]} settings
  */
 
 /**
  * @typedef {object} Facts
- * @property {number} hz Refresh rate of the display that hosts the window
+ * @property {number} hz refresh rate of the window's display
  * @property {boolean} onBattery
- * @property {number} throttle Kute's CPU throttle setting
- * @property {number} gameFpsLimit Kute's FPS limit setting
- * @property {number} gameFrameCap Krunker's own frame cap setting
- * @property {boolean} hardFlip Kute's swapchain hook setting
- * @property {ClientResult|null} client The client configuration to switch to, null to leave the client alone
+ * @property {number} throttle
+ * @property {number} gameFpsLimit
+ * @property {number} gameFrameCap krunker's own frame cap
+ * @property {boolean} hardFlip
+ * @property {ClientResult|null} client config to switch to, null to leave the client alone
  */
 
 /**
@@ -158,30 +127,25 @@ export function decideClient(results, settings, hz){
 /**
  * @typedef {object} Plan
  * @property {number} goal
- * @property {number} needed The goal with headroom, what the test match has to show
- * @property {boolean} holds Whether the PC already clears it
- * @property {"cpu"|"gpu"|"unknown"} regime What limits the frame rate
- * @property {boolean} healthy False when frames pile up behind the swap chain
- * @property {number} predictedFps After the game changes, from the measured gains
- * @property {boolean} tuneResolution Whether the caller may lower the resolution scale afterwards (by measuring)
+ * @property {number} needed goal with headroom
+ * @property {boolean} holds whether the PC already clears it
+ * @property {"cpu"|"gpu"|"unknown"} regime what limits the fps
+ * @property {boolean} healthy false when frames pile up behind the swap chain
+ * @property {number} predictedFps after the game changes, from the measured gains
+ * @property {boolean} tuneResolution whether the caller may lower res scale afterwards
  * @property {Change[]} changes
  */
 
 /**
  * @param {number} fps
- * @return {number} Rounded to the limiter's step
+ * @return {number} rounded to the limiter's step
  */
 function roundToStep(fps){
     return Math.max(5, Math.round(fps / 5) * 5);
 }
 
 /**
- * An FPS limit this module may set. Never below what the display shows: whatever a measurement says, a cap under
- * the refresh rate is never the cure, and a broken reading must not be able to turn the game into a slideshow
- * (a stale present counter once read 3, and the run set a limit of 5).
- *
- * Rounding to the limiter's step happens first and the floor is applied after it, never the other way round:
- * 72 Hz rounds to 70, which is exactly the cap under the refresh rate this is meant to rule out.
+ * fps limit we may set, never below the refresh rate (round first, floor after)
  *
  * @param {number} fps
  * @param {number} hz
@@ -206,14 +170,8 @@ export function decide(measured, facts){
     let regime = "unknown";
     if (measured.halfResolutionGain !== null) regime = measured.halfResolutionGain >= SIGNIFICANT_RESOLUTION ? "gpu" : "cpu";
 
-    // the signature of frames piling up behind the swap chain: the loop counts far more frames than get
-    // presented, or they arrive in bursts with a stall after each (p99 many times the median).
-    // presentFps is 0 when the hook gave no count for the measured window (off, or not answering), and a count
-    // that is a tiny fraction of the game's rate is a broken reading, not a PC: the worst real case measured
-    // was 43 presents for 255 frames, a sixth.
-    // Both sides of this ratio have to come from the same window. baseFps is the median of samples taken over
-    // the whole run, and the game warms up inside it (1340 frames per second in the first seconds against 1900
-    // at the end of one run), so comparing the early present count with it reads as flooding on a healthy PC
+    // frames piling up: far fewer presents than loop frames, or bursts with a stall after each.
+    // both sides of the ratio must come from the same window, the game warms up during the run
     const windowFps = measured.windowFps > 0 ? measured.windowFps : measured.baseFps;
     const plausible = measured.presentFps >= windowFps * IMPLAUSIBLE_PRESENT_SHARE;
     const flooding = plausible && measured.presentFps < windowFps * 0.6;
@@ -223,8 +181,7 @@ export function decide(measured, facts){
     /** @type {Change[]} */
     const changes = [];
 
-    // quality is only traded while the goal is missed, and only for what was measured to pay on this PC:
-    // the biggest gain first, until the measured gains add up to the goal
+    // only trade quality while the goal is missed, biggest measured gain first
     let predictedFps = measured.baseFps;
     if (!holds){
         const helpful = measured.settings
@@ -244,7 +201,7 @@ export function decide(measured, facts){
         }
     }
 
-    // Krunker's frame cap spins inside the frame loop. Kute's limiter holds the same rate with an idle main thread
+    // krunker's frame cap busy-waits in the loop, ours idles
     let fpsLimit = facts.gameFpsLimit;
     if (facts.gameFrameCap > 0){
         changes.push({ scope: "game", id: "updateRate", label: "Frame Cap (game)", value: "0", reason: "replaced by Kute's FPS limit" });
@@ -270,9 +227,7 @@ export function decide(measured, facts){
         if (facts.client.capped && fpsLimit === 0){
             changes.push({ scope: "client", id: "gameFpsLimit", label: "FPS Limit", value: limitFor(predictedFps * 0.9, facts.hz), reason });
         }
-        // the uncapped configuration clearly beat the player's capped one, so the cap goes: keeping it would apply
-        // the configuration that lost. Only when nothing above already decided the limit (battery, frames piling
-        // up, the game's frame cap moving over), those reasons outrank this one
+        // uncapped won, drop the cap unless something above already set the limit
         if (!facts.client.capped && fpsLimit > 0 && fpsLimit === facts.gameFpsLimit){
             changes.push({ scope: "client", id: "gameFpsLimit", label: "FPS Limit", value: 0, reason: `${reason} without a cap` });
         }

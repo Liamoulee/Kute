@@ -1,8 +1,6 @@
 import { kute } from "../client.js";
 
-/**
- * Replaces the ping icons in the player list with the numeric ping.
- */
+// windows[22] is the player list, its ping icons become numbers
 class ShowPing {
     constructor(){
         /** @type {() => string} */
@@ -23,15 +21,12 @@ class ShowPing {
     }
 
     /**
-     * Renders the player list through the original function and swaps ping icons for numbers.
-     *
      * @return {string}
      */
     modifiedGenList(){
         const htmlString = this.originalGenList.call(this);
 
-        // a template parses the markup into a fragment. DOMParser built a whole second document for every
-        // refresh of the player list
+        // template instead of DOMParser, that built a whole document per refresh
         this.template.innerHTML = htmlString;
         const pingIcons = this.template.content.querySelectorAll(".pListPing.material-icons");
 

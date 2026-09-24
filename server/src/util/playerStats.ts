@@ -44,6 +44,7 @@ export function countFirstStart(): void {
     write("total_players", String(total));
 }
 
-export function playerStats(): { online: number; peak: number; peakDay: string; total: number } {
-    return { online, peak, peakDay, total };
+// peak and total stay private, only online is public
+export function playerStats(): { online: number } {
+    return { online };
 }

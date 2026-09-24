@@ -2,7 +2,7 @@ use crate::{app, bridge, constants, debug_print, modules, utils, utils::config, 
 use cef::{rc::*, *};
 use std::sync::{LazyLock, Mutex, mpsc};
 
-// args handed over by a second instance while the main window was being recreated
+// args from a second instance while the main window gets recreated
 static PENDING_ARGS: Mutex<Option<String>> = Mutex::new(None);
 
 pub fn set_pending_args(args: String) {
@@ -26,7 +26,7 @@ fn request_url(request: Option<&mut Request>) -> Option<String> {
     Some(utils::cef_to_string(&request.url()))
 }
 
-// the page asked about a lobby, tell the bundle (runs on the UI thread, the load hook is on IO)
+// load hook runs on IO, this hops to UI
 wrap_task! {
     struct GameUpdatedTask {
         browser_id: i32,
@@ -41,7 +41,7 @@ wrap_task! {
     }
 }
 
-// a mod page a popup asked for, loaded in the main window once on_before_popup has returned
+// loads a mod page in the main window after on_before_popup returned
 wrap_task! {
     struct LoadInMainTask {
         url: String,
@@ -54,7 +54,6 @@ wrap_task! {
     }
 }
 
-// mirrors the WebResourceRequested handler: blocklist, game-updated signal and the swapper
 wrap_resource_request_handler! {
     struct KuteResourceRequestHandler;
 
@@ -76,7 +75,8 @@ wrap_resource_request_handler! {
                 return ReturnValue::CONTINUE;
             }
 
-            if modules::blocklist::is_blocked(&url) {
+            // kute icons answer the player's kute.lol/kr urls locally, that is no contact with the server
+            if modules::blocklist::is_blocked(&url) && modules::icons::bytes_for(&url).is_none() {
                 debug_print!("handlers: blocked {url}");
                 return ReturnValue::CANCEL;
             }
@@ -93,7 +93,7 @@ wrap_resource_request_handler! {
             if modules::bench::active() && url.contains(modules::bench::BENCH_PATH) {
                 return modules::resource::serve("text/html", modules::bench::STUB_PAGE.as_bytes().to_vec());
             }
-            // the player's own swapper folder first: their file beats ours for the same request
+            // player's swapper beats our own swaps
             if let Some(bytes) = modules::swapper::swap_for(&url) {
                 debug_print!("handlers: swapping {url}");
                 let filename = utils::krunker_path(&url).unwrap_or("");
@@ -125,7 +125,7 @@ wrap_request_handler! {
     }
 }
 
-// requests without a browser (the service worker script, fetches made by it) come through here
+// requests without a browser (service worker) only pass through here
 wrap_request_context_handler! {
     pub struct KuteRequestContextHandler;
 
@@ -145,14 +145,13 @@ wrap_request_context_handler! {
     }
 }
 
-// CEF reports windows virtual key codes
 const VK_F4: i32 = 0x73;
 const VK_F5: i32 = 0x74;
 const VK_F6: i32 = 0x75;
 const VK_F11: i32 = 0x7A;
 const VK_F12: i32 = 0x7B;
 
-// mirrors AcceleratorKeyPressed: the client reacts, the page still receives the key
+// page still gets the key
 wrap_keyboard_handler! {
     struct KuteKeyboardHandler;
 
@@ -176,7 +175,6 @@ wrap_keyboard_handler! {
     }
 }
 
-// mirrors SetAreBrowserAcceleratorKeysEnabled(false): no chrome commands (reload, zoom, find, ...)
 wrap_command_handler! {
     struct KuteCommandHandler;
 
@@ -192,7 +190,6 @@ wrap_command_handler! {
     }
 }
 
-// mirrors PermissionRequested -> ALLOW (pointer lock, media, ...)
 wrap_permission_handler! {
     struct KutePermissionHandler;
 
@@ -225,7 +222,6 @@ wrap_permission_handler! {
     }
 }
 
-// mirrors SetAreDefaultContextMenusEnabled(false)
 wrap_context_menu_handler! {
     struct KuteContextMenuHandler;
 
@@ -244,7 +240,6 @@ wrap_context_menu_handler! {
     }
 }
 
-// downloads (settings export) go straight to the Downloads folder, the bundle shows the notification
 wrap_download_handler! {
     struct KuteDownloadHandler;
 
@@ -266,8 +261,7 @@ wrap_download_handler! {
             callback: Option<&mut BeforeDownloadCallback>,
         ) -> ::std::os::raw::c_int {
             let Some(callback) = callback else { return 0 };
-            // the path has to be ours: handed an empty one, CEF writes the file into the temp directory, which
-            // is where every exported settings file went while the game said "Settings exported to Downloads!"
+            // an empty path makes cef write into temp
             let suggested = suggested_name.map(|name| name.to_string()).unwrap_or_default();
             let target = crate::utils::download_target(&suggested);
             debug_print!("download: {} -> {}", suggested, target.display());
@@ -277,8 +271,7 @@ wrap_download_handler! {
     }
 }
 
-// mirrors SetAllowExternalDrop(false). CEF only asks this for Alloy style browsers, Kute's are Chrome style, so
-// external drops reach the page and the managers read the dropped files there (managers/popup.js)
+// only called for alloy style browsers, ours are chrome style so drops still reach the managers
 wrap_drag_handler! {
     struct KuteDragHandler;
 
@@ -334,9 +327,7 @@ wrap_life_span_handler! {
         ) -> ::std::os::raw::c_int {
             let url = utils::cef_str(_target_url);
             debug_print!("handlers: popup requested for {url}");
-            // the "Use" button of a mod's detail view opens the game page with the mod (krunker.io/?mod=...): in a
-            // browser that is a new tab, here it was a second game window, and Krunker allows one session per
-            // account, so the first window lost its match. The main window loads it
+            // mod "Use" button, a second game window would kick the first one (one session per account)
             if window::is_mod_page(&url) && window::has_main_browser() {
                 let mut task = LoadInMainTask::new(url);
                 post_task(ThreadId::UI, Some(&mut task));
@@ -350,10 +341,9 @@ wrap_life_span_handler! {
             let Some(browser) = browser else { return };
             window::attach_browser(browser);
             if browser.is_popup() != 0 {
-                // a same origin popup keeps the initial window and swaps the document, so the social
-                // userscripts are registered per document (like WebView2 did) instead of per V8 context
+                // same origin popups keep the V8 context and swap the document, so register per document
                 if config("userscripts", true) {
-                    // one document script per userscript, so a syntax error in one does not take the others along
+                    // one per script so a syntax error doesn't kill the rest
                     for script in modules::userscripts::social_document_scripts() {
                         let source =
                             format!("if (window === window.top && location.href.includes(\"krunker.io/social.html\")) {{\n{script}\n}}");
@@ -434,7 +424,7 @@ wrap_client! {
             if utils::cef_to_string(&message.name()) != constants::MSG_FROM_PAGE {
                 return 0;
             }
-            // WebView2 only delivered messages of the main frame of the main webview
+            // main frame of the main browser only, like WebView2
             if frame.is_main() == 0 || browser.is_popup() != 0 {
                 return 1;
             }
@@ -446,8 +436,6 @@ wrap_client! {
     }
 }
 
-// "list", "add <json>", "remove <json>", "login <json>", "migrate <json array>". every command answers with
-// {accounts: [{username, color}]} so the page always shows what the store holds
 fn handle_accounts_message(browser: &Browser, message: &str) {
     let (command, payload) = message.split_once(' ').unwrap_or((message, ""));
     if payload.len() > 64 * 1024 {
@@ -483,8 +471,7 @@ fn handle_accounts_message(browser: &Browser, message: &str) {
     bridge::post_json(browser, &serde_json::json!({ "accounts": modules::accounts::list() }).to_string());
 }
 
-// the manager commands write files, so a page that is not Krunker (a mod page in the main window, a hijacked
-// navigation) must not reach them: it could plant a userscript that runs in every later session
+// manager commands write files, a non krunker page could plant a userscript
 fn is_krunker_frame(frame: &Frame) -> bool {
     let url = utils::cef_to_string(&frame.url());
     url.starts_with("https://") && utils::krunker_path(&url).is_some()
@@ -494,9 +481,7 @@ fn payload_str<'a>(payload: &'a serde_json::Value, key: &str) -> &'a str {
     payload[key].as_str().unwrap_or_default()
 }
 
-// the userscript and swapper managers read, write and walk files: uploads of up to 32 MB, whole swapper packs, the
-// recycle bin. One worker thread takes their commands in the order they came, so the UI thread (the window, input,
-// every other message) never waits on a disk, and two reloads of the swapper never race each other
+// one worker thread for manager file IO: keeps disk off the UI thread and swapper reloads in order
 static MANAGER_QUEUE: LazyLock<Option<mpsc::Sender<(i32, String)>>> = LazyLock::new(|| {
     let (sender, receiver) = mpsc::channel::<(i32, String)>();
     std::thread::Builder::new()
@@ -523,8 +508,6 @@ fn queue_manager_message(browser: &Browser, message: &str) {
     }
 }
 
-// the reply every command ends with: the fresh list, plus {managerError} when something did not work, so the popup
-// always shows what is on disk
 fn manager_reply(key: &str, list: serde_json::Value, problems: &[String]) -> Option<String> {
     let mut reply = serde_json::json!({ key: list });
     if !problems.is_empty() {
@@ -533,7 +516,6 @@ fn manager_reply(key: &str, list: serde_json::Value, problems: &[String]) -> Opt
     Some(reply.to_string())
 }
 
-// "scripts-<command> <json>": the userscript manager, on the manager thread
 fn handle_scripts_message(message: &str) -> Option<String> {
     use modules::userscripts;
     let (command, payload) = message.split_once(' ').unwrap_or((message, "{}"));
@@ -548,7 +530,7 @@ fn handle_scripts_message(message: &str) -> Option<String> {
         "write" => {
             let result = userscripts::write(payload_str(&payload, "group"), payload_str(&payload, "file"), payload_str(&payload, "content"));
             problems.extend(result.err());
-            // an import of many scripts asks for the list once at the end instead of once per script
+            // bulk import asks for the list once at the end
             if payload["noList"].as_bool() == Some(true) {
                 return (!problems.is_empty()).then(|| serde_json::json!({ "managerError": problems.join("\n") }).to_string());
             }
@@ -556,7 +538,6 @@ fn handle_scripts_message(message: &str) -> Option<String> {
         "toggle" => userscripts::set_enabled(key, payload["enabled"].as_bool().unwrap_or(true)),
         "prefs" => {
             userscripts::set_prefs(key, payload["prefs"].clone());
-            // the page already shows the change, no list needed
             return None;
         }
         "delete" => problems.extend(userscripts::delete(key).err()),
@@ -570,7 +551,6 @@ fn handle_scripts_message(message: &str) -> Option<String> {
     manager_reply("userscripts", userscripts::list(), &problems)
 }
 
-// "swapper-<command> <json>": the swapper manager, on the manager thread
 fn handle_swapper_message(message: &str) -> Option<String> {
     use modules::swapper;
     let (command, payload) = message.split_once(' ').unwrap_or((message, "{}"));
@@ -578,14 +558,12 @@ fn handle_swapper_message(message: &str) -> Option<String> {
     let path = payload_str(&payload, "path");
     let mut problems: Vec<String> = Vec::new();
     match command {
-        // files the player put in with Explorer count from the next refresh on, like the ones added here. The reload
-        // is done before the reply leaves, so a refresh after it gets the new files
+        // picks up files added through explorer
         "list" => swapper::reload(),
         "mkdir" => problems.extend(swapper::make_dir(path).err()),
         "delete" => problems.extend(swapper::delete(path).err()),
         "move" => problems.extend(swapper::move_to(payload_str(&payload, "from"), payload_str(&payload, "to")).err()),
-        // one dropped file, base64. Acknowledged on its own, the page sends the next one only then (one file in flight
-        // instead of a pack in memory), and asks for the list once at the end
+        // one base64 file at a time, page waits for the ack before sending the next
         "upload" => {
             let result = swapper::upload(path, payload_str(&payload, "data"));
             let error = result.err().map(|e| format!("{path}: {e}"));
@@ -610,9 +588,7 @@ pub fn open_documents_subpath(target: &str) {
     std::process::Command::new("explorer.exe").arg(path_to_open).spawn().ok();
 }
 
-// links of the about popup. they open in the user's browser, where they are signed in to github
 pub fn open_in_default_browser(url: &str) {
-    // "https://kute.lol" without the slash is the same place as with it
     let allowed = constants::OPEN_URL_ALLOWED
         .iter()
         .any(|prefix| url.starts_with(prefix) || url == prefix.trim_end_matches('/'));
@@ -627,24 +603,13 @@ pub fn open_in_default_browser(url: &str) {
 }
 
 pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str) {
-    // the start is enough to see which command it was: a swapper upload is a whole file as base64
+    // swapper uploads are whole files, only log the start
     if message_string.len() > 300 {
         let cut = (0..=300).rev().find(|&index| message_string.is_char_boundary(index)).unwrap_or(0);
         debug_print!("web message: {}... ({} bytes)", &message_string[..cut], message_string.len());
     } else {
         debug_print!("web message: {message_string}");
     }
-    // the payload is JSON, so it must not go through the ", " split
-    if let Some(rest) = message_string.strip_prefix("telemetry ") {
-        // "telemetry <kind> <json>". JSON, so it must not go through the ", " split. capped like the server caps it
-        if let Some((kind, report)) = rest.split_once(' ')
-            && report.len() <= 64 * 1024
-        {
-            modules::lifecycle::send_telemetry(kind, report.to_string());
-        }
-        return;
-    }
-    // "icon-urls <json>": the images the player pointed the icon slots at, so Kute icons answer those too
     if let Some(rest) = message_string.strip_prefix("icon-urls ") {
         if rest.len() <= 16 * 1024
             && let Ok(value) = serde_json::from_str::<serde_json::Value>(rest)
@@ -653,7 +618,7 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         }
         return;
     }
-    // a setting whose value is an object (the matchmaker filters): "set-config-json <id> <json>"
+    // set-config can't carry objects (matchmaker filter)
     if let Some(rest) = message_string.strip_prefix("set-config-json ") {
         if let Some((setting, value)) = rest.split_once(' ')
             && value.len() <= 16 * 1024
@@ -664,7 +629,6 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         }
         return;
     }
-    // the userscript and swapper managers: JSON payloads, only from Krunker itself
     if let Some(rest) = message_string.strip_prefix("scripts-") {
         if is_krunker_frame(frame) && rest.len() <= 5 * 1024 * 1024 {
             queue_manager_message(browser, message_string);
@@ -672,19 +636,19 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         return;
     }
     if let Some(rest) = message_string.strip_prefix("swapper-") {
-        // an upload carries a whole file (base64), everything else is a short command
+        // uploads carry a whole base64 file
         if is_krunker_frame(frame) && rest.len() <= 48 * 1024 * 1024 {
             queue_manager_message(browser, message_string);
         }
         return;
     }
-    // the account manager: JSON payloads, replies with the list (names and colors, never a password)
+    // replies never contain a password
     if let Some(rest) = message_string.strip_prefix("accounts-") {
         handle_accounts_message(browser, rest);
         return;
     }
     if message_string == "bench-sample-start" {
-        // the settle phase is over: throw away what the hook collected so far (without the hook nobody would answer)
+        // settle phase over, drop what the hook collected so far
         if modules::bench::config().is_some_and(|bench| bench.hook) {
             app::take_present_intervals();
         }
@@ -695,7 +659,7 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         return;
     }
     if let Some(configs) = message_string.strip_prefix("run-bench-matrix ") {
-        // only what a bench configuration is made of, the strings end up on a command line
+        // ends up on a command line, whitelist the chars
         let configs: Vec<String> = serde_json::from_str(configs).unwrap_or_default();
         let harmless = |config: &String| config.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '=' | ',' | '.'));
         if !modules::bench::active() && configs.len() <= 8 && configs.iter().all(harmless) {
@@ -710,7 +674,10 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             crate::CONFIG.lock().unwrap().set(setting, parse_web_message_value(value));
             crate::config::save_soon();
 
-            // the one FPS limit: the present hook paces the whole game loop (see gameFpsLimit.js for the fallback)
+            if *setting == "disableOnlineFeatures" {
+                modules::blocklist::set_online_off(*value == "true");
+            }
+            // present hook paces the game loop, gameFpsLimit.js has the fallback
             if *setting == "gameFpsLimit"
                 && let Ok(fps_limit) = value.parse::<u64>()
             {
@@ -728,8 +695,7 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         ["get-info"] => {
             bridge::send_info(frame);
         }
-        // the developer badge: the page hands over the server's nonce and what it is about to announce, and
-        // gets the proof back. the token stays in this process (modules/dev.rs)
+        // dev badge proof, the token never leaves this process
         ["dev-proof", nonce, game, hash] => {
             let sane = nonce.len() <= 64 && game.len() <= 32 && hash.len() == 32;
             let proof = if sane { modules::dev::proof(nonce, game, hash) } else { None };
@@ -740,12 +706,12 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             bridge::post_json(browser, &reply.to_string());
         }
         ["drag", value] => {
-            // "drag, true" means the menu is open and the pointer is free
+            // true = menu open, pointer free
             let value = value.parse::<bool>().unwrap_or(false);
             modules::input::set_pointer_locked(!value);
         }
         ["throttle", status] => {
-            // "off" is the auto-detect run measuring the unthrottled page
+            // "off" is used by auto-detect
             let rate = match *status {
                 "off" => 1.0,
                 "game" => config("throttle", 1.0),
@@ -757,14 +723,13 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             let hwnd = window::root_hwnd(browser).unwrap_or_default();
             bridge::post_json(browser, &serde_json::json!({ "specs": modules::specs::collect(hwnd) }).to_string());
         }
-        // frames per second at the swap chain, 0 without the hook
+        // swap chain fps, 0 without the hook
         ["get-present"] => {
             let fps = app::render_stats().map(|(fps, _)| fps).unwrap_or(0);
             bridge::post_json(browser, &format!("{{\"presentFps\":{fps}}}"));
         }
-        // the distribution of the hook's present intervals since the last call (a call also starts a new window)
         ["get-present-intervals"] => {
-            // take_present_intervals waits for the hook's next present (up to 150 ms): not on the UI thread
+            // blocks up to 150 ms, off the UI thread
             let hook = config("hardFlip", true);
             let browser_id = browser.identifier();
             std::thread::spawn(move || {
@@ -792,8 +757,7 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         ["bring-to-front"] => {
             window::bring_to_front(browser);
         }
-        // the page keeps the images it already has, so a changed icon only shows after this. Never "clear-cache"
-        // for that: it also wipes the origin's storage, which is every Krunker setting the player has
+        // shows changed icons. never use clear-cache for that, it wipes all krunker settings
         ["hard-reload"] => {
             browser.reload_ignore_cache();
         }
