@@ -1,5 +1,5 @@
 import styles from "./components/base.css";
-import { kute, ready } from "./client.js";
+import { kute, ready, globalRef } from "./client.js";
 import { hook, getElement, checkCompMode } from "./utils.js";
 // imported first so later throws still get reported
 import { postUrls as postIconUrls } from "./modules/kuteIcons/slots.js";
@@ -109,6 +109,10 @@ Object.defineProperty(window, "gameLoaded", {
         getElement("#menuItemContainer").lastElementChild?.insertAdjacentHTML(
             "beforebegin",
             `<div onclick="window.open('./social.html')" class="menuItem ${svelteCode}"><span class="material-icons-outlined menuItemIcon ${svelteCode}">open_in_new</span><div class="menuItemTitle ${svelteCode}">Classic Social</div></div>`,
+        );
+        getElement("#clientExit").insertAdjacentHTML(
+            "beforebegin",
+            `<div onclick='${globalRef}.openKuteSettings()' class="menuItem ${svelteCode}"><span class="material-icons menuItemIcon ${svelteCode}">settings</span><div class="menuItemTitle ${svelteCode}">Kute Settings</div></div>`,
         );
         import("./notifications.js");
         import("./settings.js");

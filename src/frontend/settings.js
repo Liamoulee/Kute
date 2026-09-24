@@ -242,6 +242,10 @@ class SettingsManager {
         };
 
         this.settingsWindow.getCSettings = () => this.getCSettings();
+        kute.openKuteSettings = () => {
+            window.showWindow(1);
+            this.settingsWindow.changeTab(this.settingsWindow.tabs[this.settingsWindow.settingType].length - 1);
+        };
         window.chrome.webview.addEventListener("message", (event) => {
             const response = event.data;
             if (response?.type !== "obs-plugin") return;
