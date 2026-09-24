@@ -1,16 +1,12 @@
 import panelHtml from "../../components/autoDetect.html";
 import { kute } from "../../client.js";
-import { activity, hostLobby, inRoom, spawn } from "../privateMatch.js";
+import { hostLobby, inRoom, spawn } from "../privateMatch.js";
 import { checkCompMode, request } from "../../utils.js";
 import { FrameRecorder } from "./metrics.js";
 import { decide, decideClient, HEADROOM, MIN_RESOLUTION, SIGNIFICANT_SETTING, TARGET_REFRESH_MULTIPLE } from "./decide.js";
 import * as game from "./gameSettings.js";
-import api from "../api.js";
 
 const STORAGE_KEY = "kute_autodetect";
-// how many runs finished on this install. shared with a report so that first runs can be told from repeats,
-// which a server without any kind of client id could not do otherwise
-const RUNS_KEY = "kute_autodetect_runs";
 // "this client start already asked". sessionStorage, not localStorage: the bundle runs again on every F5, F4 and
 // lobby change, and "ask me later" means the next start, not the next page. the profile deletes its Sessions
 // folder on start (app.rs), so this dies with the client, which is exactly that meaning
@@ -74,8 +70,6 @@ const HOME = "https://krunker.io/";
  * @property {import("./decide.js").Plan} plan
  * @property {number|null} finalFps Measured again after the changes
  * @property {number} seconds
- * @property {Record<string, any>} [details] Only for the shared report: the system, the settings the run happened
- * under and the raw numbers behind the results, so that the rules can be re-evaluated later without new runs
  */
 
 /**
@@ -266,33 +260,6 @@ async function measureClient(configs){
 function replayConfig(row){
     const limit = Number(row.limit) || 0;
     return { config: limit > 0 ? row.config.replace("limit=auto", `limit=${limit}`) : row.config, label: row.label };
-}
-
-/**
- * The GPU the page really renders on. On a laptop with two that is not always the fast one.
- *
- * @return {string}
- */
-function webglRenderer(){
-    try {
-        const gl = document.createElement("canvas").getContext("webgl2");
-        const info = gl?.getExtension("WEBGL_debug_renderer_info");
-        return gl && info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : "";
-    }
-    catch {
-        return "";
-    }
-}
-
-/**
- * @return {number[]} Width and height of the game's canvas, the pixels that really get rendered
- */
-function gameCanvasSize(){
-    let best = [0, 0];
-    for (const canvas of document.querySelectorAll("canvas")){
-        if (canvas.width * canvas.height > best[0] * best[1]) best = [canvas.width, canvas.height];
-    }
-    return best;
 }
 
 /**
@@ -585,9 +552,8 @@ class AutoDetect {
         };
         document.addEventListener("keydown", onKey, true);
 
-        // whoever cleans up has to know whether the page is still the menu, and a failure report how far it got
-        const venue = { inMatch: false, stage: "start" };
-        const startedAt = performance.now();
+        // whoever cleans up has to know whether the page is still the menu
+        const venue = { inMatch: false };
         /**
          * Back to how it was before the run.
          */
@@ -619,18 +585,9 @@ class AutoDetect {
             }
             delete state.previous;
             delete state.baseline;
-            // the raw numbers are for the shared report, the stored one only needs what the Advanced view shows
-            state.report = { ...outcome.report };
-            delete state.report.details;
             // leaving the test match is a page load, the summary comes up after it
             state.showSummary = true;
             writeState(state);
-            // shared unless the player switched it off: the measurements, no account, no ids (the host checks the setting too)
-            const run = (Number(localStorage.getItem(RUNS_KEY)) || 0) + 1;
-            localStorage.setItem(RUNS_KEY, String(run));
-            if (kute.settings.data.telemetry !== false && await api.available()){
-                window.chrome.webview.postMessage(`telemetry autodetect ${JSON.stringify({ kute: kute.version, run, ...outcome.report })}`);
-            }
             panel.progress("Leaving the test match", 1);
             document.exitPointerLock();
             await sleep(800);
@@ -640,11 +597,6 @@ class AutoDetect {
             abandon();
             const message = error instanceof Error ? error.message : String(error);
             kute.showNotification(`Auto-detect stopped: ${message}`, false, 7);
-            // a run that breaks is the one we need to hear about: it is how a changed host window gets noticed
-            if (kute.settings.data.telemetry !== false && await api.available()){
-                const failure = { kute: kute.version, stage: venue.stage, message: message.slice(0, 200), seconds: (performance.now() - startedAt) / 1000 };
-                window.chrome.webview.postMessage(`telemetry autodetect-failure ${JSON.stringify(failure)}`);
-            }
         }
         finally {
             document.removeEventListener("keydown", onKey, true);
@@ -658,7 +610,7 @@ class AutoDetect {
      *
      * @param {Panel} panel
      * @param {RunState} state
-     * @param {{inMatch: boolean, stage: string}} venue
+     * @param {{inMatch: boolean}} venue
      * @param {string[]} earlier What the setup changed before the run, listed in the same summary
      * @return {Promise<{summary: Summary, report: Report}|null>} null when cancelled
      */
@@ -681,7 +633,6 @@ class AutoDetect {
         const gpuName = [...gpus].sort((a, b) => b.vramMb - a.vramMb)[0]?.name ?? "unknown graphics card";
 
         // the client first, from the menu: the host hides this page and shows its own test window meanwhile
-        venue.stage = "client";
         panel.progress("Testing the client", 0.03);
         const settingsNow = {
             hardFlip: kute.settings.data.hardFlip !== false,
@@ -709,8 +660,6 @@ class AutoDetect {
         }
         if (this.cancelled) return null;
 
-        const clientSeconds = (performance.now() - started) / 1000;
-        venue.stage = "lobby";
         panel.progress("Opening a private test match", 0.05);
         panel.clickThrough(true);
         const room = await hostLobby();
@@ -725,7 +674,6 @@ class AutoDetect {
             throw new Error("could not open a private test match (is a host slot free?)");
         }
         venue.inMatch = true;
-        venue.stage = "measure";
         /**
          * Stops the run when the page is no longer in the test match (a redirect, a kick, a lost connection): every
          * number after that would belong to another match, and settings would get written into it.
@@ -733,7 +681,6 @@ class AutoDetect {
         const stillInRoom = () => {
             if (!inRoom(room)) throw new Error("left the private test match");
         };
-        const lobbySeconds = (performance.now() - started) / 1000 - clientSeconds;
         if (this.cancelled) return null;
 
         // measure the game itself: no throttle, no limiter of ours, no frame cap of the game
@@ -886,7 +833,6 @@ class AutoDetect {
             },
         );
 
-        venue.stage = "apply";
         panel.progress("Applying", 0.88);
         /** @type {string[]} */
         const details = [...earlier];
@@ -976,42 +922,6 @@ class AutoDetect {
                 plan,
                 finalFps,
                 seconds: (performance.now() - started) / 1000,
-                details: {
-                    system: {
-                        gpus: (specs.gpus ?? []).map((/** @type {Record<string, any>} */ gpu) => ({ name: gpu.name, vramMb: gpu.vramMb, software: gpu.software })),
-                        renderer: webglRenderer(),
-                        threads: specs.cpu?.threads ?? 0,
-                        ramGb: Math.round((specs.ramMb ?? 0) / 1024),
-                        osBuild: specs.osBuild ?? "",
-                        displays: displays.map((/** @type {Record<string, any>} */ entry) => ({ width: entry.width, height: entry.height, hz: entry.hz, hostsWindow: Boolean(entry.hostsWindow) })),
-                        window: [window.innerWidth, window.innerHeight],
-                        canvas: gameCanvasSize(),
-                        pixelRatio: devicePixelRatio,
-                        onBattery: Boolean(specs.onBattery),
-                        userFlags: specs.userFlags ?? [],
-                        disabledDefaults: specs.disabledDefaults ?? [],
-                    },
-                    clientSettings: Object.fromEntries(
-                        ["hardFlip", "uncapFps", "gameFpsLimit", "throttle", "inMenuThrottle", "webviewPriority", "angleBackend", "colorProfile", "rawInput"]
-                            .map((key) => [key, key in baseline.client ? baseline.client[key] : kute.settings.data[key]]),
-                    ),
-                    game: {
-                        resolution,
-                        frameCap: frameCapBefore,
-                        map: activity().map ?? "",
-                    },
-                    baseline: {
-                        samples: baselines,
-                        p50: base.p50,
-                        p95: base.p95,
-                        p99: base.p99,
-                        p999: base.p999,
-                        max: base.maxMs,
-                        present: presentIntervals,
-                    },
-                    halfResolution: half.raw,
-                    timings: { clientSeconds, lobbySeconds },
-                },
             },
         };
     }
