@@ -88,10 +88,20 @@ class Presence {
         api.available().then((available) => {
             if (available) this.open();
         });
+        api.listeners.add((online) => {
+            if (!online){
+                this.socket?.close();
+                return;
+            }
+            this.failures = 0;
+            api.available().then((available) => {
+                if (available && !this.socket) this.open();
+            });
+        });
     }
 
     open(){
-        if (api.down) return;
+        if (api.down || api.offline()) return;
         const socket = new WebSocket(api.base.replace(/^http/, "ws") + "/ws");
         this.socket = socket;
 

@@ -189,7 +189,7 @@
     "cuteBadge": {
         "name": "Show Kute Badge",
         "id": "cuteBadge",
-        "description": "A Kute badge next to everyone in the match who runs Kute",
+        "description": "Only hides the badges you see. To hide yours from others, disable Kute online features (About)",
         "type": "checkbox",
         "category": "Interface",
         "defaultValue": true
@@ -354,6 +354,15 @@
         "buttonAction": "{{kute}}.showChangelogPopup({{kute}}.version)",
         "category": "About",
         "defaultValue": true
+    },
+    "disableOnlineFeatures": {
+        "name": "Disable Kute Online Features",
+        "id": "disableOnlineFeatures",
+        "description": "Nothing is sent to or received from kute.lol. No Kute badges (yours or anyone's), no clan colors",
+        "type": "checkbox",
+        "category": "About",
+        "defaultValue": false,
+        "needsRestart": true
     },
     "checkUpdates": {
         "name": "Check For Updates",
