@@ -12,7 +12,6 @@ fn call(browser: &Browser, method: &str, params: Option<DictionaryValue>) {
 static LAST_THROTTLE_BITS: AtomicU32 = AtomicU32::new(1.0f32.to_bits());
 
 pub fn set_cpu_throttling(browser: &Browser, value: f32) {
-    // dedupe identical rates so we don't restart the throttling thread unnecessarily
     if LAST_THROTTLE_BITS.swap(value.to_bits(), Ordering::Relaxed) == value.to_bits() {
         return;
     }
@@ -22,13 +21,11 @@ pub fn set_cpu_throttling(browser: &Browser, value: f32) {
 }
 
 pub fn clear_cache(browser: &Browser) {
-    // keep dedupe cache in sync
     set_cpu_throttling(browser, 1.0);
 
     call(browser, "Network.clearBrowserCache", None);
     if let Some(params) = dictionary_value_create() {
-        // the game's origin. "*" is not a wildcard here: chromium parses it as a url, gets an opaque origin that
-        // owns nothing, reports success and clears nothing (it did exactly that for as long as this button exists)
+        // "*" is not a wildcard, it silently clears nothing
         params.set_string(Some(&CefString::from("origin")), Some(&CefString::from("https://krunker.io")));
         params.set_string(Some(&CefString::from("storageTypes")), Some(&CefString::from("all")));
         call(browser, "Storage.clearDataForOrigin", Some(params));
@@ -36,8 +33,7 @@ pub fn clear_cache(browser: &Browser) {
     browser.reload();
 }
 
-// a trusted left click in view coordinates. pointer lock needs a real user gesture, a DOM click() is not one,
-// and unlike SendInput this does not move the user's cursor
+// trusted click (pointer lock needs a user gesture), doesn't move the real cursor
 pub fn click(browser: &Browser, x: i32, y: i32) {
     for event in ["mousePressed", "mouseReleased"] {
         let Some(params) = dictionary_value_create() else { return };
@@ -50,8 +46,7 @@ pub fn click(browser: &Browser, x: i32, y: i32) {
     }
 }
 
-// runs an expression in the page's main world. nothing on the page can see a CDP call, so this is how
-// a secret gets into the page without crossing the bridge (the account manager's login)
+// page can't observe CDP, used to get secrets in without the bridge
 pub fn evaluate(browser: &Browser, expression: &str) {
     let Some(params) = dictionary_value_create() else { return };
     params.set_string(Some(&CefString::from("expression")), Some(&CefString::from(expression)));
@@ -62,7 +57,6 @@ pub fn enable_network(browser: &Browser) {
     call(browser, "Network.enable", None);
 }
 
-// runs source on every new document of the browser (all frames), before the document's own scripts
 pub fn add_document_script(browser: &Browser, source: &str) {
     let Some(params) = dictionary_value_create() else { return };
     params.set_string(Some(&CefString::from("source")), Some(&CefString::from(source)));

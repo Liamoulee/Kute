@@ -4,7 +4,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-// one file or folder name as Windows accepts it
 pub fn safe_name(name: &str) -> bool {
     !name.is_empty()
         && name.len() <= 200
@@ -16,7 +15,7 @@ pub fn safe_name(name: &str) -> bool {
             .any(|c| c.is_control() || matches!(c, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*'))
 }
 
-// "a/b/c.png" (either slash) -> a relative path of safe names, or None. Empty means the folder itself
+// "a/b/c.png" (either slash) -> relative path of safe names. empty = the folder itself
 pub fn safe_relative(path: &str) -> Option<PathBuf> {
     let mut relative = PathBuf::new();
     let parts: Vec<&str> = path.split(['/', '\\']).filter(|part| !part.is_empty()).collect();
@@ -32,12 +31,10 @@ pub fn safe_relative(path: &str) -> Option<PathBuf> {
     Some(relative)
 }
 
-// forward slashes, like the urls the swapper matches
 pub fn to_slashes(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
 }
 
-// moves a file or folder to the recycle bin, so a wrong click is never final
 pub fn recycle(path: &Path) -> io::Result<()> {
     use windows::Win32::UI::Shell::{FO_DELETE, FOF_ALLOWUNDO, FOF_NO_UI, SHFILEOPSTRUCTW, SHFileOperationW};
 
@@ -55,11 +52,10 @@ pub fn recycle(path: &Path) -> io::Result<()> {
     Ok(())
 }
 
-// opens the folder, or the folder of a file with the file selected
 pub fn reveal(path: &Path) {
     let mut command = std::process::Command::new("explorer.exe");
     if path.is_file() {
-        // explorer parses its own command line, the quotes have to sit after the comma
+        // explorer wants the quotes after the comma
         command.raw_arg(format!("/select,\"{}\"", path.display()));
     } else {
         command.arg(path);
@@ -67,7 +63,7 @@ pub fn reveal(path: &Path) {
     command.spawn().ok();
 }
 
-// standard base64 (the page sends dropped files as data URLs), None on anything else
+// standard base64 only
 pub fn decode_base64(text: &str) -> Option<Vec<u8>> {
     let value = |c: u8| -> Option<u32> {
         Some(match c {

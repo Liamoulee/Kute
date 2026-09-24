@@ -2,20 +2,18 @@
 
 /**
  * @typedef {object} Row
- * @property {Element} element The element holding the name (and the clan span)
- * @property {string} name The name as Krunker wrote it, without clan tag and icons
+ * @property {Element} element holds the name and the clan span
+ * @property {string} name without clan tag and icons
  * @property {ListKind} kind
  */
 
 /** @typedef {(row: Row) => void} Decorator */
 /** @typedef {(kind: ListKind) => void} WalkEnd */
 
-/** a clan tag as Krunker renders it: a span of its own next to the name, holding exactly "[tag]" */
+/** own span next to the name, exactly "[tag]" */
 const CLAN_TAG = /^\s*\[(.+)\]\s*$/;
 
 /**
- * The clan tag of a row, for the decorators that care (clan colors paint it, the developer badge is bound to it).
- *
  * @param {Element} nameElement
  * @return {{ span: Element, tag: string } | null}
  */
@@ -28,7 +26,7 @@ export function clanTag(nameElement){
     return null;
 }
 
-/** the lists, what kind each is, and the permanent container it lives in (all four verified in the live game) */
+/** containers verified in the live game */
 const LISTS = /** @type {{ list: string, kind: ListKind, root: string }[]} */ ([
     { list: "leaderContainer", kind: "leader", root: "leaderboardHolder" },
     { list: "ingameTable", kind: "ingame", root: "centerLeaderDisplay" },
@@ -38,12 +36,12 @@ const LISTS = /** @type {{ list: string, kind: ListKind, root: string }[]} */ ([
 
 const DISCOVERY_MS = 1000;
 
-/** the elements holding a player's name (the leaderboard classes get a suffix: M for the own row, F for others) */
+/** leaderboard classes get a suffix: M = own row, F = others */
 const NAME_ELEMENTS = ".pListName, [class^=\"newLeaderName\"], [class^=\"leaderName\"], .endTableN";
 
 /**
  * @param {Element} nameElement
- * @return {string} The name as Krunker wrote it, without the clan tag span and the icons around it
+ * @return {string} name without clan tag and icons
  */
 function nameOf(nameElement){
     let name = "";
@@ -55,7 +53,7 @@ function nameOf(nameElement){
 
 class PlayerLists {
     constructor(){
-        /** @type {Map<Decorator, WalkEnd | undefined>} decorator -> what to call once a list is walked */
+        /** @type {Map<Decorator, WalkEnd | undefined>} */
         this.decorators = new Map();
         /** @type {{ observer: MutationObserver, target: Element, list: string, kind: ListKind }[]} */
         this.watched = [];
@@ -63,9 +61,7 @@ class PlayerLists {
     }
 
     /**
-     * Starts handing every row to decorator, now and after every rebuild. A decorator that has to decide
-     * something about a list as a whole (the developer badge needs to know whether a row is the only one of
-     * its kind) gets onWalkEnd called once per walked list, after its rows.
+     * calls decorator per row, now and on every rebuild. onWalkEnd runs once per list after its rows
      *
      * @param {Decorator} decorator
      * @param {WalkEnd} [onWalkEnd]
@@ -109,8 +105,7 @@ class PlayerLists {
     }
 
     /**
-     * The safety net: a list that exists outside of everything that is being observed gets observed itself,
-     * until Krunker removes it again.
+     * safety net: observes a list that shows up outside the watched containers
      */
     discover(){
         this.watched = this.watched.filter((entry) => {
@@ -124,9 +119,6 @@ class PlayerLists {
         }
     }
 
-    /**
-     * Walks every list that exists right now (after the roster or a setting changed).
-     */
     refresh(){
         for (const entry of this.watched) this.walk(entry);
     }
@@ -135,16 +127,18 @@ class PlayerLists {
      * @param {{ observer: MutationObserver, target: Element, list: string, kind: ListKind }} entry
      */
     walk(entry){
-        // the containers hold more than the list (the menu window holds every window): one id lookup decides
-        const list = document.getElementById(entry.list);
-        if (list){
-            for (const element of list.querySelectorAll(NAME_ELEMENTS)){
-                const row = { element, name: nameOf(element), kind: entry.kind };
-                for (const decorator of this.decorators.keys()) decorator(row);
+        // containers hold more than the list, the id decides. team modes have one table per team with the same id
+        const lists = document.querySelectorAll(`#${entry.list}`);
+        if (lists.length > 0){
+            for (const list of lists){
+                for (const element of list.querySelectorAll(NAME_ELEMENTS)){
+                    const row = { element, name: nameOf(element), kind: entry.kind };
+                    for (const decorator of this.decorators.keys()) decorator(row);
+                }
             }
             for (const onWalkEnd of this.decorators.values()) onWalkEnd?.(entry.kind);
         }
-        // what the decorators just inserted must not come back as another walk
+        // our own inserts must not trigger another walk
         entry.observer.takeRecords();
     }
 }

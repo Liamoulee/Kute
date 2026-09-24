@@ -2,15 +2,12 @@ import { getElement } from "../utils.js";
 
 /**
  * @typedef {object} Rank
- * @property {string} rank Display name
- * @property {number|null} elo Elo threshold, null for unranked
+ * @property {string} rank
+ * @property {number|null} elo null for unranked
  * @property {string} color
- * @property {string} image File name on assets.krunker.io
+ * @property {string} image file name on assets.krunker.io
  */
 
-/**
- * Adds an elo progress bar and a rank distribution popup to the ranked menu.
- */
 class RankProgress {
     constructor(){
         /** @type {Rank[]} */
@@ -108,7 +105,7 @@ class RankProgress {
             origRanked();
             this.observer.observe(getElement(".rankedMenuModal"), { childList: true, subtree: true });
 
-            // intervals must only clear their OWN id
+            // only clear our own interval id
             const intervalId = setInterval(() => {
                 if (!document.querySelector(".rankedMenuModal")){
                     clearInterval(intervalId);
@@ -123,9 +120,6 @@ class RankProgress {
         });
     }
 
-    /**
-     * Injects the bar and button once the rank card is rendered.
-     */
     checkForMenu(){
         const card = /** @type {HTMLElement|null} */ (document.querySelector(".rank-card"));
         const container = /** @type {HTMLElement|null} */ (document.querySelector(".rank-and-stats"));
@@ -153,9 +147,6 @@ class RankProgress {
         card.appendChild(btn);
     }
 
-    /**
-     * Shows the rank distribution popup.
-     */
     openPopup(){
         if (document.getElementById("kute-rank-overlay")) return;
 
@@ -194,8 +185,6 @@ class RankProgress {
     }
 
     /**
-     * Resolves the current rank, the next rank and the progress between them.
-     *
      * @param {number} currentElo
      * @return {{ currentRank: Rank, nextRank: Rank, progress: number, isMax: boolean }}
      */
@@ -222,8 +211,6 @@ class RankProgress {
     }
 
     /**
-     * Renders the elo progress bar above the quick stats.
-     *
      * @param {HTMLElement} container
      */
     injectBar(container){

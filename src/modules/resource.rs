@@ -19,7 +19,6 @@ wrap_resource_handler! {
             handle_request: Option<&mut i32>,
             _callback: Option<&mut Callback>,
         ) -> i32 {
-            // answer straight away, the bytes are already in memory
             if let Some(handle_request) = handle_request {
                 *handle_request = 1;
             }
@@ -37,8 +36,7 @@ wrap_resource_handler! {
             response.set_status(200);
             response.set_status_text(Some(&CefString::from("OK")));
             response.set_mime_type(Some(&CefString::from(self.mime_type.as_str())));
-            // what this whole handler exists for. The real CDN answers with the same two, so a replaced file
-            // behaves like the one it replaced, whichever origin it is served in place of
+            // same CORS headers as the real CDN
             response.set_header_by_name(Some(&CefString::from("Access-Control-Allow-Origin")), Some(&CefString::from("*")), 1);
             response.set_header_by_name(Some(&CefString::from("Cross-Origin-Resource-Policy")), Some(&CefString::from("cross-origin")), 1);
 
@@ -64,7 +62,6 @@ wrap_resource_handler! {
                 return 1;
             };
 
-            // until the buffer is full or the stream says it has nothing left
             *bytes_read = 0;
             loop {
                 let data_out = unsafe { data_out.add(*bytes_read as usize) };
@@ -80,7 +77,6 @@ wrap_resource_handler! {
     }
 }
 
-// A handler that answers one request with these bytes.
 pub fn serve(mime_type: &str, bytes: Vec<u8>) -> Option<ResourceHandler> {
     let mut read_handler = ByteReadHandler::new(Arc::new(Mutex::new(ByteStream::new(bytes))));
     let stream = stream_reader_create_for_handler(Some(&mut read_handler))?;

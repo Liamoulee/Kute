@@ -41,7 +41,6 @@ impl Config {
             fs::create_dir_all(parent).expect("Failed to create settings directory");
         }
 
-        // recursively create dir
         let mut settings_file = OpenOptions::new().write(true).read(true).create(true).truncate(false).open(&settings_path).unwrap();
 
         if settings_file.metadata().unwrap().len() == 0 {
@@ -60,7 +59,6 @@ impl Config {
             }
         };
 
-        // check for new entries
         for (key, default_value) in defaults {
             data.entry(key).or_insert(default_value);
         }
@@ -68,10 +66,7 @@ impl Config {
         Config { data }.migrate_menu_throttle()
     }
 
-    // "CPU Throttling in Menu" used to default to 1.5, which suspends the game's main thread a third of the time.
-    // It is also on during the end screen, where a round start rebuilds every player's model, and it stretched that
-    // work by 1.5x. Every install has the old default written into its settings.json, so lowering the default alone
-    // would reach nobody. Runs once, and only on the old default: a value someone picked themselves stays.
+    // old inMenuThrottle default 1.5 -> 1. runs once, only touches the old default
     fn migrate_menu_throttle(mut self) -> Config {
         if self.get::<bool>("menuThrottleMigrated").unwrap_or(false) {
             return self;
@@ -102,10 +97,10 @@ impl Config {
     }
 }
 
-// one writer at a time: the delayed save below and the one at exit can meet
+// delayed save and exit save can race
 static WRITE_LOCK: Mutex<()> = Mutex::new(());
 
-// through a temp file and a rename, so a crash in the middle of a write leaves the old file instead of half of one
+// temp file + rename so a crash never leaves half a file
 fn write_settings(text: &str) {
     let _guard = WRITE_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     let settings_path = PathBuf::from(env::var("USERPROFILE").unwrap_or_default()).join("Documents\\kute\\settings.json");
@@ -115,8 +110,6 @@ fn write_settings(text: &str) {
     }
 }
 
-// the settings used to be written at a clean exit only, so a crash, a killed process or a Windows shutdown lost every
-// change of the session. now a change gets written a second after the last one (a dragged slider is one write)
 static SAVER: LazyLock<Sender<()>> = LazyLock::new(|| {
     let (sender, receiver) = mpsc::channel::<()>();
     std::thread::spawn(move || {
@@ -132,7 +125,7 @@ static SAVER: LazyLock<Sender<()>> = LazyLock::new(|| {
 });
 
 pub fn save_soon() {
-    // a bench process never writes the settings (its window must not end up as the client's lastPosition)
+    // bench never writes settings
     if crate::modules::bench::config().is_some() {
         return;
     }

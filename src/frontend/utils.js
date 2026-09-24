@@ -1,6 +1,5 @@
 /**
- * Wraps a prototype method. The wrapper receives the call arguments and the original method.
- * If the wrapper returns undefined the original method is called with the same arguments.
+ * wraps a prototype method, returning undefined from the wrapper calls the original
  *
  * @param {{ prototype: Record<string, any> }} target
  * @param {string} method
@@ -19,12 +18,7 @@ export const hook = (target, method, wrapper) => {
 };
 
 /**
- * Resolves once an element matching the selector exists in the document.
- *
- * While it waits it observes the whole body and looks the selector up on every change anywhere in the page. That
- * is fine for the second it normally takes, and expensive forever: an element that never shows up (a Krunker
- * update renamed it) would leave that running through every match. So it gives up after timeoutMs and rejects,
- * which also gets the missing element reported (errorReports.js).
+ * resolves once the selector matches. rejects after timeoutMs, a body observer must not run forever
  *
  * @template {Element} [T=HTMLElement]
  * @param {string} selector
@@ -57,8 +51,6 @@ export const waitForElement = (selector, timeoutMs = 30000) => {
 };
 
 /**
- * document.querySelector that throws instead of returning null, for elements that must exist.
- *
  * @template {Element} [T=HTMLElement]
  * @param {string} selector
  * @param {ParentNode} [root]
@@ -71,8 +63,6 @@ export const getElement = (selector, root = document) => {
 };
 
 /**
- * getElement typed for form controls.
- *
  * @param {string} selector
  * @param {ParentNode} [root]
  * @return {HTMLInputElement}
@@ -80,8 +70,6 @@ export const getElement = (selector, root = document) => {
 export const getInput = (selector, root = document) => getElement(selector, root);
 
 /**
- * Checks whether the game is currently in a comp (tournament) match.
- *
  * @return {boolean}
  */
 export const checkCompMode = () => {
@@ -92,8 +80,6 @@ export const checkCompMode = () => {
 };
 
 /**
- * Posts a message to the host and resolves with the reply's field.
- *
  * @param {string} message
  * @param {string} key
  * @param {number} [timeoutMs]

@@ -12,9 +12,7 @@ const salt = randomBytes(32);
 type Window = { hits: number; resetAt: number };
 const windows = new Map<string, Window>();
 
-/**
- * Stands for an address without being one: hashed with a salt that only exists in this process.
- */
+// address stand-in, hashed with a per-process salt
 export function sourceKey(ip: string): string {
     return createHash("sha256").update(salt).update(ip).digest("base64url");
 }
@@ -35,13 +33,6 @@ export function cleanupRateLimits(): number {
     return removed;
 }
 
-/**
- * Creates a rate limit hook for Fastify routes.
- * @param name - Unique name for this limiter
- * @param max - Max requests allowed in the window
- * @param windowMs - Time window in milliseconds
- * @param message - Error message when limit exceeded
- */
 export function createRateLimit(name: string, max: number, windowMs: number, message: string) {
     const allowed = isDevelopment ? max * 100 : max;
 

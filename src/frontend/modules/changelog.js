@@ -2,11 +2,9 @@ import { marked } from "marked";
 import { kute } from "../client.js";
 
 /**
- * Compares two version strings numerically.
- *
  * @param {string} a
  * @param {string} b
- * @return {number} Negative if a < b, zero if equal, positive if a > b
+ * @return {number}
  */
 function semverCompare(a, b){
     return a.localeCompare(b, undefined, {
@@ -18,8 +16,6 @@ function semverCompare(a, b){
 
 (async() => {
     /**
-     * Shows the release notes of a version fetched from the GitHub release.
-     *
      * @param {string} version
      * @return {Promise<void>}
      */
@@ -75,7 +71,7 @@ function semverCompare(a, b){
         });
         if (content) content.innerHTML = htmlContent;
 
-        // make anchor links point to the release page instead of attempting to scroll to the anchor in the current page (which won't work)
+        // anchors can't scroll in here, point them at the release page
         const releaseUrl = `https://github.com/NullDev/Kute/releases/tag/${version}`;
         for (const a of shadow.querySelectorAll("a")){
             if (a.getAttribute("href")?.startsWith("#")) a.setAttribute("href", releaseUrl + a.getAttribute("href"));
@@ -96,6 +92,5 @@ function semverCompare(a, b){
         await showChangelogPopup(currentVersion);
     }
 
-    // expose this for the manual trigger button in settings
     kute.showChangelogPopup = showChangelogPopup;
 })();

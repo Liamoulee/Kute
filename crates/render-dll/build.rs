@@ -3,7 +3,7 @@ extern crate toml;
 
 include!("../../resources/version_resource.rs");
 
-// it ships with the client, so it carries the client's version, not this crate's
+// ships with the client, so it gets the client's version
 fn main() {
     let version = client_version("../../Cargo.toml");
     embed_version_resource(

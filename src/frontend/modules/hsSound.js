@@ -1,8 +1,6 @@
 import { kute } from "../client.js";
 
-/**
- * Plays the headshot sound only on the player's own headshots, detected through the kill feed in chat.
- */
+// own headshots only, found via the kill feed
 class HsSound {
     constructor(){
         /** @type {(soundName: string, volume?: number, loop?: boolean) => any} */
@@ -14,9 +12,6 @@ class HsSound {
         this.setupSoundHook();
     }
 
-    /**
-     * Waits for Krunker's SOUND object to exist, then installs the hook.
-     */
     setupSoundHook(){
         if (window.SOUND?.play){
             this.originalPlay = window.SOUND.play;
@@ -38,7 +33,7 @@ class HsSound {
             }
             const self = this;
             /**
-             * Drops the game's own headshot sound (called without a volume) and forwards everything else.
+             * drops the game's own headshot sound (no volume arg)
              *
              * @param {string} soundName
              * @param {number} [volume]
@@ -57,8 +52,6 @@ class HsSound {
     }
 
     /**
-     * Plays the headshot sound for new chat entries that show the player scoring a headshot.
-     *
      * @param {MutationRecord[]} mutations
      */
     parseChat(mutations){

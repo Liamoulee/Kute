@@ -8,9 +8,6 @@ import Log from "../src/util/log";
 
 const isObject = (item: unknown): boolean => !!item && typeof item === "object" && !Array.isArray(item);
 
-/**
- * Deep Merge of two objects
- */
 const deepMerge = function<T, T2>(target: T, source: T2 & Partial<T>): T & T2{
     if (isObject(target) && isObject(source)){
         const src = source as Record<string, unknown>;
@@ -46,7 +43,7 @@ const configBase = (await import("./config.template.ts")).default;
 const customPath = "./config.custom.ts";
 const configCustom = (await import(customPath)).default as Partial<typeof configBase>;
 const packageJSON = JSON.parse(await fs.readFile("./package.json", "utf-8"));
-// the client's version, from the repo root the server is started in. The release workflow bumps it there
+// client version from the repo root package.json (bumped by the release workflow)
 const clientVersion: string | null = await fs.readFile("../package.json", "utf-8")
     .then((text) => JSON.parse(text).version ?? null)
     .catch(() => null);

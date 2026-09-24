@@ -2,7 +2,7 @@ import { kute } from "../client.js";
 import playerLists, { clanTag } from "./playerLists.js";
 import api from "./api.js";
 
-// a tag keeps Krunker's font, size and spacing, only its paint changes: everything else in a style is dropped
+// only paint changes, krunker's font, size and spacing stay
 const PAINT_PROPERTIES = new Set([
     "background",
     "background-image",
@@ -23,7 +23,7 @@ const PAINT_PROPERTIES = new Set([
 
 /**
  * @param {string} css
- * @return {string} The declarations of css whose property is about paint, nothing about layout or type
+ * @return {string} paint declarations only
  */
 function paintOnly(css){
     return css
@@ -40,9 +40,9 @@ function paintOnly(css){
 
 class ClanColors {
     constructor(){
-        /** @type {Record<string, string>} clan tag -> CSS text */
+        /** @type {Record<string, string>} clan tag -> css */
         this.styles = {};
-        /** @type {Record<string, string>} what the server sent, kept for switching back on without a fetch */
+        /** @type {Record<string, string>} server copy, re-enable without a fetch */
         this.fetched = {};
         this.watching = false;
         /** @type {(row: Row) => void} */
@@ -63,7 +63,6 @@ class ClanColors {
         playerLists.remove(this.decorator);
         this.watching = false;
         this.styles = {};
-        // back to what Krunker had written into the span
         for (const span of document.querySelectorAll("[data-kute-clan]")){
             span.setAttribute("style", span.getAttribute("data-kute-style") ?? "");
             span.removeAttribute("data-kute-clan");
@@ -71,20 +70,16 @@ class ClanColors {
         }
     }
 
-    /**
-     * Fetches the styles once and starts watching the lists.
-     */
     async load(){
-        // null without a server: no styled tags then
         const meta = await api.request("/meta");
         if (typeof meta?.clanTagColors === "object" && meta.clanTagColors !== null) this.fetched = meta.clanTagColors;
         if (kute.settings.data.clanColors !== false) this.apply(this.fetched);
     }
 
     /**
-     * Uses a set of styles (also the entry point for trying styles out by hand).
+     * also handy for trying styles by hand
      *
-     * @param {unknown} styles Clan tag -> CSS text
+     * @param {unknown} styles clan tag -> css
      */
     apply(styles){
         if (typeof styles !== "object" || styles === null) return;

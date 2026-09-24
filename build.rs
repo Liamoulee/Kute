@@ -37,7 +37,7 @@ fn main() {
     println!("cargo:rerun-if-changed=resources/kute-manifest.rc");
     println!("cargo:rerun-if-changed=resources/client.rc");
     println!("cargo:rerun-if-changed=resources/version_resource.rs");
-    // client.rc only names the icon, cargo has to be told that the file itself matters
+    // the .rc only names the icon
     println!("cargo:rerun-if-changed=resources/kute.ico");
     println!("cargo:rerun-if-changed=resources/installer_script.wxs");
     println!("cargo:rerun-if-changed=target/bundle.js");

@@ -21,18 +21,14 @@ pub fn init_fs() -> result::Result<(), io::Error> {
     let resources_dir = utils::exe_dir().join("resources");
 
     fs::create_dir_all(&swap_dir)?;
-    // the swap players make most, and get wrong most ("CSS", "Css"). An existing folder in any case counts as
-    // there, Windows paths do not care about case
+    // most common swap, players get the casing wrong otherwise
     fs::create_dir_all(swap_dir.join("css"))?;
     fs::create_dir_all(&scripts_dir)?;
     fs::create_dir_all(&resources_dir)?;
-
-    // user_flags.json and user_blocklist.json are created with their example content by
-    // modules::flaglist and modules::blocklist when they are missing or empty
     Ok(())
 }
 
-// layout must match SharedState in render-dll/src/lib.rs, the fields are explained there
+// layout must match SharedState in render-dll/src/shared.rs
 #[repr(C)]
 pub(crate) struct SharedStats {
     pub(crate) frame_ns: u64,
@@ -50,17 +46,8 @@ const SHARED_STATS_SIZE: usize = std::mem::size_of::<SharedStats>();
 
 pub(crate) static SHARED_STATS_PTR: AtomicU64 = AtomicU64::new(0);
 
-// One field of the mapping, as an atomic. The GPU process writes the same memory, so no field is ever read or
-// written plainly or through a reference to the whole struct: only atomics synchronize between the two, fences
-// around plain or volatile accesses do not. The view is page aligned and every field is a u64 at an offset that
-// is a multiple of 8, which is what AtomicU64 needs; on x64 these are plain aligned moves, lock free across
-// processes. The protocol:
-// - `target_fps`: written by the host, read by the hook every frame. `fps`, `frame_ns`: the other way round.
-//   Each is one value on its own, Relaxed is enough.
-// - `stats_request`/`stats_ack`: the host stores a new request with Release, the hook loads it with Acquire,
-//   writes the payload (`present_*`, `arrive_p99_ns`, `samples`) and then the ack with Release. The host loads
-//   the ack with Acquire and only then reads the payload, so it sees the payload of that request. One request at a
-//   time: `take_present_intervals` holds a lock while it waits
+// one field of the shared mapping as an atomic. the gpu process writes the same memory, never touch it plainly
+// stats_request/stats_ack: request Release -> hook Acquire, payload, ack Release -> host Acquire, then read payload
 macro_rules! shared {
     ($field:ident) => {{
         let ptr = SHARED_STATS_PTR.load(Ordering::SeqCst);
@@ -68,7 +55,7 @@ macro_rules! shared {
     }};
 }
 
-// the gpu subprocess opens this mapping when render.dll attaches, so it has to exist before initialize()
+// render.dll opens this in the gpu process, so it has to exist before initialize()
 pub fn create_frame_timing_mapping() {
     let fps_limit = match modules::bench::config() {
         Some(bench) => bench.limit,
@@ -79,7 +66,6 @@ pub fn create_frame_timing_mapping() {
         if let Ok(mapping) = CreateFileMappingW(INVALID_HANDLE_VALUE, None, PAGE_READWRITE, 0, SHARED_STATS_SIZE as u32, &name) {
             let view = MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0, 0, SHARED_STATS_SIZE);
             if !view.Value.is_null() {
-                // before the GPU process exists, nothing else can see the view yet
                 std::ptr::write_bytes(view.Value as *mut u8, 0, SHARED_STATS_SIZE);
                 SHARED_STATS_PTR.store(view.Value as u64, Ordering::SeqCst);
                 set_target_fps(fps_limit);
@@ -94,11 +80,9 @@ pub fn set_target_fps(fps_limit: u64) {
     }
 }
 
-// one request at a time, see the protocol at shared!
 static STATS_REQUEST_LOCK: Mutex<()> = Mutex::new(());
 
-// Asks the present hook for the distribution of its frame intervals since the last call. Waits up to 150 ms for
-// the answer (the hook answers on its next present), so it is never called on the UI thread.
+// present interval distribution since the last call. blocks up to 150 ms, never call on the UI thread
 pub fn take_present_intervals() -> Option<(u64, u64, u64, u64, u64)> {
     let _one_at_a_time = STATS_REQUEST_LOCK.lock().unwrap();
     let (request_field, ack) = (shared!(stats_request)?, shared!(stats_ack)?);
@@ -111,7 +95,6 @@ pub fn take_present_intervals() -> Option<(u64, u64, u64, u64, u64)> {
         }
         std::thread::sleep(std::time::Duration::from_millis(1));
     }
-    // after the Acquire above: the payload the hook wrote before its Release of this ack
     Some((
         shared!(present_p50_ns)?.load(Ordering::Relaxed),
         shared!(present_p99_ns)?.load(Ordering::Relaxed),
@@ -121,7 +104,7 @@ pub fn take_present_intervals() -> Option<(u64, u64, u64, u64, u64)> {
     ))
 }
 
-// (fps, frame_ns) as published by the present hook
+// (fps, frame_ns) from the present hook
 pub fn render_stats() -> Option<(u64, u64)> {
     Some((shared!(fps)?.load(Ordering::Relaxed), shared!(frame_ns)?.load(Ordering::Relaxed)))
 }
@@ -130,7 +113,6 @@ pub static DISCORD: Mutex<Option<DiscordIpcClient>> = Mutex::new(None);
 
 static FLAGS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
-// the select options of cSettings.json mapped to what chromium accepts
 fn angle_backend_switch(option: &str) -> Option<&'static str> {
     match option {
         "D3D11" => Some("d3d11"),
@@ -165,10 +147,16 @@ pub fn load_flags() {
     if let Some(profile) = color_profile_switch(&config("colorProfile", "Default".to_string())) {
         flags.push(format!("--force-color-profile={profile}"));
     }
-    // our libcef (resources/cef, patch 03): chromium keeps the movement of raw mouse packets that also carry a button
-    // or wheel change and takes no button state from them, so input.rs no longer drops those packets. a
-    // --disable-features=KuteRawInputMovementOnly in user_flags.json brings the old way back, the filter included
+    // websockets skip the resource handler, so kute.lol must not even resolve. live toggles are covered by the bundle and blocklist.rs
+    if config("disableOnlineFeatures", false) {
+        flags.push("--host-resolver-rules=MAP kute.lol ~NOTFOUND, MAP *.kute.lol ~NOTFOUND".to_string());
+    }
+    // patch 03 of our libcef. disable it in user_flags.json to get the old input.rs WM_INPUT filter back
     flags.push("--enable-features=KuteRawInputMovementOnly".to_string());
+    // patch 04, off by default: trades a little panning precision for audio thread time (patches/README.md)
+    if config("audioFix", false) {
+        flags.push("--enable-features=KuteAudioPannerPerQuantum".to_string());
+    }
     *FLAGS.lock().unwrap() = flags;
 }
 
@@ -176,7 +164,7 @@ pub fn has_flag(wanted: &str) -> bool {
     FLAGS.lock().unwrap().iter().any(|flag| flag == wanted)
 }
 
-// whether a chromium feature ends up enabled by our flags (a --disable-features entry wins, like in chromium)
+// --disable-features wins, like in chromium
 pub fn feature_enabled(name: &str) -> bool {
     let listed = |switch: &str| {
         FLAGS
@@ -230,7 +218,7 @@ pub fn prepare_profile() {
     }
 }
 
-// chromium allows one browser process per profile, so a bench run gets its own
+// one browser process per profile, so bench gets its own
 fn cache_dir() -> std::path::PathBuf {
     if modules::bench::active() {
         modules::bench::profile_dir()
@@ -243,7 +231,7 @@ pub fn settings() -> Settings {
     let cache_dir = cache_dir();
     let log_file = utils::settings_dir().join("cef_debug.log");
     Settings {
-        // a normal exe cannot host CEF's windows sandbox (that needs the bootstrap.exe model)
+        // a plain exe can't host the sandbox, needs the bootstrap.exe model
         no_sandbox: 1,
         // krunker gates client features on this user agent
         user_agent: CefString::from("Electron"),
@@ -264,7 +252,7 @@ pub fn settings() -> Settings {
     }
 }
 
-// shares the global storage (same cache_path) but carries our handler, which the global context cannot
+// same storage as the global context, but with our handler (the global one can't have one)
 pub fn request_context() -> Option<RequestContext> {
     let cache_dir = cache_dir();
     let settings = RequestContextSettings {
@@ -286,7 +274,7 @@ pub fn browser_settings() -> BrowserSettings {
     }
 }
 
-// --disable-features and --enable-features are merged with what CEF already set
+// merge with what cef already set
 fn merge_list_switch(cmd: &mut CommandLine, key: &str, value: &str) {
     let name = CefString::from(key);
     let existing = if cmd.has_switch(Some(&name)) != 0 {
@@ -326,7 +314,7 @@ wrap_browser_process_handler! {
             if config("checkUpdates", true) {
                 std::thread::spawn(|| {
                     modules::lifecycle::check_major_update();
-                    // the renderer reads resources/bundle.js on every page load, so a new bundle applies on the next navigation
+                    // new bundle applies on the next navigation
                     modules::lifecycle::check_minor_update();
                 });
             }
@@ -347,7 +335,7 @@ wrap_app! {
         }
 
         fn on_before_command_line_processing(&self, process_type: Option<&CefString>, command_line: Option<&mut CommandLine>) {
-            // subprocesses inherit the browser's switches
+            // subprocesses inherit the switches
             if !process_type.map(|t| t.to_string().is_empty()).unwrap_or(true) {
                 return;
             }
@@ -361,9 +349,8 @@ wrap_app! {
                     None => cmd.append_switch(Some(&CefString::from(flag))),
                 }
             }
-            // mirrors SetIsPinchZoomEnabled(false)
             cmd.append_switch(Some(&CefString::from("disable-pinch")));
-            // chromium's startup browser creator would restore the last session in its own window
+            // otherwise chromium restores the last session in its own window
             cmd.append_switch(Some(&CefString::from("no-startup-window")));
             cmd.append_switch(Some(&CefString::from("hide-crash-restore-bubble")));
         }

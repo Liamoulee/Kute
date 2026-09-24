@@ -1,9 +1,6 @@
 import { kute } from "../client.js";
 
 /**
- * Shows the about popup: logo, version, links and credits.
- * The links go through the host, which opens them in the user's default browser.
- *
  * @return {Promise<void>}
  */
 async function showAboutPopup(){
@@ -42,9 +39,6 @@ async function showAboutPopup(){
 
     const closeController = new AbortController();
 
-    /**
-     * Removes the popup and its key listener.
-     */
     const close = () => {
         closeController.abort();
         overlay.remove();

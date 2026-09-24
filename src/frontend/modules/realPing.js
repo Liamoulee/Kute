@@ -1,9 +1,7 @@
 import { kute } from "../client.js";
 import { waitForElement } from "../utils.js";
 
-/**
- * Replaces the ping display with an ICMP ping measured by the host.
- */
+// ping display shows the host's icmp ping instead of the game's
 class RealPing {
     constructor(){
         /** @type {HTMLElement|null} */
@@ -20,8 +18,6 @@ class RealPing {
     }
 
     /**
-     * Blocks the game from overwriting the element's text.
-     *
      * @param {HTMLElement|null} element
      */
     applyPingDisplay(element){
@@ -51,7 +47,7 @@ class RealPing {
             this.listener = (event) => {
                 const ping = event.data?.pingInfo;
                 if (!ping) return;
-                // innerText, because textContent is what the game writes to and is blocked on these two
+                // innerText since textContent is blocked here
                 ingamePing.innerText = ping;
                 menuPing.innerText = ping;
             };
@@ -62,7 +58,6 @@ class RealPing {
             if (this.listener) window.chrome.webview.removeEventListener("message", this.listener);
             this.interval = null;
             this.listener = null;
-            // drop the instance overrides so the prototype's textContent works again
             Reflect.deleteProperty(ingamePing, "textContent");
             Reflect.deleteProperty(menuPing, "textContent");
         }

@@ -1,6 +1,6 @@
 #kuteNukeCounter {
 	position: absolute;
-	/* the anchor it hangs from. where it actually sits is the HUD editor's translate on top of this */
+	/* anchor only, the HUD editor translates from here */
 	left: 94%;
 	top: 50%;
 	transform: translate(-50%, -50%);
@@ -16,7 +16,6 @@
 	text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.9);
 }
 
-/* the counter belongs to the match, not to the menu that covers it */
 #uiBase.onMenu #kuteNukeCounter {
 	display: none;
 }

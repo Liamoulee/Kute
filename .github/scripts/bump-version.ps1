@@ -1,5 +1,4 @@
-# Bumps the client version in Cargo.toml, Cargo.lock, package.json and resources/installer_script.wxs.
-# Prints the resulting version. "none" changes nothing and prints the current one.
+# prints the new version, "none" just prints the current one
 param(
     [ValidateSet("patch", "minor", "major", "none")]
     [string]$Bump = "patch",

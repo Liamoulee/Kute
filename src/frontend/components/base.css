@@ -90,7 +90,6 @@ div #setHed_local,
 	opacity: 1 !important;
 }
 
-/* the button grid above the client settings (settings.js) */
 .kuteTopButtons {
 	display: grid;
 	grid-template-columns: 1fr 1fr;
@@ -134,7 +133,6 @@ div #setHed_local,
 	--kute-top: #ff8a1f;
 }
 
-/* explains the stars behind setting names, in the first folder header (settings.js) */
 .kuteLegend {
 	float: right;
 	margin-right: 8px;
@@ -144,4 +142,12 @@ div #setHed_local,
 
 .kuteLegend span {
 	margin-left: 12px;
+}
+
+/* beats krunker's #menuWindow.dark div */
+#menuWindow .settName .kuteDesc {
+	margin-top: 2px;
+	color: rgba(255, 255, 255, 0.45);
+	font-size: 15px;
+	line-height: 1.3;
 }

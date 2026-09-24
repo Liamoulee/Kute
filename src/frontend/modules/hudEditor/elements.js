@@ -1,19 +1,16 @@
 /**
- * The HUD widgets the editor knows about, in panel order.
- *
- * Every id was read off live matches (FFA, deposit and hardpoint private lobbies
- * A widget whose element is missing is skipped, so a renamed id costs that one row and nothing else.
+ * HUD widgets in panel order. Ids taken from live FFA, deposit and hardpoint lobbies, a missing one is skipped.
  *
  * @typedef {object} HudElement
  * @property {string} key Stored in the layout setting, never changes
  * @property {string} name Shown in the panel and on the outline
  * @property {string} group Panel group, consecutive entries of one group form a section
  * @property {string} selector What gets moved
- * @property {string} [rule] The selector the CSS rule is written with, when it has to be narrower than `selector`
- * @property {string} [setting] Krunker setting that hides it (localStorage kro_setngss_<setting>, written with setSetting)
+ * @property {string} [rule] Narrower selector for the CSS rule
+ * @property {string} [setting] Krunker setting that hides it (localStorage kro_setngss_<setting>)
  * @property {string} [clientSetting] Kute setting that hides it, for our own widgets
- * @property {string} [display] The display value the game gives it, so the snapshot can measure it while it is hidden
- * @property {[number, number]} [size] Fallback box size when the widget was empty when the snapshot was taken
+ * @property {string} [display] Game's display value, used to measure it while hidden
+ * @property {[number, number]} [size] Fallback size when it was empty at snapshot time
  * @property {string} [note] Shown next to the name in the panel
  */
 
@@ -41,7 +38,7 @@ export const HUD_ELEMENTS = [
     { key: "leaderboard", name: "Leaderboard", group: "Feed", selector: "#leaderboardHolder", size: [327, 54] },
     { key: "centerLeader", name: "Center leaderboard", group: "Feed", selector: "#centerLeaderDisplay", display: "block", size: [300, 120], note: "comp" },
     { key: "killFeed", name: "Kill feed", group: "Feed", selector: "#killFeed", setting: "showKills", display: "inline-grid", size: [240, 120] },
-    // the chat holder is the menu's chat as well, so only the in game one is moved
+    // chatHolder is also the menu chat, only move the in-game one
     { key: "chat", name: "Chat", group: "Feed", selector: "#chatHolder", rule: "#uiBase.onGame #chatHolder", size: [386, 248] },
 
     { key: "weapons", name: "Weapons", group: "Combat", selector: "#weapHolder", size: [127, 203] },
@@ -60,7 +57,7 @@ export const HUD_ELEMENTS = [
 ];
 
 /**
- * Reads a Krunker setting the way the game stores it, without asking the game for it.
+ * Reads a krunker setting straight from localStorage, without touching game code.
  *
  * @param {string} key
  * @return {boolean}

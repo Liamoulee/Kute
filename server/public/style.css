@@ -1,5 +1,4 @@
-/* Windows and macOS render the headings in their own Arial Black. Everything else (Android, Linux) gets this
-   look-alike, otherwise the tight letter spacing makes the outlined letters overlap */
+/* win/mac use their own Arial Black, everything else gets this look-alike or the outlined letters overlap */
 @font-face {
   font-family: "Archivo Black";
   font-style: normal;
@@ -51,7 +50,7 @@ body {
   line-height: 1.5;
 }
 
-/* the tilted marquee is wider than the page, clip keeps sticky positions working */
+/* marquee is wider than the page, clip (not hidden) keeps sticky working */
 main {
   overflow-x: clip;
 }
@@ -742,7 +741,6 @@ h2 {
   line-height: 1.6;
 }
 
-/* a short heads-up under a card's text */
 .perf-body p.perf-note {
   margin-top: 0.9rem;
   padding-left: 0.7rem;
