@@ -2,24 +2,22 @@ import { kute } from "../client.js";
 import { waitForElement } from "../utils.js";
 
 /**
- * Parameters of a host-comp launch argument (action=host-comp&...).
+ * action=host-comp&... launch arg
  *
  * @typedef {object} CompHostParams
- * @property {string} mapId Map element id or map name
+ * @property {string} mapId map element id or map name
  * @property {string} team1Name
  * @property {string} team2Name
  * @property {string} teamSize "1v1".."4v4" or a raw select value
  * @property {string} [team1Players]
  * @property {string} [team2Players]
  * @property {string} [spectators]
- * @property {string} [classes] JSON object of gun name to class limit
- * @property {string} [webhook] URI-encoded webhook url
- * @property {string} [region] Region short code, see changeRegion
+ * @property {string} [classes] json, gun name -> class limit
+ * @property {string} [webhook] uri encoded
+ * @property {string} [region] short code, see changeRegion
  */
 
 /**
- * Fills in and creates a comp host lobby from launch parameters.
- *
  * @param {CompHostParams} params
  * @return {Promise<void>}
  */
@@ -131,9 +129,7 @@ const automateCompHost = async(params) => {
 };
 
 /**
- * Switches the game region through the settings window, falling back to setSetting when the select is missing.
- *
- * @param {string} region Short code (FRA, SV, ...) or a raw region value
+ * @param {string} region short code (FRA, SV, ...) or a raw region value
  * @return {Promise<void>}
  */
 const changeRegion = async(region) => {
@@ -180,10 +176,7 @@ const changeRegion = async(region) => {
     window.showWindow(1);
 };
 
-// helper to parse query into objects
 /**
- * Parses a query string (with or without the leading path) into an object.
- *
  * @param {string} str
  * @return {Record<string, string>}
  */
@@ -200,9 +193,9 @@ if (pendingParams){
 }
 
 /**
- * Handles launch arguments passed by the host, either at startup or from a second instance.
+ * startup args, or the ones a second instance forwarded
  *
- * @param {string} args Space separated arguments
+ * @param {string} args space separated
  * @return {Promise<void>}
  */
 kute.parseArgs = async(args) => {

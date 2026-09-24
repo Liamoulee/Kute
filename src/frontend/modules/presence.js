@@ -1,16 +1,16 @@
 import { kute } from "../client.js";
 import api from "./api.js";
 
-/** seconds until the next try after a lost connection, then it stays quiet until the next page load */
+/** reconnect delays, then quiet until the next page load */
 const RECONNECT_S = [2, 4, 8, 16, 30];
-/** how often login and lobby get looked at. one id lookup and one call into the game, about a microsecond */
+/** login/lobby check interval, costs about a microsecond */
 const SYNC_MS = 2000;
 const STABLE_MS = 30000;
-/** how long the host gets to answer a developer proof before the join goes out without one */
+/** join goes out without a dev proof after this */
 const PROOF_MS = 1000;
 
 /**
- * @return {string} The lobby this page is in while an account is logged in, otherwise ""
+ * @return {string} current lobby while logged in, else ""
  */
 function currentGame(){
     if (document.getElementById("signedInHeaderBar") === null) return "";
@@ -19,7 +19,7 @@ function currentGame(){
 }
 
 /**
- * @return {string} The name the lists show for this player (the display name, not the account name)
+ * @return {string} display name (what the lists show), not the account name
  */
 function ownName(){
     const user = window.getGameActivity?.()?.user;
@@ -38,8 +38,7 @@ export async function playerHash(game, name){
 }
 
 /**
- * Asks the host for the proof that this PC holds a developer token. The token never enters the page, only the
- * answer does, and only a reply carrying our own nonce counts. Resolves to null when there is nothing to prove.
+ * asks the host to prove this pc has a dev token. the token never enters the page
  *
  * @param {string} nonce
  * @param {string} game
@@ -54,13 +53,13 @@ function devProof(nonce, game, hash){
          */
         const listener = (event) => {
             const reply = event?.data?.devProof;
-            // a reply to somebody else's request, or to one from an older connection
+            // someone else's request or an older connection
             if (reply?.nonce !== nonce) return;
             clearTimeout(timer);
             window.chrome.webview.removeEventListener("message", listener);
             resolve(typeof reply.user === "string" && typeof reply.proof === "string" ? { user: reply.user, proof: reply.proof } : null);
         };
-        // an exe without the command never answers, and the join must not wait for it
+        // old exes never answer
         timer = setTimeout(() => {
             window.chrome.webview.removeEventListener("message", listener);
             resolve(null);
@@ -72,21 +71,18 @@ function devProof(nonce, game, hash){
 
 class Presence {
     constructor(){
-        /** the lobby the roster belongs to, "" while not joined */
         this.game = "";
-        /** @type {Set<string>} hashes of the Kute players in this lobby, the own one included */
+        /** @type {Set<string>} kute player hashes in this lobby, own one included */
         this.roster = new Set();
-        /** @type {Map<string, string>} the developers among them, hash -> the clan tag their row must show */
+        /** @type {Map<string, string>} dev hash -> clan tag their row must show */
         this.devs = new Map();
-        /** what the server opened this connection with, "" until its first frame arrived */
         this.nonce = "";
-        /** @type {Set<() => void>} called whenever the roster changed */
+        /** @type {Set<() => void>} */
         this.listeners = new Set();
         /** @type {WebSocket | null} */
         this.socket = null;
         this.failures = 0;
         this.timer = 0;
-        /** what the last join said, so the same thing is not sent twice */
         this.joined = "";
 
         api.available().then((available) => {
@@ -100,12 +96,11 @@ class Presence {
         this.socket = socket;
 
         socket.addEventListener("open", () => {
-            // only a connection that lasts counts as working: a server that accepts and closes right away
-            // (too many sockets from this address) must not be retried forever
+            // only a lasting connection resets the backoff, a server that closes right away (too many sockets) must not be retried forever
             setTimeout(() => {
                 if (this.socket === socket) this.failures = 0;
             }, STABLE_MS);
-            // the server counts a client once in its life, and only the client knows whether that happened
+            // server counts a client once ever, only the client knows if that happened
             socket.send(JSON.stringify(kute.settings.data.counted === true ? { t: "hi" } : { t: "hi", first: true }));
             this.sync();
             this.timer = setInterval(() => this.sync(), SYNC_MS);
@@ -122,9 +117,6 @@ class Presence {
         });
     }
 
-    /**
-     * Tells the server when the lobby, the name or the login changed.
-     */
     async sync(){
         const game = currentGame();
         const name = game ? ownName() : "";
@@ -137,9 +129,8 @@ class Presence {
             return;
         }
         const hash = await playerHash(game, name);
-        // the login may have changed again while the hash was being made
+        // login may have changed while hashing
         if (this.joined !== wanted) return;
-        // only a PC that holds a developer token has anything to prove, everybody else joins right away
         const dev = kute.dev === true && this.nonce ? await devProof(this.nonce, game, hash) : null;
         if (this.joined !== wanted) return;
         this.send(dev ? { t: "join", game, hash, dev } : { t: "join", game, hash });
@@ -167,11 +158,11 @@ class Presence {
             this.nonce = message.nonce;
         }
         else if (message?.t === "roster" && typeof message.game === "string" && Array.isArray(message.players)){
-            // an answer to a join that is not the current one anymore
+            // skip answers to an outdated join
             if (this.joined.startsWith(message.game + "\n")) this.setRoster(message.game, message.players);
         }
         else if (message?.t === "+" && typeof message.h === "string"){
-            // an upsert: the developer flag belongs to the hash and can change while it stays in the lobby
+            // upsert, the dev flag can change while the hash stays
             this.remember(message.h, message.d === 1 ? message.c : undefined);
             this.changed();
         }
@@ -187,7 +178,7 @@ class Presence {
     }
 
     /**
-     * Puts a player into the roster, as a developer when clan is the tag their row shows.
+     * clan set = developer, it's the tag their row shows
      *
      * @param {string} hash
      * @param {unknown} clan
@@ -207,7 +198,7 @@ class Presence {
         this.game = game;
         this.roster = new Set();
         this.devs = new Map();
-        // an entry is ["<hash>", 0], or ["<hash>", 1, {c: "<clan tag>"}] for a developer
+        // ["<hash>", 0], or ["<hash>", 1, {c: "<clan tag>"}] for a dev
         for (const player of players){
             if (Array.isArray(player) && typeof player[0] === "string") this.remember(player[0], player[1] === 1 ? player[2]?.c : undefined);
         }

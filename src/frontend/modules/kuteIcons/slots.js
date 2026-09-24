@@ -1,30 +1,21 @@
-/**
- * Kute icons: which icons there are, and which URLs the game may ask for in each of them.
- *
- * The host answers those requests with our images (`src/modules/icons.rs` holds the game's own assets per slot).
- * What the player pointed a slot at themselves is only readable here, so this file sends it over as `icon-urls`.
- * It is small and imported by main.js on purpose: it runs before any page script, so the host knows these URLs
- * before the game asks for the images.
- */
+// imported by main.js so it runs before the game asks for the images
 
 /**
- * A Krunker setting that can hide an icon.
- *
  * @typedef {object} HidingSetting
  * @property {string} id
- * @property {string} name As the settings list shows it
- * @property {"checkbox"|"opacity"} kind A checkbox hides it when off, an opacity at 0
+ * @property {string} name as the settings list shows it
+ * @property {"checkbox"|"opacity"} kind hides when off / at 0
  */
 
 /**
  * @typedef {object} IconSlot
- * @property {string} id Matches the slot in icons.rs
+ * @property {string} id matches the slot in icons.rs
  * @property {string} file
  * @property {string} name
- * @property {string[]} settings Krunker settings holding an image URL of the player's own
- * @property {string[]} [keys] Plain localStorage keys holding one URL (the loadout, which is not a setting)
- * @property {string[]} [lists] Plain localStorage keys holding [[name, url], ...]
- * @property {string} [element] The HUD image that shows it in a match
+ * @property {string[]} settings krunker settings holding a custom image url
+ * @property {string[]} [keys] localStorage keys holding one url (loadout, not a setting)
+ * @property {string[]} [lists] localStorage keys holding [[name, url], ...]
+ * @property {string} [element] hud image in a match
  * @property {HidingSetting[]} hiddenBy
  */
 
@@ -76,8 +67,7 @@ export const SLOTS = [
             { id: "hitOpac", name: "Hitmarker: Opacity", kind: "opacity" },
         ],
     },
-    // the reticle and the scope live in the loadout: "savedReticle"/"savedScope" hold the equipped URL and
-    // krk_custRet/krk_custScps the ones the player added by URL
+    // loadout: savedReticle/savedScope = equipped url, krk_custRet/krk_custScps = ones added by url
     { id: "reticle", file: "reticle.png", name: "Reticle", settings: [], keys: ["savedReticle"], lists: ["krk_custRet"], element: "aimDot", hiddenBy: [] },
     {
         id: "scope",
@@ -91,7 +81,7 @@ export const SLOTS = [
     },
 ];
 
-/** How many entries of one loadout list are taken, so the map stays small. */
+/** keeps the map small */
 const LIST_LIMIT = 30;
 
 /**
@@ -108,7 +98,7 @@ function stored(key){
 }
 
 /**
- * The URLs in one of Krunker's `[[name, url], ...]` lists.
+ * urls from krunker's `[[name, url], ...]` lists
  *
  * @param {string} key
  * @return {string[]}
@@ -125,12 +115,8 @@ function listEntries(key){
     }
 }
 
-/** The last map sent, so nothing is sent twice. */
 let posted = "";
 
-/**
- * Tells the host which URLs belong to which slot. Only sends when something changed.
- */
 export function postUrls(){
     /** @type {Record<string, string[]>} */
     const urls = {};
@@ -140,7 +126,7 @@ export function postUrls(){
         for (const setting of slot.settings) list.push(stored(`kro_setngss_${setting}`) ?? "");
         for (const key of slot.keys ?? []) list.push(stored(key) ?? "");
         for (const key of slot.lists ?? []) list.push(...listEntries(key));
-        // what the HUD really shows covers what no setting names, an equipped skin for one
+        // the hud image catches what no setting names, e.g. an equipped skin
         const element = slot.element ? document.getElementById(slot.element) : null;
         if (element instanceof HTMLImageElement) list.push(element.src);
         const theirs = [...new Set(list)].filter((url) => url.startsWith("http"));

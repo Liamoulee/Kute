@@ -18,10 +18,10 @@ import { openManagerPopup, makeDropTarget, readBase64, askText, askConfirm, host
  * @property {{ name: string, path: string, size: number }[]} files
  */
 
-// the host takes a message of up to 48 MB, which is this much file once it is base64
+// host message cap is 48 MB, this is that after base64
 const MAX_FILE_SIZE = 32 * 1024 * 1024;
 
-// the game tree gets long (a few thousand files after some matches), a search shows at most this many
+// game tree grows to thousands of files, cap search results
 const MAX_SEARCH_ROWS = 400;
 
 /**
@@ -114,7 +114,7 @@ class SwapperManager {
         this.expandedGame = new Set();
         this.search = "";
         this.changed = false;
-        /** @type {((error: string|null) => void)|null} resolves when the host saved the upload on its way */
+        /** @type {((error: string|null) => void)|null} resolves once the host saved the current upload */
         this.uploadDone = null;
     }
 
@@ -129,7 +129,7 @@ class SwapperManager {
         const { shadow, signal } = this.popup;
         signal.addEventListener("abort", () => {
             this.popup = null;
-            // an upload in flight when the popup closes ends the loop, which checks for the popup
+            // unblock a pending upload so its loop sees the popup is gone
             this.uploadDone?.(null);
             this.uploadDone = null;
         });
@@ -157,8 +157,7 @@ class SwapperManager {
     }
 
     /**
-     * Saves dropped files into `folder`, keeping the folders that were dropped along. A dropped "swapper" folder on
-     * the root is taken for what it is, a swapper pack, and its contents go to the root.
+     * A "swapper" folder dropped on root is a pack and gets unwrapped.
      *
      * @param {string} folder
      * @param {import("./popup.js").DroppedFile[]} files
@@ -172,7 +171,7 @@ class SwapperManager {
     }
 
     /**
-     * A single file dropped onto one of the game's files takes exactly that path and name.
+     * One file dropped on a game file takes its exact path.
      *
      * @param {string} gamePath
      * @param {import("./popup.js").DroppedFile[]} files
@@ -208,8 +207,7 @@ class SwapperManager {
                 problems.push(`${path}: larger than 32 MB, put it in with Open swapper folder`);
                 continue;
             }
-            // one file at a time: the next is only read once the host saved this one, so a big pack never sits in
-            // memory as a queue of base64 strings
+            // one at a time so a big pack never piles up as base64 in memory
             const data = await readBase64(file);
             const error = await new Promise((resolve) => {
                 this.uploadDone = resolve;
@@ -218,7 +216,7 @@ class SwapperManager {
             if (error) problems.push(error);
         }
         this.changed = true;
-        // one list at the end instead of one per file: it rereads the folder and rebuilds the index
+        // list once at the end, it rereads the folder and rebuilds the index
         this.send("list", {});
         if (problems.length) this.popup?.showError(problems.join("\n"));
     }
@@ -366,7 +364,6 @@ class SwapperManager {
             iconButton("delete", "Delete (goes to the recycle bin)", () => this.remove(file.path), "danger"),
         );
         row.append(actions);
-        // a drop onto a file lands next to it
         makeDropTarget(row, (files) => this.drop(dirName(file.path), files));
         return row;
     }
@@ -466,7 +463,4 @@ class SwapperManager {
 
 const manager = new SwapperManager();
 
-/**
- * Opens the swapper manager.
- */
 export const open = () => manager.open();

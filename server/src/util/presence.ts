@@ -8,12 +8,11 @@ import type { Developer } from "./developers";
 const MAX_PLAYERS_PER_GAME = 64;
 const MAX_GAMES = 20000;
 
-/** "NY:abcde", "FRA:ab12c": a short region code, a colon, a short id */
+/** region:id, e.g. "NY:abcde" */
 const GAME_ID = /^[A-Za-z0-9]{1,8}:[A-Za-z0-9]{1,16}$/;
 /** 16 bytes of sha256 as lowercase hex */
 const PLAYER_HASH = /^[0-9a-f]{32}$/;
 
-/** one connection, as far as the rooms care */
 export type Member = {
     send: (text: string) => void;
     /** "" while the connection is in no game */
@@ -23,7 +22,7 @@ export type Member = {
     dev: Developer | null;
 };
 
-/** what one player looks like to the others */
+/** [hash, 0] or [hash, 1, {c: clan}] for a dev */
 type Entry = [string, 0] | [string, 1, { c: string }];
 
 const games = new Map<string, Set<Member>>();
@@ -40,10 +39,7 @@ function entry(hash: string, dev: Developer | null): Entry {
     return dev ? [hash, 1, { c: dev.clan }] : [hash, 0];
 }
 
-/**
- * What the others should see for this hash right now, null when nobody in the game holds it. A developer
- * wins over an ordinary member carrying the same hash.
- */
+// a dev wins over a plain member with the same hash
 function entryOf(players: Set<Member>, hash: string): Entry | null {
     let held = false;
     for (const other of players){
@@ -54,12 +50,12 @@ function entryOf(players: Set<Member>, hash: string): Entry | null {
     return held ? entry(hash, null) : null;
 }
 
-/** "+" is an upsert on the client: hash and flag, whether it is new or changed */
+/** "+" is an upsert on the client */
 function plus(value: Entry): object {
     return value[1] === 1 ? { t: "+", h: value[0], d: 1, c: value[2].c } : { t: "+", h: value[0], d: 0 };
 }
 
-/** entries are two or three plain values, and this runs on a join or a leave, never in a loop over players */
+/** entries are tiny and this only runs per join/leave */
 function same(a: Entry | null, b: Entry | null): boolean {
     return JSON.stringify(a) === JSON.stringify(b);
 }
@@ -71,9 +67,6 @@ function broadcast(players: Set<Member>, except: Member, message: object): void 
     }
 }
 
-/**
- * Takes the member out of its game and tells the others.
- */
 export function leave(member: Member): void {
     const { game } = member;
     member.game = "";
@@ -84,15 +77,12 @@ export function leave(member: Member): void {
         return;
     }
     const after = entryOf(players, member.hash);
-    // gone for good, or a twin stays behind. a developer leaving a twin behind takes the flag with them
+    // gone for good, or a twin stays. a dev leaving a twin takes the flag along
     if (!after) broadcast(players, member, { t: "-", h: member.hash });
     else if (member.dev) broadcast(players, member, plus(after));
 }
 
-/**
- * Puts the member into a game (leaving the one it was in), sends it the roster and tells the others.
- * A full game or a full server answers with a roster of one: the client works, it just sees nobody.
- */
+// a full game or server gets a roster of one
 export function join(member: Member, game: string, hash: string, dev: Developer | null): void {
     if (member.game) leave(member);
     member.hash = hash;

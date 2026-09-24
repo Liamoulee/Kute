@@ -15,9 +15,6 @@ externalQueue.style = `background-color: #5ce05a;
 	margin-left: 2px;`;
 
 const origRanked = window.openRankedMenu;
-/**
- * Wraps Krunker's openRankedMenu to add the external queue button to its footer.
- */
 window.openRankedMenu = () => {
     origRanked();
     const footer = getElement(".footer-controls");
@@ -25,9 +22,6 @@ window.openRankedMenu = () => {
     footer.insertBefore(externalQueue, lastChild);
 };
 
-/**
- * Opens the ranked queue in a separate popup window, passing region and auth token to it.
- */
 function openExtQueue(){
     const screenWidth = window.screen.width;
     const screenHeight = window.screen.height;
@@ -61,8 +55,7 @@ function openExtQueue(){
     token = token.replace(/"/g, "");
     token = token.replace("/", "");
     const allRegions = localStorage.getItem("s_rankedAllRegions") === "true";
-    // the window is about:blank, so it cannot load anything of ours: markup, script and sound get handed over.
-    // all three only get touched when somebody opens the queue
+    // popup is about:blank, so markup, script and sound get handed over. lazy loaded
     Promise.all([
         import("../components/queue/index.html"),
         import("popup-script:../components/queue/queue.js"),
@@ -74,7 +67,7 @@ function openExtQueue(){
         queueWindow.document.head.append(...Array.from(doc.head.children, (child) => queueWindow.document.importNode(child, true)));
         queueWindow.document.body.append(...Array.from(doc.body.children, (child) => queueWindow.document.importNode(child, true)));
 
-        // last, the script looks its elements up as it starts. made by the popup's own document so it runs there
+        // script last, it looks up its elements on start. created by the popup's document so it runs there
         const script = queueWindow.document.createElement("script");
         script.textContent = code.default;
         queueWindow.document.head.append(script);

@@ -3,9 +3,7 @@ import { getElement, getInput, checkCompMode, waitForElement, request } from "..
 import { confirmPopup } from "./confirmPopup.js";
 
 /**
- * An entry as the page knows it: the host keeps the credentials (DPAPI encrypted in Documents\kute\accounts.json)
- * and only ever sends names and colors. A login is filled into Krunker's form by the host over CDP, so no
- * password crosses the bridge, which every script on the page could listen to.
+ * host keeps the credentials, the page only ever gets names and colors
  *
  * @typedef {object} Account
  * @property {string} username
@@ -13,8 +11,6 @@ import { confirmPopup } from "./confirmPopup.js";
  */
 
 /**
- * What the bundle stored before the host took over: obfuscated with {@link legacyDecode}'s inverse in localStorage.
- *
  * @typedef {object} LegacyAccount
  * @property {string} username
  * @property {string} password
@@ -23,17 +19,14 @@ import { confirmPopup } from "./confirmPopup.js";
 
 const LEGACY_KEY = "accounts";
 const DEFAULT_COLOR = "#35e0e8";
-// krunker's own words when the page is logged in as someone else than the game session started with
 const STALE_SESSION = /different account/i;
-// the popup comes right after the login or not at all, so the watch is short
+// popup shows right after login or never
 const WATCH_MS = 30000;
-// ours, in sessionStorage: a second hop right after one would be a loop and never a fix
+// sessionStorage, stops hop loops
 const HOP_KEY = "kute_account_hop";
 const HOP_QUIET_MS = 15000;
 
 /**
- * Reverses the old obfuscation (every char code shifted by the string length, then URL encoded).
- *
  * @param {string} encoded
  * @return {string}
  */
@@ -47,8 +40,6 @@ function legacyDecode(encoded){
 }
 
 /**
- * The old obfuscation, only for an exe that does not know the account commands yet.
- *
  * @param {string} decoded
  * @return {string}
  */
@@ -75,8 +66,6 @@ function legacyAccounts(){
 }
 
 /**
- * The stored color, or the client's cyan when an old entry carries something else.
- *
  * @param {string|undefined} color
  * @return {string}
  */
@@ -85,8 +74,6 @@ function safeColor(color){
 }
 
 /**
- * Black or white, whichever stays readable on the picked color.
- *
  * @param {string} color "#rrggbb"
  * @return {string}
  */
@@ -99,8 +86,6 @@ function readableOn(color){
 }
 
 /**
- * The round color chip in front of a name, Krunker has no avatars to show.
- *
  * @param {HTMLElement} avatar
  * @param {string} color
  * @param {string} username
@@ -112,10 +97,6 @@ function paintAvatar(avatar, color, username){
     avatar.textContent = username.trim().slice(0, 1) || "?";
 }
 
-/**
- * Adds an "Accounts" button that lets the user save and switch between login credentials.
- * The button lives in the signed-out header, the signed-in header or the comp host UI, whichever is shown.
- */
 class AccountManager {
     constructor(){
         /** @type {HTMLDivElement} */
@@ -125,7 +106,6 @@ class AccountManager {
         this.button.style.cssText =
             "display: block; padding-top: 7px; padding-bottom: 22px; font-size: 25px!important; padding-bottom: 22px; margin-top: 7px; height: 21px; line-height: 35px; width: 162px; font-size:20px!important; margin-left: 3px;";
 
-        // signed-in header entry, styled like krunker's own .ph-item entries
         /** @type {HTMLDivElement} */
         this.headerSeparator = document.createElement("div");
         this.headerSeparator.style.cssText = "width: 4px; height: 35px; margin: 0 6px; background: rgba(255, 255, 255, 0.12); flex-shrink: 0;";
@@ -141,26 +121,24 @@ class AccountManager {
             this.trackAccount();
         });
 
-        /** the account krunker is logged in as, "" while logged out. empty here means the page loaded logged out */
         this.sessionAccount = localStorage.getItem("krunker_username") ?? "";
-        /** true while the stale session popup is being waited for */
         this.watching = false;
-        /** @type {(() => void)|null} ends that wait early */
+        /** @type {(() => void)|null} */
         this.stopWatching = null;
 
-        /** The open menu, or null. Its markup lives in a shadow root so the page's ids and css cannot reach it. */
+        // shadow root so krunker's ids and css can't reach the menu
         /** @type {HTMLDivElement|null} */
         this.overlay = null;
         /** @type {ShadowRoot|null} */
         this.shadow = null;
         /** @type {AbortController|null} */
         this.menuController = null;
-        /** true while the remove question is up, so escape answers that one and not the menu */
+        /** remove confirm is up, escape belongs to it */
         this.asking = false;
 
         /** @type {Account[]} */
         this.accounts = [];
-        /** true once the host turned out to be an older exe without the account commands: localStorage as before */
+        /** old exe without the account commands, localStorage fallback */
         this.legacy = false;
 
         kute.settings.toggleAccountManager = (enabled) => this.toggle(enabled);
@@ -169,10 +147,6 @@ class AccountManager {
         this.load();
     }
 
-    /**
-     * Gets the list from the host. The first time, the entries the bundle used to keep in localStorage go to the
-     * host and are deleted here once it confirms. An exe without the commands keeps the old localStorage way.
-     */
     async load(){
         const legacy = legacyAccounts();
         let accounts = null;
@@ -197,8 +171,6 @@ class AccountManager {
     }
 
     /**
-     * Sends an account command and takes the list the host answers with.
-     *
      * @param {string} command "add", "remove" or "login"
      * @param {object} payload
      */
@@ -210,8 +182,6 @@ class AccountManager {
     }
 
     /**
-     * Moves the button into the comp host UI once a comp match is detected.
-     *
      * @param {MessageEvent} event
      */
     gameUpdateListener = (event) => {
@@ -243,7 +213,7 @@ class AccountManager {
             }
             else {
                 this.placeButton();
-                // the header is re-rendered on login and logout, which drops the button
+                // header re-renders on login/logout and drops the button
                 const header = document.querySelector("#playerHeaderEl");
                 if (header) this.headerObserver.observe(header, { childList: true, subtree: true });
             }
@@ -261,15 +231,12 @@ class AccountManager {
         }
     }
 
-    /**
-     * Puts the entry at the start of the right header bar (the left one runs under the Krunker logo).
-     * Falls back to the signed-in or signed-out bar when the right one is not rendered.
-     */
+    // not the left bar, it runs under the logo
     placeButton(){
         const right = document.querySelector("#playerHeaderEl .headerBarRight");
         if (right){
             if (right.firstElementChild !== this.headerItem){
-                // krunker's own entries carry a svelte scope class, without it the entry is unstyled
+                // unstyled without krunker's svelte scope class
                 const scope = [...(right.querySelector(".nav-item")?.classList ?? [])].find((name) => name.startsWith("svelte-")) ?? "";
                 this.headerItem.style.cssText = "";
                 this.headerItem.className = `nav-item ${scope}`;
@@ -292,9 +259,7 @@ class AccountManager {
     }
 
     /**
-     * Krunker re-renders the header on every login and logout, which is the cheapest signal that the account
-     * changed. Only a switch inside one page load makes Krunker's session go stale, a first login does not, and
-     * neither does a logout (the name is gone then, the next login is what tells whether it is someone else).
+     * only a switch within one page load goes stale, not a first login or logout
      */
     trackAccount(){
         const current = localStorage.getItem("krunker_username") ?? "";
@@ -304,18 +269,12 @@ class AccountManager {
         if (switched) this.watchForStaleSession();
     }
 
-    /**
-     * Krunker's game session keeps the account it started with, so logging into another one without a reload
-     * ends in its "Different Account used this Session. Please refresh." popup. It does not always show up
-     * (logging in on a page that loaded logged out never does), so this waits for the popup itself instead of
-     * hopping after every switch. Nothing happens when it never appears, the watch just ends.
-     */
     watchForStaleSession(){
         if (this.watching) return;
         this.watching = true;
 
         /**
-         * textContent, never innerText: innerText forces a layout.
+         * textContent, innerText forces a layout
          *
          * @param {Node} node
          * @return {boolean}
@@ -332,7 +291,7 @@ class AccountManager {
 
         watch.observer = new MutationObserver((records) => {
             for (const record of records){
-                // the popup is either inserted with its text or an element that was already there gets shown
+                // popup is either inserted or an existing element gets shown
                 const hit = record.type === "childList"
                     ? [...record.addedNodes].some(isPopup)
                     : record.target !== document.body && record.target !== document.documentElement && isPopup(record.target);
@@ -345,7 +304,7 @@ class AccountManager {
         watch.timer = setTimeout(stop, WATCH_MS);
         this.stopWatching = stop;
 
-        // body wide, which is why it ends after WATCH_MS: the popup has no container of its own that stays
+        // body wide, hence the time limit. popup has no stable container
         watch.observer.observe(document.body, {
             childList: true,
             subtree: true,
@@ -355,27 +314,20 @@ class AccountManager {
     }
 
     /**
-     * Gets the player out of the stale session, the way the new lobby key does it. A plain reload goes back
-     * into the same lobby, whose slot is often taken while the page reloads ("game is full"), so this loads
-     * any other lobby instead: `exclude` is what the host navigates to for F4 and F6 (`window.rs`). In the
-     * menu there is no lobby to exclude and it is the plain page. A second hop inside the quiet time would
-     * be a loop and never a fix, so that one is left to the player.
+     * new lobby like F4 (?exclude=), a plain reload often hits "game is full"
      */
     leaveStaleSession(){
         const last = Number(sessionStorage.getItem(HOP_KEY) ?? 0);
         if (Date.now() - last < HOP_QUIET_MS) return;
         sessionStorage.setItem(HOP_KEY, String(Date.now()));
 
-        // the raw id, exactly like the host cuts it out of the url: a re-encoded one is not the same string
+        // raw id like the host cuts it, re-encoding changes it
         const game = location.search.split("game=")[1]?.trim();
         const target = game ? `https://krunker.io/?exclude=${game}` : "https://krunker.io/";
-        // krunker is still writing the new session as the popup goes up, the navigation must not race that
+        // krunker still writes the new session when the popup shows
         setTimeout(() => window.location.assign(target), 300);
     }
 
-    /**
-     * Opens the account menu, the same overlay every other Kute popup uses.
-     */
     openMenu = () => {
         if (this.overlay) return;
         this.buildMenu().catch((error) => console.error("[kute] accounts:", error));
@@ -418,7 +370,7 @@ class AccountManager {
                 if (event.key === "Enter") this.saveAccount();
             };
         }
-        // krunker binds its hotkeys on the document, typing a name must not trigger them
+        // keep krunker's document hotkeys quiet while typing
         for (const type of ["keydown", "keyup", "keypress"]){
             shadow.addEventListener(type, (event) => event.stopPropagation());
         }
@@ -431,7 +383,6 @@ class AccountManager {
             (event) => {
                 if (event.key !== "Escape" || this.asking) return;
                 event.stopPropagation();
-                // the form is a step inside the menu, escape goes back to the list first
                 if (getElement("#accFormView", shadow).hidden) this.closeMenu();
                 else this.showForm(false);
             },
@@ -443,9 +394,6 @@ class AccountManager {
         document.body.append(overlay);
     }
 
-    /**
-     * Closes the account menu and detaches its listeners.
-     */
     closeMenu(){
         this.menuController?.abort();
         this.menuController = null;
@@ -455,8 +403,6 @@ class AccountManager {
     }
 
     /**
-     * Switches between the list and the creator form.
-     *
      * @param {boolean} show
      */
     showForm(show){
@@ -468,9 +414,6 @@ class AccountManager {
         getInput("#accUsername", this.shadow).focus();
     }
 
-    /**
-     * Re-renders the account list from {@link AccountManager#accounts}. Does nothing while the menu is closed.
-     */
     renderAccounts(){
         const { shadow } = this;
         if (!shadow) return;
@@ -481,7 +424,7 @@ class AccountManager {
             const row = document.createElement("div");
             row.className = "accRow";
             row.title = `Log in as ${account.username}`;
-            // waitForElement rejects when the header never switches, an unhandled rejection reports itself
+            // waitForElement rejects when the header never switches
             row.onclick = () => this.login(account).catch((error) => console.error("[kute] accounts:", error));
 
             const avatar = document.createElement("div");
@@ -510,9 +453,6 @@ class AccountManager {
         getElement("#accListHint", shadow).hidden = empty;
     }
 
-    /**
-     * Mirrors the form into the entry the list will show.
-     */
     updatePreview(){
         if (!this.shadow) return;
         const username = getInput("#accUsername", this.shadow).value;
@@ -521,9 +461,6 @@ class AccountManager {
         getElement("#accPreviewName", this.shadow).textContent = username.trim() || "Username";
     }
 
-    /**
-     * Clears the creator form and picks a random color.
-     */
     resetForm(){
         if (!this.shadow) return;
         getInput("#accColor", this.shadow).value = `#${Math.floor(Math.random() * 16777215)
@@ -535,9 +472,6 @@ class AccountManager {
         this.updatePreview();
     }
 
-    /**
-     * Stores the credentials from the creator form, unless something is missing or already known.
-     */
     saveAccount(){
         if (!this.shadow) return;
         const username = getInput("#accUsername", this.shadow).value.trim();
@@ -572,7 +506,7 @@ class AccountManager {
     }
 
     /**
-     * Asks first, the entry is the only copy of that password.
+     * asks first, it's the only copy of the password
      *
      * @param {Account} account
      * @return {Promise<void>}
@@ -604,15 +538,12 @@ class AccountManager {
     }
 
     /**
-     * Opens Krunker's login form in username mode, then has the host fill and submit it. Logs the current
-     * account out first.
-     *
      * @param {Account} account
      * @return {Promise<void>}
      */
     async login(account){
         this.closeMenu();
-        // krunker's session is the one from the page load, so logging in over a logged in page goes stale
+        // session is from the page load, logging in over it goes stale
         const wasSignedIn = document.querySelector("#signedInHeaderBar") !== null;
         if (wasSignedIn){
             window.logoutAcc();
@@ -630,15 +561,13 @@ class AccountManager {
                     this.legacyLogin(account.username);
                     return;
                 }
-                // the form exists now, the host fills it over CDP
+                // host fills the form over cdp
                 this.send("login", { username: account.username });
             });
         });
     }
 
     /**
-     * The old way, for an exe without the account commands: the password from localStorage into the form.
-     *
      * @param {string} username
      */
     legacyLogin(username){
@@ -648,7 +577,7 @@ class AccountManager {
         const passInput = getInput("#accPass");
         nameInput.value = username;
         passInput.value = legacyDecode(stored.password);
-        // send input otherwise it thinks its empty
+        // krunker treats it as empty without an input event
         nameInput.dispatchEvent(new Event("input", { bubbles: true }));
         passInput.dispatchEvent(new Event("input", { bubbles: true }));
         getElement(".io-button").click();

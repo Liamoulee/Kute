@@ -30,7 +30,7 @@ jobs:
     if: ${{ !github.event.repository.fork }}
 
     steps:
-      # the server is plain files, the client's libcef.dll in LFS is not needed here
+      # no LFS, the server doesn't need libcef.dll
       - name: Checkout
         uses: actions/checkout@v7
         with:
@@ -40,8 +40,7 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
 
-      # what the server will do on the VPS, done here first: a package.json that disagrees with its lockfile,
-      # or code that does not compile, fails before anything is bumped or touched
+      # same install and typecheck the VPS does, so a broken lockfile or build fails before the bump
       - name: Check that the server installs and compiles
         run: |
           (cd server && bun install --frozen-lockfile)
@@ -69,8 +68,7 @@ jobs:
           ' "${{ inputs.bump }}")
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      # through the API so the commit is signed by GitHub. expectedHeadOid makes it fail instead of
-      # overwriting anything when master moved in the meantime
+      # via the API so GitHub signs it, expectedHeadOid fails instead of overwriting a moved master
       - name: Commit the version bump
         id: commit
         if: inputs.bump != 'none'
@@ -117,7 +115,7 @@ jobs:
           echo "the server does not report version ${{ steps.version.outputs.version }}"
           exit 1
 
-      # a bump without a deploy would leave a version number that never ran anywhere
+      # a bump without a deploy is a version that never ran
       - name: Revert the version bump because the deploy failed
         if: failure() && steps.commit.outcome == 'success'
         env:

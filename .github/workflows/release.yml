@@ -3,8 +3,7 @@ name: release
 on:
   workflow_dispatch:
     inputs:
-      # a draft only: the release notes get written by hand before publishing, and the updater
-      # only sees a release once it is published
+      # draft only: notes are written by hand, the updater only sees published releases
       mode:
         description: What to do with the built installer
         type: choice
@@ -42,7 +41,7 @@ jobs:
           fetch-depth: 0
           lfs: true
 
-      # only edits the checkout for now, the commit happens after the build
+      # edits the checkout only, the commit comes after the build
       - name: Bump version
         id: version
         shell: pwsh
@@ -52,7 +51,7 @@ jobs:
           Add-Content $env:GITHUB_OUTPUT "version=$version"
           Add-Content $env:GITHUB_OUTPUT "bumped=$($bump -ne 'none')"
 
-      # fail before the long build when the version was not bumped. an existing draft is fine, it gets updated
+      # fail before the long build if this version is already published, a draft is fine
       - name: Check that the version is not released yet
         if: inputs.mode != 'build only'
         shell: pwsh
@@ -99,9 +98,8 @@ jobs:
           path: target/kute-setup-x86_64.msi
           retention-days: 7
 
-      # created through the API so the commit is signed by GitHub. the build takes a while, so master may have
-      # moved: the bump goes on top of the current head as long as the version files are the same there,
-      # and expectedHeadOid makes it fail instead of overwriting anything otherwise
+      # via the API so GitHub signs it. if master moved during the build the bump goes on top as long as
+      # the version files are unchanged there, expectedHeadOid guards the rest
       - name: Commit the version bump
         id: commit
         if: inputs.mode != 'build only'

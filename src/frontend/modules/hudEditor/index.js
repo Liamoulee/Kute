@@ -4,16 +4,7 @@ import { confirmPopup } from "../confirmPopup.js";
 import { activity, hostLobby, spawn } from "../privateMatch.js";
 
 /**
- * Applies the saved HUD layout and opens the editor.
- *
- * The layout is one stylesheet of `translate` and `scale` rules keyed by id. Those two properties compose with
- * `transform` instead of replacing it, so Krunker's own animations on the timer, the ammo box and the streak
- * popups keep working, and a widget the game recreates between rounds is moved again by the same rule. Nothing
- * of this runs per frame: the stylesheet is written once per page load and whenever the editor changes something.
- *
- * The editor cannot measure the HUD while it is open: the moment the pointer unlocks, Krunker lays the HUD out
- * for the menu (the FPS counter wraps under the timer, the chat jumps down over the health card). So the geometry
- * comes from a snapshot taken while the player is still in the match, and the editor draws that.
+ * Geometry is snapshotted in the match, the menu lays the HUD out differently.
  *
  * @typedef {object} HudPlacement
  * @property {number} [x] Offset to the right, in vw
@@ -24,7 +15,7 @@ import { activity, hostLobby, spawn } from "../privateMatch.js";
  * @property {number} vw Viewport the snapshot was taken at
  * @property {number} vh
  * @property {number} factor The scale Krunker's UI scaling had on the HUD
- * @property {string} game The match it was measured in, so the same one does not get measured twice
+ * @property {string} game Match it was measured in, skips re-measuring the same one
  * @property {Record<string, [number, number, number, number, number]>} rects key -> x, y, width, height, visible
  */
 
@@ -60,10 +51,6 @@ export class HudEditor {
         this.apply();
     }
 
-    /**
-     * The nuke counter carried its own position before the editor existed. Its offsets move into the layout once,
-     * relative to where the counter now sits by default (94 % / 50 %), and are dropped from its own setting.
-     */
     migrateNukeCounter(){
         const config = kute.settings.data.nukeCounterConfig;
         if (!config || (config.x === undefined && config.y === undefined && config.scale === undefined)) return;
@@ -80,9 +67,6 @@ export class HudEditor {
         this.save(layout);
     }
 
-    /**
-     * Writes the layout stylesheet.
-     */
     apply(){
         const { layout } = this;
         let text = "";
@@ -108,7 +92,7 @@ export class HudEditor {
     }
 
     /**
-     * Whether the game is showing the in-match HUD right now, which is the only moment it can be measured.
+     * In-match HUD visible, the only time it can be measured.
      *
      * @return {boolean}
      */
@@ -118,8 +102,7 @@ export class HudEditor {
     }
 
     /**
-     * Measures where every widget sits in the match, the ones this mode or a setting hides included, and keeps it
-     * for the editor. Runs while the player is still in the match, before anything unlocks the pointer.
+     * Measures every widget (hidden ones too) and stores it. Call before the pointer unlocks.
      *
      * @return {HudGeometry|null}
      */
@@ -137,7 +120,7 @@ export class HudEditor {
         /** @type {HudGeometry} */
         const geometry = { vw: window.innerWidth, vh: window.innerHeight, factor: 1, game: activity().id ?? "", rects: {} };
 
-        // what the player sees, with our own offsets taken out so the snapshot is the untouched layout
+        // measure without our own offsets
         const layoutText = this.style?.textContent ?? "";
         if (this.style) this.style.textContent = "";
 
@@ -146,11 +129,11 @@ export class HudEditor {
             const rect = element.getBoundingClientRect();
             if (rect.width <= 0) continue;
             geometry.rects[def.key] = [rect.x, rect.y, rect.width, rect.height, 1];
-            // the scale Krunker's UI scaling puts on the HUD, taken off a widget wide enough to be exact
+            // krunker's UI scale, from a widget wide enough to be exact
             if (rect.width > 60 && element.offsetWidth > 0) geometry.factor = rect.width / element.offsetWidth;
         }
 
-        // a second pass with the rest forced visible, for whatever this mode or a setting hides
+        // second pass with hidden widgets forced visible
         const hidden = found.filter(({ def }) => !geometry.rects[def.key] && def.display);
         if (hidden.length > 0){
             const probe = document.createElement("style");
@@ -163,7 +146,7 @@ export class HudEditor {
             probe.remove();
         }
 
-        // what is left has no size even when shown (an idle kill feed): its anchor is enough, the editor sizes it
+        // still zero-size (idle kill feed), anchor is enough
         for (const { def, element } of found){
             if (geometry.rects[def.key]) continue;
             const rect = element.getBoundingClientRect();
@@ -176,15 +159,13 @@ export class HudEditor {
             window.localStorage.setItem(GEOMETRY_KEY, JSON.stringify(geometry));
         }
         catch {
-            // a full or blocked storage only costs the next editor open its geometry
+            // only costs the next open its geometry
         }
         return geometry;
     }
 
     /**
-     * The stored snapshot, but only while the window still has the size it was measured at. Krunker anchors its
-     * HUD to the screen edges and scales it in steps, so stretching an old snapshot to a new window size puts
-     * every box in the wrong place. A different size means measuring again, which is one private match away.
+     * Stored snapshot, only if the window size still matches (krunker's HUD doesn't scale linearly).
      *
      * @return {HudGeometry|null}
      */
@@ -205,8 +186,7 @@ export class HudEditor {
     }
 
     /**
-     * Opens the editor. In a match it measures right there, otherwise it offers to open a private match, because
-     * the HUD can only be measured while one is on screen.
+     * Offers a private match to measure in when not in one.
      *
      * @return {Promise<void>}
      */
@@ -218,7 +198,7 @@ export class HudEditor {
             return;
         }
 
-        // closed and opened again without leaving the match it was measured in: nothing to host, just draw it
+        // reopened in the same match, reuse the snapshot
         const measured = this.geometry();
         if (measured?.game && measured.game === activity().id){
             this.show(measured);
@@ -251,7 +231,7 @@ export class HudEditor {
             return;
         }
 
-        // the HUD fills in over the first moments of a match (weapons, ammo, the leaderboard row)
+        // HUD fills in over the first moments of a match
         await new Promise((resolve) => {
             setTimeout(resolve, 1500);
         });
@@ -260,8 +240,6 @@ export class HudEditor {
     }
 
     /**
-     * Loads the editor and hands it the geometry to draw.
-     *
      * @param {HudGeometry|null} geometry
      */
     show(geometry){
@@ -278,9 +256,6 @@ export class HudEditor {
             });
     }
 
-    /**
-     * Called by the editor when it closes.
-     */
     closed(){
         this.open = false;
     }

@@ -87,8 +87,6 @@ impl KuteSource {
         self.height = 0;
     }
 
-    // Open the producer's named shared texture on OBS's device and wrap it into a `gs_texture_t`.
-    // noop otherwise
     fn open_texture(&mut self, w: u32, h: u32) {
         if !self.gs_tex.is_null() && self.width == w && self.height == h {
             return;
@@ -109,13 +107,13 @@ impl KuteSource {
             let Some(dev) = ID3D11Device::from_raw_borrowed(&dev_raw) else {
                 return;
             };
-            // OpenSharedResourceByName lives on ID3D11Device1 (runtime 11.1+, always available).
+            // OpenSharedResourceByName needs ID3D11Device1 (11.1+, always there)
             let Ok(dev1) = dev.cast::<ID3D11Device1>() else { return };
 
             let name = format!("KuteCaptureTex_{}", sess.pid);
             let name_w: Vec<u16> = name.encode_utf16().chain(Some(0)).collect();
             let opened = dev1.OpenSharedResourceByName::<_, ID3D11Texture2D>(PCWSTR(name_w.as_ptr()), GENERIC_ALL.0);
-            drop(dev1); // release our QI reference
+            drop(dev1);
 
             let Ok(tex) = opened else {
                 debug_print!("capture: OpenSharedResourceByName failed for {name}");
@@ -123,9 +121,9 @@ impl KuteSource {
             };
             let g = (api.gs_texture_wrap_obj)(Interface::as_raw(&tex));
             if g.is_null() {
-                return; // `tex` drops & releases; nothing leaked
+                return;
             }
-            self.dxgi_tex = Some(tex); // keep object alive for the lifetime of `gs_tex`
+            self.dxgi_tex = Some(tex); // must outlive gs_tex
             self.gs_tex = g;
             self.width = w;
             self.height = h;
@@ -169,7 +167,6 @@ unsafe extern "C" fn get_height(data: *mut c_void) -> u32 {
 unsafe extern "C" fn video_tick(data: *mut c_void, _seconds: f32) {
     let s = &mut *(data as *mut KuteSource);
 
-    // No session yet -> try to find the producer (throttled).
     if s.session.is_none() {
         if s.last_attempt.elapsed() >= DISCOVER_RETRY {
             s.last_attempt = Instant::now();
@@ -185,10 +182,8 @@ unsafe extern "C" fn video_tick(data: *mut c_void, _seconds: f32) {
     let sess = s.session.as_ref().unwrap();
     let frame_counter = unsafe { (*sess.info).frame_counter };
 
-    // Producer stalled (no new frame)?
     if frame_counter == s.last_counter {
-        // If the GPU process itself is gone, tear everything down and re-discover under the new
-        // PID. If it's merely paused (game minimized / frozen), keep showing the last frame.
+        // no new frame: rediscover if the gpu process died, otherwise keep the last frame
         if s.last_attempt.elapsed() >= STALL_RETRY && !capture::process_exists(sess.pid) {
             debug_print!("capture: producer process exited (pid {})", sess.pid);
             let mut old = s.session.take().unwrap();
@@ -261,14 +256,12 @@ pub extern "C" fn obs_module_load() -> bool {
     true
 }
 
-// Required by OBS's module loader (equivalent of `OBS_DECLARE_MODULE`): receives the module's
-// `obs_module_t*`. We don't use `obs_current_module`/locale helpers, so we just accept it.
+// required by OBS's loader (OBS_DECLARE_MODULE), unused
 #[unsafe(no_mangle)]
 pub extern "C" fn obs_module_set_pointer(_module: *mut c_void) {}
 
-// Required by OBS's module loader: reports the libobs API version we were built against. OBS only
-// rejects plugins claiming a *newer* libobs than itself, so we target OBS 32.x (API 32.0.0).
+// OBS only rejects plugins built against a newer libobs, so target 32.0.0
 #[unsafe(no_mangle)]
 pub extern "C" fn obs_module_ver() -> u32 {
-    32 << 24 // LIBOBS_API_VER = 0x20000000 (major 32, minor 0, patch 0)
+    32 << 24
 }

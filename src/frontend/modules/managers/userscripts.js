@@ -32,7 +32,7 @@ import { createCodeEditor } from "./editor.js";
  * @property {boolean} closeAfterSave
  */
 
-// the host refuses bigger scripts too (userscripts.rs)
+// same cap as userscripts.rs
 const MAX_SCRIPT_SIZE = 4 * 1024 * 1024;
 
 const TEMPLATE = `// ==UserScript==
@@ -99,7 +99,6 @@ class UserscriptManager {
         /** @type {Map<string, number>} debounced preference saves per script */
         this.prefsTimers = new Map();
 
-        // the runner reports state changes (a script started, failed, stopped)
         if (registry) registry.onChange = () => this.queueRender();
     }
 
@@ -240,15 +239,12 @@ class UserscriptManager {
         if (group.scripts.length === 0) section.append(element("div", "empty", "No scripts yet."));
         for (const script of group.scripts) this.renderScript(section, group, script);
 
-        // the whole group takes drops, the zone is where it says so
         section.append(element("div", "dropZone", `Drop .js files here to add them to ${group.label}`));
         makeDropTarget(section, (files) => this.importFiles(group, files));
         return section;
     }
 
     /**
-     * Adds dropped .js files to a group, asking first when that replaces scripts of the same name.
-     *
      * @param {ListedGroup} group
      * @param {import("./popup.js").DroppedFile[]} files
      */
@@ -271,7 +267,7 @@ class UserscriptManager {
         for (const { file } of scripts){
             this.send("write", { group: group.id, file: file.name, content: await file.text(), noList: true });
         }
-        // one list for the whole import: listing reads every script's header
+        // list once, listing parses every header
         this.send("list", {});
         if (scripts.length) this.needsRefresh = true;
         this.updateNotice();
@@ -357,14 +353,14 @@ class UserscriptManager {
         script.enabled = !script.enabled;
         this.send("toggle", { key: script.key, enabled: script.enabled });
         if (social){
-            // social scripts get registered when a popup opens, the next one has the change
+            // social scripts pick it up on the next popup
         }
         else if (!entry || !registry){
             if (script.enabled || kute.settings?.data?.userscripts !== false) this.needsRefresh = true;
         }
         else if (script.enabled){
             entry.start();
-            // a script that failed halfway only runs again after a refresh (the runner refuses to start it)
+            // a script that failed halfway needs a refresh, the runner won't restart it
             if (entry.tainted || (entry.state !== "running" && entry.state !== "waiting" && entry.state !== "error")) this.needsRefresh = true;
         }
         else if (!entry.stop()) this.needsRefresh = true;
@@ -409,7 +405,7 @@ class UserscriptManager {
         const panel = element("div", "scriptSettings");
         const settings = entry.settings ?? {};
 
-        // a slider sends a value per pixel, the file gets the one it stops at
+        // debounced, sliders fire per pixel
         const save = () => {
             clearTimeout(this.prefsTimers.get(script.key));
             this.prefsTimers.set(script.key, setTimeout(() => {
@@ -615,7 +611,4 @@ class UserscriptManager {
 
 const manager = new UserscriptManager();
 
-/**
- * Opens the userscript manager.
- */
 export const open = () => manager.open();

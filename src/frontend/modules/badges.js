@@ -8,17 +8,15 @@ import devBadge from "../components/devBadge.webp";
 /** @typedef {import("./playerLists.js").ListKind} ListKind */
 /** @typedef {{ row: Row, hash: string, tag: string | undefined }} Candidate */
 
+// krunker's material icons have no margin, so we add one when one follows
 const ICON_GAP = "2px";
 const PLACEMENT = {
     // <div.leaderItem> counter, [icons], name, score
     leader: "margin-top:5px;vertical-align:middle;height:21px;margin-left:2px",
-    // <div.newLeaderItem>, the same in a smaller font
     ingame: "margin-top:3px;vertical-align:middle;height:21px;margin-left:2px",
     // <td> pfp, name link, [icons]
     end: "margin-top:-12px;vertical-align:middle;width:26px;margin-left:2px",
-    // <td.pListName> [ping], [material icon], name, clan: Krunker has no badge image here, and the front of the
-    // cell is where the ping goes, so ours follows the clan tag. the pixel font sits high in its line box, so
-    // the middle of the text is 0.35em above where vertical-align puts the image
+    // <td.pListName> [ping], [material icon], name, clan. goes after the clan tag, top offset because the pixel font sits high
     alt: "vertical-align:middle;height:21px;margin-left:6px;position:relative;top:-0.35em",
 };
 
@@ -26,8 +24,6 @@ const ART = { kute: badge, dev: devBadge };
 const TITLE = { kute: "Kute", dev: "Kute Developer" };
 
 /**
- * Takes badges out again, of one kind or all of them.
- *
  * @param {"kute" | "dev"} [kind]
  */
 function removeBadges(kind){
@@ -38,8 +34,7 @@ function removeBadges(kind){
 }
 
 /**
- * Takes the badge of one row out again. It sits inside the name element or next to it, and there is one name
- * element per row, so the row's own badge is the only one either of those holds.
+ * badge sits inside the name element or next to it
  *
  * @param {Element} element
  */
@@ -51,15 +46,14 @@ function removeBadgeOf(element){
 
 class Badges {
     constructor(){
-        /** the lobby the hashes below were made for */
         this.game = "";
-        /** @type {Map<string, string>} name -> hash, so a name gets hashed once per lobby */
+        /** @type {Map<string, string>} name -> hash, once per lobby */
         this.hashes = new Map();
-        /** @type {Set<string>} names whose hash is being made */
+        /** @type {Set<string>} */
         this.pending = new Set();
-        /** one of the names that just got their hash is in the roster */
+        /** a freshly hashed name is in the roster */
         this.found = false;
-        /** @type {Candidate[]} rows of the list being walked that claim a developer */
+        /** @type {Candidate[]} rows in the current walk that claim a dev */
         this.candidates = [];
         this.enabled = kute.settings.data.cuteBadge !== false;
         /** @type {(row: Row) => void} */
@@ -76,15 +70,13 @@ class Badges {
      */
     toggle(enabled){
         this.enabled = enabled;
-        // the developer badges stay either way
+        // dev badges stay either way
         if (!enabled) removeBadges("kute");
         playerLists.refresh();
     }
 
     /**
-     * Somebody came or went: a handful of rows, so everything gets drawn again from the roster. The lists are
-     * only watched while there is anybody to draw, which is also what makes a developer badge independent of
-     * the setting: what decides is the roster, not "Show Cute Badge".
+     * redraws everything, it's a handful of rows
      */
     rosterChanged(){
         if (presence.game !== this.game){
@@ -97,7 +89,7 @@ class Badges {
             playerLists.remove(this.decorator);
             return;
         }
-        // add() sets the decorator (again) and walks the lists
+        // add() (re)sets the decorator and walks the lists
         playerLists.add(this.decorator, this.finisher);
     }
 
@@ -111,7 +103,7 @@ class Badges {
             this.learn(row.name);
             return;
         }
-        // a developer's hash is never drawn as an ordinary badge: which row it belongs to is decided in finish()
+        // dev rows are decided in finish()
         if (presence.devs.has(hash)){
             this.candidates.push({ row, hash, tag: clanTag(row.element)?.tag });
             return;
@@ -120,10 +112,8 @@ class Badges {
     }
 
     /**
-     * A list has been walked: now it is known whether a row claiming a developer is the only one doing so.
-     * The badge goes to the row that also carries the developer's clan tag. If none of them does, the list
-     * shows no tags at all (a Krunker change, or a mode without them) and the only row there is gets it.
-     * Anything ambiguous gets nothing.
+     * dev badge goes to the one row with the dev's clan tag, or the only claimant if no row has tags.
+     * ambiguous gets nothing
      */
     finish(){
         if (this.candidates.length === 0) return;
@@ -144,7 +134,7 @@ class Badges {
             for (const candidate of group){
                 const drawn = candidate.row.element.getAttribute("data-kute-badged");
                 if (candidate.row !== winner){
-                    // a row claiming a developer never carries an ordinary badge either
+                    // dev claimants never get a normal badge either
                     if (drawn) removeBadgeOf(candidate.row.element);
                     continue;
                 }
@@ -157,8 +147,7 @@ class Badges {
     }
 
     /**
-     * Hashing is async (WebCrypto), so a new name cannot be decided in the walk that found it: the lists get
-     * walked once more when its hash is there. Once per name and lobby.
+     * webcrypto is async, so a new name costs one extra walk
      *
      * @param {string} name
      */
@@ -171,17 +160,13 @@ class Badges {
         this.pending.delete(name);
         this.hashes.set(name, hash);
         if (presence.roster.has(hash)) this.found = true;
-        // one walk for all the names that showed up together
+        // one walk for all names that showed up together
         if (this.pending.size > 0 || !this.found) return;
         this.found = false;
         playerLists.refresh();
     }
 
     /**
-     * Puts the badge in as the first icon of the row: right after the rank in the leaderboards, and where the
-     * icons follow the name, right behind it: after the name link on the end screen, after the clan tag in the
-     * alt list. A developer badge goes exactly where the ordinary one would, it replaces it.
-     *
      * @param {Row} row
      * @param {"kute" | "dev"} kind
      */

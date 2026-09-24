@@ -2,12 +2,12 @@ import { kute } from "../client.js";
 
 const HEALTH_TIMEOUT_MS = 4000;
 const REQUEST_TIMEOUT_MS = 5000;
-/** this many failed requests in a row and the server counts as gone for the rest of the page load */
+/** failures in a row until the server is off for this page load */
 const MAX_FAILURES = 3;
 
 class Api {
     constructor(){
-        /** the host says where the server is (KUTE_API_URL points a development client at a local one) */
+        /** from the host, KUTE_API_URL overrides it for dev */
         this.base = typeof kute.apiBase === "string" ? kute.apiBase : "https://kute.lol/api";
         /** @type {Promise<boolean> | null} */
         this.health = null;
@@ -16,7 +16,7 @@ class Api {
     }
 
     /**
-     * @return {Promise<boolean>} Whether the server answered its health check on this page load (asked once)
+     * @return {Promise<boolean>} health check, once per page load
      */
     available(){
         this.health ??= this.check();
@@ -39,17 +39,15 @@ class Api {
     }
 
     /**
-     * A JSON request to the server, or nothing at all when it is down.
-     *
      * @param {string} path "/meta"
      * @param {RequestInit} [init]
-     * @return {Promise<any>} The parsed answer, null when the server is down or the request failed
+     * @return {Promise<any>} parsed json, null when down or failed
      */
     async request(path, init = {}){
         if (!await this.available() || this.down) return null;
         try {
             const response = await fetch(this.base + path, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
-            // an answer of any kind means the server is there, only silence counts against it
+            // any answer means it's alive, only silence counts
             this.failures = 0;
             return response.ok ? await response.json() : null;
         }

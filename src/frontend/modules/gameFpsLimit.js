@@ -1,17 +1,7 @@
 import { kute, ready } from "../client.js";
 
-// The FPS limit is enforced by the host: the present hook sleeps in the GPU process and the patched
-// compositor only lets the renderer run one frame ahead, so the game loop follows at the exact rate
-// while the main thread stays idle between frames. This module only verifies that this works and
-// falls back to a busy-wait when it does not (hook off, OpenGL/Vulkan backend, stock CEF).
-//
-// Skipping a frame by re-arming requestAnimationFrame is not an option: a frame that draws nothing
-// makes the compositor wait out the full 16.6ms deadline, so every limit above 60 collapses.
-//
-// This is the only code of the client that sits on every frame, so it is written for the frame: measured with a
-// CPU profile in a match, the old version (a closure, a settings lookup and a performance.now() per frame, limit
-// or not) was 0.89 % of the main thread and all of the bundle's cost. Without a limit nothing of ours runs in
-// the frame now, and with one the check uses the timestamp the browser hands over anyway.
+// host enforces the limit (present hook + patched cef), this only verifies it and busy-waits as fallback
+// runs on every frame, keep it lean. never skip frames by re-arming rAF, limits above 60 collapse
 //
 // DONT TOUCH THIS UNLESS YOU KNOW WHAT YOU'RE DOING :sob:
 
@@ -20,7 +10,7 @@ const nativeRAF = window.requestAnimationFrame;
 const CHECK_WINDOW_MS = 2000;
 const TOLERANCE = 1.15;
 
-/** @type {Record<string, any> | null} the settings, once the host sent them. read per frame, so no lookups through kute */
+/** @type {Record<string, any> | null} read per frame, so no lookup through kute */
 let settingsData = null;
 ready.then(() => {
     settingsData = kute.settings.data;
@@ -35,10 +25,8 @@ let framesInWindow = 0;
 let windowsOverTarget = 0;
 
 /**
- * Counts frames and switches to the busy-wait once the game ran clearly over the limit for two windows in a row.
- *
  * @param {number} targetFps
- * @param {number} timestamp The frame's own time, the same clock as performance.now()
+ * @param {number} timestamp frame time, same clock as performance.now()
  */
 function verifyHostLimiter(targetFps, timestamp){
     if (windowStart < 0) windowStart = timestamp;
@@ -55,8 +43,6 @@ function verifyHostLimiter(targetFps, timestamp){
 }
 
 /**
- * Holds the frame until its slot.
- *
  * @param {number} targetFps
  */
 function waitForFrameSlot(targetFps){
@@ -66,12 +52,12 @@ function waitForFrameSlot(targetFps){
     else targetInterval = 1000 / targetFps;
 
     while (performance.now() < nextFrameTime){
-        // busy wait until the next frame slot
+        // spin
     }
 
     const now = performance.now();
 
-    // also true for the first frame after a limit got set: the slot starts from now
+    // also hit on the first frame after setting a limit
     if (now - nextFrameTime > targetInterval){
         nextFrameTime = now + targetInterval;
     }
@@ -79,17 +65,16 @@ function waitForFrameSlot(targetFps){
 }
 
 /**
- * Wraps requestAnimationFrame with the limiter check. Callbacks of the same frame share one timestamp,
- * so the work happens once per frame no matter how many callbacks are registered.
+ * limiter check runs once per frame timestamp, not per callback
  *
  * @param {FrameRequestCallback} callback
  * @return {number}
  */
 window.requestAnimationFrame = function(callback){
-    // a number, or the string a slider leaves behind. the comparison takes either
+    // number or slider string, comparison handles both
     const limit = settingsData === null ? 0 : settingsData.gameFpsLimit;
 
-    // no limit, the usual way to play: the game's callback goes straight to the browser
+    // no limit: straight to native, no closure
     if (!(limit > 0)){
         lastTarget = 0;
         return nativeRAF(callback);
@@ -98,7 +83,7 @@ window.requestAnimationFrame = function(callback){
     const targetFps = Number(limit);
     return nativeRAF(function(timestamp){
         if (targetFps !== lastTarget){
-            // give the host limiter a fresh chance whenever the limit changes
+            // limit changed, give the host limiter another chance
             lastTarget = targetFps;
             busyWait = false;
             framesInWindow = 0;

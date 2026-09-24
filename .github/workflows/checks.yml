@@ -25,7 +25,7 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
 
-      # the server has its own lockfile, the root typecheck needs its dependencies too
+      # server has its own lockfile, root typecheck needs its deps too
       - name: Install dependencies
         run: |
           bun install --frozen-lockfile
@@ -45,7 +45,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      # the patched libcef.dll in LFS only matters for postbuild, clippy never touches it
+      # LFS libcef.dll is only for postbuild, clippy doesn't need it
       - name: Checkout
         uses: actions/checkout@v7
         with:
@@ -63,7 +63,7 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
-      # cef-dll-sys downloads CEF and builds its wrapper with Ninja on the first build
+      # cef-dll-sys builds its wrapper with Ninja
       - name: Install Ninja
         run: choco install ninja --no-progress -y
 

@@ -193,7 +193,6 @@ stage?.addEventListener(
         if (!(media instanceof HTMLImageElement)) return;
         const wheel = /** @type {WheelEvent} */ (event);
         wheel.preventDefault();
-        // zooms towards the pointer, the stage does not scroll
         const bounds = media.getBoundingClientRect();
         const x = Math.min(100, Math.max(0, ((wheel.clientX - bounds.left) / bounds.width) * 100));
         const y = Math.min(100, Math.max(0, ((wheel.clientY - bounds.top) / bounds.height) * 100));

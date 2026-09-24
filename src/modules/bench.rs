@@ -18,16 +18,15 @@ use crate::{app, bridge, debug_print, utils, window};
 pub struct BenchConfig {
     pub hook: bool,
     pub uncap: bool,
-    // CustomMaxPendingFrames of the patched cef, 1 is its default
+    // CustomMaxPendingFrames of our libcef, default 1
     pub depth: u32,
     pub limit: u64,
-    // CDP CPU throttling rate for the page, 1 is off
+    // CDP cpu throttle, 1 = off
     pub throttle: f32,
-    // started by the client's auto-detect: borderless over the client, takes no input, cannot be closed by hand
+    // from auto-detect: borderless over the client, no input, can't be closed by hand
     pub locked: bool,
-    // left:top:right:bottom in screen pixels. without it the bench covers the spot the client last used
+    // left:top:right:bottom screen px, defaults to the client's last position
     pub rect: Option<[i32; 4]>,
-    // handed to the page as its query string
     pub query: String,
     pub out: Option<PathBuf>,
 }
@@ -64,11 +63,10 @@ static CONFIG: LazyLock<Option<BenchConfig>> = LazyLock::new(|| {
                 let edges: Vec<i32> = value.split(':').filter_map(|edge| edge.parse().ok()).collect();
                 config.rect = <[i32; 4]>::try_from(edges).ok();
             }
-            // everything else (ms, settle, draws, overdraw, cpu) belongs to the page
             _ => query.push(format!("{key}={value}")),
         }
     }
-    // without the hook nothing limits at the swap chain, the page holds the rate itself (like gameFpsLimit.js does)
+    // no hook, the page has to cap itself
     if !config.hook && config.limit > 0 {
         query.push(format!("cap={}", config.limit));
     }
@@ -76,7 +74,7 @@ static CONFIG: LazyLock<Option<BenchConfig>> = LazyLock::new(|| {
     Some(config)
 });
 
-// browser process only, the subprocesses read the environment instead
+// browser process only, subprocesses use the env
 pub fn config() -> Option<&'static BenchConfig> {
     CONFIG.as_ref()
 }
@@ -94,7 +92,7 @@ pub fn profile_dir() -> PathBuf {
     utils::settings_dir().join("bench-profile")
 }
 
-// has to run before cef initializes, the gpu process inherits the environment
+// before cef init, the gpu process inherits the env
 pub fn prepare_environment(config: &BenchConfig) {
     unsafe {
         env::set_var(TIMING_MAPPING_ENV, "KuteFrameTimingBench");
@@ -102,7 +100,7 @@ pub fn prepare_environment(config: &BenchConfig) {
     }
 }
 
-// gpu process: None outside of a bench run
+// gpu process, None outside a bench
 pub fn hook_override() -> Option<bool> {
     env::var(HOOK_ENV).ok().map(|value| value != "0")
 }
@@ -125,7 +123,6 @@ pub fn flags(config: &BenchConfig) -> Vec<String> {
 pub const STUB_PAGE: &str =
     "<!doctype html><html><head><meta charset=\"utf-8\"><title>Kute bench</title></head><body style=\"margin:0;background:#000\"></body></html>";
 
-// the page is done: add what only the host knows, write the result and quit
 pub fn finish(page_json: &str) {
     let Some(config) = config() else { return };
     let page: serde_json::Value = serde_json::from_str(page_json).unwrap_or(serde_json::Value::Null);
@@ -134,7 +131,7 @@ pub fn finish(page_json: &str) {
         serde_json::json!({
             "fps": fps,
             "frameNs": frame_ns,
-            // ms, measured by the hook itself with the full clock resolution
+            // ms, from the hook
             "p50": intervals.map(|i| i.0 as f64 / 1e6),
             "p99": intervals.map(|i| i.1 as f64 / 1e6),
             "max": intervals.map(|i| i.2 as f64 / 1e6),
@@ -154,11 +151,7 @@ pub fn finish(page_json: &str) {
         }
         utils::atomic_write(out, &result.to_string()).ok();
     }
-    // the window is deliberately left alone: closing it here takes the page's GL context with it while the
-    // scene is still drawing its last frames (it keeps presenting until this call has the hook's numbers), and
-    // every draw in that gap logs "useProgram: program not valid" until Chromium stops reporting.
-    // the regular close can hang on a window that takes no input anyway, and whoever started this process waits
-    // for it to end. the result is on disk and the profile is a throwaway, so there is nothing to lose
+    // hard exit on purpose, closing the window kills the GL context mid draw and a normal close can hang
     thread::spawn(|| {
         thread::sleep(Duration::from_millis(1200));
         std::process::exit(0);
@@ -166,7 +159,7 @@ pub fn finish(page_json: &str) {
 }
 
 static MATRIX_RUNNING: AtomicBool = AtomicBool::new(false);
-// a bench process takes under four seconds, anything beyond this hangs and gets killed
+// a bench takes < 4 s, anything longer is hung
 const BENCH_TIMEOUT: Duration = Duration::from_secs(15);
 
 wrap_task! {
@@ -233,15 +226,10 @@ pub fn run_matrix(browser: &Browser, configs: Vec<String>) {
     let exe = env::current_exe().unwrap_or_default();
     thread::spawn(move || {
         let mut results: Vec<serde_json::Value> = Vec::new();
-        // "limit=auto" means a bit below what this PC sustains without a cap, so it is the BEST uncapped result
-        // that sets it, not the first one. Taking the first capped a machine whose second configuration was a
-        // third faster at that slower configuration's rate, and a cap that far below what the PC can do reads as
-        // "much smoother" for no other reason than that it is much slower
+        // limit=auto derives from the BEST uncapped result, not the first
         let mut uncapped_fps: f64 = 0.0;
         for (index, config) in configs.iter().enumerate() {
-            // without any uncapped result (it failed, or this matrix holds capped configurations only) there is
-            // nothing to derive a cap from, and the old minimum of 30 turned that case into a 30 FPS bench that
-            // loses against everything. the caller resolves the number itself when it replays a configuration
+            // no uncapped result: leave auto alone, the caller resolves it
             let config = if uncapped_fps > 0.0 {
                 let auto_limit = (((uncapped_fps * 0.9) / 5.0).round() * 5.0).max(30.0) as u64;
                 config.replace("limit=auto", &format!("limit={auto_limit}"))

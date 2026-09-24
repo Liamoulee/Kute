@@ -1,29 +1,20 @@
 import styles from "./components/base.css";
 import { kute, ready } from "./client.js";
 import { hook, getElement, checkCompMode } from "./utils.js";
-// first, so that whatever throws further down gets heard of
-import "./modules/errorReports.js";
+// imported first so later throws still get reported
 import { postUrls as postIconUrls } from "./modules/kuteIcons/slots.js";
-// statically: it takes the userscript registry the host hands over only while this bundle is evaluated
+// static import: the host only hands over the userscript registry during bundle eval
 import "./modules/managers/registry.js";
 
 const isBenchPage = location.pathname === "/kute-bench";
 if (isBenchPage) import("./modules/autoDetect/bench.js");
 
-// Krunker starts everyone on its basic settings list, which hides most of its own settings and every client
-// setting: settings.js renders them as the last ADVANCED tab, so a player who never flips that switch cannot
-// find them at all. "1" is what the switch writes for advanced and "0" for basic (windows[0].toggleType), and
-// it never removes the key, so an unset one really does mean "never chose". Written here because this file is
-// evaluated before any page script, which is the only point where Krunker still reads it for this page load
+// default to advanced settings, otherwise client settings are invisible. unset = never chose
 if (!isBenchPage && localStorage.getItem("krk_advanced") === null) localStorage.setItem("krk_advanced", "1");
-// the images the player pointed the icon slots at, before the game asks for any of them
 if (!isBenchPage) postIconUrls();
 
 let initialLoad = true;
 window.OffCliV = true;
-/**
- * Asks the host to close the client window.
- */
 window.closeClient = () => window.chrome.webview.postMessage("close");
 
 document.addEventListener(
@@ -31,7 +22,6 @@ document.addEventListener(
     () => {
         if (isBenchPage) return;
 
-        // load noticeable style changes and stuff that requires hooks earlier
         window.localStorage.setItem("cont_shoot1Key_alt", "131");
         import("./modules/gameFpsLimit.js");
         import("./modules/logoBadge.js");
@@ -47,7 +37,7 @@ document.addEventListener(
             if (type === "wheel") wheelListener = listener;
         });
 
-        // the host forwards WM_MOUSEWHEEL as {wheel: deltaY} while the mouse is captured by the game
+        // host forwards WM_MOUSEWHEEL while pointer is locked
         window.chrome.webview.addEventListener("message", (event) => {
             if (typeof event.data?.wheel === "number") wheelListener?.(new WheelEvent("wheel", { deltaY: event.data.wheel }));
         });
@@ -65,12 +55,11 @@ document.addEventListener(
                 window.chrome.webview.postMessage("throttle, menu");
             }
             else {
-                // JUST in case showWindow ids or requestPointerLock hook misses transition
+                // in case the requestPointerLock hook missed the transition
                 window.chrome.webview.postMessage("throttle, game");
             }
         });
 
-        // the settings come from the host and may not be here yet when the document is
         ready.then(() => {
             if (!kute.settings.data.cleanUI) return;
             import("./components/clean.css").then((css) => {
@@ -86,8 +75,6 @@ document.addEventListener(
 
 Object.defineProperty(window, "gameLoaded", {
     /**
-     * Main init point. Runs once the game reports loaded and imports the modules gated by settings.
-     *
      * @param {boolean} value
      */
     async set(value){
@@ -104,8 +91,7 @@ Object.defineProperty(window, "gameLoaded", {
         // console is disabled without this
         localStorage.setItem("logs", "true");
 
-        // append ranked and mod button to comp host ui
-        // insertAdjacentHTML: "innerHTML +=" rebuilds the buttons that are already there, listeners and all
+        // not innerHTML +=, that rebuilds the existing buttons
         getElement("#compBtnLst").insertAdjacentHTML("beforeend", `
 		<div class="compMenBtnS" onmouseenter='SOUND.play("tick_0",.1)' style="background-color: #f5479b" onclick="playSelect(),showWindow(4)"> <span class="material-icons" style="color:#fff;font-size:40px;vertical-align:middle;margin-bottom:12px">color_lens</span></div>
 		<div class="compMenBtnS" onmouseenter='SOUND.play("tick_0",.1)' style="background-color: #5ce05a" onclick="playSelect(),window.openRankedMenu()"><span class="material-icons" style="color:#fff;font-size:40px;vertical-align:middle;margin-bottom:12px">star</span></div>`);
@@ -131,7 +117,7 @@ Object.defineProperty(window, "gameLoaded", {
         import("./modules/managers/index.js");
         import("./modules/autoDetect/index.js");
         if (kute?.settings?.data?.clanColors !== false) import("./modules/clanColors.js");
-        // always: the setting only decides whether badges get drawn, the client announces itself either way
+        // always: setting only toggles drawing, announce runs regardless
         import("./modules/badges.js");
         import("./modules/externalQueue.js");
         import("./modules/bpClaimAll.js");
@@ -140,13 +126,13 @@ Object.defineProperty(window, "gameLoaded", {
         import("./modules/versionTag.js");
         import("./modules/rankProgress.js");
         import("./modules/importSettings.js");
-        // always: the setting is read on every F6, and the filter button needs the module
+        // always: setting is read per F6, filter button needs the module
         import("./modules/matchmaker.js");
-        // always: the customize button needs the module, which draws nothing while the setting is off
+        // always: customize button needs the module
         import("./modules/nukeCounter.js");
-        // always: the customize button needs the module, and the host has to hear about changed icon urls
+        // always: customize button needs it, host needs icon url changes
         import("./modules/kuteIcons/index.js");
-        // always: it applies the saved HUD layout, the editor itself only loads when it is opened
+        // always: applies saved HUD layout, editor loads lazily
         import("./modules/hudEditor/index.js");
         if (kute?.settings?.data?.hsSound) import("./modules/hsSound.js");
         if (kute?.settings?.data?.betterChat) import("./modules/betterChat.js");
@@ -161,8 +147,6 @@ Object.defineProperty(window, "gameLoaded", {
             window.chrome.webview.postMessage("toggle-rboost, true");
 
             /**
-             * Turns ramp boost back off once a comp match is detected.
-             *
              * @param {MessageEvent} event
              */
             const gameUpdateListener = (event) => {
@@ -200,14 +184,11 @@ Object.defineProperty(window, "gameLoaded", {
         }, 2000);
 
         if (kute?.settings.data?.autoSpec){
-            /**
-             * Enables spectating as soon as the game activity reports a map, unless the game is custom.
-             */
             let tries = 0;
             const trySetSpect = () => {
                 const activity = window.getGameActivity();
                 if (activity.map === null){
-                    // a minute, not forever: without a map this kept a 10 Hz timer alive for the whole session
+                    // give up after a minute
                     if (++tries < 600) setTimeout(trySetSpect, 100);
                     return;
                 }

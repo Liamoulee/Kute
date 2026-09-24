@@ -10,8 +10,6 @@ import sharedCss from "../../components/managers/manager.css";
  */
 
 /**
- * Whether the exe understands the manager commands (scripts-*, swapper-*).
- *
  * @return {boolean}
  */
 export const hostSupportsManagers = () => kute.hostFeatures?.includes("script-manager") ?? false;
@@ -25,12 +23,11 @@ export const hostSupportsManagers = () => kute.hostFeatures?.includes("script-ma
 /** @type {WeakMap<HTMLElement, (files: DroppedFile[]) => void>} */
 const dropTargets = new WeakMap();
 
-// a pack with more files than this is a mistake (a whole drive), not a swapper pack
+// more than this is someone dropping a whole drive
 const MAX_DROPPED_FILES = 5000;
 
 /**
- * Marks an element as a place files can be dropped on. The popup finds the innermost one under the cursor, so nested
- * targets (a folder row inside a column) each get the drop meant for them, and only that one lights up.
+ * Innermost one under the cursor wins, so nesting works.
  *
  * @param {HTMLElement} element
  * @param {(files: DroppedFile[]) => void} onDrop
@@ -40,8 +37,7 @@ export function makeDropTarget(element, onDrop){
 }
 
 /**
- * Everything that was dropped, folders walked. The entries have to be taken while the drop event runs, the
- * DataTransfer is empty afterwards.
+ * Must run inside the drop event, DataTransfer is empty after.
  *
  * @param {DataTransfer} dataTransfer
  * @return {Promise<DroppedFile[]>}
@@ -67,7 +63,7 @@ function collectDropped(dataTransfer){
             return;
         }
         const reader = /** @type {FileSystemDirectoryEntry} */ (entry).createReader();
-        // readEntries hands out a directory in batches, an empty one means done
+        // readEntries returns batches, empty = done
         for (;;){
             /** @type {FileSystemEntry[]} */
             const batch = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
@@ -90,9 +86,6 @@ export const readBase64 = (file) => new Promise((resolve, reject) => {
 });
 
 /**
- * The frame both managers live in: an overlay with a shadow root, keys kept away from Krunker's hotkeys, dropped
- * files handed to the drop target under the cursor, and the host's replies routed to `onMessage` until it closes.
- *
  * @param {string} html Markup of the popup, the shared styles are added in front
  * @param {object} options
  * @param {(data: any) => void} options.onMessage Every host message while the popup is open
@@ -127,7 +120,7 @@ export function openManagerPopup(html, { onMessage, canClose, onEscape }){
         overlay.remove();
     };
 
-    // krunker binds its hotkeys on the document, typing in the popup must not trigger them
+    // keep typing away from krunker's document hotkeys
     for (const type of ["keydown", "keyup", "keypress"]){
         shadow.addEventListener(type, (event) => event.stopPropagation());
     }
@@ -136,7 +129,7 @@ export function openManagerPopup(html, { onMessage, canClose, onEscape }){
         (event) => {
             if (event.key !== "Escape") return;
             event.stopPropagation();
-            // an open question closes first, then whatever step the popup is in, then the popup
+            // close order: open question, popup step, popup
             const cancel = /** @type {HTMLElement|null} */ (shadow.querySelector(".askBackdrop [data-cancel]"));
             if (cancel) cancel.click();
             else if (!onEscape?.()) close();
@@ -185,8 +178,7 @@ export function openManagerPopup(html, { onMessage, canClose, onEscape }){
         }
         return null;
     };
-    // every drag event is handled here: a file dropped next to a target must not make Chromium open it in place of
-    // the game, and a target must not stay lit because the drop went to a target inside it
+    // handle all drag events here, otherwise a missed drop makes chromium navigate to the file
     overlay.addEventListener("dragover", (event) => {
         event.preventDefault();
         const target = targetOf(event);
@@ -194,7 +186,7 @@ export function openManagerPopup(html, { onMessage, canClose, onEscape }){
         if (event.dataTransfer) event.dataTransfer.dropEffect = target ? "copy" : "none";
     });
     overlay.addEventListener("dragleave", (event) => {
-        // null: the drag left the window
+        // left the window
         if (!event.relatedTarget) setHovered(null);
     });
     overlay.addEventListener("drop", (event) => {
@@ -217,7 +209,7 @@ export function openManagerPopup(html, { onMessage, canClose, onEscape }){
 }
 
 /**
- * A small question inside the popup (the page has no prompt(), and Krunker's own would steal the keys).
+ * In-popup text prompt (no prompt() here, krunker's would steal keys).
  *
  * @param {ShadowRoot} shadow
  * @param {string} title
@@ -237,7 +229,7 @@ export function askText(shadow, title, initial, hint = ""){
     const popup = shadow.querySelector(".managerPopup") ?? shadow;
     popup.append(dialog);
     input.focus();
-    // select the name without its extension, like Explorer does
+    // select name without extension, like explorer
     const dot = initial.lastIndexOf(".");
     input.setSelectionRange(initial.lastIndexOf("/") + 1, dot > 0 ? dot : initial.length);
 
@@ -258,8 +250,6 @@ export function askText(shadow, title, initial, hint = ""){
 }
 
 /**
- * A yes/no question inside the popup.
- *
  * @param {ShadowRoot} shadow
  * @param {string} title
  * @param {string} text

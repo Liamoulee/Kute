@@ -1,12 +1,6 @@
 import { kute } from "../client.js";
 
-/**
- * Writes the client version into the match info under the timer, between the mode and the map line
- * ("Free For All" / "Kute v0.1.7" / "on Burg").
- *
- * Pure CSS on purpose: #matchInfo is a text node for the mode plus a div for the map line, and the game rewrites
- * both on every match. A pseudo element on that div survives all of it and touches nothing of Krunker's.
- */
+// pure css, the game rewrites #matchInfo every match
 class VersionTag {
     constructor(){
         if (!kute.version) return;

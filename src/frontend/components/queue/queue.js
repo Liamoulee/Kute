@@ -1,18 +1,13 @@
-// The script of the external ranked queue window (index.html in this folder). It does not run in the game page:
-// externalQueue.js opens an about:blank popup, puts the markup in and this file as the text of a <script>, so
-// it runs in the popup's own global. esbuild turns it into that text (the "popup-script:" import), which is why it
-// is a plain script in an IIFE and imports nothing. What it needs from the game page arrives in window.info.
-//
-// The popup shares the game's main thread (an about:blank popup lives in its opener's process), so nothing in
-// here may be heavy: it idles on a WebSocket, and its only timer is a label once a second.
+// runs inside the about:blank queue popup as script text, so no imports. input comes via window.info.
+// shares the game's main thread, keep it light
 
 (() => {
     /**
-     * @typedef {object} QueueInfo Handed over by externalQueue.js
-     * @property {string} token The player's Krunker auth token
+     * @typedef {object} QueueInfo from externalQueue.js
+     * @property {string} token krunker auth token
      * @property {string} region "na", "eu" or "as"
      * @property {boolean} allRegions
-     * @property {string} sound The match found sound, base64
+     * @property {string} sound match found sound, base64
      */
 
     const { info } = /** @type {Window & { info: QueueInfo }} */ (/** @type {unknown} */ (window));
@@ -20,7 +15,7 @@
     /**
      * @template {HTMLElement} [T=HTMLElement]
      * @param {string} selector
-     * @return {T} The element, which is part of index.html, so a miss is a bug
+     * @return {T} part of index.html, a miss is a bug
      */
     function must(selector){
         const element = document.querySelector(selector);
@@ -70,7 +65,7 @@
     /** @type {Set<number>} */
     const selectedMaps = new Set();
 
-    // the settings live with the game page, so they survive the popup
+    // stored on the game page, survives the popup
     const storage = window.opener?.localStorage ?? window.localStorage;
 
     function saveSettings(){
@@ -86,7 +81,7 @@
                 if (checkbox) checkbox.checked = true;
             }
             const savedMaps = storage.getItem("queue_newSelectedMaps");
-            // nothing saved yet means every map
+            // nothing saved = every map
             for (const number of savedMaps ? JSON.parse(savedMaps) : Object.values(MAPS).map((map) => map.number)) selectedMaps.add(Number(number));
         }
         catch {
@@ -104,7 +99,7 @@
     }
 
     /**
-     * @param {boolean} active Whether the window shows "in queue"
+     * @param {boolean} active shows "in queue"
      * @param {string} text
      */
     function showStatus(active, text){
@@ -114,8 +109,6 @@
     }
 
     /**
-     * Back to the state before "Start Queue".
-     *
      * @param {string} [text]
      */
     function showIdle(text = "Ready"){
@@ -129,7 +122,7 @@
         showStatus(false, text);
     }
 
-    // the sound gets decoded on the first "Start Queue" (a click, which an AudioContext needs anyway), not on open
+    // decode the sound on the first "Start Queue" click, AudioContext wants a gesture anyway
 
     async function initializeAudio(){
         audioContext = new AudioContext();
@@ -160,7 +153,7 @@
     }
 
     /**
-     * @param {number} milliseconds How long the matchmaker makes the player wait
+     * @param {number} milliseconds
      */
     function showCooldown(milliseconds){
         const endTime = Date.now() + milliseconds;
@@ -179,8 +172,8 @@
     }
 
     /**
-     * @param {string} map The map number the matchmaker picked
-     * @param {string} region The matchmaker's region id: two characters, then "na", "eu" or "as"
+     * @param {string} map map number
+     * @param {string} region two chars, then "na", "eu" or "as"
      */
     function matchFound(map, region){
         playNotificationSound();
@@ -225,7 +218,7 @@
 
         connection.onerror = () => showIdle("Connection error");
         connection.onclose = () => {
-            // a cooldown or a found match already put their own text up
+            // cooldown or match found already set their text
             if (isQueued || isConnecting) showIdle();
         };
         connection.onopen = () => {
@@ -268,7 +261,7 @@
         else selectedMaps.delete(mapNumber);
         mapGrid.querySelector(`.map-item[data-map="${mapNumber}"]`)?.classList.toggle("selected", selected);
 
-        // the matchmaker takes the maps with the connection, so a changed choice means queueing again
+        // maps are sent on connect, changing them means requeueing
         if (isQueued) queueConnection?.close();
         saveSettings();
     }
@@ -282,7 +275,6 @@
             item.classList.toggle("selected", selectedMaps.has(data.number));
             const img = document.createElement("img");
             img.src = data.url;
-            // only when the picker gets opened, not seven images on every window open
             img.loading = "lazy";
             const label = document.createElement("span");
             label.textContent = mapName;
@@ -293,7 +285,7 @@
     }
 
     loadSettings();
-    // the region the ranked menu shows wins over the saved one
+    // ranked menu region beats the saved one
     const preset = /** @type {HTMLInputElement | null} */ (info.region ? document.getElementById(info.region) : null);
     if (preset) preset.checked = true;
     buildMapGrid();
@@ -316,7 +308,7 @@
             if (!notificationBuffer) await initializeAudio();
         }
         catch {
-            // no sound is no reason not to queue
+            // queue anyway without sound
         }
         startQueue();
     };
@@ -327,7 +319,7 @@
         stopNotificationSound();
     };
 
-    // the matchmaker takes the regions with the connection, like the maps
+    // regions are sent on connect too
     const regionChanged = () => {
         if (isQueued) queueConnection?.close();
         saveSettings();

@@ -3,11 +3,9 @@ import { kute } from "../client.js";
 window.chrome.webview.postMessage("drag, true");
 window.chrome.webview.postMessage("throttle, menu");
 
-// trick for hiding "PRESS ESC TO EXIT POINTER LOCK" also breaks the default notification for downloads
+// hiding the pointer lock banner also hides the download notice
 const originalExportSettings = window.exportSettings;
 /**
- * Wraps Krunker's exportSettings to show a notification, since the default download popup is hidden.
- *
  * @return {any}
  */
 window.exportSettings = () => {
@@ -15,13 +13,9 @@ window.exportSettings = () => {
     return originalExportSettings();
 };
 
-// disable cpu throttling while on the skins menu
-// fixes it taking 10 years to load
-
+// no cpu throttle in heavy menus like skins, they take forever to load otherwise
 const originalshowWindow = window.showWindow;
 /**
- * Wraps Krunker's showWindow to switch CPU throttling based on which window opens.
- *
  * @param {...any} args
  * @return {any}
  */
@@ -56,8 +50,6 @@ window.showWindow = (...args) => {
 
 const originalclosWind = window.closWind;
 /**
- * Wraps Krunker's closWind to re-enable dragging and menu throttling.
- *
  * @param {...any} args
  * @return {any}
  */
@@ -68,7 +60,7 @@ window.closWind = (...args) => {
 };
 
 /**
- * Binds the alternate shoot key to F20 (key code 131) by simulating the keypress in the controls menu.
+ * binds alt shoot to F20 (131), the host sends left click as F20 while locked
  */
 kute.bindShoot = () => {
     window.changeCont("shoot", 1, undefined);

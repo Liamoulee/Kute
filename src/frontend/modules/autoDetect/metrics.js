@@ -9,17 +9,14 @@
  * @property {number} p99
  * @property {number} p999
  * @property {number} maxMs
- * @property {number} hitches Frames longer than the hitch threshold
+ * @property {number} hitches frames over the hitch threshold
  * @property {number} hitchesPerSec
  */
 
-/**
- * Collects frame to frame gaps. Raw samples instead of buckets: at 1500 frames per second the
- * interesting differences are tenths of a millisecond.
- */
+// raw frame gaps, no buckets: at 1500 fps the differences are tenths of a ms
 export class FrameRecorder {
     /**
-     * @param {number} [capacity] Samples to keep, 120000 covers a minute at 2000 frames per second
+     * @param {number} [capacity] 120000 = a minute at 2000 fps
      */
     constructor(capacity = 120000){
         /** @type {Float32Array} */
@@ -31,14 +28,11 @@ export class FrameRecorder {
     }
 
     /**
-     * Call once per frame with performance.now().
-     *
      * @param {number} now
      */
     frame(now){
         if (this.last >= 0){
-            // counted even once the buffer is full: the frame rate is frames over the whole duration, and
-            // counting only what fits while the duration keeps growing reports a slower PC than the real one
+            // keep counting past capacity, fps is over the whole duration
             this.count++;
             if (this.stored < this.samples.length) this.samples[this.stored++] = now - this.last;
         }
@@ -78,19 +72,13 @@ export class FrameRecorder {
             p999: percentile(0.999),
             maxMs: sorted[sorted.length - 1],
             hitches,
-            // over the time the stored gaps cover: past the buffer's capacity only the first part is stored, and
-            // dividing its hitches by the whole duration would make a long run look smoother than it was
+            // over the stored gaps only, not the whole duration
             hitchesPerSec: hitches / Math.max(0.001, sum / 1000),
         };
     }
 }
 
-/**
- * How long other work waits on the main thread while the frame loop runs. A starved main thread (the old aim
- * freeze) shows up here as delays of tens of milliseconds, long before it shows in the frame times.
- * One probe every 10 ms: an earlier version posted tasks back to back to count them, and that flood of tasks
- * delayed the frame callbacks it was running next to by up to 2 ms. A probe must not load what it measures.
- */
+// main thread task delay while the loop runs, one probe per 10 ms so it doesn't load what it measures
 export class TaskProbe {
     constructor(){
         /** @type {number[]} */
@@ -109,8 +97,7 @@ export class TaskProbe {
         let due = performance.now() + 10;
         this.timer = setInterval(() => {
             this.sent++;
-            // measured from when the timer was due, not from when it ran: a main thread busy for a second delays
-            // the timer itself first, and a probe timed from inside the late timer would report that as nothing
+            // measure from when the timer was due, a busy thread delays the timer itself too
             const now = performance.now();
             this.channel.port2.postMessage(Math.min(now, due));
             due = now + 10;
@@ -118,8 +105,7 @@ export class TaskProbe {
     }
 
     /**
-     * @return {{sent: number, ran: number, p99: number|null, max: number|null}} Delays in ms, null when no probe ran:
-     *     no observation is no evidence, not a delay of zero
+     * @return {{sent: number, ran: number, p99: number|null, max: number|null}} delays in ms, null when no probe ran
      */
     stop(){
         clearInterval(this.timer);

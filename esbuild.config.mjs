@@ -3,8 +3,6 @@ import { readFile } from "node:fs/promises";
 import { build, transform } from "esbuild";
 
 /**
- * Esbuild plugin that minifies imported .css files and exposes them as text.
- *
  * @type {import("esbuild").Plugin}
  */
 export const minifyCSS = {
@@ -19,8 +17,6 @@ export const minifyCSS = {
 };
 
 /**
- * Esbuild plugin that collapses whitespace in imported .html files and minifies their inline scripts.
- *
  * @type {import("esbuild").Plugin}
  */
 export const textMinifyPlugin = {
@@ -33,7 +29,7 @@ export const textMinifyPlugin = {
             const scripts = [];
             let index = 0;
 
-            // replace all script tags with placeholders cause they get owned by my whitespace remover 3000
+            // park scripts in placeholders so the whitespace collapse doesn't wreck them
             contents = contents.replace(/<script[^>]*>([\s\S]*?)<\/script>/gi, (_, scriptContent) => {
                 scripts.push(scriptContent);
                 return `___SCRIPT_${index++}___`;
@@ -44,10 +40,8 @@ export const textMinifyPlugin = {
                 scripts[i] = transformed.code;
             }
 
-            // holy minifier
             contents = contents.replace(/\s+/g, " ").trim();
 
-            // reinstert script tags
             for (let i = 0; i < scripts.length; i++){
                 const minifiedCode = scripts[i];
                 contents = contents.replace(`___SCRIPT_${i}___`, `<script>${minifiedCode}</script>`);
@@ -59,9 +53,7 @@ export const textMinifyPlugin = {
 };
 
 /**
- * Esbuild plugin for scripts that do not run in the game page but get injected somewhere else as text (the queue
- * popup): `import code from "popup-script:./queue.js"` gives the minified source as a string. The file itself
- * stays a normal .js file, so eslint and tsc see it.
+ * `import code from "popup-script:./queue.js"` gives the minified source as a string, for code injected elsewhere.
  *
  * @type {import("esbuild").Plugin}
  */
@@ -80,10 +72,6 @@ export const popupScriptPlugin = {
     },
 };
 
-// the bundle reports its own version with an error (it is hot updated, so the client version says nothing about it)
-const cargoToml = await readFile("./Cargo.toml", "utf8");
-const bundleVersion = /js_bundle_version\s*=\s*"([^"]+)"/.exec(cargoToml)?.[1] ?? "0.0.0";
-
 console.log("Starting esbuild process...");
 await build({
     entryPoints: ["./src/frontend/main.js"],
@@ -94,9 +82,6 @@ await build({
     minifyWhitespace: true,
     minifySyntax: true,
     ignoreAnnotations: true,
-    define: {
-        KUTE_BUNDLE_VERSION: JSON.stringify(bundleVersion),
-    },
     loader: {
         ".html": "text",
         ".webp": "dataurl",

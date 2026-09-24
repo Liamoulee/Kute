@@ -7,7 +7,6 @@ import Log from "./log";
 // =     - SPDX: MIT -     = //
 // ========================= //
 
-/** what a viewer needs to recognize the developer's row */
 export type Developer = { clan: string };
 
 const MIN_TOKEN = 32;
@@ -16,7 +15,6 @@ const MAX_USER = 32;
 const CLAN_TAG = /^[^[\]\s]{1,16}$/;
 const PROOF = /^[0-9a-f]{64}$/;
 
-/** lowercased username -> token and clan tag */
 const developers = new Map<string, { token: string, clan: string }>();
 
 for (const [user, entry] of Object.entries(config.developers ?? {})){
@@ -37,13 +35,7 @@ for (const [user, entry] of Object.entries(config.developers ?? {})){
 
 if (developers.size > 0) Log.info(`${developers.size} developer(s) configured`);
 
-/**
- * Checks what a client claimed with its join. Everything that is not exactly right is an ordinary member,
- * no error and no hint go back.
- *
- * @param claim what the client sent as "dev"
- * @param nonce the nonce this connection was given
- */
+// anything not exactly right is a plain member, no error, no hint
 export function developerOf(claim: unknown, nonce: string, game: string, hash: string): Developer | null {
     if (developers.size === 0 || typeof claim !== "object" || claim === null) return null;
     const { user, proof } = claim as Record<string, unknown>;
@@ -53,7 +45,7 @@ export function developerOf(claim: unknown, nonce: string, game: string, hash: s
     if (!entry) return null;
 
     const expected = createHmac("sha256", entry.token).update(`${nonce}\n${game}\n${hash}`).digest();
-    // both are 32 bytes by the checks above, so this only ever compares, it never throws
+    // both 32 bytes after the checks above, never throws
     if (!timingSafeEqual(expected, Buffer.from(proof, "hex"))) return null;
     return { clan: entry.clan };
 }

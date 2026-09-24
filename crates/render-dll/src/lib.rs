@@ -28,7 +28,6 @@ use windows::core::*;
 
 mod capture;
 
-// Thread-safe wrapper for Win32 kernel handles
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(transparent)]
 struct SendHandle(pub HANDLE);
@@ -42,24 +41,20 @@ struct SharedState {
     frame_ns: u64,
     fps: u64,
     target_fps: u64,
-    // the host bumps stats_request, the hook answers with the distribution of the intervals it collected since
-    // the last request and sets stats_ack to the same number. this is what frame pacing is judged by: an average
-    // cannot tell an even 240 from bursts and stalls that add up to 240
+    // host bumps stats_request, hook answers with the interval stats and sets stats_ack to match
     stats_request: u64,
     stats_ack: u64,
-    // intervals between the calls into the real Present1, after the limiter: what goes out to the screen
+    // real Present1 intervals, after the limiter
     present_p50_ns: u64,
     present_p99_ns: u64,
     present_max_ns: u64,
-    // intervals between chromium handing frames to the hook, before any waiting: what the pipeline delivers
+    // frame arrival intervals, before any waiting
     arrive_p99_ns: u64,
     samples: u64,
 }
 const SHARED_STATE_SIZE: usize = std::mem::size_of::<SharedState>();
 
-// one field of the mapping as an atomic. The protocol and why every access is atomic: `shared!` in the host's
-// app.rs. `ptr` is the view from SHARED_MEM_PTR, page aligned, every field a u64 at a multiple of 8. Used inside
-// the hook's unsafe blocks, which is where from_ptr's requirements are met
+// mirrors `shared!` in the host's app.rs
 macro_rules! shared {
     ($ptr:expr, $field:ident) => {
         AtomicU64::from_ptr(($ptr as usize + std::mem::offset_of!(SharedState, $field)) as *mut u64)
@@ -68,14 +63,11 @@ macro_rules! shared {
 
 const INTERVAL_SAMPLES: usize = 16384;
 
-// waiting on the swap chain's frame latency object: the regular timeout, how many timeouts in a row pause the
-// waiting, for how long, and the shorter timeout of the single wait that probes afterwards (long enough for a
-// GPU bound game at 20 FPS, short enough to cost nothing while nobody looks at the window)
 const WAIT_TIMEOUT_MS: u32 = 100;
 const WAIT_TIMEOUTS_BEFORE_PAUSE: u32 = 3;
 const WAIT_PAUSE: std::time::Duration = std::time::Duration::from_secs(2);
 const WAIT_PROBE_MS: u32 = 50;
-// a gap this long between two presents is a pause (window hidden, a load), not a frame time
+// a gap this long is a pause (hidden window, loading), not a frame
 const PAUSE_NS: u64 = 250_000_000;
 
 struct Intervals {
@@ -104,7 +96,7 @@ impl Intervals {
         self.last = Some(now);
     }
 
-    // (p50, p99, max), and starts a fresh window
+    // (p50, p99, max, count), resets the window
     fn take(&mut self) -> (u64, u64, u64, u64) {
         let mut sorted: Vec<u32> = self.ns[..self.count].to_vec();
         sorted.sort_unstable();
@@ -139,7 +131,7 @@ macro_rules! debug_print {
 
 fn get_idxgi() -> Result<(IDXGIFactory2, IDXGISwapChain1)> {
     unsafe {
-        // make a dummy factory and dummy swap chain for the vtable
+        // dummy factory + swap chain, only for the vtables
         let mut device: Option<ID3D11Device> = None;
 
         D3D11CreateDevice(
@@ -196,19 +188,12 @@ static SHARED_MEM_PTR: AtomicU64 = AtomicU64::new(0);
 static MISSING_TIMING_MAPPING_LOGGED: AtomicBool = AtomicBool::new(false);
 
 static GLOBAL_LIMIT_CLOCK: LazyLock<RwLock<Option<std::time::Instant>>> = LazyLock::new(|| RwLock::new(None));
-// Which swap chain is the game's. chromium does not keep one: it makes a new one whenever the window changes
-// size and whenever it comes back from being minimized or hidden (then even two in a row), and "the first big
-// one, once" left all of those untouched, so after a single minimize or resize the stats, the FPS limiter and
-// the OBS capture were gone until a restart. So every big swap chain gets prepared when it is created, and
-// which one is the game's gets decided where the truth is, at present time: the one that holds the title keeps
-// it as long as it presents, and when it has gone quiet the next big chain that presents takes over. A game
-// that is shown presents every few milliseconds, so a popup (social) next to a running game never takes over.
+// the game's swap chain. chromium recreates it on resize, so it's decided at present time (is_main_swapchain)
 static MAIN_SWAPCHAIN: AtomicUsize = AtomicUsize::new(0);
-// when the game's swap chain last presented, in ms since PROCESS_START. one store per frame
+// last present of the game's chain, ms since PROCESS_START
 static MAIN_LAST_PRESENT_MS: AtomicU64 = AtomicU64::new(0);
 static PROCESS_START: LazyLock<std::time::Instant> = LazyLock::new(std::time::Instant::now);
-// this long without a present and the title is up for grabs. long enough that a hitch of the game does not hand
-// it to a popup, short enough that the game runs without its limiter for a moment only after a resize
+// quiet this long and another big chain takes over
 const MAIN_SILENT_MS: u64 = 300;
 
 fn main_presented_within(ms: u64) -> bool {
@@ -216,7 +201,6 @@ fn main_presented_within(ms: u64) -> bool {
     now.saturating_sub(MAIN_LAST_PRESENT_MS.load(Ordering::Relaxed)) < ms
 }
 
-// whether this (prepared) swap chain is the game's, taking the title when the holder has gone quiet
 fn is_main_swapchain(swapchain: *mut c_void) -> bool {
     let this = swapchain as usize;
     let main = MAIN_SWAPCHAIN.load(Ordering::Relaxed);
@@ -235,7 +219,7 @@ fn attach() {
     debug_print!("render: attach started, pid={}", unsafe { GetCurrentProcessId() });
     unsafe {
         capture::capture_init();
-        // a bench run (src/modules/bench.rs) points its gpu process at its own mapping
+        // bench runs (src/modules/bench.rs) use their own mapping
         let mapping_name = HSTRING::from(std::env::var("KUTE_TIMING_MAPPING").unwrap_or_else(|_| "KuteFrameTiming".to_string()));
         match OpenFileMappingW(FILE_MAP_ALL_ACCESS.0, false, &mapping_name) {
             Ok(mapping) => {
@@ -272,7 +256,7 @@ fn attach() {
         });
         debug_print!("render: Present1 hook created, trampoline={original_present:p}");
 
-        // the trampolines first: a hooked call arriving between enabling and storing would find None
+        // store trampolines before enabling, a call in between would find None
         #[allow(clippy::missing_transmute_annotations)]
         {
             ORIGINAL_CREATE_SWAPCHAIN = mem::transmute(original_create_swapchain);
@@ -286,10 +270,9 @@ fn attach() {
     }
 }
 
-// set once the first big swap chain gets created, read by every present of ours
 static TEARING_SUPPORTED: AtomicBool = AtomicBool::new(false);
 
-// the check chromium makes before it asks for tearing (DXGISwapChainTearingSupported). asked once
+// same check as chromium's DXGISwapChainTearingSupported, cached
 unsafe fn tearing_supported(factory: *mut c_void) -> bool {
     static CHECKED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     let supported = *CHECKED.get_or_init(|| unsafe {
@@ -310,7 +293,6 @@ unsafe fn tearing_supported(factory: *mut c_void) -> bool {
     supported
 }
 
-// chromium's swap chain as it asked for it
 unsafe fn create_swapchain_unmodified(
     this: *mut c_void,
     pdevice: *mut c_void,
@@ -322,10 +304,10 @@ unsafe fn create_swapchain_unmodified(
         let original_fn = ORIGINAL_CREATE_SWAPCHAIN.unwrap();
         let result = original_fn(this, pdevice, pdesc, prestricttooutput, ppswapchain);
 
-        // new swapchain creation can be on the same address as a destroyed one, so purge stale wait handle
+        // a new chain can reuse a dead one's address, drop its stale wait handle
         if result.is_ok() && !ppswapchain.is_null() && WAIT_HANDLE.write().unwrap().remove(&(*ppswapchain as usize)).is_some() {
             debug_print!("render: purged stale wait handle for reused swapchain address {:?}", *ppswapchain);
-            // bump when WAIT_HANDLE changes so the per-thread caches in present_hk drop stale entries
+            // invalidates present_hk's per-thread caches
             WAIT_HANDLE_GENERATION.fetch_add(1, Ordering::Release);
         }
         result
@@ -340,8 +322,7 @@ unsafe extern "system" fn create_swapchain_hk(
     ppswapchain: *mut *mut c_void,
 ) -> HRESULT {
     unsafe {
-        // small ones are chromium's own little surfaces (the only one seen is 16x16), every other one is a window's,
-        // see MAIN_SWAPCHAIN. 200 and not 600 px: a game window under 600 physical px tall used to run without the hook
+        // skip chromium's tiny internal surfaces (16x16)
         if (*pdesc).Width < 200 || (*pdesc).Height < 200 {
             debug_print!("render: swap chain {}x{} left alone (under 200 px)", (*pdesc).Width, (*pdesc).Height);
             return create_swapchain_unmodified(this, pdevice, pdesc, prestricttooutput, ppswapchain);
@@ -355,15 +336,13 @@ unsafe extern "system" fn create_swapchain_hk(
             (*pdesc).Flags
         );
         let mut desc = *pdesc;
-        // only RENDER_TARGET_OUTPUT, on purpose: keeping chromium's SHADER_INPUT bit ("needed to bind to GL texture")
-        // cut the uncapped present rate by a quarter to a half in interleaved runs, and nothing needs it
+        // no SHADER_INPUT, it costs 25-50% of the uncapped present rate and nothing needs it
         desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-        desc.BufferCount = 2; // 2 is the minimum
+        desc.BufferCount = 2;
         desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL; // discard crashes
         desc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
-        // desc.Scaling = DXGI_SCALING_NONE; // this crashes
+        // DXGI_SCALING_NONE crashes
         desc.Flags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT.0 as u32;
-        // like chromium itself: tearing only where the system supports it
         if tearing_supported(this) {
             desc.Flags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING.0 as u32;
         }
@@ -372,15 +351,13 @@ unsafe extern "system" fn create_swapchain_hk(
 
         let result = original_fn(this, pdevice, &desc, prestricttooutput, ppswapchain);
         if let Err(_e) = result.ok() {
-            // a panic here took the whole GPU process down. chromium's own swap chain is the better outcome, it only
-            // goes without the limiter, stats and capture (and chromium handles a failure of that one by itself)
+            // fall back to chromium's own desc, panicking here kills the gpu process
             debug_print!("render: modified swap chain creation failed: {:#X} - {}, creating it unmodified", result.0, _e);
             create_swapchain_unmodified(this, pdevice, pdesc, prestricttooutput, ppswapchain)
         } else {
             debug_print!("render: swap chain created pointer={:?}", *ppswapchain);
             let swap_chain = IDXGISwapChain1::from_raw(*ppswapchain);
-            // Learn the real D3D11 device from this swap chain and hand it to the capture module
-            // (it invalidates any shared texture so it is re-created against this swap chain).
+            // capture needs the real device
             let device = match swap_chain.GetDevice::<ID3D11Device>() {
                 Ok(device) => {
                     debug_print!("render: acquired D3D11 device from swap chain");
@@ -396,14 +373,13 @@ unsafe extern "system" fn create_swapchain_hk(
                 swap_chain2
                     .SetMaximumFrameLatency(1)
                     .unwrap_or_else(|e| debug_print!("Failed to set latency: {:?}", e));
-                // what holds in the end: depth 1 is what the pacing rests on
+                // depth 1 is what the pacing relies on
                 debug_print!("render: frame latency now {:?}", swap_chain2.GetMaximumFrameLatency());
 
                 let waitable_obj = swap_chain2.GetFrameLatencyWaitableObject();
                 debug_print!("render: frame-latency waitable object={waitable_obj:?}");
                 {
                     let mut guard = WAIT_HANDLE.write().unwrap();
-                    // a new swap chain can land on the address of a destroyed one, whose handle is stale then
                     if let Some(old_handle) = guard.insert(*ppswapchain as usize, SendHandle(waitable_obj))
                         && !old_handle.0.is_invalid()
                     {
@@ -461,7 +437,6 @@ unsafe extern "system" fn present_hk(
         static WAIT_TIMEOUT_STREAK: cell::Cell<u32> = const { cell::Cell::new(0) };
         static WAIT_PAUSED_UNTIL: cell::Cell<Option<std::time::Instant>> = const { cell::Cell::new(None) };
 
-        // per-thread perf accounting for wall-clock time matching help me debug, but can be removed
         static PERF_WINDOW_START: cell::Cell<Option<std::time::Instant>> = const { cell::Cell::new(None) };
         static PERF_PRESENTS: cell::Cell<u64> = const { cell::Cell::new(0) };
         static PERF_WAIT_NS: cell::Cell<u64> = const { cell::Cell::new(0) };
@@ -501,7 +476,7 @@ unsafe extern "system" fn present_hk(
 
         let is_main = handle_opt.is_some() && is_main_swapchain(p_this);
 
-        // track main swapchain only so the EMA and Present FPS aren't polluted
+        // only the game's chain feeds the stats
         if is_main {
             LAST_PRESENT.with(|last| {
                 let now = std::time::Instant::now();
@@ -513,16 +488,14 @@ unsafe extern "system" fn present_hk(
                         DIAGNOSTIC_MAX_FRAME_NS.set(DIAGNOSTIC_MAX_FRAME_NS.get().max(frame_ns));
                     }
                     FRAME_NS_EMA.with(|avg| {
-                        // a pause is not a frame time: averaged in, one 16 s gap reads as "2 FPS" and takes a
-                        // hundred frames to fade (an auto-detect run once capped a PC at 5 FPS because of it).
-                        // the average starts over with the next frame instead
+                        // don't average pauses in, restart instead
                         if frame_ns > PAUSE_NS {
                             avg.set(0);
                             return;
                         }
                         let next = if avg.get() == 0 { frame_ns } else { (avg.get() * 31 + frame_ns) / 32 };
                         avg.set(next);
-                        // back-to-back presents can land within timer resolution so keep the div safe
+                        // frame_ns can be 0 within timer resolution
                         let fps = 1_000_000_000u64.checked_div(next).unwrap_or(0);
 
                         shared!(ptr, frame_ns).store(next, Ordering::Relaxed);
@@ -562,18 +535,14 @@ unsafe extern "system" fn present_hk(
 
         let wait_started = std::time::Instant::now();
         if let Some(h) = handle_opt {
-            // a window that is not being shown (minimized, hidden, covered) never signals its wait object, and
-            // every present would sit out the full timeout. so after a few timeouts in a row the waiting gets
-            // paused, NOT the handle dropped: having a handle is what makes this the game's swap chain, and
-            // dropping it used to switch off the stats and the FPS limiter for the rest of the session, after
-            // nothing more than one minimize. after the pause a single shorter wait probes whether the window
-            // is back, and the pacing resumes by itself
+            // hidden windows never signal: pause waiting after a few timeouts, then probe. never drop the handle,
+            // it's what marks the game's chain
             let paused_until = WAIT_PAUSED_UNTIL.get();
             let probing = paused_until.is_some();
             if paused_until.is_none_or(|until| wait_started >= until) {
                 let wait_result = WaitForSingleObjectEx(h.0, if probing { WAIT_PROBE_MS } else { WAIT_TIMEOUT_MS }, false);
                 if wait_result == WAIT_FAILED {
-                    // the handle itself is broken, waiting on it will never work again
+                    // broken handle, will never work again
                     debug_print!("render: dropping broken wait handle for swapchain {p_this:?}");
                     WAIT_TIMEOUT_STREAK.set(0);
                     WAIT_PAUSED_UNTIL.set(None);
@@ -607,8 +576,7 @@ unsafe extern "system" fn present_hk(
             0
         };
 
-        // if the DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING swapchain was created with ALLOW_TEARING, we can present with it.
-        // otheriwse it would fail with DXGI_ERROR_INVALID_CALL
+        // only valid on chains created with ALLOW_TEARING, else DXGI_ERROR_INVALID_CALL
         if sync_interval == 0 && handle_opt.is_some() && TEARING_SUPPORTED.load(Ordering::Relaxed) {
             present_flags |= DXGI_PRESENT_ALLOW_TEARING;
         }
@@ -627,8 +595,7 @@ unsafe extern "system" fn present_hk(
 
         if is_main {
             capture::capture_on_present(p_this);
-            // a request for the interval distribution is answered after the real present: sorting up to
-            // INTERVAL_SAMPLES values must not hold back the frame that is going out
+            // answer stats requests after the present, sorting shouldn't delay the frame
             let request = shared!(ptr, stats_request).load(Ordering::Acquire);
             if request != shared!(ptr, stats_ack).load(Ordering::Relaxed) {
                 let (p50, p99, max, samples) = PRESENTS.with_borrow_mut(|presents| presents.take());
@@ -638,23 +605,18 @@ unsafe extern "system" fn present_hk(
                 shared!(ptr, present_max_ns).store(max, Ordering::Relaxed);
                 shared!(ptr, arrive_p99_ns).store(arrive_p99, Ordering::Relaxed);
                 shared!(ptr, samples).store(samples, Ordering::Relaxed);
-                // the host reads the payload once it sees this ack (Acquire), so it comes last
+                // ack last, the host reads the payload once it sees it
                 shared!(ptr, stats_ack).store(request, Ordering::Release);
             }
         }
 
-        // how long the real present took, without the limiter's sleep below
         let present_ns = if cfg!(feature = "verbose-logs") {
             present_started.elapsed().as_nanos() as u64
         } else {
             0
         };
 
-        // limiter (main swapchain only), AFTER the real present. the renderer can start its next frame while this
-        // thread sleeps (the swap ack does not wait for Present1 to return), so with the sleep before the present a
-        // frame had its input read and then sat out the whole sleep: at a cap of 144 the input was 13 ms old when the
-        // frame went out. now the frame goes out as soon as it arrives, about 1 ms after the game read its input at
-        // the median (Chromium trace from the rAF callbacks to Present1, caps 144 and 240, same frame pacing)
+        // limiter sleeps after the real present, sleeping before it made input a whole frame older
         let target_fps = shared!(ptr, target_fps).load(Ordering::Relaxed);
         if is_main && let Some(nanos) = 1_000_000_000u64.checked_div(target_fps) {
             let target_frame_time = std::time::Duration::from_nanos(nanos);
@@ -682,7 +644,7 @@ unsafe extern "system" fn present_hk(
                 }
             }
 
-            // make sure sleep doesn't overshoot by scheduling next frame from deadline and not wakeup
+            // schedule from the deadline, not the wakeup, so overshoot doesn't add up
             let after = std::time::Instant::now();
             let next_ref = if after.duration_since(deadline) > target_frame_time {
                 after
@@ -693,7 +655,6 @@ unsafe extern "system" fn present_hk(
         }
 
         if cfg!(feature = "verbose-logs") {
-            // report stalls (maybe it helps some other dev one day)
             if wait_ns > 50_000_000 || present_ns > 50_000_000 {
                 debug_print!(
                     "render: STALL thread={} swapchain={:?} wait_ms={:.1} present_ms={:.1} hr={:#X} had_handle={}",
@@ -744,8 +705,7 @@ unsafe extern "system" fn present_hk(
     }
 }
 
-// called by the gpu subprocess right after LoadLibrary, outside the loader lock and before
-// chromium creates its swap chain. returns 1 on success
+// called by the gpu process right after LoadLibrary, before chromium makes a swap chain. 1 = ok
 #[unsafe(no_mangle)]
 pub extern "system" fn render_attach() -> i32 {
     match std::panic::catch_unwind(attach) {
@@ -757,16 +717,13 @@ pub extern "system" fn render_attach() -> i32 {
     }
 }
 
-// returns TRUE: a DllMain that returns nothing hands the loader whatever is left in the register, and a zero there
-// makes LoadLibrary fail on DLL_PROCESS_ATTACH. that worked by luck of the generated code, one more branch below
-// was enough to turn it into a zero and the GPU process ran without the hook
+// must return TRUE explicitly, a leftover zero in the register fails LoadLibrary
 #[unsafe(no_mangle)]
 extern "system" fn DllMain(_: HINSTANCE, call_reason: u32, reserved: *mut ()) -> BOOL {
     if call_reason == DLL_PROCESS_ATTACH {
         debug_print!("render: DLL_PROCESS_ATTACH, waiting for render_attach");
     } else if call_reason == DLL_PROCESS_DETACH && !reserved.is_null() {
-        // the process is exiting: the other threads are already gone, possibly holding one of the locks below,
-        // and the system frees everything anyway (Microsoft's DllMain guidance: do no cleanup in this case)
+        // process exit: other threads may be dead holding our locks, skip cleanup
         debug_print!("render: DLL_PROCESS_DETACH at process exit, nothing to clean up");
     } else if call_reason == DLL_PROCESS_DETACH {
         debug_print!("render: DLL_PROCESS_DETACH, cleaning capture state and handles");

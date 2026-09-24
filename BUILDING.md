@@ -10,7 +10,7 @@
 | [`crates/obs-kute-capture`](/crates/obs-kute-capture) | The OBS plugin that shows the game through a shared texture. |
 | [`resources/`](/resources) | Installer script (WiX), VC runtime, and the patched CEF DLL in [`resources/cef/`](/resources/cef) (Git LFS). |
 | [`patches/`](/patches) | The Chromium patches the CEF DLL is built with, and how to rebuild it. |
-| [`server/`](/server) | The server behind `kute.lol`: clan colors, the Kute badge presence and the anonymous Auto-Detect reports. Bun, Fastify, TypeScript, SQLite. Its own project with its own `package.json`. The client builds and runs without it, and plays the same when it is down. |
+| [`server/`](/server) | The server behind `kute.lol`: clan colors and the Kute badge presence. Bun, Fastify, TypeScript, SQLite. Its own project with its own `package.json`. The client builds and runs without it, and plays the same when it is down. |
 
 ## Client
 

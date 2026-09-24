@@ -1,17 +1,11 @@
-/**
- * A deliberately small code editor: a transparent <textarea> over a highlighted <pre>. The textarea does all the
- * editing, so copy, paste, selection and Ctrl+Z / Ctrl+Y are the browser's own. Everything this file inserts goes
- * through execCommand("insertText"), which keeps it on that same undo stack.
- * It only exists while the editor is open, nothing here runs during a match.
- */
+// tiny code editor: transparent textarea over a highlighted pre, so undo/paste/selection stay native
 
 const KEYWORDS = new Set(("async await break case catch class const continue debugger default delete do else export extends " +
     "finally for function if import in instanceof let new of return static super switch throw try typeof var void " +
     "while with yield get set").split(" "));
 const LITERALS = new Set(["true", "false", "null", "undefined", "this", "NaN", "Infinity"]);
 
-// comments, strings (an unfinished one runs to the end of its line, templates to the end of the text), numbers,
-// words. Everything between the matches is plain text
+// comments, strings (unfinished ones run to end of line, templates to end of text), numbers, words
 const TOKENS = /(\/\/[^\n]*|\/\*[\s\S]*?(?:\*\/|$))|("(?:[^"\\\n]|\\.)*"?|'(?:[^'\\\n]|\\.)*'?|`(?:[^`\\]|\\[\s\S])*`?)|(\b\d[\d_]*(?:\.[\d_]+)?(?:e[+-]?\d+)?n?\b|\b0x[\da-fA-F_]+n?\b)|([A-Za-z_$][\w$]*)/g;
 
 /**
@@ -37,7 +31,6 @@ export function highlight(source){
         else if (word){
             if (KEYWORDS.has(word)) kind = "k";
             else if (LITERALS.has(word)) kind = "l";
-            // a call: the next character that is not a space is "("
             else if (/^\s*\(/.test(source.slice(index + word.length, index + word.length + 40))) kind = "f";
         }
         if (!kind) continue;
@@ -87,7 +80,7 @@ export function createCodeEditor(container, content, { onSave, onDirtyChange }){
     const render = () => {
         pending = 0;
         const { value } = textarea;
-        // the extra line keeps a trailing newline as tall as the textarea shows it
+        // extra line so a trailing newline matches the textarea height
         code.innerHTML = `${highlight(value)}\n `;
         const lines = value.split("\n").length;
         if (lines !== lineCount){
@@ -106,12 +99,11 @@ export function createCodeEditor(container, content, { onSave, onDirtyChange }){
      * @param {string} text
      */
     const insert = (text) => {
-        // deprecated, and still the only way to insert text that Ctrl+Z can take back
+        // deprecated, but the only insert that ctrl+z can undo
         document.execCommand("insertText", false, text);
     };
 
     textarea.addEventListener("input", () => {
-        // big files get highlighted a moment later instead of on every key
         if (textarea.value.length < 150_000) render();
         else if (!pending) pending = setTimeout(render, 150);
     });
@@ -127,7 +119,6 @@ export function createCodeEditor(container, content, { onSave, onDirtyChange }){
             const { selectionStart, selectionEnd, value } = textarea;
             const lineStart = value.lastIndexOf("\n", selectionStart - 1) + 1;
             if (event.shiftKey){
-                // outdent the current line by up to four spaces
                 const spaces = /^ {1,4}/.exec(value.slice(lineStart))?.[0].length ?? 0;
                 if (!spaces) return;
                 textarea.setSelectionRange(lineStart, lineStart + spaces);
@@ -139,7 +130,7 @@ export function createCodeEditor(container, content, { onSave, onDirtyChange }){
             return;
         }
         if (event.key === "Enter" && !event.ctrlKey && !event.altKey && !event.shiftKey){
-            // keep the indentation of the line, one level more after an opening bracket
+            // keep indent, one more after an opening bracket
             event.preventDefault();
             const { selectionStart, value } = textarea;
             const lineStart = value.lastIndexOf("\n", selectionStart - 1) + 1;

@@ -355,14 +355,6 @@
         "category": "About",
         "defaultValue": true
     },
-    "telemetry": {
-        "name": "Anonymous Telemetry",
-        "id": "telemetry",
-        "description": "Sends client performance metrics and specs (what an auto-detect run measured), crashes and errors of the client. \nNothing about you: no account, no IP address, no ids",
-        "type": "checkbox",
-        "category": "About",
-        "defaultValue": true
-    },
     "checkUpdates": {
         "name": "Check For Updates",
         "id": "checkUpdates",
