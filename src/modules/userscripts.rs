@@ -165,7 +165,6 @@ fn load_script(group: &'static str, file: String, tracker: &Map<String, Value>, 
     };
     let key = key_for(group, &file);
     let header = parse_metadata(&source);
-    // no header: run immediately (glorp). with one: after the document (crankshaft default)
     let run_at_start = match header.as_ref().and_then(|meta| meta.get("run-at")).and_then(Value::as_str) {
         Some(run_at) => run_at == "document-start" || run_at == "document.start",
         None => header.is_none(),
