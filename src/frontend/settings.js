@@ -19,6 +19,7 @@ import { getElement, getInput, checkCompMode } from "./utils.js";
  * @property {boolean} [requiresLogin] The button is disabled while no account is logged in
  * @property {string} [requires] id of a checkbox setting this one depends on, disabled while that is off
  * @property {string} [disabledBy] id of a checkbox setting that forces this one off while on, the stored value stays
+ * @property {string} [hostFeature] hostFeatures entry the exe must list, the setting is not shown without it
  * @property {number} [min]
  * @property {number} [max]
  * @property {number} [step]
@@ -349,6 +350,8 @@ class SettingsManager {
         let rendered = false;
 
         for (const setting of Object.values(settings)){
+            // an exe older than the setting would store the value and ignore it
+            if (setting.hostFeature && !kute.hostFeatures?.includes(setting.hostFeature)) continue;
             if (this.settingsWindow.settingSearch && !this.searchMatches(setting)) continue;
 
             setting.html = this.generateHtml(setting);

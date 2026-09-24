@@ -287,7 +287,8 @@
         "type": "checkbox",
         "category": "Advanced",
         "defaultValue": false,
-        "needsRestart": true
+        "needsRestart": true,
+        "hostFeature": "audio-fix"
     },
     "hardFlip": {
         "name": "DXGI Swapchain Hook",
