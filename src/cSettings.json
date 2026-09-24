@@ -184,7 +184,8 @@
         "description": "Colors the clan tags of some clans in the player lists",
         "type": "checkbox",
         "category": "Interface",
-        "defaultValue": true
+        "defaultValue": true,
+        "disabledBy": "disableOnlineFeatures"
     },
     "cuteBadge": {
         "name": "Show Kute Badge",
@@ -192,7 +193,8 @@
         "description": "Only hides the badges you see. To hide yours from others, disable Kute online features (About)",
         "type": "checkbox",
         "category": "Interface",
-        "defaultValue": true
+        "defaultValue": true,
+        "disabledBy": "disableOnlineFeatures"
     },
     "kuteIcons": {
         "name": "Use Kute Icons",

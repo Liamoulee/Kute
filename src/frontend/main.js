@@ -116,7 +116,7 @@ Object.defineProperty(window, "gameLoaded", {
         import("./modules/about.js");
         import("./modules/managers/index.js");
         import("./modules/autoDetect/index.js");
-        if (kute?.settings?.data?.clanColors !== false) import("./modules/clanColors.js");
+        if (kute?.settings?.data?.clanColors !== false && kute?.settings?.data?.disableOnlineFeatures !== true) import("./modules/clanColors.js");
         // always: setting only toggles drawing, announce runs regardless
         import("./modules/badges.js");
         import("./modules/externalQueue.js");
