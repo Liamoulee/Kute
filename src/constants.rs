@@ -1,7 +1,6 @@
 pub const DISCORD_CLIENT_ID: &str = "1549875633276981249";
 pub const UPDATE_URL: &str = "https://api.github.com/repos/NullDev/Kute/releases/latest";
 pub const API_URL: &str = "https://kute.lol/api";
-pub const TELEMETRY_KINDS: [&str; 4] = ["autodetect", "autodetect-failure", "crash", "client-error"];
 // the only places "open-url" may lead to (the links of the about popup). any script on the page can post that
 // command and the host hands the url to the shell, so this stays a short list. every entry ends with a slash
 pub const OPEN_URL_ALLOWED: [&str; 3] = ["https://github.com/", "https://kute.lol/", "https://discord.com/invite/"];

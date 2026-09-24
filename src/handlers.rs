@@ -634,16 +634,6 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
     } else {
         debug_print!("web message: {message_string}");
     }
-    // the payload is JSON, so it must not go through the ", " split
-    if let Some(rest) = message_string.strip_prefix("telemetry ") {
-        // "telemetry <kind> <json>". JSON, so it must not go through the ", " split. capped like the server caps it
-        if let Some((kind, report)) = rest.split_once(' ')
-            && report.len() <= 64 * 1024
-        {
-            modules::lifecycle::send_telemetry(kind, report.to_string());
-        }
-        return;
-    }
     // "icon-urls <json>": the images the player pointed the icon slots at, so Kute icons answer those too
     if let Some(rest) = message_string.strip_prefix("icon-urls ") {
         if rest.len() <= 16 * 1024

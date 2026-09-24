@@ -97,10 +97,6 @@ fn main() {
             std::sync::LazyLock::force(&modules::swapper::SWAPS);
         });
     }
-    #[cfg(feature = "packaged")]
-    if bench.is_none() {
-        modules::lifecycle::report_last_crash();
-    }
 
     // before CEF starts: the driver reads kute.exe's profile when the GPU process starts. Once per PC
     if bench.is_none() {

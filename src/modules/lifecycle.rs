@@ -169,8 +169,6 @@ pub fn installer_cleanup() -> io::Result<()> {
     Ok(())
 }
 
-const CRASH_TRACE_MARK: &str = "\nStack Trace:\n";
-
 // with the rest of the user's Kute files, where it can be found and where it can always be written
 fn crash_log_path() -> std::path::PathBuf {
     utils::settings_dir().join("crash_log.txt")
@@ -233,58 +231,6 @@ pub fn set_panic_hook() -> io::Result<()> {
         }
     }));
     Ok(())
-}
-
-fn without_user_paths(text: &str) -> Option<String> {
-    static USER_PATH: std::sync::LazyLock<Option<regex::Regex>> =
-        std::sync::LazyLock::new(|| regex::Regex::new(r#"[A-Za-z]:[\\/]+[Uu][Ss][Ee][Rr][Ss][\\/]+[^\\/\s:"']+"#).ok());
-    Some(USER_PATH.as_ref()?.replace_all(text, "~").into_owned())
-}
-
-pub fn report_last_crash() {
-    let log_path = crash_log_path();
-    let Ok(modified) = fs::metadata(&log_path).and_then(|meta| meta.modified()) else {
-        return;
-    };
-    let stamp = format!("{:?}", modified);
-    let sent_path = log_path.with_extension("sent");
-    if fs::read_to_string(&sent_path).is_ok_and(|sent| sent == stamp) {
-        return;
-    }
-    fs::write(&sent_path, &stamp).ok();
-
-    let Ok(log) = fs::read_to_string(&log_path) else { return };
-    let log = log.replace("\r\n", "\n");
-    let (head, trace) = log.split_once(CRASH_TRACE_MARK).unwrap_or((log.as_str(), ""));
-    let field = |name: &str| head.lines().find_map(|line| line.strip_prefix(name)).unwrap_or("").trim().to_string();
-    let (Some(location), Some(message), Some(trace)) = (
-        without_user_paths(&field("Location:")),
-        without_user_paths(&field("Message:")),
-        without_user_paths(trace),
-    ) else {
-        return;
-    };
-    let report = serde_json::json!({
-        // the version that crashed, which is not always the one that is running now
-        "kute": field("Version:"),
-        "location": location,
-        "message": message,
-        "trace": trace.chars().take(6000).collect::<String>(),
-    });
-    send_telemetry("crash", report.to_string());
-}
-
-pub fn send_telemetry(kind: &str, report: String) {
-    if !utils::config("telemetry", true) || !constants::TELEMETRY_KINDS.contains(&kind) {
-        return;
-    }
-    let kind = kind.to_string();
-    std::thread::spawn(move || {
-        let agent: ureq::Agent = ureq::Agent::config_builder().timeout_global(Some(std::time::Duration::from_secs(8))).build().into();
-        let url = format!("{}/telemetry/{kind}", utils::api_url());
-        let _result = agent.post(&url).header("content-type", "application/json").send(report);
-        crate::debug_print!("telemetry: {:?}", _result.map(|response| response.status()));
-    });
 }
 
 const WAIT_PID_ARG: &str = "--wait-pid=";
