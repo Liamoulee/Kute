@@ -50,6 +50,19 @@ pub const DEFAULT_BLOCKLIST: &str = r#"[
   "*://krunker.io/libs/anzu.js*"
 ]"#;
 
+// the cat models, blocked while "disableCats" is on
+pub const CAT_BLOCKLIST: &[&str] = &[
+    "*://user-assets.krunker.io/61822/model.obj*",
+    "*://user-assets.krunker.io/61818/model.obj*",
+    "*://user-assets.krunker.io/61814/model.obj*",
+    "*://user-assets.krunker.io/61824/model.obj*",
+    "*://user-assets.krunker.io/61815/model.obj*",
+    "*://user-assets.krunker.io/61820/model.obj*",
+    "*://user-assets.krunker.io/61821/model.obj*",
+    "*://user-assets.krunker.io/61806/model.obj*",
+    "*://user-assets.krunker.io/61823/model.obj*",
+];
+
 // checked against chromium 151.0.7922.174, recheck on a cef bump
 pub const DEFAULT_FLAGS: &str = r#"[
   "--disable-features=NativeNotifications,MediaRouter,CalculateNativeWinOcclusion,HappinessTrackingSurveysForDesktopDemo,HardwareMediaKeyHandling",

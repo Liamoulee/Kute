@@ -718,6 +718,9 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             if *setting == "disableOnlineFeatures" {
                 modules::blocklist::set_online_off(*value == "true");
             }
+            if *setting == "disableCats" {
+                modules::blocklist::set_cats_off(*value == "true");
+            }
             // present hook paces the game loop, gameFpsLimit.js has the fallback
             if *setting == "gameFpsLimit"
                 && let Ok(fps_limit) = value.parse::<u64>()

@@ -290,6 +290,15 @@
         "buttonAction": "window.chrome.webview.postMessage('open, blocklist')",
         "needsRestart": true
     },
+    "disableCats": {
+        "name": "Disable Cats",
+        "id": "disableCats",
+        "description": "Blocks the cat models in the maps",
+        "type": "checkbox",
+        "category": "Customization",
+        "defaultValue": false,
+        "needsRefresh": true
+    },
     "uncapFps": {
         "name": "Uncap FPS",
         "id": "uncapFps",
