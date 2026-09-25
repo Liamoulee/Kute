@@ -221,7 +221,7 @@
     "spotifyOverlay": {
         "name": "Spotify Overlay",
         "id": "spotifyOverlay",
-        "description": "Shows the currently playing Spotify track in the HUD",
+        "description": "Shows the currently playing Spotify track in the HUD. Move and resize it with the HUD Editor",
         "type": "checkbox",
         "category": "Interface",
         "defaultValue": false,
