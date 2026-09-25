@@ -2,7 +2,7 @@ import { kute } from "../../client.js";
 import html from "../../components/managers/userscripts.html";
 import { registry } from "./registry.js";
 import { openManagerPopup, makeDropTarget, askText, askConfirm, hostSupportsManagers, formatSize } from "./popup.js";
-import { createCodeEditor } from "./editor.js";
+import { createEditorView } from "./editor.js";
 
 /**
  * @typedef {object} ListedScript One script as the host lists it (userscripts.rs, list())
@@ -548,41 +548,20 @@ class UserscriptManager {
     showEditor(group, file, content, isNew = false){
         const body = this.body();
         if (!body) return;
-        body.textContent = "";
-        const view = element("div", "editorView");
-        const bar = element("div", "editorBar");
-        const title = element("div", "editorFile", file);
-        const dirtyMark = element("span", "dirty", isNew ? " (new, not saved yet)" : "");
-        title.append(dirtyMark);
-        const saveButton = element("div", "btn primary", "Save");
-        const saveCloseButton = element("div", "btn", "Save & close");
-        const closeButton = element("div", "btn", "Close");
-        bar.append(title, saveButton, saveCloseButton, closeButton);
-        const container = element("div");
-        container.style.cssText = "display:flex;flex:1 1 auto;min-height:0";
-        view.append(bar, container, element("div", "editorKeys", "Ctrl+S save  ·  Ctrl+Z / Ctrl+Y undo, redo  ·  Tab / Shift+Tab indent  ·  Esc close"));
-        body.append(view);
-
-        /**
-         * @param {boolean} closeAfter
-         */
-        const save = (closeAfter) => {
-            if (!this.editing) return;
-            this.pendingSave = { closeAfter };
-            this.editing.closeAfterSave = closeAfter;
-            this.send("write", { group, file, content: this.editing.editor.getValue() });
-        };
-        const editor = createCodeEditor(container, content, {
-            onSave: () => save(false),
-            onDirtyChange: (dirty) => {
-                dirtyMark.textContent = dirty ? "  ● unsaved" : "";
+        const { editor } = createEditorView(body, {
+            title: file,
+            content,
+            language: "js",
+            isNew,
+            onSave: (closeAfter) => {
+                if (!this.editing) return;
+                this.pendingSave = { closeAfter };
+                this.editing.closeAfterSave = closeAfter;
+                this.send("write", { group, file, content: this.editing.editor.getValue() });
             },
+            onClose: () => this.leaveEditor(),
         });
         this.editing = { group, file, editor, closeAfterSave: false };
-        saveButton.onclick = () => save(false);
-        saveCloseButton.onclick = () => save(true);
-        closeButton.onclick = () => this.leaveEditor();
-        editor.focus();
     }
 
     async leaveEditor(){

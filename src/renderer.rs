@@ -51,6 +51,7 @@ fn eval(context: &V8Context, code: &str, name: &str) {
 
 // bundle grabs the userscript registry from here, removed before page scripts run
 const REGISTRY_KEY: &str = "__kuteUserscripts";
+const CUSTOM_CSS_KEY: &str = "__kuteCustomCss";
 
 // runs before any page script. popups get theirs from handlers::on_after_created
 fn inject_scripts(url: &str, context: &V8Context) {
@@ -68,7 +69,20 @@ fn inject_scripts(url: &str, context: &V8Context) {
             V8Propertyattribute::default(),
         );
     }
+    // handed over here so it applies before the first paint, no round trip
+    let custom_css = modules::custom_css::for_page();
+    if let Some(global) = &global
+        && !custom_css.is_empty()
+        && let Some(mut css) = v8_value_create_string(Some(&CefString::from(custom_css.as_str())))
+    {
+        global.set_value_bykey(Some(&CefString::from(CUSTOM_CSS_KEY)), Some(&mut css), V8Propertyattribute::default());
+    }
     eval(context, &bundle_source(), "bundle.js");
+    if let Some(global) = &global
+        && !custom_css.is_empty()
+    {
+        global.delete_value_bykey(Some(&CefString::from(CUSTOM_CSS_KEY)));
+    }
     if let (Some(global), Some(registry)) = (global, registry) {
         global.delete_value_bykey(Some(&CefString::from(REGISTRY_KEY)));
         run_userscripts(context, registry);

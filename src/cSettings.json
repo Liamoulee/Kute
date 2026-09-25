@@ -221,7 +221,7 @@
     "spotifyOverlay": {
         "name": "Spotify Overlay",
         "id": "spotifyOverlay",
-        "description": "Shows the currently playing Spotify track in the HUD",
+        "description": "Shows the currently playing Spotify track in the HUD. Move and resize it with the HUD Editor",
         "type": "checkbox",
         "category": "Interface",
         "defaultValue": false,
@@ -258,6 +258,16 @@
         "buttonAction": "{{kute}}.swapperManager.open()",
         "needsRestart": true
     },
+    "customCss": {
+        "name": "Custom CSS",
+        "id": "customCss",
+        "description": "Your own CSS on top of Krunker's, with a live preview while you write it",
+        "type": "checkbox",
+        "category": "Customization",
+        "defaultValue": true,
+        "button": "Edit",
+        "buttonAction": "{{kute}}.customCss.open()"
+    },
     "userscripts": {
         "name": "Userscripts",
         "id": "userscripts",
@@ -279,6 +289,15 @@
         "button": "Open file",
         "buttonAction": "window.chrome.webview.postMessage('open, blocklist')",
         "needsRestart": true
+    },
+    "disableCats": {
+        "name": "Disable Cats",
+        "id": "disableCats",
+        "description": "Blocks the cat models in the maps",
+        "type": "checkbox",
+        "category": "Customization",
+        "defaultValue": true,
+        "needsRefresh": true
     },
     "uncapFps": {
         "name": "Uncap FPS",

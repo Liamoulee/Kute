@@ -10,3 +10,8 @@ kute.swapperManager = {
         import("./swapper.js").then((module) => module.open()).catch((error) => console.error("[kute] swapper manager:", error));
     },
 };
+kute.customCss = {
+    open: () => {
+        import("./customCss.js").then((module) => module.open()).catch((error) => console.error("[kute] custom css:", error));
+    },
+};

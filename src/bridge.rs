@@ -39,7 +39,16 @@ pub fn send_info(frame: &Frame) {
     info_map.insert("apiBase".to_string(), serde_json::Value::String(crate::utils::api_url()));
     info_map.insert(
         "hostFeatures".to_string(),
-        serde_json::json!(["matchmaker", "dev-proof", "kute-icons", "script-manager", "audio-fix", "spotify"]),
+        serde_json::json!([
+            "matchmaker",
+            "dev-proof",
+            "kute-icons",
+            "script-manager",
+            "audio-fix",
+            "spotify",
+            "custom-css",
+            "swapper-editor"
+        ]),
     );
 
     if crate::modules::dev::has_token() {

@@ -5,6 +5,7 @@ import { hook, getElement, checkCompMode } from "./utils.js";
 import { postUrls as postIconUrls } from "./modules/kuteIcons/slots.js";
 // static import: the host only hands over the userscript registry during bundle eval
 import "./modules/managers/registry.js";
+import "./modules/customCss.js";
 
 const isBenchPage = location.pathname === "/kute-bench";
 if (isBenchPage) import("./modules/autoDetect/bench.js");

@@ -212,6 +212,30 @@ pub fn upload(relative: &str, data: &str) -> Result<(), String> {
     utils::atomic_write(&path, &bytes).map_err(|e| e.to_string())
 }
 
+// the manager's editor, text files only
+const MAX_TEXT: u64 = 4 * 1024 * 1024;
+
+pub fn read_text(relative: &str) -> Option<String> {
+    let path = inside(relative).filter(|path| *path != swapper_dir())?;
+    if fs::metadata(&path).ok()?.len() > MAX_TEXT {
+        return None;
+    }
+    fs::read_to_string(path).ok()
+}
+
+pub fn write_text(relative: &str, content: &str) -> Result<(), String> {
+    if content.len() as u64 > MAX_TEXT {
+        return Err("larger than 4 MB".into());
+    }
+    let path = inside(relative).filter(|path| *path != swapper_dir()).ok_or("invalid path")?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    utils::atomic_write(&path, &content).map_err(|e| e.to_string())?;
+    reload();
+    Ok(())
+}
+
 pub fn reveal(relative: &str) {
     let root = swapper_dir();
     fs::create_dir_all(&root).ok();

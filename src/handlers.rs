@@ -491,6 +491,7 @@ static MANAGER_QUEUE: LazyLock<Option<mpsc::Sender<(i32, String)>>> = LazyLock::
                 let reply = match message.split_once('-') {
                     Some(("scripts", rest)) => handle_scripts_message(rest),
                     Some(("swapper", rest)) => handle_swapper_message(rest),
+                    Some(("css", rest)) => handle_css_message(rest),
                     _ => None,
                 };
                 if let Some(reply) = reply {
@@ -573,9 +574,35 @@ fn handle_swapper_message(message: &str) -> Option<String> {
             swapper::reveal(path);
             return None;
         }
+        "read" => {
+            return Some(serde_json::json!({ "swapperSource": { "path": path, "content": swapper::read_text(path) } }).to_string());
+        }
+        "write" => {
+            let result = swapper::write_text(path, payload_str(&payload, "content"));
+            let error = result.err().map(|e| format!("{path}: {e}"));
+            return Some(serde_json::json!({ "swapper": swapper::list(), "swapperWritten": { "path": path, "error": error } }).to_string());
+        }
         _ => return None,
     }
     manager_reply("swapper", swapper::list(), &problems)
+}
+
+fn handle_css_message(message: &str) -> Option<String> {
+    use modules::custom_css;
+    let (command, payload) = message.split_once(' ').unwrap_or((message, "{}"));
+    let payload = serde_json::from_str::<serde_json::Value>(payload).ok()?;
+    match command {
+        "read" => Some(serde_json::json!({ "customCss": { "content": custom_css::read() } }).to_string()),
+        "write" => {
+            let error = custom_css::write(payload_str(&payload, "content")).err();
+            Some(serde_json::json!({ "customCssSaved": { "error": error } }).to_string())
+        }
+        "reveal" => {
+            custom_css::reveal();
+            None
+        }
+        _ => None,
+    }
 }
 
 pub fn open_documents_subpath(target: &str) {
@@ -642,6 +669,12 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         }
         return;
     }
+    if let Some(rest) = message_string.strip_prefix("css-") {
+        if is_krunker_frame(frame) && rest.len() <= 8 * 1024 * 1024 {
+            queue_manager_message(browser, message_string);
+        }
+        return;
+    }
     // replies never contain a password
     if let Some(rest) = message_string.strip_prefix("accounts-") {
         handle_accounts_message(browser, rest);
@@ -684,6 +717,9 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
 
             if *setting == "disableOnlineFeatures" {
                 modules::blocklist::set_online_off(*value == "true");
+            }
+            if *setting == "disableCats" {
+                modules::blocklist::set_cats_off(*value == "true");
             }
             // present hook paces the game loop, gameFpsLimit.js has the fallback
             if *setting == "gameFpsLimit"

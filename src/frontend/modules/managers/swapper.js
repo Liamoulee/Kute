@@ -1,6 +1,23 @@
 import { kute } from "../../client.js";
 import html from "../../components/managers/swapper.html";
 import { openManagerPopup, makeDropTarget, readBase64, askText, askConfirm, hostSupportsManagers, formatSize } from "./popup.js";
+import { createEditorView, languageFor } from "./editor.js";
+
+const TEXT_FILES = new Set(["css", "js", "mjs", "json", "txt", "html", "htm", "svg", "xml", "obj", "mtl", "glsl", "frag", "vert", "md", "csv"]);
+
+// the host refuses more, and the editor gets slow long before
+const MAX_EDIT_SIZE = 4 * 1024 * 1024;
+
+/**
+ * @param {string} path
+ * @return {boolean}
+ */
+const isText = (path) => TEXT_FILES.has(path.slice(path.lastIndexOf(".") + 1).toLowerCase());
+
+/**
+ * @return {boolean}
+ */
+const hostSupportsEditor = () => kute.hostFeatures?.includes("swapper-editor") ?? false;
 
 /**
  * @typedef {object} SwapperList What the host lists (swapper.rs, list())
@@ -116,6 +133,12 @@ class SwapperManager {
         this.changed = false;
         /** @type {((error: string|null) => void)|null} resolves once the host saved the current upload */
         this.uploadDone = null;
+        /** @type {{ path: string, editor: import("./editor.js").CodeEditor, closeAfterSave: boolean }|null} */
+        this.editing = null;
+        /** @type {string|null} path of a read on its way */
+        this.pendingRead = null;
+        this.saving = false;
+        this.forceClose = false;
     }
 
     open(){
@@ -125,10 +148,22 @@ class SwapperManager {
             kute.showNotification("This Kute version can only open the swapper folder. Update Kute for the swapper manager.", false, 6);
             return;
         }
-        this.popup = openManagerPopup(html, { onMessage: (data) => this.receive(data) });
+        this.popup = openManagerPopup(html, {
+            onMessage: (data) => this.receive(data),
+            canClose: () => this.canClose(),
+            onEscape: () => {
+                if (!this.editing) return false;
+                this.leaveEditor();
+                return true;
+            },
+        });
         const { shadow, signal } = this.popup;
         signal.addEventListener("abort", () => {
             this.popup = null;
+            this.editing = null;
+            this.pendingRead = null;
+            this.saving = false;
+            this.forceClose = false;
             // unblock a pending upload so its loop sees the popup is gone
             this.uploadDone?.(null);
             this.uploadDone = null;
@@ -137,6 +172,9 @@ class SwapperManager {
         /** @type {HTMLElement} */ (shadow.querySelector("#swReload")).onclick = () => this.send("list", {});
         /** @type {HTMLElement} */ (shadow.querySelector("#swRefreshNow")).onclick = () => location.reload();
         /** @type {HTMLElement} */ (shadow.querySelector("#swNewFolder")).onclick = () => this.newFolder("");
+        const newFile = /** @type {HTMLElement} */ (shadow.querySelector("#swNewFile"));
+        if (!hostSupportsEditor()) newFile.style.display = "none";
+        newFile.onclick = () => this.newFile("");
         makeDropTarget(/** @type {HTMLElement} */ (shadow.querySelector("#swOwnColumn")), (files) => this.drop("", files));
         const search = /** @type {HTMLInputElement} */ (shadow.querySelector("#swSearch"));
         search.value = this.search;
@@ -231,6 +269,20 @@ class SwapperManager {
             this.uploadDone = null;
             done?.(data.swapperUploaded.error ?? null);
         }
+        if (data.swapperSource && data.swapperSource.path === this.pendingRead){
+            this.pendingRead = null;
+            if (typeof data.swapperSource.content === "string") this.showEditor(data.swapperSource.path, data.swapperSource.content);
+            else this.popup?.showError(`${data.swapperSource.path} could not be read as text.`);
+        }
+        if (data.swapperWritten && this.saving){
+            this.saving = false;
+            if (data.swapperWritten.error) this.popup?.showError(data.swapperWritten.error);
+            else if (this.editing){
+                this.changed = true;
+                this.editing.editor.markSaved();
+                if (this.editing.closeAfterSave) this.closeEditor();
+            }
+        }
         if (!data.swapper) return;
         this.list = data.swapper;
         this.render();
@@ -288,7 +340,9 @@ class SwapperManager {
                     else this.collapsedOwn.add(child.path);
                     this.renderOwn();
                 };
-                row.querySelector(".scriptActions")?.append(
+                const actions = row.querySelector(".scriptActions");
+                if (hostSupportsEditor()) actions?.append(iconButton("note_add", "New file inside", () => this.newFile(child.path)));
+                actions?.append(
                     iconButton("create_new_folder", "New folder inside", () => this.newFolder(child.path)),
                     iconButton("drive_file_rename_outline", "Rename or move", () => this.move(child.path)),
                     iconButton("folder_open", "Open in Explorer", () => this.send("reveal", { path: child.path })),
@@ -358,6 +412,10 @@ class SwapperManager {
         }
 
         const actions = element("div", "scriptActions");
+        if (hostSupportsEditor() && isText(file.path) && file.size <= MAX_EDIT_SIZE){
+            actions.append(iconButton("edit", "Edit", () => this.edit(file.path)));
+            row.ondblclick = () => this.edit(file.path);
+        }
         actions.append(
             iconButton("drive_file_rename_outline", "Rename or move", () => this.move(file.path)),
             iconButton("folder_open", "Show in Explorer", () => this.send("reveal", { path: file.path })),
@@ -392,6 +450,13 @@ class SwapperManager {
             row.title = `krunker.io/${path}\nDrop a file here to replace it`;
             row.append(element("span", "mi", "insert_drive_file"), element("span", "nodeName", depth ? baseName(path) : path));
             if (own.has(path.toLowerCase())) row.append(element("span", "swapped", "swapped"));
+            if (hostSupportsEditor() && isText(path)){
+                const swapped = this.list?.files.find((file) => file.path.toLowerCase() === path.toLowerCase());
+                const actions = element("div", "scriptActions");
+                if (swapped) actions.append(iconButton("edit", "Edit your swap", () => this.edit(swapped.path)));
+                else actions.append(iconButton("edit_note", "Edit a copy, saving it swaps the file", () => this.editCopy(path)));
+                row.append(actions);
+            }
             makeDropTarget(row, (files) => this.replace(path, files));
             return row;
         };
@@ -426,6 +491,118 @@ class SwapperManager {
             for (const file of [...folder.files].sort((a, b) => a.name.localeCompare(b.name))) tree.append(fileRow(file.path, depth + 1));
         };
         walk(root, 0);
+    }
+
+    /**
+     * @param {string} parent
+     */
+    async newFile(parent){
+        if (!this.popup) return;
+        const answer = await askText(this.popup.shadow, "New file", parent ? `${parent}/new.css` : "css/new.css", "A path inside the swapper folder, the same path the game loads the file from");
+        if (!answer) return;
+        const path = answer.replace(/^\/+/, "");
+        if (this.list?.files.some((file) => file.path.toLowerCase() === path.toLowerCase())){
+            this.popup.showError(`${path} already exists, edit it instead.`);
+            return;
+        }
+        this.showEditor(path, "", true);
+    }
+
+    /**
+     * @param {string} path
+     */
+    edit(path){
+        if (this.pendingRead || this.editing) return;
+        this.pendingRead = path;
+        this.send("read", { path });
+    }
+
+    /**
+     * Starts from the game's own file, nothing is written before Save.
+     *
+     * @param {string} path
+     */
+    async editCopy(path){
+        if (this.pendingRead || this.editing) return;
+        this.pendingRead = path;
+        let content = null;
+        for (const origin of ["https://krunker.io", "https://assets.krunker.io"]){
+            try {
+                const response = await fetch(`${origin}/${path}`);
+                if (response.ok){
+                    content = await response.text();
+                    break;
+                }
+            }
+            catch {
+                // next origin
+            }
+        }
+        if (this.pendingRead !== path) return;
+        this.pendingRead = null;
+        if (content === null){
+            this.popup?.showError(`Could not download krunker.io/${path}, starting with an empty file.`);
+            content = "";
+        }
+        this.showEditor(path, content, true);
+    }
+
+    /**
+     * @param {string} path
+     * @param {string} content
+     * @param {boolean} [isNew] Nothing on disk yet
+     */
+    showEditor(path, content, isNew = false){
+        if (!this.popup) return;
+        const holder = this.get("#swEditor");
+        this.get(".swapColumns").style.display = "none";
+        holder.style.display = "";
+        const { editor } = createEditorView(holder, {
+            title: path,
+            content,
+            language: languageFor(path),
+            isNew,
+            onSave: (closeAfter) => {
+                if (!this.editing || this.saving) return;
+                this.saving = true;
+                this.editing.closeAfterSave = closeAfter;
+                this.send("write", { path, content: this.editing.editor.getValue() });
+            },
+            onClose: () => this.leaveEditor(),
+        });
+        this.editing = { path, editor, closeAfterSave: false };
+    }
+
+    async leaveEditor(){
+        if (!this.editing || !this.popup) return;
+        if (this.editing.editor.isDirty()){
+            const discard = await askConfirm(this.popup.shadow, "Unsaved changes", "Close the editor and throw the changes away?", "Discard");
+            if (!discard) return;
+        }
+        this.closeEditor();
+    }
+
+    closeEditor(){
+        this.editing = null;
+        if (!this.popup) return;
+        const holder = this.get("#swEditor");
+        holder.textContent = "";
+        holder.style.display = "none";
+        this.get(".swapColumns").style.display = "";
+        this.render();
+    }
+
+    /**
+     * @return {boolean}
+     */
+    canClose(){
+        if (this.forceClose || !this.editing?.editor.isDirty() || !this.popup) return true;
+        askConfirm(this.popup.shadow, "Unsaved changes", "Close and throw the changes away?", "Discard").then((discard) => {
+            if (!discard) return;
+            this.forceClose = true;
+            this.popup?.close();
+        });
+        return false;
     }
 
     /**

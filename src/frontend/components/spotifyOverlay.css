@@ -1,9 +1,8 @@
 #kuteSpotifyOverlay {
 	position: absolute;
-	/* the anchor it hangs from. where it actually sits is the HUD editor's translate on top of this */
-	top: 7vh;
-	left: 50%;
-	transform: translateX(-50%);
+	/* px in #uiBase like krunker's health bar (15px/15px), so it stays next to it at any resolution */
+	left: 463px;
+	bottom: 23px;
 	z-index: 10;
 	display: flex;
 	align-items: center;
@@ -21,8 +20,7 @@
 	pointer-events: none;
 }
 
-#kuteSpotifyOverlay[hidden],
-#uiBase.onMenu #kuteSpotifyOverlay {
+#kuteSpotifyOverlay[hidden] {
 	display: none;
 }
 
