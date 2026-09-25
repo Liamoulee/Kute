@@ -491,6 +491,7 @@ static MANAGER_QUEUE: LazyLock<Option<mpsc::Sender<(i32, String)>>> = LazyLock::
                 let reply = match message.split_once('-') {
                     Some(("scripts", rest)) => handle_scripts_message(rest),
                     Some(("swapper", rest)) => handle_swapper_message(rest),
+                    Some(("css", rest)) => handle_css_message(rest),
                     _ => None,
                 };
                 if let Some(reply) = reply {
@@ -586,6 +587,24 @@ fn handle_swapper_message(message: &str) -> Option<String> {
     manager_reply("swapper", swapper::list(), &problems)
 }
 
+fn handle_css_message(message: &str) -> Option<String> {
+    use modules::custom_css;
+    let (command, payload) = message.split_once(' ').unwrap_or((message, "{}"));
+    let payload = serde_json::from_str::<serde_json::Value>(payload).ok()?;
+    match command {
+        "read" => Some(serde_json::json!({ "customCss": { "content": custom_css::read() } }).to_string()),
+        "write" => {
+            let error = custom_css::write(payload_str(&payload, "content")).err();
+            Some(serde_json::json!({ "customCssSaved": { "error": error } }).to_string())
+        }
+        "reveal" => {
+            custom_css::reveal();
+            None
+        }
+        _ => None,
+    }
+}
+
 pub fn open_documents_subpath(target: &str) {
     let path_to_open = match target {
         "blocklist" => utils::settings_dir().join("user_blocklist.json"),
@@ -646,6 +665,12 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
     if let Some(rest) = message_string.strip_prefix("swapper-") {
         // uploads carry a whole base64 file
         if is_krunker_frame(frame) && rest.len() <= 48 * 1024 * 1024 {
+            queue_manager_message(browser, message_string);
+        }
+        return;
+    }
+    if let Some(rest) = message_string.strip_prefix("css-") {
+        if is_krunker_frame(frame) && rest.len() <= 8 * 1024 * 1024 {
             queue_manager_message(browser, message_string);
         }
         return;
