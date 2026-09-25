@@ -32,6 +32,10 @@ const debounceTimers = new Map();
 
 const BLOCKED_STYLE = "opacity: 0.35; cursor: not-allowed";
 
+// inside the onclick of krunker's own raw mouse switch, see lockRawMouse
+const RAW_MOUSE_SETTING = "window.setSetting(\"rawMouse\"";
+const RAW_MOUSE_HINT = "Controlled by Kute's Raw Input setting";
+
 const settings = /** @type {Record<string, SettingOption>} */ (cSettings);
 
 /**
@@ -234,7 +238,7 @@ class SettingsManager {
          * @return {string}
          */
         this.settingsWindow.getSettings = (...args) => {
-            const original = origGetSettings.call(this.settingsWindow, ...args);
+            const original = this.lockRawMouse(origGetSettings.call(this.settingsWindow, ...args));
             const ours = this.getCSettings();
             if (!ours) return original;
             // our settings go inside krunker's first closing div, so move that closer behind them
@@ -257,6 +261,31 @@ class SettingsManager {
             }
             kute.showNotification(response.message, false, 5);
         });
+    }
+
+    /**
+     * Locks krunker's own "Raw Mouse Input" switch to ours. Both ask for the same pointer lock flag and main.js
+     * always passes our value, so theirs can never do anything: it is shown with our state and greyed out
+     * instead of looking like a second, working control. Their stored setting is never written.
+     *
+     * @param {string} html krunker's generated settings markup
+     * @return {string}
+     */
+    lockRawMouse(html){
+        const anchor = html.indexOf(RAW_MOUSE_SETTING);
+        if (anchor < 0) return html;
+        const tagStart = html.lastIndexOf("<input", anchor);
+        const tagEnd = html.indexOf(">", anchor);
+        const label = html.lastIndexOf("<label", anchor);
+        if (tagStart < 0 || tagEnd < 0 || label < 0) return html;
+        const labelEnd = html.indexOf(">", label);
+        // the label has to be the one around this input, otherwise the markup is not what we expect any more
+        if (labelEnd < 0 || labelEnd > tagStart) return html;
+        const input = html.slice(tagStart, tagEnd).replace(/\s+checked\b/, "")
+            + (kute.settings.data.rawInput ? " checked" : "") + " disabled>";
+        // the tooltip goes on the label: a disabled input takes no pointer events, so the hover lands there
+        return html.slice(0, labelEnd) + ` title="${RAW_MOUSE_HINT}">`
+            + html.slice(labelEnd + 1, tagStart) + input + html.slice(tagEnd + 1);
     }
 
     /**
