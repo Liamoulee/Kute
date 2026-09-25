@@ -296,7 +296,7 @@
         "description": "Blocks the cat models in the maps",
         "type": "checkbox",
         "category": "Customization",
-        "defaultValue": false,
+        "defaultValue": true,
         "needsRefresh": true
     },
     "uncapFps": {

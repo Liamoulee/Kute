@@ -24,7 +24,7 @@ static ONLINE_OFF: LazyLock<AtomicBool> = LazyLock::new(|| AtomicBool::new(utils
 static API_HOST: LazyLock<String> = LazyLock::new(|| url_host(&utils::api_url()).unwrap_or_default().to_string());
 
 // separate from the blocklist setting, turning that off must not bring the cats back
-static CATS_OFF: LazyLock<AtomicBool> = LazyLock::new(|| AtomicBool::new(utils::config("disableCats", false)));
+static CATS_OFF: LazyLock<AtomicBool> = LazyLock::new(|| AtomicBool::new(utils::config("disableCats", true)));
 
 pub fn set_online_off(off: bool) {
     ONLINE_OFF.store(off, Ordering::Relaxed);
