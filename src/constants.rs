@@ -37,7 +37,6 @@ pub const DEFAULT_BLOCKLIST: &str = r#"[
   "*://krunker.io/img/btc_icn.png*",
   "*://krunker.io/img/app_1.png*",
   "*://krunker.io/img/app_0.png.png*",
-  "*://krunker.io/libs/chart.bundle*",
   "*://krunker.io/img/muzflash.png*",
   "*://krunker.io/service-worker.js*",
   "*://krunker.io/libs/fflate*",
@@ -48,16 +47,7 @@ pub const DEFAULT_BLOCKLIST: &str = r#"[
   "*://user-assets.krunker.io/60585/*",
   "*://fran-cdn.frvr.com/prebid*",
   "*://cdn.frvr.com/fran/prebid*",
-  "*://krunker.io/libs/anzu.js*",
-  "*://user-assets.krunker.io/61822/model.obj*",
-  "*://user-assets.krunker.io/61818/model.obj*",
-  "*://user-assets.krunker.io/61814/model.obj*",
-  "*://user-assets.krunker.io/61824/model.obj*",
-  "*://user-assets.krunker.io/61815/model.obj*",
-  "*://user-assets.krunker.io/61820/model.obj*",
-  "*://user-assets.krunker.io/61821/model.obj*",
-  "*://user-assets.krunker.io/61806/model.obj*",
-  "*://user-assets.krunker.io/61823/model.obj*"
+  "*://krunker.io/libs/anzu.js*"
 ]"#;
 
 // checked against chromium 151.0.7922.174, recheck on a cef bump

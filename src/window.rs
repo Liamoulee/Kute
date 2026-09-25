@@ -708,6 +708,13 @@ unsafe fn wnd_proc_common(window: &mut Window, hwnd: HWND, msg: u32, wparam: WPA
         match msg {
             WM_SETFOCUS => {
                 if let Some(host) = window.browser.as_ref().and_then(|b| b.host()) {
+                    // set_focus leaves win32 focus here, keys were lost until the first click in the page.
+                    // focus from our own child is input.rs parking it on escape, leave that alone
+                    let browser_hwnd = HWND(host.window_handle().0.cast());
+                    let from = HWND(wparam.0 as _);
+                    if !browser_hwnd.is_invalid() && !IsChild(hwnd, from).as_bool() {
+                        let _ = SetFocus(Some(browser_hwnd));
+                    }
                     host.set_focus(1);
                 }
             }
