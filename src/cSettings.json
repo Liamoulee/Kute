@@ -224,7 +224,7 @@
         "description": "Shows the currently playing Spotify track in the HUD",
         "type": "checkbox",
         "category": "Interface",
-        "defaultValue": true,
+        "defaultValue": false,
         "hostFeature": "spotify"
     },
     "nukeCounter": {
