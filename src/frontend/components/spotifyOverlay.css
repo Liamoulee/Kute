@@ -1,8 +1,8 @@
 #kuteSpotifyOverlay {
 	position: absolute;
-	/* the anchor it hangs from. where it actually sits is the HUD editor's translate on top of this */
-	top: 7vh;
-	left: 50%;
+	/* next to the health bar. the HUD editor's translate goes on top of this */
+	top: 90.11vh;
+	left: calc(50% - 27.28vw);
 	transform: translateX(-50%);
 	z-index: 10;
 	display: flex;
