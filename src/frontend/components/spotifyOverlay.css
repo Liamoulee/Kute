@@ -1,0 +1,77 @@
+#kuteSpotifyOverlay {
+	position: absolute;
+	/* px in #uiBase like krunker's health bar (15px/15px), so it stays next to it at any resolution */
+	left: 463px;
+	bottom: 23px;
+	z-index: 10;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	box-sizing: border-box;
+	width: 320px;
+	min-height: 82px;
+	padding: 10px;
+	border: 1px solid rgba(29, 185, 84, 0.7);
+	border-radius: 8px;
+	background: rgba(12, 18, 15, 0.88);
+	box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+	color: #fff;
+	font-family: Arial, sans-serif;
+	pointer-events: none;
+}
+
+#kuteSpotifyOverlay[hidden] {
+	display: none;
+}
+
+#kuteSpotifyOverlay.paused {
+	opacity: 0.72;
+}
+
+#kuteSpotifyArtwork {
+	width: 60px;
+	height: 60px;
+	flex: 0 0 60px;
+	border-radius: 4px;
+	background: #26302a;
+	object-fit: cover;
+}
+
+#kuteSpotifyInfo {
+	min-width: 0;
+	flex: 1 1 auto;
+}
+
+#kuteSpotifyTitle,
+#kuteSpotifyArtist {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+#kuteSpotifyTitle {
+	font-size: 14px;
+	font-weight: 700;
+}
+
+#kuteSpotifyArtist {
+	margin-top: 3px;
+	color: #b8c8bc;
+	font-size: 12px;
+}
+
+#kuteSpotifyProgress {
+	height: 3px;
+	margin-top: 9px;
+	border-radius: 2px;
+	background: #536258;
+	overflow: hidden;
+}
+
+/* scaleX, not width: a width change lays out */
+#kuteSpotifyProgress > div {
+	height: 100%;
+	background: #1db954;
+	transform: scaleX(0);
+	transform-origin: left;
+}

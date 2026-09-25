@@ -80,6 +80,7 @@ interface Kute {
     kuteIcons: { customize(): void; refresh(): void };
     userscriptManager: { open(): void };
     swapperManager: { open(): void };
+    customCss: { open(): void };
 }
 
 interface KrunkerGameActivity {

@@ -17,6 +17,7 @@ pub mod modules {
     pub mod accounts;
     pub mod bench;
     pub mod blocklist;
+    pub mod custom_css;
     pub mod dev;
     pub mod devtools;
     pub mod dpapi;
@@ -32,6 +33,7 @@ pub mod modules {
     pub mod render_hook;
     pub mod resource;
     pub mod specs;
+    pub mod spotify;
     pub mod swapper;
     pub mod userscripts;
 }

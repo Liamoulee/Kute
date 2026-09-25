@@ -23,12 +23,21 @@ pub static BLOCKLIST: LazyLock<Vec<String>> = LazyLock::new(|| if utils::config(
 static ONLINE_OFF: LazyLock<AtomicBool> = LazyLock::new(|| AtomicBool::new(utils::config("disableOnlineFeatures", false)));
 static API_HOST: LazyLock<String> = LazyLock::new(|| url_host(&utils::api_url()).unwrap_or_default().to_string());
 
+// separate from the blocklist setting, turning that off must not bring the cats back
+static CATS_OFF: LazyLock<AtomicBool> = LazyLock::new(|| AtomicBool::new(utils::config("disableCats", true)));
+
 pub fn set_online_off(off: bool) {
     ONLINE_OFF.store(off, Ordering::Relaxed);
 }
 
+pub fn set_cats_off(off: bool) {
+    CATS_OFF.store(off, Ordering::Relaxed);
+}
+
 pub fn is_blocked(url: &str) -> bool {
-    (ONLINE_OFF.load(Ordering::Relaxed) && is_kute_server(url)) || BLOCKLIST.iter().any(|pattern| glob_match(pattern, url))
+    (ONLINE_OFF.load(Ordering::Relaxed) && is_kute_server(url))
+        || (CATS_OFF.load(Ordering::Relaxed) && constants::CAT_BLOCKLIST.iter().any(|pattern| glob_match(pattern, url)))
+        || BLOCKLIST.iter().any(|pattern| glob_match(pattern, url))
 }
 
 fn is_kute_server(url: &str) -> bool {
@@ -137,6 +146,20 @@ mod tests {
     #[test]
     fn does_not_match_unrelated_host() {
         assert!(!glob_match("*://*.doubleclick.net/*", "https://krunker.io/js/game.js"));
+    }
+
+    #[test]
+    fn cat_patterns_match_the_models() {
+        assert!(
+            constants::CAT_BLOCKLIST
+                .iter()
+                .any(|p| glob_match(p, "https://user-assets.krunker.io/61822/model.obj?v=2"))
+        );
+        assert!(
+            !constants::CAT_BLOCKLIST
+                .iter()
+                .any(|p| glob_match(p, "https://user-assets.krunker.io/61822/texture.png"))
+        );
     }
 
     #[test]

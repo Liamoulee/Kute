@@ -1,0 +1,33 @@
+<style>
+.managerBody {
+	display: flex;
+	flex-direction: column;
+}
+
+.previewToggle {
+	display: flex;
+	align-items: center;
+	gap: 0.4em;
+	color: var(--muted);
+	cursor: pointer;
+	user-select: none;
+}
+
+.previewToggle input {
+	accent-color: var(--accent);
+}
+</style>
+<div class="managerPopup">
+	<div class="managerHeader">
+		<h2 class="managerTitle">Custom CSS</h2>
+		<label class="previewToggle" title="Apply every change right away, Close throws unsaved changes away again"><input type="checkbox" id="ccLive" checked>Live preview</label>
+		<div class="btn" id="ccPeek" title="Hold to look at the game behind this window"><span class="mi">visibility</span>Hold to peek</div>
+		<div class="btn" id="ccFolder"><span class="mi">folder_open</span>Show file</div>
+		<div class="managerClose" data-close>&times;</div>
+	</div>
+	<div class="managerHint">Loaded after all of Krunker's styles, so a rule with the same selector wins. Krunker's inline styles
+		and its own <code>!important</code> rules still need <code>!important</code> here. Saved as <code>Documents\kute\custom.css</code>.</div>
+	<div class="managerError" data-error hidden></div>
+	<div class="managerNotice" id="ccOff" hidden><span>Custom CSS is switched off (Settings, Customization), nothing of this is applied.</span></div>
+	<div class="managerBody" id="ccBody"></div>
+</div>

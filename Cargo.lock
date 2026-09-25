@@ -698,6 +698,7 @@ dependencies = [
 name = "kute"
 version = "0.1.13"
 dependencies = [
+ "base64",
  "cef",
  "discord-rich-presence",
  "dns-lookup",

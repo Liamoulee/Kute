@@ -33,7 +33,8 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] NVIDIA driver caps lifted for Kute only: its own driver profile (no Max Frame Rate, V-Sync left to the client) is created once, your global settings and other games stay as they are, and you can change or delete it in the NVIDIA Control Panel
 - [x] Selectable graphics backend (ANGLE: D3D11, D3D11on12, OpenGL, Vulkan) and color profile
 - [x] Optimized URL blocklist (only ~50 entries, fully customizable), custom Chromium flags
-- [x] Resource swapper with an in-client manager: shows which game files your swaps replace, drop a file onto a game file to put it in the right place, folder names ignore case
+- [x] Resource swapper with an in-client manager: shows which game files your swaps replace, drop a file onto a game file to put it in the right place, folder names ignore case, create and edit text files like CSS in the built-in editor
+- [x] Custom CSS with a syntax highlighted editor and live preview, always applied on top of Krunker's own styles
 - [x] All settings togglable
 - [x] Battle pass claim-all
 - [x] Userscripts (Crankshaft and idkr formats) with an in-client manager: live on/off, script settings, a built-in editor, drag and drop
@@ -61,8 +62,9 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [ ] Skin Swapper (coming soon)
 - [ ] BetterKDR™️ (coming soon)
 - [ ] Bloomberg-style trading terminal & market analysis (coming soon)
-- [ ] Spotify and YouTube Music overlay (coming soon)
-- [ ] Custom CSS Manager (coming soon)
+- [ ] Music overlay (in progress)
+  - [ ] Spotify (in progress) - by [@Liamoulee](https://github.com/Liamoulee)
+  - [ ] YouTube (coming soon)
 - [x] and more...
 
 <hr>

@@ -84,6 +84,10 @@
 	width: calc(100% - 1.4em);
 }
 
+.swEditor {
+	height: 100%;
+}
+
 .treeNote {
 	padding: 0.6em 0.9em;
 	color: #777;
@@ -100,7 +104,8 @@
 	</div>
 	<div class="managerHint">A file in the swapper folder replaces the game's file with the same path:
 		<code>swapper/textures/pistol.png</code> replaces <code>krunker.io/textures/pistol.png</code>. Easiest way: drop your file
-		onto the game file it should replace (right side), it gets the right folder and name. Folder names do not care about case.</div>
+		onto the game file it should replace (right side), it gets the right folder and name. Folder names do not care about case.
+		Text files like CSS can be written right here: New file, or the edit button on a game file to start from a copy.</div>
 	<div class="managerError" data-error hidden></div>
 	<div class="managerNotice" id="swNotice" hidden><span></span><div class="btn small primary" id="swRefreshNow">Refresh now</div></div>
 	<div class="managerBody">
@@ -109,6 +114,7 @@
 				<div class="groupHead">
 					<div class="groupTitle">Your swaps</div>
 					<div class="groupRuns" id="swOwnCount"></div>
+					<div class="btn small" id="swNewFile"><span class="mi">note_add</span>New file</div>
 					<div class="btn small" id="swNewFolder"><span class="mi">create_new_folder</span>New folder</div>
 				</div>
 				<div class="tree" id="swOwnTree"></div>
@@ -123,5 +129,6 @@
 				<div class="tree" id="swGameTree"></div>
 			</div>
 		</div>
+		<div class="swEditor" id="swEditor" style="display: none"></div>
 	</div>
 </div>

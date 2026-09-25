@@ -32,6 +32,8 @@ thread_local! {
     static MAIN_BROWSER: RefCell<Option<Browser>> = const { RefCell::new(None) };
     // includes windows whose browser is already gone
     static OUR_WINDOWS: RefCell<Vec<HWND>> = const { RefCell::new(Vec::new()) };
+    // cef CHECKs that set_nestable_tasks_allowed never nests
+    static IN_SIZE_MOVE_LOOP: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
 #[derive(Copy, Clone, serde::Serialize, serde::Deserialize, Default, Debug)]
@@ -708,8 +710,25 @@ unsafe fn wnd_proc_common(window: &mut Window, hwnd: HWND, msg: u32, wparam: WPA
         match msg {
             WM_SETFOCUS => {
                 if let Some(host) = window.browser.as_ref().and_then(|b| b.host()) {
+                    // set_focus leaves win32 focus here, keys were lost until the first click in the page.
+                    // focus from our own child is input.rs parking it on escape, leave that alone
+                    let browser_hwnd = HWND(host.window_handle().0.cast());
+                    let from = HWND(wparam.0 as _);
+                    if !browser_hwnd.is_invalid() && !IsChild(hwnd, from).as_bool() {
+                        let _ = SetFocus(Some(browser_hwnd));
+                    }
                     host.set_focus(1);
                 }
+            }
+            // the drag loop inside DefWindowProc blocked chromium's tasks, the page froze until the mouse was released
+            // (as in cefclient's root_window_win.cc)
+            WM_SYSCOMMAND if matches!(wparam.0 as u32 & 0xFFF0, SC_MOVE | SC_SIZE) && !IN_SIZE_MOVE_LOOP.get() => {
+                IN_SIZE_MOVE_LOOP.set(true);
+                set_nestable_tasks_allowed(1);
+                let result = DefWindowProcW(hwnd, msg, wparam, lparam);
+                set_nestable_tasks_allowed(0);
+                IN_SIZE_MOVE_LOOP.set(false);
+                return Some(result);
             }
             WM_SIZE => {
                 window.resize_browser(utils::LOWORD(lparam.0 as usize) as i32, utils::HIWORD(lparam.0 as usize) as i32);

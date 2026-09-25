@@ -5,6 +5,7 @@ import { hook, getElement, checkCompMode } from "./utils.js";
 import { postUrls as postIconUrls } from "./modules/kuteIcons/slots.js";
 // static import: the host only hands over the userscript registry during bundle eval
 import "./modules/managers/registry.js";
+import "./modules/customCss.js";
 
 const isBenchPage = location.pathname === "/kute-bench";
 if (isBenchPage) import("./modules/autoDetect/bench.js");
@@ -110,9 +111,13 @@ Object.defineProperty(window, "gameLoaded", {
             "beforebegin",
             `<div onclick="window.open('./social.html')" class="menuItem ${svelteCode}"><span class="material-icons-outlined menuItemIcon ${svelteCode}">open_in_new</span><div class="menuItemTitle ${svelteCode}">Classic Social</div></div>`,
         );
+        // copies the look of the version next to "What's New"
+        const whatsNewClass = document.querySelector(".whats-new-version")?.className;
+        const versionAttr = whatsNewClass ? `class="${whatsNewClass}"` : "style=\"font-size:.7em;font-weight:700;color:rgba(255,255,255,.5)\"";
+        const versionTag = kute.version ? `<span ${versionAttr}>&nbsp;- v${kute.version}</span>` : "";
         getElement("#clientExit").insertAdjacentHTML(
             "beforebegin",
-            `<div onclick='${globalRef}.openKuteSettings()' class="menuItem ${svelteCode}"><span class="material-icons menuItemIcon ${svelteCode}">settings</span><div class="menuItemTitle ${svelteCode}">Kute Settings</div></div>`,
+            `<div onclick='${globalRef}.openKuteSettings()' class="menuItem ${svelteCode}"><span class="material-icons menuItemIcon ${svelteCode}">settings</span><div class="menuItemTitle ${svelteCode}">Kute Settings${versionTag}</div></div>`,
         );
         import("./notifications.js");
         import("./settings.js");
@@ -146,6 +151,7 @@ Object.defineProperty(window, "gameLoaded", {
         if (kute?.settings?.data?.realPing) import("./modules/realPing.js");
         if (kute?.settings?.data?.exitButton) getElement("#clientExit").style.display = "flex";
         if (kute?.settings?.data?.renderStats) import("./modules/renderFps.js");
+        if (kute?.settings?.data?.spotifyOverlay && kute.hostFeatures?.includes("spotify")) import("./modules/spotifyOverlay.js");
 
         if (kute?.settings?.data?.rampBoost && !checkCompMode()){
             window.chrome.webview.postMessage("toggle-rboost, true");
