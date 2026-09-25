@@ -573,6 +573,14 @@ fn handle_swapper_message(message: &str) -> Option<String> {
             swapper::reveal(path);
             return None;
         }
+        "read" => {
+            return Some(serde_json::json!({ "swapperSource": { "path": path, "content": swapper::read_text(path) } }).to_string());
+        }
+        "write" => {
+            let result = swapper::write_text(path, payload_str(&payload, "content"));
+            let error = result.err().map(|e| format!("{path}: {e}"));
+            return Some(serde_json::json!({ "swapper": swapper::list(), "swapperWritten": { "path": path, "error": error } }).to_string());
+        }
         _ => return None,
     }
     manager_reply("swapper", swapper::list(), &problems)
