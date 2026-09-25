@@ -63,7 +63,7 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [ ] BetterKDR™️ (coming soon)
 - [ ] Bloomberg-style trading terminal & market analysis (coming soon)
 - [ ] Music overlay (in progress)
-  - [ ] Spotify (in progress) - by [@Liamoulee](https://github.com/Liamoulee)
+  - [x] Spotify (in progress) - by [@Liamoulee](https://github.com/Liamoulee)
   - [ ] YouTube (coming soon)
 - [x] and more...
 
