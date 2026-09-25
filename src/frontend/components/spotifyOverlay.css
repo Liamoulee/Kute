@@ -1,9 +1,8 @@
 #kuteSpotifyOverlay {
 	position: absolute;
-	/* next to the health bar. the HUD editor's translate goes on top of this */
-	top: 90.11vh;
-	left: calc(50% - 27.28vw);
-	transform: translateX(-50%);
+	/* px in #uiBase like krunker's health bar (15px/15px), so it stays next to it at any resolution */
+	left: 463px;
+	bottom: 23px;
 	z-index: 10;
 	display: flex;
 	align-items: center;
