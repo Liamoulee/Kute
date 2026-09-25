@@ -37,7 +37,6 @@ pub const DEFAULT_BLOCKLIST: &str = r#"[
   "*://krunker.io/img/btc_icn.png*",
   "*://krunker.io/img/app_1.png*",
   "*://krunker.io/img/app_0.png.png*",
-  "*://krunker.io/libs/chart.bundle*",
   "*://krunker.io/img/muzflash.png*",
   "*://krunker.io/service-worker.js*",
   "*://krunker.io/libs/fflate*",
