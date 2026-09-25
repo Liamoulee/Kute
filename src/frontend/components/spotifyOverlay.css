@@ -21,8 +21,7 @@
 	pointer-events: none;
 }
 
-#kuteSpotifyOverlay[hidden],
-#uiBase.onMenu #kuteSpotifyOverlay {
+#kuteSpotifyOverlay[hidden] {
 	display: none;
 }
 
