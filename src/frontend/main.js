@@ -110,9 +110,13 @@ Object.defineProperty(window, "gameLoaded", {
             "beforebegin",
             `<div onclick="window.open('./social.html')" class="menuItem ${svelteCode}"><span class="material-icons-outlined menuItemIcon ${svelteCode}">open_in_new</span><div class="menuItemTitle ${svelteCode}">Classic Social</div></div>`,
         );
+        // copies the look of the version next to "What's New"
+        const whatsNewClass = document.querySelector(".whats-new-version")?.className;
+        const versionAttr = whatsNewClass ? `class="${whatsNewClass}"` : "style=\"font-size:.7em;font-weight:700;color:rgba(255,255,255,.5)\"";
+        const versionTag = kute.version ? `<span ${versionAttr}>&nbsp;- v${kute.version}</span>` : "";
         getElement("#clientExit").insertAdjacentHTML(
             "beforebegin",
-            `<div onclick='${globalRef}.openKuteSettings()' class="menuItem ${svelteCode}"><span class="material-icons menuItemIcon ${svelteCode}">settings</span><div class="menuItemTitle ${svelteCode}">Kute Settings</div></div>`,
+            `<div onclick='${globalRef}.openKuteSettings()' class="menuItem ${svelteCode}"><span class="material-icons menuItemIcon ${svelteCode}">settings</span><div class="menuItemTitle ${svelteCode}">Kute Settings${versionTag}</div></div>`,
         );
         import("./notifications.js");
         import("./settings.js");
