@@ -258,6 +258,16 @@
         "buttonAction": "{{kute}}.swapperManager.open()",
         "needsRestart": true
     },
+    "customCss": {
+        "name": "Custom CSS",
+        "id": "customCss",
+        "description": "Your own CSS on top of Krunker's, with a live preview while you write it",
+        "type": "checkbox",
+        "category": "Customization",
+        "defaultValue": true,
+        "button": "Edit",
+        "buttonAction": "{{kute}}.customCss.open()"
+    },
     "userscripts": {
         "name": "Userscripts",
         "id": "userscripts",
