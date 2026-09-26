@@ -19,7 +19,7 @@
   - [Rust & Cargo](https://rustup.rs/)
   - [Microsoft Visual C++](https://visualstudio.microsoft.com/downloads/)
   - [CMake](https://cmake.org/download/) and [Ninja](https://github.com/ninja-build/ninja/releases) (the CEF wrapper is built on the first build)
-  - [Bun](https://bun.sh/)
+  - [Bun](https://bun.sh/) (`bun install` once, at the root of the project)
   - [WiX 6 **(if packaging)**](https://github.com/wixtoolset/wix/releases)
 
 1. `git clone https://github.com/NullDev/Kute.git`
