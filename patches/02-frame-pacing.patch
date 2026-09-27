@@ -19,7 +19,6 @@ index ce6e121c9b..d86080db59 100644
 -constexpr int kMaxPendingSubmitFrames = 1;
 +constexpr int kMaxPendingSubmitFrames = 1;  // unchanged - safe default
 +
-+// KCC: expose the frame-queue depth as a runtime-tunable feature param.
 +// Feature params propagate to the renderer process automatically (field
 +// trials), which is required because this scheduler runs in the renderer,
 +// not the browser. The "Higher Max FPS" toggle in the client sets:
