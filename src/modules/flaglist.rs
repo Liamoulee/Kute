@@ -9,13 +9,13 @@ struct UserFlags {
 }
 
 pub fn load() -> Vec<String> {
+    // "example" is not read, only "flags" and "disabled_defaults" are
     let example_flags: &str = r#"
 {
-    "flags": [
+    "flags": [],
+    "disabled_defaults": [],
+    "example": [
         "--disable-gpu-vsync"
-    ],
-    "disabled_defaults": [
-        ""
     ]
 }"#;
 
@@ -42,6 +42,12 @@ pub fn load() -> Vec<String> {
     };
 
     let flaglist = match serde_json::from_str::<UserFlags>(&flaglist_string) {
+        Ok(config) if is_old_example(&config) => {
+            // the old example put --disable-gpu-vsync into the live list, which broke vsync with uncapFps off
+            flaglist_file.set_len(0).ok();
+            flaglist_file.write_all(example_flags.as_bytes()).ok();
+            return defaults;
+        }
         Ok(config) => config,
         Err(_) => {
             flaglist_file.set_len(0).ok();
@@ -55,6 +61,11 @@ pub fn load() -> Vec<String> {
         .filter(|flag| !flaglist.disabled_defaults.contains(flag))
         .chain(flaglist.flags)
         .collect()
+}
+
+// untouched since it was written, a file someone edited differs in some way
+fn is_old_example(config: &UserFlags) -> bool {
+    config.flags.len() == 1 && config.flags.contains("--disable-gpu-vsync") && config.disabled_defaults.iter().all(|flag| flag.is_empty())
 }
 
 pub fn user_flag_names() -> (Vec<String>, Vec<String>) {

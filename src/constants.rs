@@ -45,8 +45,9 @@ pub const DEFAULT_BLOCKLIST: &str = r#"[
   "*://krunker.io/img/client.png*",
   "*://krunker.io/libs/nipplejs.min.js*",
   "*://user-assets.krunker.io/60585/*",
-  "*://fran-cdn.frvr.com/prebid*",
-  "*://cdn.frvr.com/fran/prebid*",
+  "*://fran-cdn.frvr.com/*",
+  "*://cdn.frvr.com/fran/*",
+  "*://coeus.frvr.com/*",
   "*://krunker.io/libs/anzu.js*"
 ]"#;
 
@@ -64,6 +65,8 @@ pub const CAT_BLOCKLIST: &[&str] = &[
 ];
 
 // checked against chromium 151.0.7922.174, recheck on a cef bump
+// --disable-stack-profiler: unbranded builds count as local builds, which sample stacks in the browser, gpu and some renderers
+// --disable-gpu-process-for-dx12-info-collection: else chromium starts a second gpu process 120 s in, only for its own statistics
 pub const DEFAULT_FLAGS: &str = r#"[
   "--disable-features=NativeNotifications,MediaRouter,CalculateNativeWinOcclusion,HappinessTrackingSurveysForDesktopDemo,HardwareMediaKeyHandling",
   "--disable-backgrounding-occluded-windows",
@@ -80,12 +83,10 @@ pub const DEFAULT_FLAGS: &str = r#"[
   "--disable-software-rasterizer",
   "--disable-mipmap-generation",
   "--enable-native-gpu-memory-buffers",
-  "--disable-gpu-driver-bug-workarounds",
   "--disable-gpu-watchdog",
-  "--enable-features=SharedArrayBuffer,V8VmFuture",
+  "--enable-features=SharedArrayBuffer",
   "--disable-background-timer-throttling",
   "--disable-renderer-backgrounding",
-  "--disable-best-effort-tasks",
   "--raise-timer-frequency",
   "--wm-window-animations-disabled",
   "--disable-low-end-device-mode",
@@ -99,6 +100,8 @@ pub const DEFAULT_FLAGS: &str = r#"[
   "--disable-breakpad",
   "--disable-oopr-debug-crash-dump",
   "--disable-in-process-stack-traces",
+  "--disable-stack-profiler",
+  "--disable-gpu-process-for-dx12-info-collection",
   "--disable-component-update",
   "--autoplay-policy=no-user-gesture-required"
 ]"#;

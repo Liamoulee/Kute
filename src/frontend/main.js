@@ -43,6 +43,19 @@ document.addEventListener(
             if (typeof event.data?.wheel === "number") wheelListener?.(new WheelEvent("wheel", { deltaY: event.data.wheel }));
         });
 
+        // a wheel gesture over nothing scrollable still runs chromium's scroll path and cost menu fps (KCC, WOK). the walk
+        // reads layout, fine here: while locked the host takes the wheel before chromium sees it
+        window.addEventListener("wheel", (event) => {
+            if (document.pointerLockElement) return;
+            for (let el = event.target instanceof Element ? event.target : null; el && el !== document.body && el !== document.documentElement; el = el.parentElement){
+                const style = getComputedStyle(el);
+                const scrollsY = (style.overflowY === "auto" || style.overflowY === "scroll") && el.scrollHeight > el.clientHeight;
+                const scrollsX = (style.overflowX === "auto" || style.overflowX === "scroll") && el.scrollWidth > el.clientWidth;
+                if (scrollsY || scrollsX) return;
+            }
+            event.preventDefault();
+        }, { capture: true, passive: false });
+
         hook(HTMLCanvasElement, "requestPointerLock", function(args, original){
             window.chrome.webview.postMessage("drag, false");
             window.chrome.webview.postMessage("throttle, game");
@@ -150,7 +163,8 @@ Object.defineProperty(window, "gameLoaded", {
         if (kute?.settings?.data?.showPing) import("./modules/showPing.js");
         if (kute?.settings?.data?.realPing) import("./modules/realPing.js");
         if (kute?.settings?.data?.exitButton) getElement("#clientExit").style.display = "flex";
-        if (kute?.settings?.data?.renderStats) import("./modules/renderFps.js");
+        // always: it also puts the frame loop's potential into the game's counter, the present part needs renderStats
+        import("./modules/renderFps.js");
         if (kute?.settings?.data?.spotifyOverlay && kute.hostFeatures?.includes("spotify")) import("./modules/spotifyOverlay.js");
 
         if (kute?.settings?.data?.rampBoost && !checkCompMode()){
