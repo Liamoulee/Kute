@@ -1,0 +1,35 @@
+diff --git a/base/process/process_win.cc b/base/process/process_win.cc
+index c16ef42a3a..b6b2e3141b 100644
+--- a/base/process/process_win.cc
++++ b/base/process/process_win.cc
+@@ -36,6 +36,13 @@ namespace base {
+ // efficiency of a process/thread. EcoQoS is introduced since Windows 11.
+ BASE_FEATURE(kUseEcoQoSForBackgroundProcess, FEATURE_ENABLED_BY_DEFAULT);
+ 
++// Kute: a foreground (kUserBlocking) process got its EcoQoS state unset, which hands the decision back to Windows'
++// heuristics, and those can throttle a windowless process such as the game's renderer. Explicit HighQoS instead.
++// Background processes keep EcoQoS. Enabled by Kute with --enable-features=KuteHighQoSForeground.
++BASE_FEATURE(kKuteHighQoSForeground,
++             "KuteHighQoSForeground",
++             FEATURE_DISABLED_BY_DEFAULT);
++
+ Process::Process(ProcessHandle handle)
+     : process_(handle), is_current_process_(false) {
+   CHECK_NE(handle, ::GetCurrentProcess());
+@@ -291,10 +298,12 @@ bool Process::SetPriority(Priority priority) {
+   // GetPriority to determine the current priority. Calls made to
+   // SetProcessEcoQoSState before 22H2 are a no-op.
+   if (FeatureList::IsEnabled(kUseEcoQoSForBackgroundProcess)) {
+-    win::SetProcessEcoQoSState(Handle(),
+-                               priority == Priority::kUserBlocking
+-                                   ? win::ProcessPowerState::kUnset
+-                                   : win::ProcessPowerState::kEnabled);
++    win::SetProcessEcoQoSState(
++        Handle(), priority != Priority::kUserBlocking
++                      ? win::ProcessPowerState::kEnabled
++                  : FeatureList::IsEnabled(kKuteHighQoSForeground)
++                      ? win::ProcessPowerState::kDisabled
++                      : win::ProcessPowerState::kUnset);
+   }
+ 
+   DWORD os_priority = NORMAL_PRIORITY_CLASS;

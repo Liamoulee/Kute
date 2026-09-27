@@ -1,0 +1,39 @@
+diff --git a/third_party/blink/renderer/platform/graphics/gpu/drawing_buffer.cc b/third_party/blink/renderer/platform/graphics/gpu/drawing_buffer.cc
+index d89285c45b..06864eb1d1 100644
+--- a/third_party/blink/renderer/platform/graphics/gpu/drawing_buffer.cc
++++ b/third_party/blink/renderer/platform/graphics/gpu/drawing_buffer.cc
+@@ -38,6 +38,7 @@
+ #include "base/byte_size.h"
+ #include "base/compiler_specific.h"
+ #include "base/feature_list.h"
++#include "base/metrics/field_trial_params.h"
+ #include "base/logging.h"
+ #include "base/memory/read_only_shared_memory_region.h"
+ #include "base/numerics/checked_math.h"
+@@ -89,6 +90,16 @@ namespace blink {
+ 
+ namespace {
+ 
++// Kute: WebGL keeps at most one spare color buffer on Windows. When the compositor hands back two at once, one is
++// destroyed and a new shared image gets created a frame later, several hundred times a second uncapped. Each creation
++// is a GPU allocation and clear, and how often it happens depends on the timing phase a launch settles into, which is
++// why some launches ran much slower. Enabled by Kute with --enable-features=KuteCanvasBufferCache (count, default 3).
++BASE_FEATURE(kKuteCanvasBufferCache,
++             "KuteCanvasBufferCache",
++             base::FEATURE_DISABLED_BY_DEFAULT);
++const base::FeatureParam<int> kKuteCanvasBufferCacheCount{
++    &kKuteCanvasBufferCache, "count", 3};
++
+ const float kResourceAdjustedRatio = 0.5;
+ 
+ bool g_should_fail_drawing_buffer_creation_for_testing = false;
+@@ -704,6 +715,9 @@ void DrawingBuffer::MailboxReleasedGpu(scoped_refptr<ColorBuffer> color_buffer,
+   // Creation of image backed mailboxes is very expensive, so be less
+   // aggressive about pruning them. Pruning is done in FIFO order.
+   size_t cache_limit = kDefaultColorBufferCacheLimit;
++  if (base::FeatureList::IsEnabled(kKuteCanvasBufferCache)) {
++    cache_limit = std::max<size_t>(cache_limit, kKuteCanvasBufferCacheCount.Get());
++  }
+   if (color_buffer->shared_image->usage().Has(
+           gpu::SHARED_IMAGE_USAGE_SCANOUT)) {
+     cache_limit = 4;
