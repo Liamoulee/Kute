@@ -241,7 +241,8 @@ pub fn settings() -> Settings {
     Settings {
         // a plain exe can't host the sandbox, needs the bootstrap.exe model
         no_sandbox: 1,
-        // no user_agent override
+        // browser shaped with an Electron token
+        user_agent_product: CefString::from(format!("Chrome/{0}.0.0.0 Electron/{0}.0.0", sys::CHROME_VERSION_MAJOR).as_str()),
         locale: CefString::from("en-US"),
         accept_language_list: CefString::from("en-US,en"),
         root_cache_path: CefString::from(cache_dir.to_string_lossy().as_ref()),
