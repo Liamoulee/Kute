@@ -106,6 +106,7 @@ fn main() {
         utils::raise_timer_frequency();
     }
     app::prepare_profile();
+    modules::priority::prefer_cache_cores();
 
     let settings = app::settings();
     if initialize(Some(args.as_main_args()), Some(&settings), Some(&mut cef_app), std::ptr::null_mut()) != 1 {
