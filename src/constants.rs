@@ -64,6 +64,7 @@ pub const CAT_BLOCKLIST: &[&str] = &[
 ];
 
 // checked against chromium 151.0.7922.174, recheck on a cef bump
+// --disable-stack-profiler: unbranded builds count as local builds, which sample stacks in the browser, gpu and some renderers
 pub const DEFAULT_FLAGS: &str = r#"[
   "--disable-features=NativeNotifications,MediaRouter,CalculateNativeWinOcclusion,HappinessTrackingSurveysForDesktopDemo,HardwareMediaKeyHandling",
   "--disable-backgrounding-occluded-windows",
@@ -99,6 +100,7 @@ pub const DEFAULT_FLAGS: &str = r#"[
   "--disable-breakpad",
   "--disable-oopr-debug-crash-dump",
   "--disable-in-process-stack-traces",
+  "--disable-stack-profiler",
   "--disable-component-update",
   "--autoplay-policy=no-user-gesture-required"
 ]"#;
