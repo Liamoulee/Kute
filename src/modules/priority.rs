@@ -16,6 +16,25 @@ fn priority_class(level: &str) -> PROCESS_CREATION_FLAGS {
     }
 }
 
+// HighQoS: windows guesses no EcoQoS for our windowless processes (renderer, gpu) or on battery, timer resolution stays
+// honored. chromium still moves its background renderers to EcoQoS itself. neutral on a 12900K, meant for the other PCs
+pub fn high_qos_self() {
+    let state = PROCESS_POWER_THROTTLING_STATE {
+        Version: PROCESS_POWER_THROTTLING_CURRENT_VERSION,
+        ControlMask: PROCESS_POWER_THROTTLING_EXECUTION_SPEED | PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION,
+        StateMask: 0,
+    };
+    unsafe {
+        SetProcessInformation(
+            GetCurrentProcess(),
+            ProcessPowerThrottling,
+            (&state as *const PROCESS_POWER_THROTTLING_STATE).cast(),
+            mem::size_of::<PROCESS_POWER_THROTTLING_STATE>() as u32,
+        )
+        .ok();
+    }
+}
+
 // subprocesses call this so late spawned ones get it too
 pub fn apply_to_self() {
     let level = config("webviewPriority", "Normal".to_string());
