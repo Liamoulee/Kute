@@ -47,7 +47,8 @@ pub fn send_info(frame: &Frame) {
             "audio-fix",
             "spotify",
             "custom-css",
-            "swapper-editor"
+            "swapper-editor",
+            "x3d-cores"
         ]),
     );
 
