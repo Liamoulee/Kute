@@ -235,8 +235,7 @@ pub fn settings() -> Settings {
     Settings {
         // a plain exe can't host the sandbox, needs the bootstrap.exe model
         no_sandbox: 1,
-        // krunker gates client features on this user agent
-        user_agent: CefString::from("Electron"),
+        // no user_agent override
         locale: CefString::from("en-US"),
         accept_language_list: CefString::from("en-US,en"),
         root_cache_path: CefString::from(cache_dir.to_string_lossy().as_ref()),
