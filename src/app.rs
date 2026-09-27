@@ -161,6 +161,8 @@ pub fn load_flags() {
     flags.push("--enable-features=KuteAudioParamCoalesce".to_string());
     // patch 06: webgl keeps 3 spare buffers instead of 1, else it recreates them and launches land in a slow mode
     flags.push("--enable-features=KuteCanvasBufferCache".to_string());
+    // patch 07: foreground renderers explicitly at HighQoS instead of leaving EcoQoS to windows' guess
+    flags.push("--enable-features=KuteHighQoSForeground".to_string());
     *FLAGS.lock().unwrap() = flags;
 }
 
