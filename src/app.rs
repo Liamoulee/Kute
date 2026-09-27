@@ -201,6 +201,8 @@ pub fn prepare_profile() {
         ("autofill.profile_enabled", serde_json::Value::Bool(false)),
         ("autofill.credit_card_enabled", serde_json::Value::Bool(false)),
         ("translate.enabled", serde_json::Value::Bool(false)),
+        // cef's --disable-spell-checking is read nowhere in 151, the pref is what turns it off
+        ("browser.enable_spellchecking", serde_json::Value::Bool(false)),
     ];
     for (key, value) in wanted {
         let mut node = &mut prefs;
