@@ -40,6 +40,13 @@ pub fn is_blocked(url: &str) -> bool {
         || BLOCKLIST.iter().any(|pattern| glob_match(pattern, url))
 }
 
+pub const EMPTY_MODEL: &str = include_str!("../../resources/swaps/empty_model.obj");
+
+// a cancelled model broke the game's draw path for it (the clouds logged "program not valid" every frame), serve an empty one
+pub fn wants_empty_model(url: &str) -> bool {
+    utils::krunker_path(url).is_some_and(|path| path.to_ascii_lowercase().ends_with(".obj")) && is_blocked(url)
+}
+
 fn is_kute_server(url: &str) -> bool {
     url_host(url).is_some_and(|host| host == "kute.lol" || host.ends_with(".kute.lol") || host == API_HOST.as_str())
 }
