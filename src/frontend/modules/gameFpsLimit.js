@@ -42,6 +42,18 @@ function verifyHostLimiter(targetFps, timestamp){
     windowStart = timestamp;
 }
 
+// a hook gap (swap chain switch, resize) could latch the busy-wait for the rest of the page load. a respawn or
+// resize hands back to the host limiter, which exists only with the hook on
+function recheckHostLimiter(){
+    if (!busyWait || !settingsData?.hardFlip) return;
+    busyWait = false;
+    framesInWindow = 0;
+    windowsOverTarget = 0;
+    windowStart = -1;
+}
+document.addEventListener("pointerlockchange", recheckHostLimiter);
+window.addEventListener("resize", recheckHostLimiter);
+
 /**
  * @param {number} targetFps
  */
