@@ -46,7 +46,10 @@ document.addEventListener(
         // a wheel gesture over nothing scrollable still runs chromium's scroll path and cost menu fps
         window.addEventListener("wheel", (event) => {
             if (document.pointerLockElement) return;
-            for (let el = event.target instanceof Element ? event.target : null; el && el !== document.body && el !== document.documentElement; el = el.parentElement){
+            // composedPath, not target: our popups live in shadow roots and target is retargeted to the host
+            for (const el of event.composedPath()){
+                if (el === document.body || el === document.documentElement) break;
+                if (!(el instanceof Element)) continue;
                 const style = getComputedStyle(el);
                 const scrollsY = (style.overflowY === "auto" || style.overflowY === "scroll") && el.scrollHeight > el.clientHeight;
                 const scrollsX = (style.overflowX === "auto" || style.overflowX === "scroll") && el.scrollWidth > el.clientWidth;
