@@ -45,8 +45,9 @@ pub const DEFAULT_BLOCKLIST: &str = r#"[
   "*://krunker.io/img/client.png*",
   "*://krunker.io/libs/nipplejs.min.js*",
   "*://user-assets.krunker.io/60585/*",
-  "*://fran-cdn.frvr.com/prebid*",
-  "*://cdn.frvr.com/fran/prebid*",
+  "*://fran-cdn.frvr.com/*",
+  "*://cdn.frvr.com/fran/*",
+  "*://coeus.frvr.com/*",
   "*://krunker.io/libs/anzu.js*"
 ]"#;
 
