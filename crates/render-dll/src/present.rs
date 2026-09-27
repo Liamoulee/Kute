@@ -11,12 +11,13 @@ use std::{
 use windows::Win32::{Foundation::*, Graphics::Dxgi::*, System::Threading::*};
 use windows::core::*;
 
-use crate::{capture, shared::*, swapchain::*};
+use crate::{capture, shared::*, swapchain::*, wait::WaitState};
 
-const WAIT_TIMEOUT_MS: u32 = 100;
-const WAIT_TIMEOUTS_BEFORE_PAUSE: u32 = 3;
-const WAIT_PAUSE: std::time::Duration = std::time::Duration::from_secs(2);
-const WAIT_PROBE_MS: u32 = 50;
+#[derive(Clone, Copy)]
+struct CachedChain {
+    handle: SendHandle,
+    wait: WaitState,
+}
 // a gap this long is a pause (hidden window, loading), not a frame
 const PAUSE_NS: u64 = 250_000_000;
 
@@ -58,10 +59,8 @@ pub(crate) unsafe extern "system" fn present_hk(
         static DIAGNOSTIC_PRESENTS: cell::Cell<u64> = const { cell::Cell::new(0) };
         static DIAGNOSTIC_MAX_FRAME_NS: cell::Cell<u64> = const { cell::Cell::new(0) };
 
-        static CACHED_WAIT_HANDLES: std::cell::RefCell<HashMap<usize, SendHandle>> = std::cell::RefCell::new(HashMap::new());
+        static CACHED_WAIT_HANDLES: std::cell::RefCell<HashMap<usize, CachedChain>> = std::cell::RefCell::new(HashMap::new());
         static CACHED_WAIT_GENERATION: cell::Cell<u64> = const { cell::Cell::new(0) };
-        static WAIT_TIMEOUT_STREAK: cell::Cell<u32> = const { cell::Cell::new(0) };
-        static WAIT_PAUSED_UNTIL: cell::Cell<Option<std::time::Instant>> = const { cell::Cell::new(None) };
 
         static PERF_WINDOW_START: cell::Cell<Option<std::time::Instant>> = const { cell::Cell::new(None) };
         static PERF_PRESENTS: cell::Cell<u64> = const { cell::Cell::new(0) };
@@ -83,7 +82,7 @@ pub(crate) unsafe extern "system" fn present_hk(
 
     unsafe {
         let generation = WAIT_HANDLE_GENERATION.load(Ordering::Acquire);
-        let handle_opt = CACHED_WAIT_HANDLES.with(|cache| {
+        let cached_chain = CACHED_WAIT_HANDLES.with(|cache| {
             let mut map = cache.borrow_mut();
             if CACHED_WAIT_GENERATION.get() != generation {
                 map.clear();
@@ -92,13 +91,17 @@ pub(crate) unsafe extern "system" fn present_hk(
             if let Some(&h) = map.get(&(p_this as usize)) {
                 Some(h)
             } else {
-                let h = WAIT_HANDLE.read().unwrap().get(&(p_this as usize)).copied();
+                let h = WAIT_HANDLE.read().unwrap().get(&(p_this as usize)).copied().map(|handle| CachedChain {
+                    handle,
+                    wait: WaitState::default(),
+                });
                 if let Some(h) = h {
                     map.insert(p_this as usize, h);
                 }
                 h
             }
         });
+        let handle_opt = cached_chain.map(|chain| chain.handle);
 
         let is_main = handle_opt.is_some() && is_main_swapchain(p_this);
 
@@ -160,39 +163,32 @@ pub(crate) unsafe extern "system" fn present_hk(
         }
 
         let wait_started = std::time::Instant::now();
-        if let Some(h) = handle_opt {
+        if let Some(mut chain) = cached_chain {
             // hidden windows never signal: pause waiting after a few timeouts, then probe. never drop the handle,
             // it's what marks the game's chain
-            let paused_until = WAIT_PAUSED_UNTIL.get();
-            let probing = paused_until.is_some();
-            if paused_until.is_none_or(|until| wait_started >= until) {
-                let wait_result = WaitForSingleObjectEx(h.0, if probing { WAIT_PROBE_MS } else { WAIT_TIMEOUT_MS }, false);
+            // several surfaces share this thread, a healthy one's signal must not reset another one's timeouts
+            if let Some(timeout) = chain.wait.timeout_ms(wait_started) {
+                let wait_result = WaitForSingleObjectEx(chain.handle.0, timeout, false);
                 if wait_result == WAIT_FAILED {
                     // broken handle, will never work again
                     debug_print!("render: dropping broken wait handle for swapchain {p_this:?}");
-                    WAIT_TIMEOUT_STREAK.set(0);
-                    WAIT_PAUSED_UNTIL.set(None);
                     WAIT_HANDLE.write().unwrap().remove(&(p_this as usize));
                     WAIT_HANDLE_GENERATION.fetch_add(1, Ordering::Release);
-                } else if wait_result == WAIT_TIMEOUT {
-                    if cfg!(feature = "verbose-logs") {
-                        PERF_TIMEOUTS.set(PERF_TIMEOUTS.get() + 1);
-                    }
-                    let streak = WAIT_TIMEOUT_STREAK.get() + 1;
-                    WAIT_TIMEOUT_STREAK.set(streak);
-                    if probing || streak >= WAIT_TIMEOUTS_BEFORE_PAUSE {
-                        if !probing {
-                            debug_print!("render: wait object of swapchain {p_this:?} is not signaling, pausing the wait");
-                        }
-                        WAIT_TIMEOUT_STREAK.set(0);
-                        WAIT_PAUSED_UNTIL.set(Some(wait_started + WAIT_PAUSE));
-                    }
                 } else {
-                    if probing {
-                        debug_print!("render: wait object of swapchain {p_this:?} signals again, waiting resumed");
+                    let changed = if wait_result == WAIT_TIMEOUT {
+                        if cfg!(feature = "verbose-logs") {
+                            PERF_TIMEOUTS.set(PERF_TIMEOUTS.get() + 1);
+                        }
+                        chain.wait.timed_out(wait_started);
+                        true
+                    } else {
+                        chain.wait.signaled()
+                    };
+                    if changed {
+                        CACHED_WAIT_HANDLES.with_borrow_mut(|cache| {
+                            cache.insert(p_this as usize, chain);
+                        });
                     }
-                    WAIT_TIMEOUT_STREAK.set(0);
-                    WAIT_PAUSED_UNTIL.set(None);
                 }
             }
         }
@@ -328,5 +324,55 @@ pub(crate) unsafe extern "system" fn present_hk(
         }
 
         hr
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    unsafe fn present_stub(_: *mut c_void, _: u32, _: DXGI_PRESENT, _: *const DXGI_PRESENT_PARAMETERS) -> HRESULT {
+        HRESULT(0)
+    }
+
+    #[test]
+    fn interleaved_presents_do_not_consume_a_paused_chains_signal() {
+        unsafe {
+            let healthy = CreateEventW(None, false, false, None).unwrap();
+            let stalled = CreateEventW(None, false, false, None).unwrap();
+            let mut identities = [0u8; 2];
+            let healthy_chain = identities.as_mut_ptr().cast::<c_void>();
+            let stalled_chain = identities.as_mut_ptr().add(1).cast::<c_void>();
+            // all fields are u64, no real DXGI objects or shared mapping are needed
+            let mut stats: SharedState = std::mem::zeroed();
+            SHARED_MEM_PTR.store(&mut stats as *mut SharedState as u64, Ordering::Release);
+            ORIGINAL_PRESENT = Some(present_stub);
+            {
+                let mut handles = WAIT_HANDLE.write().unwrap();
+                handles.insert(healthy_chain as usize, SendHandle(healthy));
+                handles.insert(stalled_chain as usize, SendHandle(stalled));
+            }
+            WAIT_HANDLE_GENERATION.fetch_add(1, Ordering::Release);
+
+            for _ in 0..3 {
+                SetEvent(healthy).unwrap();
+                assert!(present_hk(healthy_chain, 0, DXGI_PRESENT(0), std::ptr::null()).is_ok());
+                assert!(present_hk(stalled_chain, 0, DXGI_PRESENT(0), std::ptr::null()).is_ok());
+            }
+            SetEvent(healthy).unwrap();
+            assert!(present_hk(healthy_chain, 0, DXGI_PRESENT(0), std::ptr::null()).is_ok());
+            SetEvent(stalled).unwrap();
+            assert!(present_hk(stalled_chain, 0, DXGI_PRESENT(0), std::ptr::null()).is_ok());
+            // no timing assertion: a paused wait must leave this auto-reset event signaled
+            let remaining_signal = WaitForSingleObject(stalled, 0);
+
+            SHARED_MEM_PTR.store(0, Ordering::Release);
+            ORIGINAL_PRESENT = None;
+            WAIT_HANDLE.write().unwrap().clear();
+            WAIT_HANDLE_GENERATION.fetch_add(1, Ordering::Release);
+            CloseHandle(healthy).unwrap();
+            CloseHandle(stalled).unwrap();
+            assert_eq!(remaining_signal, WAIT_OBJECT_0);
+        }
     }
 }

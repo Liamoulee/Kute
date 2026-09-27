@@ -240,7 +240,7 @@
     "renderStats": {
         "name": "Present FPS Counter",
         "id": "renderStats",
-        "description": "A second FPS counter for the frames that actually reach your screen",
+        "description": "The game counter shows how fast your PC runs the game, this adds the frames that reach your screen",
         "type": "checkbox",
         "category": "Interface",
         "defaultValue": false,

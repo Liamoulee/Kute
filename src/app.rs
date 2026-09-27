@@ -201,6 +201,8 @@ pub fn prepare_profile() {
         ("autofill.profile_enabled", serde_json::Value::Bool(false)),
         ("autofill.credit_card_enabled", serde_json::Value::Bool(false)),
         ("translate.enabled", serde_json::Value::Bool(false)),
+        // cef's --disable-spell-checking is read nowhere in 151, the pref is what turns it off
+        ("browser.enable_spellchecking", serde_json::Value::Bool(false)),
     ];
     for (key, value) in wanted {
         let mut node = &mut prefs;
@@ -235,8 +237,7 @@ pub fn settings() -> Settings {
     Settings {
         // a plain exe can't host the sandbox, needs the bootstrap.exe model
         no_sandbox: 1,
-        // krunker gates client features on this user agent
-        user_agent: CefString::from("Electron"),
+        // no user_agent override
         locale: CefString::from("en-US"),
         accept_language_list: CefString::from("en-US,en"),
         root_cache_path: CefString::from(cache_dir.to_string_lossy().as_ref()),

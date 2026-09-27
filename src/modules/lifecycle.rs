@@ -105,49 +105,54 @@ pub fn check_major_update() {
         None => return,
     };
 
-    let mut output_path = env::current_exe().expect("can't get exe path");
-    output_path.pop();
-    output_path.push(format!("version.{}.msi", newest_version));
-
-    let res = match ureq::get(download_url).call() {
-        Ok(res) => res,
-        Err(e) => {
-            eprintln!("Failed to download: {:?}", e);
-            return;
-        }
-    };
-
-    let mut file = match fs::File::create(&output_path) {
-        Ok(file) => file,
-        Err(e) => {
-            eprintln!("Failed to create file: {:?}", e);
-            return;
-        }
-    };
-
-    if let Err(e) = io::copy(&mut res.into_body().as_reader(), &mut file) {
-        eprintln!("Failed to write to file: {:?}", e);
-        return;
-    }
-    drop(file);
-    unsafe {
-        if let IDYES = MessageBoxW(
+    // ask before downloading: installer_cleanup deletes a declined msi, so a "no" used to cost 100+ MB on every start
+    let answer = unsafe {
+        MessageBoxW(
             None,
             w!("A new version is available, update?"),
             w!("Update available"),
             MB_ICONQUESTION | MB_YESNO,
-        ) {
-            ShellExecuteW(
-                None,
-                w!("open"),
-                PCWSTR(crate::utils::create_utf_string(output_path.to_string_lossy()).as_ptr()),
-                w!("/q"),
-                None,
-                SW_NORMAL,
-            );
-            process::exit(0);
-        }
+        )
+    };
+    if answer != IDYES {
+        return;
     }
+
+    let mut output_path = env::current_exe().expect("can't get exe path");
+    output_path.pop();
+    output_path.push(format!("version.{}.msi", newest_version));
+
+    if let Err(e) = download_to(download_url, &output_path) {
+        eprintln!("Failed to download the update: {e}");
+        fs::remove_file(&output_path).ok();
+        unsafe {
+            MessageBoxW(
+                None,
+                w!("The update could not be downloaded. Kute will ask again on the next start."),
+                w!("Update failed"),
+                MB_ICONWARNING | MB_OK,
+            );
+        }
+        return;
+    }
+    unsafe {
+        ShellExecuteW(
+            None,
+            w!("open"),
+            PCWSTR(crate::utils::create_utf_string(output_path.to_string_lossy()).as_ptr()),
+            w!("/q"),
+            None,
+            SW_NORMAL,
+        );
+    }
+    process::exit(0);
+}
+
+fn download_to(url: &str, path: &std::path::Path) -> result::Result<(), Box<dyn std::error::Error>> {
+    let res = ureq::get(url).call()?;
+    let mut file = fs::File::create(path)?;
+    io::copy(&mut res.into_body().as_reader(), &mut file)?;
+    Ok(())
 }
 
 pub fn installer_cleanup() -> io::Result<()> {
