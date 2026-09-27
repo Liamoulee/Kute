@@ -54,6 +54,7 @@ fn main() {
     // subprocesses are this exe with --type=<kind>
     if let Some(process_type) = utils::process_type() {
         modules::priority::apply_to_self();
+        modules::priority::high_qos_self();
         // inherited from the browser
         if utils::has_arg("--raise-timer-frequency") {
             utils::raise_timer_frequency();
@@ -106,6 +107,8 @@ fn main() {
         utils::raise_timer_frequency();
     }
     app::prepare_profile();
+    modules::priority::prefer_cache_cores();
+    modules::priority::high_qos_self();
 
     let settings = app::settings();
     if initialize(Some(args.as_main_args()), Some(&settings), Some(&mut cef_app), std::ptr::null_mut()) != 1 {
