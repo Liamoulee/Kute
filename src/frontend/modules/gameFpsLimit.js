@@ -13,22 +13,34 @@ const TOLERANCE = 1.15;
 /** @type {Record<string, any> | null} read per frame, so no lookup through kute */
 let settingsData = null;
 
-// every 16th game frame gets timed for the counter's estimate (renderFps.js), the rest go straight to native
-const SAMPLE_EVERY = 16;
+// the counter's estimate (renderFps.js): now and then a burst of calls gets wrapped, and each frame in it is timed from
+// its first callback to a message that only runs once the frame is rendered, so every callback and the render count
+const BURST_EVERY = 256;
+const BURST_CALLS = 12;
 let rafCalls = 0;
-let workMs = 0;
-let workSamples = 0;
+let burstFrames = 0;
+let burstFrameTs = -1;
+let frameStart = 0;
+/** @type {number[]} */
+let frameWorkMs = [];
+const frameRendered = new MessageChannel();
+// pages without the game's counter (social popup) never take the samples
+frameRendered.port1.onmessage = () => {
+    if (frameWorkMs.length < 512) frameWorkMs.push(performance.now() - frameStart);
+};
 
 /**
- * mean main thread time of the sampled game frames since the last call, 0 without samples
+ * main thread time of a whole frame since the last call, the slowest tenth left out (gc), 0 with too few samples.
+ * a mean and not a median: the page clock has 0.1 ms steps
  *
  * @return {number}
  */
 export function takeFrameWorkMs(){
-    const mean = workSamples ? workMs / workSamples : 0;
-    workMs = 0;
-    workSamples = 0;
-    return mean;
+    if (frameWorkMs.length < 10) return 0;
+    const sorted = frameWorkMs.sort((a, b) => a - b);
+    frameWorkMs = [];
+    const kept = sorted.slice(0, Math.ceil(sorted.length * 0.9));
+    return kept.reduce((sum, ms) => sum + ms, 0) / kept.length;
 }
 
 /**
@@ -37,10 +49,15 @@ export function takeFrameWorkMs(){
  */
 function timed(callback){
     return function(timestamp){
-        const start = performance.now();
+        if (timestamp !== burstFrameTs){
+            burstFrameTs = timestamp;
+            // callbacks registered before the burst can run first in its first frame, that one is not whole
+            if (burstFrames++ > 0){
+                frameStart = performance.now();
+                frameRendered.port2.postMessage(0);
+            }
+        }
         callback(timestamp);
-        workMs += performance.now() - start;
-        workSamples++;
     };
 }
 ready.then(() => {
@@ -120,7 +137,9 @@ window.requestAnimationFrame = function(callback){
     // no limit: straight to native, no closure
     if (!(limit > 0)){
         lastTarget = 0;
-        if (++rafCalls % SAMPLE_EVERY) return nativeRAF(callback);
+        const slot = ++rafCalls % BURST_EVERY;
+        if (slot >= BURST_CALLS) return nativeRAF(callback);
+        if (slot === 0) burstFrames = 0;
         return nativeRAF(timed(callback));
     }
 

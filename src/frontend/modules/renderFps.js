@@ -11,9 +11,9 @@ const BLIND_SHARE = 0.25;
 const BLIND_MAX = 60;
 // hysteresis against flicker
 const SWITCH_AFTER_MS = 3000;
-// the game's counter shows what its frame loop could run unthrottled: the frame pacing only starts a frame once the
-// last one was presented, so the real count is lower than in clients that render frames nobody sees. the present
-// counter stays the real number
+// the game's counter shows what this PC would reach with frames overlapping like other clients: the pacing runs main
+// thread and gpu side of a frame one after the other (frame = main + gpu), overlapped the slower of the two decides.
+// never more than twice the real count. the present counter stays the real number
 const POTENTIAL_SMOOTHING = 0.3;
 
 class RenderFps {
@@ -99,7 +99,8 @@ class RenderFps {
         const workMs = takeFrameWorkMs();
         if (!Number.isFinite(game) || game <= 0 || Number(kute.settings?.data?.gameFpsLimit) > 0) return value;
         if (workMs > 0){
-            const estimate = 1000 / workMs;
+            const frameMs = 1000 / game;
+            const estimate = 1000 / Math.max(workMs, frameMs - workMs);
             this.potentialFps = this.potentialFps ? this.potentialFps + (estimate - this.potentialFps) * POTENTIAL_SMOOTHING : estimate;
         }
         return this.potentialFps > game ? String(Math.round(this.potentialFps)) : value;
