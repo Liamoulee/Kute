@@ -163,7 +163,8 @@ Object.defineProperty(window, "gameLoaded", {
         if (kute?.settings?.data?.showPing) import("./modules/showPing.js");
         if (kute?.settings?.data?.realPing) import("./modules/realPing.js");
         if (kute?.settings?.data?.exitButton) getElement("#clientExit").style.display = "flex";
-        if (kute?.settings?.data?.renderStats) import("./modules/renderFps.js");
+        // always: it also puts the frame loop's potential into the game's counter, the present part needs renderStats
+        import("./modules/renderFps.js");
         if (kute?.settings?.data?.spotifyOverlay && kute.hostFeatures?.includes("spotify")) import("./modules/spotifyOverlay.js");
 
         if (kute?.settings?.data?.rampBoost && !checkCompMode()){

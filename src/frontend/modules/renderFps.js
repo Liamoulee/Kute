@@ -1,5 +1,6 @@
 import { kute } from "../client.js";
 import { waitForElement } from "../utils.js";
+import { takeFrameWorkMs } from "./gameFpsLimit.js";
 
 // present fps next to the game's counter, only while fresh and plausible (the hook can miss the game's swap chain)
 // krunker's own counter writes are the clock, no timer
@@ -10,6 +11,10 @@ const BLIND_SHARE = 0.25;
 const BLIND_MAX = 60;
 // hysteresis against flicker
 const SWITCH_AFTER_MS = 3000;
+// the game's counter shows what its frame loop could run unthrottled: the frame pacing only starts a frame once the
+// last one was presented, so the real count is lower than in clients that render frames nobody sees. the present
+// counter stays the real number
+const POTENTIAL_SMOOTHING = 0.3;
 
 class RenderFps {
     constructor(){
@@ -21,6 +26,11 @@ class RenderFps {
         this.listener = null;
         /** @type {string|null} */
         this.gameFPS = null;
+        /** @type {string|null} what krunker wrote, gameFPS may show the estimate */
+        this.rawGameFPS = null;
+        this.potentialFps = 0;
+        // the host only sends present fps with renderStats on, without it the game's counter gets the estimate alone
+        this.presentEnabled = Boolean(kute.settings?.data?.renderStats);
         this.presentFps = 0;
         this.presentAt = 0;
         this.showPresent = true;
@@ -36,12 +46,16 @@ class RenderFps {
      */
     presentUsable(){
         if (performance.now() - this.presentAt > STALE_MS) return false;
-        const game = Number.parseFloat(this.gameFPS ?? "");
+        const game = Number.parseFloat(this.rawGameFPS ?? "");
         if (!Number.isFinite(game) || game <= 0) return true;
         return !(this.presentFps < game * BLIND_SHARE && this.presentFps < BLIND_MAX);
     }
 
     evaluate(){
+        if (!this.presentEnabled){
+            this.render();
+            return;
+        }
         const now = performance.now();
         if (this.presentUsable() === this.showPresent) this.disagreeSince = 0;
         else if (!this.disagreeSince) this.disagreeSince = now;
@@ -76,13 +90,30 @@ class RenderFps {
     }
 
     /**
+     * @param {string} value krunker's own fps text
+     * @return {string}
+     */
+    withPotential(value){
+        const game = Number.parseFloat(value);
+        // takeFrameWorkMs only has samples uncapped, a limit shows the real number
+        const workMs = takeFrameWorkMs();
+        if (!Number.isFinite(game) || game <= 0 || Number(kute.settings?.data?.gameFpsLimit) > 0) return value;
+        if (workMs > 0){
+            const estimate = 1000 / workMs;
+            this.potentialFps = this.potentialFps ? this.potentialFps + (estimate - this.potentialFps) * POTENTIAL_SMOOTHING : estimate;
+        }
+        return this.potentialFps > game ? String(Math.round(this.potentialFps)) : value;
+    }
+
+    /**
      * @param {HTMLElement|null} element
      */
     applyFpsDisplay(element){
         if (!element) return;
         Object.defineProperty(element, "textContent", {
             set: (value) => {
-                this.gameFPS = value;
+                this.rawGameFPS = value;
+                this.gameFPS = this.withPotential(value);
                 this.evaluate();
             },
             configurable: true,

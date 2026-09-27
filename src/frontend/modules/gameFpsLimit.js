@@ -12,6 +12,37 @@ const TOLERANCE = 1.15;
 
 /** @type {Record<string, any> | null} read per frame, so no lookup through kute */
 let settingsData = null;
+
+// every 16th game frame gets timed for the counter's estimate (renderFps.js), the rest go straight to native
+const SAMPLE_EVERY = 16;
+let rafCalls = 0;
+let workMs = 0;
+let workSamples = 0;
+
+/**
+ * mean main thread time of the sampled game frames since the last call, 0 without samples
+ *
+ * @return {number}
+ */
+export function takeFrameWorkMs(){
+    const mean = workSamples ? workMs / workSamples : 0;
+    workMs = 0;
+    workSamples = 0;
+    return mean;
+}
+
+/**
+ * @param {FrameRequestCallback} callback
+ * @return {FrameRequestCallback}
+ */
+function timed(callback){
+    return function(timestamp){
+        const start = performance.now();
+        callback(timestamp);
+        workMs += performance.now() - start;
+        workSamples++;
+    };
+}
 ready.then(() => {
     settingsData = kute.settings.data;
 });
@@ -89,7 +120,8 @@ window.requestAnimationFrame = function(callback){
     // no limit: straight to native, no closure
     if (!(limit > 0)){
         lastTarget = 0;
-        return nativeRAF(callback);
+        if (++rafCalls % SAMPLE_EVERY) return nativeRAF(callback);
+        return nativeRAF(timed(callback));
     }
 
     const targetFps = Number(limit);
