@@ -14,15 +14,21 @@ const WHEEL_LIT_MS = 120;
 // ramp boost turns a wheel tick into a 5 ms space press (input.rs), that space is not the player's
 const SPACE = 32;
 const RAMP_SPACE_MS = 80;
-// smoothed pointer lock movement in counts per ms, so it depends on the mouse's dpi
-const MOVE_FAST = 12;
-// only the fading tail of the smoothing, any real movement is above it
+// movement speeds are smoothed pointer lock counts per ms. this one is only the fading tail of the smoothing
 const MOVE_MIN = 0.02;
 // an arc needs this share of the movement, a sweep's sideways jitter stays under it and a diagonal lights two
 const MOVE_SHARE = 0.35;
 const MOVE_SMOOTH_MS = 20;
 // no events come once the mouse stops, a timer turns the ring off
 const MOVE_HOLD_MS = 80;
+// fast is relative to the player's usual speed (an average over the last seconds of movement), so dpi and
+// sensitivity do not matter. flicks feed it capped, they are short and would raise the bar for the next one
+const FAST_RATIO = 3;
+const TYPICAL_MS = 3000;
+const TYPICAL_START = 3;
+const TYPICAL_KEY = "kute_keystrokes_speed";
+// a flick lasts a few frames, it stays bright a little longer
+const FAST_HOLD_MS = 120;
 
 /** @type {[string, string, number][]} element id, bind, krunker's default */
 const ACTIONS = [
@@ -99,6 +105,11 @@ class Keystrokes {
         this.moveY = 0;
         this.lastMove = -Infinity;
         this.moveTimer = 0;
+        this.typical = TYPICAL_START;
+        // how much movement the average holds so far, it starts as a plain mean
+        this.typicalMs = 0;
+        /** @type {number[]} per arc */
+        this.fastUntil = [0, 0, 0, 0];
 
         /** @param {KeyboardEvent} event */
         this.onKeyDown = (event) => this.key(event.keyCode, true);
@@ -121,6 +132,7 @@ class Keystrokes {
             }
             this.moveX = 0;
             this.moveY = 0;
+            this.fastUntil.fill(0);
             this.drawMove();
         };
         /** @param {MessageEvent} event */
@@ -134,12 +146,22 @@ class Keystrokes {
             for (const lit of this.widget?.querySelectorAll(".on") ?? []) lit.classList.remove("on");
             this.moveX = 0;
             this.moveY = 0;
+            this.fastUntil.fill(0);
             this.drawMove();
         };
         // binds may have changed in the settings, entering the game picks them up
         this.onPointerLockChange = () => {
-            if (document.pointerLockElement) this.readBinds();
-            else this.releaseAll();
+            if (document.pointerLockElement){
+                this.readBinds();
+                return;
+            }
+            this.releaseAll();
+            try {
+                window.localStorage.setItem(TYPICAL_KEY, this.typical.toFixed(3));
+            }
+            catch {
+                // only costs the next page load its warm up
+            }
         };
 
         kute.settings.toggleKeystrokes = (enabled) => this.toggle(enabled);
@@ -165,6 +187,7 @@ class Keystrokes {
         this.widget.innerHTML = markup;
         (document.querySelector("#uiBase") ?? document.body).append(this.widget);
         this.readBinds();
+        this.loadTypical();
         const { widget } = this;
         /** @type {[string, number, number][]} */
         const directions = [["kuteMoveLeft", -1, 0], ["kuteMoveRight", 1, 0], ["kuteMoveUp", 0, -1], ["kuteMoveDown", 0, 1]];
@@ -256,25 +279,49 @@ class Keystrokes {
         if (document.pointerLockElement === null || this.arcs.length === 0) return;
         const now = event.timeStamp;
         // a pause counts as 100 ms, the first event after it barely moves the ring
+        const paused = now - this.lastMove >= 100;
         const elapsed = Math.min(now - this.lastMove, 100);
         this.lastMove = now;
         if (!(elapsed > 0)) return;
         const keep = Math.exp(-elapsed / MOVE_SMOOTH_MS);
         this.moveX = this.moveX * keep + (event.movementX / elapsed) * (1 - keep);
         this.moveY = this.moveY * keep + (event.movementY / elapsed) * (1 - keep);
-        this.drawMove();
+        const speed = Math.hypot(this.moveX, this.moveY);
+        // after a pause the speed is near zero, it would drag the average down on every start
+        if (!paused && speed > MOVE_MIN){
+            this.typicalMs = Math.min(this.typicalMs + elapsed, TYPICAL_MS);
+            this.typical += (Math.min(speed, this.typical * FAST_RATIO) - this.typical) * (elapsed / this.typicalMs);
+        }
+        this.drawMove(now);
         if (!this.moveTimer) this.moveTimer = window.setTimeout(this.onMoveIdle, MOVE_HOLD_MS);
     }
 
-    drawMove(){
+    loadTypical(){
+        let stored = NaN;
+        try {
+            stored = Number(window.localStorage.getItem(TYPICAL_KEY));
+        }
+        catch {
+            stored = NaN;
+        }
+        if (stored > 0){
+            this.typical = stored;
+            this.typicalMs = TYPICAL_MS;
+        }
+    }
+
+    /** @param {number} [now] */
+    drawMove(now = performance.now()){
         const total = Math.hypot(this.moveX, this.moveY);
-        for (const [arc, x, y] of this.arcs){
+        const fast = Math.max(this.typical, MOVE_MIN) * FAST_RATIO;
+        this.arcs.forEach(([arc, x, y], index) => {
             const speed = this.moveX * x + this.moveY * y;
+            if (speed > fast) this.fastUntil[index] = now + FAST_HOLD_MS;
             let name = "kuteMove";
-            if (speed > MOVE_FAST) name = "kuteMove on fast";
+            if (this.fastUntil[index] > now) name = "kuteMove on fast";
             else if (total > MOVE_MIN && speed >= total * MOVE_SHARE) name = "kuteMove on";
             if (arc.className !== name) arc.className = name;
-        }
+        });
     }
 
     /**
