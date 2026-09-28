@@ -48,7 +48,8 @@ pub fn send_info(frame: &Frame) {
             "spotify",
             "custom-css",
             "swapper-editor",
-            "x3d-cores"
+            "x3d-cores",
+            "custom-sky"
         ]),
     );
 
