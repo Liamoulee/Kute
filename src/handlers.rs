@@ -845,7 +845,10 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             modules::devtools::clear_cache(browser);
         }
         ["sky-list"] => {
-            bridge::post_json(browser, &serde_json::json!({ "skies": modules::skybox::list() }).to_string());
+            bridge::post_json(
+                browser,
+                &serde_json::json!({ "skies": modules::skybox::list(), "skyPresets": modules::skybox::presets() }).to_string(),
+            );
         }
         ["open", target] => {
             open_documents_subpath(target);
