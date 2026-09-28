@@ -250,7 +250,7 @@
     "motionBlur": {
         "name": "Motion Blur",
         "id": "motionBlur",
-        "description": "A slight blur while you turn the camera. The HUD stays sharp. Costs some FPS while it blurs",
+        "description": "A slight blur while you turn the camera, the HUD stays sharp. Costs FPS: about 10 % fewer while it blurs",
         "type": "checkbox",
         "category": "Customization",
         "defaultValue": false
