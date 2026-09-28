@@ -247,6 +247,25 @@
         "needsRestart": true,
         "requires": "hardFlip"
     },
+    "motionBlur": {
+        "name": "Motion Blur",
+        "id": "motionBlur",
+        "description": "A slight blur while you turn the camera. The HUD stays sharp. Costs some FPS while it blurs",
+        "type": "checkbox",
+        "category": "Customization",
+        "defaultValue": false
+    },
+    "motionBlurStrength": {
+        "name": "Motion Blur Strength",
+        "id": "motionBlurStrength",
+        "description": "How long the trail is when Motion Blur is on",
+        "type": "slider",
+        "category": "Customization",
+        "defaultValue": 40,
+        "min": 10,
+        "max": 100,
+        "step": 5
+    },
     "swapper": {
         "name": "Resource Swapper",
         "id": "swapper",
