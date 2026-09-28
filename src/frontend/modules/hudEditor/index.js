@@ -21,6 +21,29 @@ import { activity, hostLobby, spawn } from "../privateMatch.js";
 
 const STYLE_ID = "kute_hudLayoutCSS";
 const GEOMETRY_KEY = "kute_hud_geometry";
+// css widths, both widgets share one default spot
+const KEYSTROKES_WIDTH = 190;
+const SPOTIFY_WIDTH = 320;
+const WIDGET_GAP = 12;
+
+/**
+ * Offset in #uiBase px a widget gets without a stored position. Spotify makes way for the keystrokes widget while
+ * both sit at their shared default spot, a position the player set wins.
+ *
+ * @param {string} key
+ * @param {Record<string, HudPlacement>} layout
+ * @return {number} 0 for none
+ */
+export function implicitShift(key, layout){
+    if (key !== "spotify" || !kute.settings.data.keystrokes) return 0;
+    const spotify = layout.spotify ?? {};
+    const keys = layout.keystrokes ?? {};
+    if (spotify.x || spotify.y || keys.x || keys.y) return 0;
+    // both scale around their middle
+    const keysRight = (KEYSTROKES_WIDTH * (1 + (keys.s ?? 1))) / 2;
+    const spotifyLeft = (SPOTIFY_WIDTH * (1 - (spotify.s ?? 1))) / 2;
+    return Math.round(keysRight + WIDGET_GAP - spotifyLeft);
+}
 
 export class HudEditor {
     constructor(){
@@ -29,7 +52,7 @@ export class HudEditor {
         /** @type {boolean} */
         this.open = false;
 
-        kute.hudEditor = { edit: () => this.edit() };
+        kute.hudEditor = { edit: () => this.edit(), apply: () => this.apply() };
 
         this.migrateNukeCounter();
         this.apply();
@@ -71,14 +94,15 @@ export class HudEditor {
         const { layout } = this;
         let text = "";
         for (const element of HUD_ELEMENTS){
-            const place = layout[element.key];
-            if (!place) continue;
+            const place = layout[element.key] ?? {};
             const moved = (place.x ?? 0) !== 0 || (place.y ?? 0) !== 0;
             const scaled = (place.s ?? 1) !== 1;
-            if (!moved && !scaled) continue;
+            const shift = implicitShift(element.key, layout);
+            if (!moved && !scaled && !shift) continue;
 
             const parts = [];
             if (moved) parts.push(`translate:${place.x ?? 0}vw ${place.y ?? 0}vh`);
+            else if (shift) parts.push(`translate:${shift}px 0`);
             if (scaled) parts.push(`scale:${place.s}`);
             text += `${element.rule ?? element.selector}{${parts.join(";")}}`;
         }

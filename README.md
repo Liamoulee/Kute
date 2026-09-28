@@ -30,11 +30,14 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] **Proper** Raw input
 - [x] Increased performance tweaks (chromium & CEF flags, game settings, system optimizations)
 - [x] Auto-Detect: measures your PC in a private test match (about a minute) and sets up the game and the client for it, with undo
+- [x] Disable all non-performance features: one switch turns off every cosmetic feature and hides its settings, switch it back and your choices return
 - [x] NVIDIA driver caps lifted for Kute only: its own driver profile (no Max Frame Rate, V-Sync left to the client) is created once, your global settings and other games stay as they are, and you can change or delete it in the NVIDIA Control Panel
 - [x] Selectable graphics backend (ANGLE: D3D11, D3D11on12, OpenGL, Vulkan) and color profile
 - [x] Optimized URL blocklist (only ~50 entries, fully customizable), custom Chromium flags
 - [x] Resource swapper with an in-client manager: shows which game files your swaps replace, drop a file onto a game file to put it in the right place, folder names ignore case, create and edit text files like CSS in the built-in editor
 - [x] Custom CSS with a syntax highlighted editor and live preview, always applied on top of Krunker's own styles
+- [x] Motion blur (optional): a slight blur while you turn the camera, the HUD stays sharp
+- [x] Custom sky (optional): a built-in preset, your own color gradient or your own image as the sky of every map
 - [x] All settings togglable
 - [x] Battle pass claim-all
 - [x] Userscripts (Crankshaft and idkr formats) with an in-client manager: live on/off, script settings, a built-in editor, drag and drop
@@ -49,6 +52,7 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] Better chat
 - [x] Hardpoint enemy counter
 - [x] Nuke counter: your career nuke total in game, with an optional goal
+- [x] Keystrokes: your bound movement keys and mouse in the HUD, lit while pressed, with a ring that shows which way the mouse moves
 - [x] HUD editor: drag, resize and hide every in-game HUD element, snapping included
 - [x] Rank progress
 - [x] Clan colors
@@ -139,6 +143,7 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before
 - [KraXen72/crankshaft](https://github.com/KraXen72/crankshaft) - menu timer css
 - [idkr-client/idkr](https://github.com/idkr-client/idkr) - tweaks
 - [bigjakk/Electron-Websocket-Fix](https://github.com/bigjakk/Electron-Websocket-Fix) - aim-freeze fix
-- [bigjakk/Krunker-Civilian-Client](https://github.com/bigjakk/Krunker-Civilian-Client) - matchmaker, nuke counter
+- [bigjakk/Krunker-Civilian-Client](https://github.com/bigjakk/Krunker-Civilian-Client) - matchmaker, nuke counter, custom sky and keystrokes ideas
+- [Alx8g/wok-client](https://github.com/Alx8g/wok-client) - motion blur idea
 
 <hr>

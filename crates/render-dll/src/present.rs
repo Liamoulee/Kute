@@ -51,6 +51,7 @@ pub(crate) unsafe extern "system" fn present_hk(
     thread_local! {
         static INITIALIZED: cell::Cell<bool> = const { cell::Cell::new(false) };
         static LAST_PRESENT: cell::Cell<Option<std::time::Instant>> = const { cell::Cell::new(None) };
+        static LIMITER_HELD: cell::Cell<bool> = const { cell::Cell::new(false) };
         static FRAME_NS_EMA: cell::Cell<u64> = const { cell::Cell::new(0) };
         static ARRIVALS: std::cell::RefCell<Intervals> = std::cell::RefCell::new(Intervals::new());
         static PRESENTS: std::cell::RefCell<Intervals> = std::cell::RefCell::new(Intervals::new());
@@ -162,11 +163,12 @@ pub(crate) unsafe extern "system" fn present_hk(
             });
         }
 
+        let target_fps = shared!(ptr, target_fps).load(Ordering::Relaxed);
+        // while the limiter holds frames it already paces, and the latency wait made ~2 % of capped presents late
+        let limiter_paces = is_main && target_fps > 0 && LIMITER_HELD.get();
         let wait_started = std::time::Instant::now();
-        if let Some(mut chain) = cached_chain {
-            // hidden windows never signal: pause waiting after a few timeouts, then probe. never drop the handle,
-            // it's what marks the game's chain
-            // several surfaces share this thread, a healthy one's signal must not reset another one's timeouts
+        if let Some(mut chain) = cached_chain.filter(|_| !limiter_paces) {
+            // hidden windows never signal so pause waiting after a few timeouts
             if let Some(timeout) = chain.wait.timeout_ms(wait_started) {
                 let wait_result = WaitForSingleObjectEx(chain.handle.0, timeout, false);
                 if wait_result == WAIT_FAILED {
@@ -239,7 +241,9 @@ pub(crate) unsafe extern "system" fn present_hk(
         };
 
         // limiter sleeps after the real present, sleeping before it made input a whole frame older
-        let target_fps = shared!(ptr, target_fps).load(Ordering::Relaxed);
+        if is_main {
+            LIMITER_HELD.set(false);
+        }
         if is_main && let Some(nanos) = 1_000_000_000u64.checked_div(target_fps) {
             let target_frame_time = std::time::Duration::from_nanos(nanos);
             let now = std::time::Instant::now();
@@ -250,6 +254,7 @@ pub(crate) unsafe extern "system" fn present_hk(
                 None => now,
             };
             if now < deadline {
+                LIMITER_HELD.set(true);
                 let remaining = deadline - now;
                 debug_print!(
                     "render: limiter active on thread_id={} sleeping {:.2}ms to maintain target_fps={}",

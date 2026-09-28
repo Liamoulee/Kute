@@ -6,6 +6,7 @@ import { kute, ready } from "../client.js";
 // DONT TOUCH THIS UNLESS YOU KNOW WHAT YOU'RE DOING :sob:
 
 const nativeRAF = window.requestAnimationFrame;
+const nativeCancelRAF = window.cancelAnimationFrame;
 
 const CHECK_WINDOW_MS = 2000;
 const TOLERANCE = 1.15;
@@ -124,13 +125,32 @@ function waitForFrameSlot(targetFps){
     else nextFrameTime += targetInterval;
 }
 
+/** @type {FrameRequestCallback|null} */
+let frameEnd = null;
+let frameEndId = 0;
+// frame whose callbacks run now or ran last, and the one that was current when the frame end got queued
+let frameTs = -1;
+let frameEndTs = -2;
+// requestFrameWithEnd passes its wrapped callback through requestFrame
+let queueingFrameEnd = false;
+
+/**
+ * @param {number} timestamp
+ */
+function runFrameEnd(timestamp){
+    frameTs = timestamp;
+    frameEnd?.(timestamp);
+}
+
 /**
  * limiter check runs once per frame timestamp, not per callback
  *
  * @param {FrameRequestCallback} callback
  * @return {number}
  */
-window.requestAnimationFrame = function(callback){
+function requestFrame(callback){
+    // eslint-disable-next-line no-use-before-define -- the two call each other
+    if (frameEnd !== null && !queueingFrameEnd) return requestFrameWithEnd(callback);
     // number or slider string, comparison handles both
     const limit = settingsData === null ? 0 : settingsData.gameFpsLimit;
 
@@ -162,4 +182,39 @@ window.requestAnimationFrame = function(callback){
 
         callback(timestamp);
     });
-};
+}
+
+/**
+ * requestFrame while a frame end is set
+ *
+ * @param {FrameRequestCallback} callback
+ * @return {number}
+ */
+function requestFrameWithEnd(callback){
+    queueingFrameEnd = true;
+    const id = requestFrame((timestamp) => {
+        frameTs = timestamp;
+        callback(timestamp);
+    });
+    queueingFrameEnd = false;
+    // one queued in this same frame targets the same next frame, move it behind this callback. an older one is
+    // due in the frame that runs now, cancelling it starved the frame end for good
+    if (frameEndTs === frameTs) nativeCancelRAF(frameEndId);
+    frameEndTs = frameTs;
+    frameEndId = nativeRAF(runFrameEnd);
+    return id;
+}
+
+/**
+ * Runs `callback` after every other callback of each frame, so it sees the game's finished frame. null stops it.
+ * A webgl canvas reads blank outside the frame it was drawn in
+ *
+ * @param {FrameRequestCallback|null} callback
+ */
+export function setFrameEnd(callback){
+    frameEnd = callback;
+    if (callback === null) nativeCancelRAF(frameEndId);
+}
+
+// never swapped later: the game keeps its own reference to the function (0 lookups in a match, measured)
+window.requestAnimationFrame = requestFrame;
