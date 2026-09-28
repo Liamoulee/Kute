@@ -168,6 +168,7 @@ Object.defineProperty(window, "gameLoaded", {
         // always: it also puts the frame loop's potential into the game's counter, the present part needs renderStats
         import("./modules/renderFps.js");
         if (kute?.settings?.data?.spotifyOverlay && kute.hostFeatures?.includes("spotify")) import("./modules/spotifyOverlay.js");
+        if (kute?.settings?.data?.motionBlur) import("./modules/motionBlur.js");
 
         if (kute?.settings?.data?.rampBoost && !checkCompMode()){
             window.chrome.webview.postMessage("toggle-rboost, true");
