@@ -1,3 +1,5 @@
+import { overridePerformance } from "./performance.js";
+
 /**
  * @param {number} length
  * @return {string}
@@ -26,6 +28,8 @@ export const ready = new Promise((resolve) => {
         if (event?.data?.settings || event?.data?.version){
             window.chrome.webview.removeEventListener("message", handler);
             Object.assign(kute, event.data);
+            // before anything reads a setting
+            if (kute.settings?.data) overridePerformance(kute.settings.data, kute.settings.data.performanceMode === true);
             resolve(kute);
         }
     }

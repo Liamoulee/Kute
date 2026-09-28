@@ -1,6 +1,7 @@
 import cSettings from "../cSettings.json";
 import { kute, globalRef } from "./client.js";
 import { getElement, getInput, checkCompMode } from "./utils.js";
+import { hiddenByPerformance, overridePerformance } from "./performance.js";
 
 /**
  * a cSettings.json entry
@@ -20,6 +21,7 @@ import { getElement, getInput, checkCompMode } from "./utils.js";
  * @property {string} [requires] id of a checkbox setting this one depends on, disabled while that is off
  * @property {string} [disabledBy] id of a checkbox setting that forces this one off while on, the stored value stays
  * @property {string} [hostFeature] hostFeatures entry the exe must list, the setting is not shown without it
+ * @property {boolean|null} [performance] Value while performance mode is on, the row is hidden then. null only hides it
  * @property {number} [min]
  * @property {number} [max]
  * @property {number} [step]
@@ -56,6 +58,81 @@ function blockerOf(option){
 }
 
 /**
+ * @param {string} id
+ * @param {boolean} on
+ */
+function switchModule(id, on){
+    const toggle = kute.settings[toggleName(id)];
+    if (typeof toggle === "function"){
+        toggle(on);
+        return;
+    }
+    if (!on) return;
+    // esbuild's glob import throws right away for a setting without a module file
+    try {
+        import(`./modules/${id}.js`).catch(() => {});
+    }
+    catch {
+        // no module for this setting
+    }
+}
+
+/**
+ * Settings without a module of their own.
+ *
+ * @param {string} id
+ * @param {string|number|boolean} value
+ */
+function applyInterface(id, value){
+    switch (id){
+        case "exitButton":
+            getElement("#clientExit").style.display = `${value ? "flex" : "none"}`;
+            break;
+        case "menuTimer":
+            if (value){
+                import("./components/menuTimer.css").then((css) => {
+                    const menuTimerCSS = document.createElement("style");
+                    menuTimerCSS.id = "kute_menuTimerCSS";
+                    menuTimerCSS.textContent = css.default;
+                    document.head.append(menuTimerCSS);
+                });
+            }
+            else {
+                document.querySelector("#kute_menuTimerCSS")?.remove();
+            }
+            break;
+        case "cleanUI": {
+            if (value){
+                import("./components/clean.css").then((css) => {
+                    const cleanCSS = document.createElement("style");
+                    cleanCSS.id = "kute_cleanCSS";
+                    cleanCSS.textContent = css.default;
+                    document.head.append(cleanCSS);
+                });
+            }
+            else {
+                document.querySelector("#kute_cleanCSS")?.remove();
+            }
+            break;
+        }
+        case "textSelect": {
+            if (value){
+                const textSelectCSS = document.createElement("style");
+                textSelectCSS.id = "kute_textSelectCSS";
+                textSelectCSS.textContent = "#chatHolder * { user-select: text }";
+                document.head.append(textSelectCSS);
+            }
+            else {
+                document.querySelector("#kute_textSelectCSS")?.remove();
+            }
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+/**
  * Shows the settings that `id` blocks as off (or their stored value again) and switches their modules to match.
  *
  * @param {string} id
@@ -77,9 +154,7 @@ function applyBlocker(id, blocking){
             }
         }
 
-        const toggle = kute.settings[toggleName(dependent.id)];
-        if (typeof toggle === "function") toggle(on);
-        else if (on) import(`./modules/${dependent.id}.js`).catch(() => {});
+        switchModule(dependent.id, on);
     }
 }
 
@@ -137,49 +212,8 @@ kute.settings.changeSetting = (id, rawValue, slider) => {
             }
             else window.chrome.webview.postMessage("toggle-rboost, false");
             break;
-        case "exitButton":
-            getElement("#clientExit").style.display = `${value ? "flex" : "none"}`;
-            break;
-        case "menuTimer":
-            if (value){
-                import("./components/menuTimer.css").then((css) => {
-                    const menuTimerCSS = document.createElement("style");
-                    menuTimerCSS.id = "kute_menuTimerCSS";
-                    menuTimerCSS.textContent = css.default;
-                    document.head.append(menuTimerCSS);
-                });
-            }
-            else {
-                document.querySelector("#kute_menuTimerCSS")?.remove();
-            }
-            break;
-        case "cleanUI": {
-            if (value){
-                import("./components/clean.css").then((css) => {
-                    const cleanCSS = document.createElement("style");
-                    cleanCSS.id = "kute_cleanCSS";
-                    cleanCSS.textContent = css.default;
-                    document.head.append(cleanCSS);
-                });
-            }
-            else {
-                document.querySelector("#kute_cleanCSS")?.remove();
-            }
-            break;
-        }
-        case "textSelect": {
-            if (value){
-                const textSelectCSS = document.createElement("style");
-                textSelectCSS.id = "kute_textSelectCSS";
-                textSelectCSS.textContent = "#chatHolder * { user-select: text }";
-                document.head.append(textSelectCSS);
-            }
-            else {
-                document.querySelector("#kute_textSelectCSS")?.remove();
-            }
-            break;
-        }
         default:
+            applyInterface(id, value);
             break;
     }
 
@@ -247,6 +281,15 @@ class SettingsManager {
         };
 
         this.settingsWindow.getCSettings = () => this.getCSettings();
+        kute.settings.togglePerformanceMode = (enabled) => {
+            for (const id of overridePerformance(kute.settings.data, enabled)){
+                const value = kute.settings.data[id];
+                applyInterface(id, value);
+                switchModule(id, value === true && !blockerOf(settings[id]));
+            }
+            // changeSetting stores the new value after this returns, the rows render from it
+            setTimeout(() => this.rerender(), 0);
+        };
         kute.openKuteSettings = () => {
             window.showWindow(1);
             this.settingsWindow.changeTab(this.settingsWindow.tabs[this.settingsWindow.settingType].length - 1);
@@ -261,6 +304,11 @@ class SettingsManager {
             }
             kute.showNotification(response.message, false, 5);
         });
+    }
+
+    rerender(){
+        const tabs = this.settingsWindow.tabs[this.settingsWindow.settingType];
+        if (this.settingsWindow.tabIndex === tabs.length - 1 || this.settingsWindow.settingSearch) this.settingsWindow.changeTab(this.settingsWindow.tabIndex);
     }
 
     /**
@@ -381,6 +429,7 @@ class SettingsManager {
         for (const setting of Object.values(settings)){
             // an exe older than the setting would store the value and ignore it
             if (setting.hostFeature && !kute.hostFeatures?.includes(setting.hostFeature)) continue;
+            if (hiddenByPerformance(kute.settings.data, setting.id)) continue;
             if (this.settingsWindow.settingSearch && !this.searchMatches(setting)) continue;
 
             setting.html = this.generateHtml(setting);

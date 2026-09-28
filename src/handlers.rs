@@ -752,6 +752,11 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             if *setting == "disableCats" {
                 modules::blocklist::set_cats_off(*value == "true");
             }
+            // overrides disableCats and swapper, the stored values stay
+            if *setting == "performanceMode" {
+                modules::blocklist::set_cats_off(config("disableCats", true));
+                queue_manager_message(browser, "swapper-list");
+            }
             // present hook paces the game loop, gameFpsLimit.js has the fallback
             if *setting == "gameFpsLimit"
                 && let Ok(fps_limit) = value.parse::<u64>()

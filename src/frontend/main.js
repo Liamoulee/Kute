@@ -144,11 +144,12 @@ Object.defineProperty(window, "gameLoaded", {
         // always: setting only toggles drawing, announce runs regardless
         import("./modules/badges.js");
         import("./modules/externalQueue.js");
-        import("./modules/bpClaimAll.js");
+        const performanceMode = kute.settings.data.performanceMode === true;
+        if (!performanceMode) import("./modules/bpClaimAll.js");
         import("./modules/args.js");
         import("./modules/fixes.js");
-        import("./modules/versionTag.js");
-        import("./modules/rankProgress.js");
+        if (!performanceMode) import("./modules/versionTag.js");
+        if (!performanceMode) import("./modules/rankProgress.js");
         import("./modules/importSettings.js");
         // always: setting is read per F6, filter button needs the module
         import("./modules/matchmaker.js");

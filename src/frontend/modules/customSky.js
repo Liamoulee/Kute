@@ -19,7 +19,6 @@ const DEFAULT_CONFIG = { mode: "gradient", zenith: "#1E5AA8", horizon: "#9FD0F0"
 class CustomSky {
     constructor(){
         kute.customSky = { showOptions: () => this.showOptions() };
-        kute.settings.toggleCustomSky = () => kute.showNotification("Custom sky applies from the next match", false, 4);
     }
 
     /**
