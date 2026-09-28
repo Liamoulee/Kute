@@ -2,6 +2,8 @@ import styles from "../../components/hudEditor.css";
 import panelHtml from "../../components/hudEditorPanel.html";
 import { kute } from "../../client.js";
 import { HUD_ELEMENTS, gameSettingOn } from "./elements.js";
+import { implicitShift } from "./index.js";
+import { hiddenByPerformance } from "../../performance.js";
 
 const SNAP_PX = 6;
 // handle size for empty widgets, screen px
@@ -120,6 +122,7 @@ export async function openEditor(hud, geometry){
     for (const def of HUD_ELEMENTS){
         const rect = geometry.rects[def.key];
         if (!rect) continue;
+        if (def.clientSetting && hiddenByPerformance(kute.settings.data, def.clientSetting)) continue;
 
         const box = document.createElement("div");
         box.className = "hudBox";
@@ -172,6 +175,19 @@ export async function openEditor(hud, geometry){
     const placeOf = (key) => (layout[key] ??= {});
 
     /**
+     * Placement a move starts from, with an implicit shift turned into a stored offset.
+     *
+     * @param {string} key
+     * @return {import("./index.js").HudPlacement}
+     */
+    const moveStart = (key) => {
+        const place = { ...placeOf(key) };
+        const shift = implicitShift(key, layout);
+        if (shift) place.x = round((shift / window.innerWidth) * 100);
+        return place;
+    };
+
+    /**
      * @param {number} vw
      * @param {number} vh
      * @return {[number, number]}
@@ -188,7 +204,8 @@ export async function openEditor(hud, geometry){
      */
     const draw = (item) => {
         const place = layout[item.def.key] ?? {};
-        const [dx, dy] = offsetPx(place.x ?? 0, place.y ?? 0);
+        const [offsetX, dy] = offsetPx(place.x ?? 0, place.y ?? 0);
+        const dx = offsetX + implicitShift(item.def.key, layout) * geometry.factor;
         const scale = place.s ?? 1;
         const width = item.w * scale;
         const height = item.h * scale;
@@ -320,14 +337,14 @@ export async function openEditor(hud, geometry){
                 x: event.clientX,
                 y: event.clientY,
                 rect: item.drawn ?? box.getBoundingClientRect(),
-                from: { ...placeOf(item.def.key) },
+                from: moveStart(item.def.key),
             };
         };
         box.onpointermove = (event) => {
             if (!drag || !box.hasPointerCapture(event.pointerId)) return;
             const [dx, dy] = snap(item, drag.rect, event.clientX - drag.x, event.clientY - drag.y);
             moveTo(item, dx, dy, drag.from);
-            draw(item);
+            drawAll();
         };
         const endDrag = () => {
             if (!drag) return;
@@ -345,7 +362,8 @@ export async function openEditor(hud, geometry){
             const place = placeOf(item.def.key);
             place.s = round(clamp((place.s ?? 1) + (event.deltaY < 0 ? 0.05 : -0.05), 0.3, 3));
             applyLive();
-            draw(item);
+            // the keystrokes widget's scale moves spotify too
+            drawAll();
             refreshRows();
         };
     }
@@ -420,7 +438,7 @@ export async function openEditor(hud, geometry){
             event.preventDefault();
             delete layout[def.key];
             applyLive();
-            draw(item);
+            drawAll();
             refreshRows();
         };
         row.append(name, moved, reset);
@@ -502,8 +520,8 @@ export async function openEditor(hud, geometry){
             const step = event.shiftKey ? 10 : 1;
             const dx = (event.key === "ArrowRight" ? step : 0) - (event.key === "ArrowLeft" ? step : 0);
             const dy = (event.key === "ArrowDown" ? step : 0) - (event.key === "ArrowUp" ? step : 0);
-            moveTo(selected, dx, dy, { ...placeOf(selected.def.key) });
-            draw(selected);
+            moveTo(selected, dx, dy, moveStart(selected.def.key));
+            drawAll();
             refreshRows();
         },
         { signal: controller.signal, capture: true },

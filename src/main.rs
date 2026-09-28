@@ -32,6 +32,7 @@ pub mod modules {
     pub mod priority;
     pub mod render_hook;
     pub mod resource;
+    pub mod skybox;
     pub mod specs;
     pub mod spotify;
     pub mod swapper;
