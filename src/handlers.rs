@@ -99,6 +99,10 @@ wrap_resource_request_handler! {
                 let filename = utils::krunker_path(&url).unwrap_or("");
                 return modules::resource::serve(modules::swapper::mime_for(filename), bytes.to_vec());
             }
+            if let Some((mime, bytes)) = modules::skybox::texture_for(&url) {
+                debug_print!("handlers: custom sky for {url}");
+                return modules::resource::serve(mime, bytes);
+            }
             if modules::blocklist::wants_empty_model(&url) {
                 debug_print!("handlers: empty model for {url}");
                 return modules::resource::serve("text/plain", modules::blocklist::EMPTY_MODEL.as_bytes().to_vec());
@@ -106,6 +110,24 @@ wrap_resource_request_handler! {
             let bytes = modules::icons::bytes_for(&url)?;
             debug_print!("handlers: kute icon for {url}");
             modules::resource::serve("image/png", bytes.to_vec())
+        }
+
+        fn resource_response_filter(
+            &self,
+            _browser: Option<&mut Browser>,
+            _frame: Option<&mut Frame>,
+            request: Option<&mut Request>,
+            response: Option<&mut Response>,
+        ) -> Option<ResponseFilter> {
+            if response?.status() != 200 {
+                return None;
+            }
+            let request = request?;
+            if utils::cef_to_string(&request.method()) != "GET" || !modules::skybox::is_map_config(&utils::cef_to_string(&request.url())) {
+                return None;
+            }
+            debug_print!("handlers: custom sky in the map config");
+            Some(modules::skybox::filter())
         }
     }
 }
@@ -614,6 +636,11 @@ pub fn open_documents_subpath(target: &str) {
         "blocklist" => utils::settings_dir().join("user_blocklist.json"),
         "swapper" => utils::settings_dir().join("swapper"),
         "userscripts" => utils::settings_dir().join("scripts"),
+        "skies" => {
+            let dir = modules::skybox::skies_dir();
+            std::fs::create_dir_all(&dir).ok();
+            dir
+        }
         _ => return,
     };
     std::process::Command::new("explorer.exe").arg(path_to_open).spawn().ok();
@@ -811,6 +838,9 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         }
         ["clear-cache"] => {
             modules::devtools::clear_cache(browser);
+        }
+        ["sky-list"] => {
+            bridge::post_json(browser, &serde_json::json!({ "skies": modules::skybox::list() }).to_string());
         }
         ["open", target] => {
             open_documents_subpath(target);

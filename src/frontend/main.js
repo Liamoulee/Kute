@@ -169,6 +169,8 @@ Object.defineProperty(window, "gameLoaded", {
         import("./modules/renderFps.js");
         if (kute?.settings?.data?.spotifyOverlay && kute.hostFeatures?.includes("spotify")) import("./modules/spotifyOverlay.js");
         if (kute?.settings?.data?.motionBlur) import("./modules/motionBlur.js");
+        // always: customize button needs the module
+        if (kute.hostFeatures?.includes("custom-sky")) import("./modules/customSky.js");
 
         if (kute?.settings?.data?.rampBoost && !checkCompMode()){
             window.chrome.webview.postMessage("toggle-rboost, true");
