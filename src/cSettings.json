@@ -18,6 +18,16 @@
         "button": "Show",
         "buttonAction": "{{kute}}.autoDetect.showLast()"
     },
+    "performanceMode": {
+        "name": "Performance Mode",
+        "id": "performanceMode",
+        "description": "Turns off every cosmetic feature and hides its settings. Turn it off and they all come back as they were",
+        "type": "checkbox",
+        "category": "General",
+        "defaultValue": false,
+        "needsRefresh": true,
+        "hostFeature": "performance-mode"
+    },
     "startMode": {
         "name": "Start Mode",
         "id": "startMode",
@@ -91,6 +101,7 @@
     "hsSound": {
         "name": "Headshot Sound on Every Kill",
         "id": "hsSound",
+        "performance": false,
         "description": "Plays the headshot sound on every kill, not just headshots",
         "category": "Game",
         "type": "checkbox",
@@ -99,6 +110,7 @@
     "hpEnemyCounter": {
         "name": "Hardpoint Enemy Counter",
         "id": "hpEnemyCounter",
+        "performance": false,
         "description": "Shows how many enemies are on the point in competitive Hardpoint",
         "type": "checkbox",
         "category": "Game",
@@ -107,6 +119,7 @@
     "showPing": {
         "name": "Player List Ping",
         "id": "showPing",
+        "performance": false,
         "description": "Shows everyone's ping next to their name in the player list",
         "type": "checkbox",
         "category": "Game",
@@ -135,6 +148,7 @@
     "exitButton": {
         "name": "Exit Button",
         "id": "exitButton",
+        "performance": false,
         "description": "Adds an Exit button to the menu",
         "type": "checkbox",
         "category": "Interface",
@@ -143,6 +157,7 @@
     "menuTimer": {
         "name": "Menu Timer",
         "id": "menuTimer",
+        "performance": false,
         "description": "Shows the match timer while you are in the menu",
         "type": "checkbox",
         "category": "Interface",
@@ -151,6 +166,7 @@
     "betterChat": {
         "name": "Better Chat",
         "id": "betterChat",
+        "performance": false,
         "description": "Team and all chat in one view. Press Tab to switch where you send",
         "type": "checkbox",
         "category": "Interface",
@@ -159,6 +175,7 @@
     "textSelect": {
         "name": "Selectable Chat",
         "id": "textSelect",
+        "performance": false,
         "description": "Lets you select and copy text from the chat",
         "type": "checkbox",
         "category": "Interface",
@@ -183,6 +200,7 @@
     "clanColors": {
         "name": "Show Clan Colors",
         "id": "clanColors",
+        "performance": false,
         "description": "Colors the tags of some clans in the player lists",
         "type": "checkbox",
         "category": "Interface",
@@ -201,6 +219,7 @@
     "kuteIcons": {
         "name": "Use Kute Icons",
         "id": "kuteIcons",
+        "performance": false,
         "description": "Kute's own icons for counters, ammo, hitmarker, reticle and scope. Your game settings stay untouched",
         "type": "checkbox",
         "category": "Interface",
@@ -221,6 +240,7 @@
     "keystrokes": {
         "name": "Keystrokes",
         "id": "keystrokes",
+        "performance": false,
         "description": "Shows your movement keys and mouse in the HUD and lights them up while pressed. Move it with the HUD Editor",
         "type": "checkbox",
         "category": "Interface",
@@ -229,6 +249,7 @@
     "spotifyOverlay": {
         "name": "Spotify Overlay",
         "id": "spotifyOverlay",
+        "performance": false,
         "description": "Shows the currently playing Spotify track in the HUD. Move and resize it with the HUD Editor",
         "type": "checkbox",
         "category": "Interface",
@@ -238,6 +259,7 @@
     "nukeCounter": {
         "name": "Nuke Counter",
         "id": "nukeCounter",
+        "performance": false,
         "description": "Shows your career nuke total in game. It updates when a match ends",
         "type": "checkbox",
         "category": "Interface",
@@ -258,6 +280,7 @@
     "motionBlur": {
         "name": "Motion Blur",
         "id": "motionBlur",
+        "performance": false,
         "description": "A slight blur while you turn the camera. The HUD stays sharp. Costs some FPS while it blurs",
         "type": "checkbox",
         "category": "Customization",
@@ -266,6 +289,7 @@
     "motionBlurStrength": {
         "name": "Motion Blur Strength",
         "id": "motionBlurStrength",
+        "performance": null,
         "description": "How long the trail is when Motion Blur is on",
         "type": "slider",
         "category": "Customization",
@@ -277,6 +301,7 @@
     "customSky": {
         "name": "Custom Sky",
         "id": "customSky",
+        "performance": false,
         "description": "Your own sky color gradient or image on every map. Applies from the next match",
         "type": "checkbox",
         "category": "Customization",
@@ -288,6 +313,7 @@
     "swapper": {
         "name": "Resource Swapper",
         "id": "swapper",
+        "performance": false,
         "description": "Replaces game files like textures and sounds with the files in your swapper folder",
         "type": "checkbox",
         "category": "Customization",
@@ -299,6 +325,7 @@
     "customCss": {
         "name": "Custom CSS",
         "id": "customCss",
+        "performance": false,
         "description": "Your own CSS on top of Krunker's, with a live preview while you write it",
         "type": "checkbox",
         "category": "Customization",
@@ -331,6 +358,7 @@
     "disableCats": {
         "name": "Disable Cats",
         "id": "disableCats",
+        "performance": true,
         "description": "Blocks the cat models in the maps",
         "type": "checkbox",
         "category": "Customization",

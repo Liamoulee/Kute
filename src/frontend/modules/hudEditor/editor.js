@@ -3,6 +3,7 @@ import panelHtml from "../../components/hudEditorPanel.html";
 import { kute } from "../../client.js";
 import { HUD_ELEMENTS, gameSettingOn } from "./elements.js";
 import { implicitShift } from "./index.js";
+import { hiddenByPerformance } from "../../performance.js";
 
 const SNAP_PX = 6;
 // handle size for empty widgets, screen px
@@ -121,6 +122,7 @@ export async function openEditor(hud, geometry){
     for (const def of HUD_ELEMENTS){
         const rect = geometry.rects[def.key];
         if (!rect) continue;
+        if (def.clientSetting && hiddenByPerformance(kute.settings.data, def.clientSetting)) continue;
 
         const box = document.createElement("div");
         box.className = "hudBox";
