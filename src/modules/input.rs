@@ -71,7 +71,7 @@ static SCROLL_SENDER: LazyLock<Sender<()>> = LazyLock::new(|| {
     tx
 });
 
-/// a wheel ramp boost turned into space, the keystrokes widget shows the wheel instead
+// a wheel ramp boost turned into space, the keystrokes widget shows the wheel instead
 pub const WM_RAMPBOOST_WHEEL: u32 = WM_APP + 1;
 
 static mut PREV_WNDPROC_1: WNDPROC = None;

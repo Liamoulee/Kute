@@ -165,13 +165,10 @@ pub(crate) unsafe extern "system" fn present_hk(
 
         let target_fps = shared!(ptr, target_fps).load(Ordering::Relaxed);
         // while the limiter holds frames it already paces, and the latency wait made ~2 % of capped presents late
-        // (a long frame, then a short catch-up one). kept when the limiter has nothing to hold, like uncapped
         let limiter_paces = is_main && target_fps > 0 && LIMITER_HELD.get();
         let wait_started = std::time::Instant::now();
         if let Some(mut chain) = cached_chain.filter(|_| !limiter_paces) {
-            // hidden windows never signal: pause waiting after a few timeouts, then probe. never drop the handle,
-            // it's what marks the game's chain
-            // several surfaces share this thread, a healthy one's signal must not reset another one's timeouts
+            // hidden windows never signal so pause waiting after a few timeouts
             if let Some(timeout) = chain.wait.timeout_ms(wait_started) {
                 let wait_result = WaitForSingleObjectEx(chain.handle.0, timeout, false);
                 if wait_result == WAIT_FAILED {

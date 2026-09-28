@@ -26,7 +26,7 @@ struct SettingInfo {
 #[derive(Serialize, Deserialize)]
 pub struct Config {
     data: HashMap<String, Value>,
-    /// value a setting takes while performanceMode is on, the stored one stays untouched
+    // value a setting takes while performanceMode is on, the stored one stays untouched
     #[serde(skip)]
     performance: HashMap<String, Value>,
 }

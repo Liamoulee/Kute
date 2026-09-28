@@ -65,12 +65,12 @@ fn is_color(value: &str) -> bool {
     value.len() == 7 && value.starts_with('#') && value[1..].chars().all(|c| c.is_ascii_hexdigit())
 }
 
-/// Built-in images, picked as "preset:<name>".
+// Built-in images, picked as "preset:<name>".
 pub fn presets() -> Vec<&'static str> {
     PRESETS.iter().map(|(name, _)| *name).collect()
 }
 
-/// Image files in the skies folder, by name.
+// Image files in the skies folder, by name.
 pub fn list() -> Vec<String> {
     let Ok(entries) = std::fs::read_dir(skies_dir()) else { return Vec::new() };
     let mut names: Vec<String> = entries
@@ -106,7 +106,7 @@ pub fn is_map_config(url: &str) -> bool {
     enabled() && url.strip_prefix(MAP_CONFIG).is_some_and(|rest| rest.starts_with(|c: char| c.is_ascii_digit()))
 }
 
-/// The chosen image for the dome's texture requests (base and emissive variant).
+// The chosen image for the dome's texture requests (base and emissive variant).
 pub fn texture_for(url: &str) -> Option<(&'static str, Vec<u8>)> {
     let rest = url.strip_prefix("https://user-assets.krunker.io/")?;
     let (id, file) = rest.split_once('/')?;
