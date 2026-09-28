@@ -1,0 +1,116 @@
+#kuteKeystrokes {
+	position: absolute;
+	/* spotify's default spot, the spotify widget moves next to it (hudEditor/index.js) */
+	left: 463px;
+	bottom: 23px;
+	z-index: 10;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	box-sizing: border-box;
+	width: 190px;
+	height: 82px;
+	padding: 5px 10px;
+	border: 1px solid rgba(53, 224, 232, 0.7);
+	border-radius: 8px;
+	background: rgba(10, 20, 22, 0.88);
+	box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+	color: #cfeff1;
+	font-family: Arial, sans-serif;
+	font-weight: 700;
+	pointer-events: none;
+}
+
+#kuteKeystrokesKeys {
+	display: grid;
+	grid-template-columns: repeat(4, 24px);
+	grid-template-rows: repeat(3, 20px);
+	gap: 4px;
+}
+
+.kuteKey {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	overflow: hidden;
+	border: 1px solid rgba(53, 224, 232, 0.35);
+	border-radius: 4px;
+	background: rgba(53, 224, 232, 0.08);
+	font-size: 10px;
+	white-space: nowrap;
+}
+
+/* no transitions: a running animation cost fps in a match */
+.kuteKey.on,
+#kuteMouse > .on {
+	border-color: #35e0e8;
+	background: #35e0e8;
+	color: #0a1416;
+	box-shadow: 0 0 8px rgba(53, 224, 232, 0.8);
+}
+
+#kuteKeyForward { grid-area: 1 / 2; }
+#kuteKeyReload { grid-area: 1 / 4; }
+#kuteKeyLeft { grid-area: 2 / 1; }
+#kuteKeyBack { grid-area: 2 / 2; }
+#kuteKeyRight { grid-area: 2 / 3; }
+#kuteKeyCrouch { grid-area: 3 / 1 / 4 / 3; }
+#kuteKeyJump { grid-area: 3 / 3 / 4 / 5; }
+
+#kuteMouse {
+	position: relative;
+	width: 42px;
+	height: 68px;
+	box-sizing: border-box;
+	border: 1px solid rgba(53, 224, 232, 0.35);
+	border-radius: 21px 21px 16px 16px;
+	overflow: hidden;
+}
+
+#kuteMouseLeft,
+#kuteMouseRight {
+	position: absolute;
+	top: 0;
+	width: 50%;
+	height: 45%;
+	box-sizing: border-box;
+	background: rgba(53, 224, 232, 0.08);
+}
+
+#kuteMouseLeft {
+	left: 0;
+	border-right: 1px solid rgba(53, 224, 232, 0.35);
+}
+
+#kuteMouseRight {
+	right: 0;
+}
+
+#kuteMouseLeft,
+#kuteMouseRight,
+#kuteWheelUp,
+#kuteWheelDown {
+	border-bottom: 1px solid rgba(53, 224, 232, 0.35);
+}
+
+#kuteWheelUp,
+#kuteWheelDown {
+	position: absolute;
+	left: 50%;
+	width: 8px;
+	height: 7px;
+	margin-left: -4px;
+	border: 1px solid rgba(53, 224, 232, 0.5);
+	background: rgba(53, 224, 232, 0.08);
+	z-index: 1;
+}
+
+#kuteWheelUp {
+	top: 7px;
+	border-radius: 4px 4px 0 0;
+}
+
+#kuteWheelDown {
+	top: 15px;
+	border-radius: 0 0 4px 4px;
+}
