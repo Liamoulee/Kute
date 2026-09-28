@@ -120,7 +120,8 @@ pub fn check_major_update() {
 
     let mut output_path = env::current_exe().expect("can't get exe path");
     output_path.pop();
-    output_path.push(format!("version.{}.msi", newest_version));
+    // same name as the release asset: msi registers the file name, and a later run of the github download under another name fails its repair with 1316
+    output_path.push("kute-setup-x86_64.msi");
 
     if let Err(e) = download_to(download_url, &output_path) {
         eprintln!("Failed to download the update: {e}");
