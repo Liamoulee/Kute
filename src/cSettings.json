@@ -19,9 +19,9 @@
         "buttonAction": "{{kute}}.autoDetect.showLast()"
     },
     "performanceMode": {
-        "name": "Performance Mode",
+        "name": "Disable All Non-Performance Features",
         "id": "performanceMode",
-        "description": "Turns off every cosmetic feature and hides its settings. Turn it off and they all come back as they were",
+        "description": "Turns off everything cosmetic and hides its settings. Turn this off again and all of them come back as they were",
         "type": "checkbox",
         "category": "General",
         "defaultValue": false,
