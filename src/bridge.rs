@@ -49,7 +49,8 @@ pub fn send_info(frame: &Frame) {
             "custom-css",
             "swapper-editor",
             "x3d-cores",
-            "custom-sky"
+            "custom-sky",
+            "performance-mode"
         ]),
     );
 

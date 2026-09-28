@@ -18,20 +18,27 @@ struct SettingInfo {
     #[serde(default)]
     #[serde(rename = "defaultValue")]
     default_value: serde_json::Value,
+    // null only hides the setting's row
+    #[serde(default)]
+    performance: Option<Value>,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct Config {
     data: HashMap<String, Value>,
+    /// value a setting takes while performanceMode is on, the stored one stays untouched
+    #[serde(skip)]
+    performance: HashMap<String, Value>,
+}
+
+fn settings_info() -> HashMap<String, SettingInfo> {
+    serde_json::from_str(include_str!("./cSettings.json")).unwrap_or_else(|_| HashMap::new())
 }
 
 impl Config {
     pub fn load() -> Config {
         fn load_defaults() -> HashMap<String, Value> {
-            let defaults_json = include_str!("./cSettings.json");
-            let settings_info: HashMap<String, SettingInfo> = serde_json::from_str(defaults_json).unwrap_or_else(|_| HashMap::new());
-
-            settings_info.iter().map(|(key, info)| (key.clone(), info.default_value.clone())).collect()
+            settings_info().into_iter().map(|(key, info)| (key, info.default_value)).collect()
         }
         let client_dir: String = env::var("USERPROFILE").unwrap() + "\\Documents\\kute";
         let settings_path: String = client_dir + "\\settings.json";
@@ -63,7 +70,8 @@ impl Config {
             data.entry(key).or_insert(default_value);
         }
 
-        Config { data }.migrate_menu_throttle()
+        let performance = settings_info().into_iter().filter_map(|(key, info)| Some((key, info.performance?))).collect();
+        Config { data, performance }.migrate_menu_throttle()
     }
 
     // old inMenuThrottle default 1.5 -> 1. runs once, only touches the old default
@@ -80,7 +88,11 @@ impl Config {
     }
 
     pub fn get<T: serde::de::DeserializeOwned>(&self, setting: &str) -> Option<T> {
-        self.data.get(setting).and_then(|v| serde_json::from_value(v.clone()).ok())
+        let overridden = self
+            .performance
+            .get(setting)
+            .filter(|_| self.data.get("performanceMode") == Some(&Value::Bool(true)));
+        overridden.or_else(|| self.data.get(setting)).and_then(|v| serde_json::from_value(v.clone()).ok())
     }
 
     pub fn set<T: serde::Serialize>(&mut self, setting: &str, value: T) {
