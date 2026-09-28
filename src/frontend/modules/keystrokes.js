@@ -10,6 +10,9 @@ import { kute } from "../client.js";
 // host sends left click as F20 while the pointer is locked
 const LEFT_CLICK_KEY = 131;
 const WHEEL_LIT_MS = 120;
+// ramp boost turns a wheel tick into a 5 ms space press (input.rs), that space is not the player's
+const SPACE = 32;
+const RAMP_SPACE_MS = 80;
 
 /** @type {[string, string, number][]} element id, bind, krunker's default */
 const ACTIONS = [
@@ -20,6 +23,8 @@ const ACTIONS = [
     ["kuteKeyJump", "jumpKey", 32],
     ["kuteKeyCrouch", "crouchKey", 16],
     ["kuteKeyReload", "reloadKey", 82],
+    ["kuteKeyMelee", "meleeKey", 81],
+    ["kuteKeySwap", "swapKey", 69],
 ];
 
 /** @type {Record<number, string>} */
@@ -75,6 +80,9 @@ class Keystrokes {
         this.byCode = new Map();
         /** @type {Map<string, number>} */
         this.wheelTimers = new Map();
+        this.rampWheelAt = -Infinity;
+        this.spaceDownAt = -Infinity;
+        this.spaceIgnored = false;
 
         /** @param {KeyboardEvent} event */
         this.onKeyDown = (event) => this.key(event.keyCode, true);
@@ -85,10 +93,13 @@ class Keystrokes {
         /** @param {MouseEvent} event */
         this.onMouseUp = (event) => this.button(event.button, false);
         /** @param {WheelEvent} event */
-        this.onWheel = (event) => this.wheel(event.deltaY);
+        this.onWheel = (event) => this.wheel(event.deltaY < 0);
         /** @param {MessageEvent} event */
         this.onHostMessage = (event) => {
-            if (typeof event.data?.wheel === "number") this.wheel(event.data.wheel);
+            // the host's wheel values are windows' sign, positive is up
+            const { data } = event;
+            if (typeof data?.wheel === "number" && data.wheel !== 0) this.wheel(data.wheel > 0);
+            else if (typeof data?.rampWheel === "number" && data.rampWheel !== 0) this.rampWheel(data.rampWheel > 0);
         };
         this.releaseAll = () => {
             for (const lit of this.widget?.querySelectorAll(".on") ?? []) lit.classList.remove("on");
@@ -176,6 +187,15 @@ class Keystrokes {
             this.button(0, down);
             return;
         }
+        if (code === SPACE){
+            if (down){
+                this.spaceDownAt = performance.now();
+                this.spaceIgnored = this.spaceDownAt - this.rampWheelAt < RAMP_SPACE_MS;
+            }
+            const ignored = this.spaceIgnored;
+            if (!down) this.spaceIgnored = false;
+            if (ignored) return;
+        }
         const elements = this.byCode.get(code);
         if (!elements) return;
         for (const element of elements) element.classList.toggle("on", down);
@@ -186,14 +206,28 @@ class Keystrokes {
      * @param {boolean} down
      */
     button(button, down){
-        const id = { 0: "kuteMouseLeft", 2: "kuteMouseRight" }[button];
+        const id = { 0: "kuteMouseLeft", 1: "kuteWheel", 2: "kuteMouseRight" }[button];
         if (id) this.widget?.querySelector(`#${id}`)?.classList.toggle("on", down);
     }
 
-    /** @param {number} deltaY */
-    wheel(deltaY){
-        if (!this.widget || deltaY === 0) return;
-        const id = deltaY < 0 ? "kuteWheelUp" : "kuteWheelDown";
+    /**
+     * The wheel that ramp boost turned into space. The message can also come in just after that space.
+     *
+     * @param {boolean} up
+     */
+    rampWheel(up){
+        this.rampWheelAt = performance.now();
+        if (this.rampWheelAt - this.spaceDownAt < RAMP_SPACE_MS){
+            this.spaceIgnored = true;
+            for (const element of this.byCode.get(SPACE) ?? []) element.classList.remove("on");
+        }
+        this.wheel(up);
+    }
+
+    /** @param {boolean} up */
+    wheel(up){
+        if (!this.widget) return;
+        const id = up ? "kuteWheelUp" : "kuteWheelDown";
         this.widget.querySelector(`#${id}`)?.classList.add("on");
         clearTimeout(this.wheelTimers.get(id));
         this.wheelTimers.set(id, window.setTimeout(() => {
