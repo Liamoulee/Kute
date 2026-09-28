@@ -666,7 +666,8 @@ pub fn create_window(start_mode: &str, is_subwindow: bool, init_state: Option<Wi
         set_window_icons(hwnd, hinstance);
 
         if state.fullscreen {
-            SetWindowLongPtrW(hwnd, GWL_STYLE, (WS_VISIBLE.0) as _);
+            // no WS_VISIBLE, show_window has to show it: a window made visible through its style gets no taskbar button
+            SetWindowLongPtrW(hwnd, GWL_STYLE, 0);
             // frame has to be recomputed, otherwise an unpainted strip stays at the right and bottom
             SetWindowPos(hwnd, None, x, y, width, height, SWP_FRAMECHANGED | SWP_NOZORDER | SWP_NOACTIVATE).ok();
         }
