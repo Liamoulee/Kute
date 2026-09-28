@@ -218,6 +218,14 @@
         "buttonAction": "{{kute}}.hudEditor.edit()",
         "requiresLogin": true
     },
+    "keystrokes": {
+        "name": "Keystrokes",
+        "id": "keystrokes",
+        "description": "Shows your movement keys and mouse in the HUD and lights them up while pressed. Move it with the HUD Editor",
+        "type": "checkbox",
+        "category": "Interface",
+        "defaultValue": false
+    },
     "spotifyOverlay": {
         "name": "Spotify Overlay",
         "id": "spotifyOverlay",

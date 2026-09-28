@@ -71,6 +71,9 @@ static SCROLL_SENDER: LazyLock<Sender<()>> = LazyLock::new(|| {
     tx
 });
 
+/// a wheel ramp boost turned into space, the keystrokes widget shows the wheel instead
+pub const WM_RAMPBOOST_WHEEL: u32 = WM_APP + 1;
+
 static mut PREV_WNDPROC_1: WNDPROC = None;
 static mut PREV_WNDPROC_2: WNDPROC = None;
 
@@ -407,6 +410,9 @@ unsafe extern "system" fn wnd_proc_widget_rampboost(window: HWND, message: u32, 
                     return LRESULT(0);
                 }
                 if POINTER_LOCKED.load(sync::atomic::Ordering::Relaxed) {
+                    let kute = WINDOW_HANDLE.load(sync::atomic::Ordering::Relaxed);
+                    // before the space goes out, so the page knows the space is ours
+                    PostMessageW(Some(HWND(kute)), WM_RAMPBOOST_WHEEL, wparam, lparam).ok();
                     SCROLL_SENDER.send(()).ok();
                     return LRESULT(1);
                 }

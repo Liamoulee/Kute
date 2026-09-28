@@ -826,6 +826,12 @@ unsafe extern "system" fn wnd_proc_main(hwnd: HWND, msg: u32, wparam: WPARAM, lp
                     bridge::post_json(browser, &format!("{{\"wheel\":{}}}", scroll_amount));
                 }
             }
+            modules::input::WM_RAMPBOOST_WHEEL => {
+                let delta = (utils::HIWORD(wparam.0) as i16) as i32;
+                if let Some(browser) = window.browser.as_ref() {
+                    bridge::post_json(browser, &format!("{{\"rampWheel\":{}}}", delta as f32 / WHEEL_DELTA as f32));
+                }
+            }
             WM_TIMER if wparam.0 == RENDER_STATS_TIMER => {
                 thread_local! {
                     static LAST_RENDER_STATS: std::cell::Cell<Option<(u64, u64)>> = const { std::cell::Cell::new(None) };
