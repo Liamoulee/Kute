@@ -37,7 +37,7 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] Resource swapper with an in-client manager: shows which game files your swaps replace, drop a file onto a game file to put it in the right place, folder names ignore case, create and edit text files like CSS in the built-in editor
 - [x] Custom CSS with a syntax highlighted editor and live preview, always applied on top of Krunker's own styles
 - [x] Motion blur (optional): a slight blur while you turn the camera, the HUD stays sharp
-- [x] Custom sky (optional): your own color gradient or image as the sky of every map
+- [x] Custom sky (optional): a built-in preset, your own color gradient or your own image as the sky of every map
 - [x] All settings togglable
 - [x] Battle pass claim-all
 - [x] Userscripts (Crankshaft and idkr formats) with an in-client manager: live on/off, script settings, a built-in editor, drag and drop
