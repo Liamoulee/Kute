@@ -82,6 +82,24 @@
 	font-family: inherit;
 }
 
+#skSwatches {
+	display: flex;
+	gap: 0.45em;
+	margin-bottom: 0.7em;
+}
+
+.skSwatch {
+	flex: 1 1 0;
+	height: 30px;
+	border: 1px solid #2a2a2a;
+	border-radius: 6px;
+	cursor: pointer;
+}
+
+.skSwatch:hover {
+	border-color: #35e0e8;
+}
+
 #skPreview {
 	height: 64px;
 	margin: 0.8em 0 0.2em 0;
@@ -136,6 +154,7 @@
 		<div class="skMode" id="skModeImage">Image</div>
 	</div>
 	<div id="skGradientPane">
+		<div id="skSwatches"></div>
 		<label class="skRow">Top <input type="color" id="skZenith"></label>
 		<label class="skRow">Horizon <input type="color" id="skHorizon"></label>
 		<div id="skPreview"></div>
