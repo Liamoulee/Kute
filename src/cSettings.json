@@ -266,6 +266,17 @@
         "max": 100,
         "step": 5
     },
+    "customSky": {
+        "name": "Custom Sky",
+        "id": "customSky",
+        "description": "Your own sky color gradient or image on every map. Applies from the next match",
+        "type": "checkbox",
+        "category": "Customization",
+        "defaultValue": false,
+        "button": "Customize",
+        "buttonAction": "{{kute}}.customSky.showOptions()",
+        "hostFeature": "custom-sky"
+    },
     "swapper": {
         "name": "Resource Swapper",
         "id": "swapper",

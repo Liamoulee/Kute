@@ -76,6 +76,7 @@ interface Kute {
     dev?: boolean;
     matchmaker: { showFilters(): Promise<void> };
     nukeCounter: { showOptions(): Promise<void> };
+    customSky: { showOptions(): Promise<void> };
     hudEditor: { edit(): void };
     kuteIcons: { customize(): void; refresh(): void };
     userscriptManager: { open(): void };
