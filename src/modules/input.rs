@@ -300,6 +300,13 @@ pub fn spawn_audio_window_thread() {
     });
 }
 
+// a mouse lparam holds the cursor position, chromium would read its y as the scan code (1080p centre: "Enter")
+fn f20_lparam(up: bool) -> LPARAM {
+    let scan = unsafe { MapVirtualKeyW(VK_F20.0 as u32, MAPVK_VK_TO_VSC) } & 0xFF;
+    let transition = if up { (1 << 30) | (1 << 31) } else { 0 };
+    LPARAM((1 | (scan << 16) | transition) as isize)
+}
+
 #[unsafe(no_mangle)]
 unsafe extern "system" fn wnd_proc_1(window: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
     unsafe {
@@ -307,13 +314,13 @@ unsafe extern "system" fn wnd_proc_1(window: HWND, message: u32, wparam: WPARAM,
             WM_LBUTTONDOWN | WM_LBUTTONDBLCLK => {
                 if POINTER_LOCKED.load(sync::atomic::Ordering::Relaxed) {
                     F20_DOWN.store(true, sync::atomic::Ordering::Relaxed);
-                    return CallWindowProcW(PREV_WNDPROC_1, window, WM_KEYDOWN, WPARAM(VK_F20.0 as usize), lparam);
+                    return CallWindowProcW(PREV_WNDPROC_1, window, WM_KEYDOWN, WPARAM(VK_F20.0 as usize), f20_lparam(false));
                 }
                 CallWindowProcW(PREV_WNDPROC_1, window, message, wparam, lparam)
             }
             WM_LBUTTONUP => {
                 if F20_DOWN.swap(false, sync::atomic::Ordering::Relaxed) {
-                    CallWindowProcW(PREV_WNDPROC_1, window, WM_KEYUP, WPARAM(VK_F20.0 as usize), lparam);
+                    CallWindowProcW(PREV_WNDPROC_1, window, WM_KEYUP, WPARAM(VK_F20.0 as usize), f20_lparam(true));
                 }
                 CallWindowProcW(PREV_WNDPROC_1, window, message, wparam, lparam)
             }

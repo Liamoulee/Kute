@@ -36,6 +36,7 @@ mod capture;
 mod shared;
 mod present;
 mod swapchain;
+mod wait;
 
 use present::*;
 use shared::*;

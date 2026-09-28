@@ -240,7 +240,7 @@
     "renderStats": {
         "name": "Present FPS Counter",
         "id": "renderStats",
-        "description": "A second FPS counter for the frames that actually reach your screen",
+        "description": "The game counter shows how fast your PC runs the game, this adds the frames that reach your screen",
         "type": "checkbox",
         "category": "Interface",
         "defaultValue": false,
@@ -356,6 +356,16 @@
         "defaultValue": "Normal",
         "needsRestart": true,
         "options": ["High", "Above Normal", "Normal", "Below Normal", "Low", "Idle"]
+    },
+    "x3dCacheCores": {
+        "name": "Keep Kute on the 3D V-Cache cores",
+        "id": "x3dCacheCores",
+        "description": "Ryzen X3D with two core groups only: steadier frame pacing on the cores with the big cache",
+        "type": "checkbox",
+        "category": "Advanced",
+        "defaultValue": true,
+        "needsRestart": true,
+        "hostFeature": "x3d-cores"
     },
     "throttle": {
         "name": "CPU Throttling",

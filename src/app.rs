@@ -159,6 +159,10 @@ pub fn load_flags() {
     }
     // patch 05: without it the game's per frame setTargetAtTime piles up while Howler's context is suspended
     flags.push("--enable-features=KuteAudioParamCoalesce".to_string());
+    // patch 06: webgl keeps 3 spare buffers instead of 1, else it recreates them and launches land in a slow mode
+    flags.push("--enable-features=KuteCanvasBufferCache".to_string());
+    // patch 07: foreground renderers explicitly at HighQoS instead of leaving EcoQoS to windows' guess
+    flags.push("--enable-features=KuteHighQoSForeground".to_string());
     *FLAGS.lock().unwrap() = flags;
 }
 
@@ -201,6 +205,8 @@ pub fn prepare_profile() {
         ("autofill.profile_enabled", serde_json::Value::Bool(false)),
         ("autofill.credit_card_enabled", serde_json::Value::Bool(false)),
         ("translate.enabled", serde_json::Value::Bool(false)),
+        // cef's --disable-spell-checking is read nowhere in 151, the pref is what turns it off
+        ("browser.enable_spellchecking", serde_json::Value::Bool(false)),
     ];
     for (key, value) in wanted {
         let mut node = &mut prefs;
@@ -235,8 +241,8 @@ pub fn settings() -> Settings {
     Settings {
         // a plain exe can't host the sandbox, needs the bootstrap.exe model
         no_sandbox: 1,
-        // krunker gates client features on this user agent
-        user_agent: CefString::from("Electron"),
+        // browser shaped with an Electron token
+        user_agent_product: CefString::from(format!("Chrome/{0}.0.0.0 Electron/{0}.0.0", sys::CHROME_VERSION_MAJOR).as_str()),
         locale: CefString::from("en-US"),
         accept_language_list: CefString::from("en-US,en"),
         root_cache_path: CefString::from(cache_dir.to_string_lossy().as_ref()),

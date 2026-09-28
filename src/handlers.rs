@@ -76,7 +76,7 @@ wrap_resource_request_handler! {
             }
 
             // kute icons answer the player's kute.lol/kr urls locally, that is no contact with the server
-            if modules::blocklist::is_blocked(&url) && modules::icons::bytes_for(&url).is_none() {
+            if modules::blocklist::is_blocked(&url) && modules::icons::bytes_for(&url).is_none() && !modules::blocklist::wants_empty_model(&url) {
                 debug_print!("handlers: blocked {url}");
                 return ReturnValue::CANCEL;
             }
@@ -98,6 +98,10 @@ wrap_resource_request_handler! {
                 debug_print!("handlers: swapping {url}");
                 let filename = utils::krunker_path(&url).unwrap_or("");
                 return modules::resource::serve(modules::swapper::mime_for(filename), bytes.to_vec());
+            }
+            if modules::blocklist::wants_empty_model(&url) {
+                debug_print!("handlers: empty model for {url}");
+                return modules::resource::serve("text/plain", modules::blocklist::EMPTY_MODEL.as_bytes().to_vec());
             }
             let bytes = modules::icons::bytes_for(&url)?;
             debug_print!("handlers: kute icon for {url}");
