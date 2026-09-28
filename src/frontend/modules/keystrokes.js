@@ -15,8 +15,11 @@ const WHEEL_LIT_MS = 120;
 const SPACE = 32;
 const RAMP_SPACE_MS = 80;
 // smoothed pointer lock movement in counts per ms, so it depends on the mouse's dpi
-const MOVE_ON = 1;
 const MOVE_FAST = 12;
+// only the fading tail of the smoothing, any real movement is above it
+const MOVE_MIN = 0.02;
+// an arc needs this share of the movement, a sweep's sideways jitter stays under it and a diagonal lights two
+const MOVE_SHARE = 0.35;
 const MOVE_SMOOTH_MS = 20;
 // no events come once the mouse stops, a timer turns the ring off
 const MOVE_HOLD_MS = 80;
@@ -264,11 +267,12 @@ class Keystrokes {
     }
 
     drawMove(){
+        const total = Math.hypot(this.moveX, this.moveY);
         for (const [arc, x, y] of this.arcs){
             const speed = this.moveX * x + this.moveY * y;
             let name = "kuteMove";
             if (speed > MOVE_FAST) name = "kuteMove on fast";
-            else if (speed > MOVE_ON) name = "kuteMove on";
+            else if (total > MOVE_MIN && speed >= total * MOVE_SHARE) name = "kuteMove on";
             if (arc.className !== name) arc.className = name;
         }
     }
