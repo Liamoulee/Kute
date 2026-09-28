@@ -51,6 +51,7 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] Better chat
 - [x] Hardpoint enemy counter
 - [x] Nuke counter: your career nuke total in game, with an optional goal
+- [x] Keystrokes: your bound movement keys and mouse in the HUD, lit while pressed
 - [x] HUD editor: drag, resize and hide every in-game HUD element, snapping included
 - [x] Rank progress
 - [x] Clan colors
@@ -141,7 +142,7 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before
 - [KraXen72/crankshaft](https://github.com/KraXen72/crankshaft) - menu timer css
 - [idkr-client/idkr](https://github.com/idkr-client/idkr) - tweaks
 - [bigjakk/Electron-Websocket-Fix](https://github.com/bigjakk/Electron-Websocket-Fix) - aim-freeze fix
-- [bigjakk/Krunker-Civilian-Client](https://github.com/bigjakk/Krunker-Civilian-Client) - matchmaker, nuke counter, custom sky idea
+- [bigjakk/Krunker-Civilian-Client](https://github.com/bigjakk/Krunker-Civilian-Client) - matchmaker, nuke counter, custom sky and keystrokes ideas
 - [Alx8g/wok-client](https://github.com/Alx8g/wok-client) - motion blur idea
 
 <hr>
