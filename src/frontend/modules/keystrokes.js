@@ -4,7 +4,8 @@ import { kute } from "../client.js";
 
 /**
  * Movement keys and mouse in the HUD, lit while pressed. The keys follow the player's Krunker binds, read from
- * localStorage (cont_<action> and cont_<action>_alt hold keyCodes, -1 is unbound). Nothing runs per frame.
+ * localStorage (cont_<action> and cont_<action>_alt hold keyCodes, -1 is unbound). Nothing runs per frame: the
+ * movement ring only touches the DOM when an arc changes.
  */
 
 // host sends left click as F20 while the pointer is locked
@@ -13,6 +14,12 @@ const WHEEL_LIT_MS = 120;
 // ramp boost turns a wheel tick into a 5 ms space press (input.rs), that space is not the player's
 const SPACE = 32;
 const RAMP_SPACE_MS = 80;
+// smoothed pointer lock movement in counts per ms, so it depends on the mouse's dpi
+const MOVE_ON = 1;
+const MOVE_FAST = 12;
+const MOVE_SMOOTH_MS = 20;
+// no events come once the mouse stops, a timer turns the ring off
+const MOVE_HOLD_MS = 80;
 
 /** @type {[string, string, number][]} element id, bind, krunker's default */
 const ACTIONS = [
@@ -83,6 +90,12 @@ class Keystrokes {
         this.rampWheelAt = -Infinity;
         this.spaceDownAt = -Infinity;
         this.spaceIgnored = false;
+        /** @type {[HTMLElement, number, number][]} arc, x and y of its direction */
+        this.arcs = [];
+        this.moveX = 0;
+        this.moveY = 0;
+        this.lastMove = -Infinity;
+        this.moveTimer = 0;
 
         /** @param {KeyboardEvent} event */
         this.onKeyDown = (event) => this.key(event.keyCode, true);
@@ -94,6 +107,19 @@ class Keystrokes {
         this.onMouseUp = (event) => this.button(event.button, false);
         /** @param {WheelEvent} event */
         this.onWheel = (event) => this.wheel(event.deltaY < 0);
+        /** @param {MouseEvent} event */
+        this.onMouseMove = (event) => this.move(event);
+        this.onMoveIdle = () => {
+            this.moveTimer = 0;
+            const idle = performance.now() - this.lastMove;
+            if (idle < MOVE_HOLD_MS){
+                this.moveTimer = window.setTimeout(this.onMoveIdle, MOVE_HOLD_MS - idle);
+                return;
+            }
+            this.moveX = 0;
+            this.moveY = 0;
+            this.drawMove();
+        };
         /** @param {MessageEvent} event */
         this.onHostMessage = (event) => {
             // the host's wheel values are windows' sign, positive is up
@@ -103,6 +129,9 @@ class Keystrokes {
         };
         this.releaseAll = () => {
             for (const lit of this.widget?.querySelectorAll(".on") ?? []) lit.classList.remove("on");
+            this.moveX = 0;
+            this.moveY = 0;
+            this.drawMove();
         };
         // binds may have changed in the settings, entering the game picks them up
         this.onPointerLockChange = () => {
@@ -133,11 +162,16 @@ class Keystrokes {
         this.widget.innerHTML = markup;
         (document.querySelector("#uiBase") ?? document.body).append(this.widget);
         this.readBinds();
+        const { widget } = this;
+        /** @type {[string, number, number][]} */
+        const directions = [["kuteMoveLeft", -1, 0], ["kuteMoveRight", 1, 0], ["kuteMoveUp", 0, -1], ["kuteMoveDown", 0, 1]];
+        this.arcs = directions.map(([id, x, y]) => [/** @type {HTMLElement} */ (widget.querySelector(`#${id}`)), x, y]);
 
         window.addEventListener("keydown", this.onKeyDown, true);
         window.addEventListener("keyup", this.onKeyUp, true);
         window.addEventListener("mousedown", this.onMouseDown, true);
         window.addEventListener("mouseup", this.onMouseUp, true);
+        window.addEventListener("mousemove", this.onMouseMove, { capture: true, passive: true });
         window.addEventListener("wheel", this.onWheel, { capture: true, passive: true });
         window.addEventListener("blur", this.releaseAll);
         document.addEventListener("pointerlockchange", this.onPointerLockChange);
@@ -149,12 +183,16 @@ class Keystrokes {
         window.removeEventListener("keyup", this.onKeyUp, true);
         window.removeEventListener("mousedown", this.onMouseDown, true);
         window.removeEventListener("mouseup", this.onMouseUp, true);
+        window.removeEventListener("mousemove", this.onMouseMove, true);
         window.removeEventListener("wheel", this.onWheel, true);
         window.removeEventListener("blur", this.releaseAll);
         document.removeEventListener("pointerlockchange", this.onPointerLockChange);
         window.chrome.webview.removeEventListener("message", this.onHostMessage);
         for (const timer of this.wheelTimers.values()) clearTimeout(timer);
         this.wheelTimers.clear();
+        clearTimeout(this.moveTimer);
+        this.moveTimer = 0;
+        this.arcs = [];
         this.widget?.remove();
         this.widget = null;
         this.byCode.clear();
@@ -208,6 +246,31 @@ class Keystrokes {
     button(button, down){
         const id = { 0: "kuteMouseLeft", 1: "kuteWheel", 2: "kuteMouseRight" }[button];
         if (id) this.widget?.querySelector(`#${id}`)?.classList.toggle("on", down);
+    }
+
+    /** @param {MouseEvent} event */
+    move(event){
+        if (document.pointerLockElement === null || this.arcs.length === 0) return;
+        const now = event.timeStamp;
+        // a pause counts as 100 ms, the first event after it barely moves the ring
+        const elapsed = Math.min(now - this.lastMove, 100);
+        this.lastMove = now;
+        if (!(elapsed > 0)) return;
+        const keep = Math.exp(-elapsed / MOVE_SMOOTH_MS);
+        this.moveX = this.moveX * keep + (event.movementX / elapsed) * (1 - keep);
+        this.moveY = this.moveY * keep + (event.movementY / elapsed) * (1 - keep);
+        this.drawMove();
+        if (!this.moveTimer) this.moveTimer = window.setTimeout(this.onMoveIdle, MOVE_HOLD_MS);
+    }
+
+    drawMove(){
+        for (const [arc, x, y] of this.arcs){
+            const speed = this.moveX * x + this.moveY * y;
+            let name = "kuteMove";
+            if (speed > MOVE_FAST) name = "kuteMove on fast";
+            else if (speed > MOVE_ON) name = "kuteMove on";
+            if (arc.className !== name) arc.className = name;
+        }
     }
 
     /**
