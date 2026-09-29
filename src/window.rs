@@ -666,7 +666,8 @@ pub fn create_window(start_mode: &str, is_subwindow: bool, init_state: Option<Wi
         set_window_icons(hwnd, hinstance);
 
         if state.fullscreen {
-            SetWindowLongPtrW(hwnd, GWL_STYLE, (WS_VISIBLE.0) as _);
+            // no WS_VISIBLE, show_window has to show it: a window made visible through its style gets no taskbar button
+            SetWindowLongPtrW(hwnd, GWL_STYLE, 0);
             // frame has to be recomputed, otherwise an unpainted strip stays at the right and bottom
             SetWindowPos(hwnd, None, x, y, width, height, SWP_FRAMECHANGED | SWP_NOZORDER | SWP_NOACTIVATE).ok();
         }
@@ -824,6 +825,12 @@ unsafe extern "system" fn wnd_proc_main(hwnd: HWND, msg: u32, wparam: WPARAM, lp
                 let scroll_amount = delta as f32 / WHEEL_DELTA as f32;
                 if let Some(browser) = window.browser.as_ref() {
                     bridge::post_json(browser, &format!("{{\"wheel\":{}}}", scroll_amount));
+                }
+            }
+            modules::input::WM_RAMPBOOST_WHEEL => {
+                let delta = (utils::HIWORD(wparam.0) as i16) as i32;
+                if let Some(browser) = window.browser.as_ref() {
+                    bridge::post_json(browser, &format!("{{\"rampWheel\":{}}}", delta as f32 / WHEEL_DELTA as f32));
                 }
             }
             WM_TIMER if wparam.0 == RENDER_STATS_TIMER => {

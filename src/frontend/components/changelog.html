@@ -1,155 +1,297 @@
 <style>
 #changelogPopup {
 	position: relative;
-	margin: 0 auto;
-	background: #1e1e1e;
-	color: #fff;
-	padding: 2.5em 2.5em 1.5em 2.5em;
-	border-radius: 14px;
-	z-index: 9999;
-	min-width: 340px;
-	width: auto;
-	max-width: 80vw;
-	max-height: 60vh;
-	box-shadow: 0 8px 48px #000c;
-	font-family: Consolas, monospace;
+	box-sizing: border-box;
 	display: flex;
 	flex-direction: column;
-	align-items: stretch;
+	width: 720px;
+	max-width: 90vw;
+	max-height: 80vh;
+	padding: 1.8em 2.2em 1.4em 2.2em;
+	overflow: hidden;
+	border: 1px solid rgba(183, 255, 253, 0.18);
+	border-radius: 14px;
+	background: #071011;
+	box-shadow: 0 8px 48px #000c, 0 0 60px rgba(0, 243, 239, 0.08);
+	color: #f2ffff;
+	font-family: Consolas, monospace;
+}
+
+/* accent line along the top edge */
+#changelogPopup::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: 12%;
+	right: 12%;
+	height: 2px;
+	background: linear-gradient(90deg, transparent, #00f3ef, transparent);
+}
+
+#changelogClose {
+	position: absolute;
+	top: 0.5em;
+	right: 0.8em;
+	font-size: 1.5em;
+	color: #5f6d6e;
+	cursor: pointer;
+	user-select: none;
+}
+
+#changelogClose:hover {
+	color: #00f3ef;
+}
+
+#changelogHead {
+	display: flex;
+	align-items: center;
+	gap: 1em;
+	padding-bottom: 1em;
+	margin-bottom: 1em;
+	border-bottom: 1px solid rgba(183, 255, 253, 0.18);
+}
+
+#changelogLogo {
+	width: 56px;
+	height: 56px;
+	flex: 0 0 56px;
+}
+
+#changelogEyebrow {
+	color: #83fffc;
+	font-size: 0.8em;
+	letter-spacing: 3px;
 }
 
 #changelogTitle {
-	font-size: 2em;
-	font-weight: bold;
-	color: #ffb347;
-	margin: 0 0 0.5em 0;
-	text-align: left;
-	letter-spacing: 1px;
+	margin: 0.15em 0 0 0;
+	font-family: "Arial Black", "Archivo Black", sans-serif;
+	font-size: 1.9em;
+	letter-spacing: 0.5px;
+	color: #f2ffff;
+}
+
+#changelogVersion {
+	color: #00f3ef;
 }
 
 #changelogContentWrapper {
 	flex: 1 1 auto;
-	overflow-y: auto;
-	margin-bottom: 1.5em;
 	min-height: 2em;
-	width: 100%;
-	padding-right: 0.5em;
+	padding-right: 0.6em;
+	overflow-y: auto;
+	scrollbar-width: thin;
+	scrollbar-color: rgba(0, 243, 239, 0.45) transparent;
+}
+
+#changelogContentWrapper::-webkit-scrollbar {
+	width: 8px;
+}
+
+#changelogContentWrapper::-webkit-scrollbar-thumb {
+	border-radius: 4px;
+	background: rgba(0, 243, 239, 0.35);
+}
+
+#changelogContentWrapper::-webkit-scrollbar-thumb:hover {
+	background: rgba(0, 243, 239, 0.6);
 }
 
 #changelogContent {
-	width: 100%;
-	font-size: 1.1em;
-	line-height: 1.7;
+	font-size: 1.02em;
+	line-height: 1.65;
+	color: #d6eeee;
 	word-break: break-word;
+}
+
+#changelogContent > :first-child {
+	margin-top: 0;
+}
+
+#changelogContent h1,
+#changelogContent h2,
+#changelogContent h3,
+#changelogContent h4 {
+	margin: 1.2em 0 0.5em 0;
+	padding-left: 0.6em;
+	border-left: 3px solid #00f3ef;
+	color: #f2ffff;
+	font-size: 1.1em;
+	letter-spacing: 1px;
+	line-height: 1.3;
+}
+
+#changelogContent h1 {
+	font-size: 1.25em;
 }
 
 #changelogContent ul,
 #changelogContent ol {
-	margin: 0.5em 0 0.5em 1.5em;
-	padding-left: 1.2em;
+	margin: 0.4em 0 0.8em 0;
+	padding-left: 1.4em;
+}
+
+#changelogContent ul {
+	list-style: none;
+}
+
+#changelogContent ul > li {
+	position: relative;
+}
+
+#changelogContent ul > li::before {
+	content: "›";
+	position: absolute;
+	left: -1em;
+	color: #00f3ef;
+	font-weight: bold;
 }
 
 #changelogContent li {
-	margin-bottom: 0.15em;
-	list-style: disc outside;
-	padding-left: 0.2em;
+	margin-bottom: 0.2em;
 }
 
-#changelogContent pre,
-#changelogContent code {
-	background: #181818;
-	color: #ffecb3;
-	border-radius: 4px;
-	padding: 0.2em 0.5em;
-	font-family: "Fira Mono", "Consolas", monospace;
-	font-size: 1em;
+#changelogContent li::marker {
+	color: #00f3ef;
 }
 
-#changelogContent pre {
-	display: block;
-	padding: 1em;
-	margin: 1em 0;
-	overflow-x: auto;
+#changelogContent strong {
+	color: #f2ffff;
 }
 
 #changelogContent a {
-	color: #4fc3f7;
-	text-decoration: underline;
+	color: #83fffc;
+	text-decoration: none;
+	border-bottom: 1px solid rgba(131, 255, 252, 0.4);
+}
+
+#changelogContent a:hover {
+	color: #00f3ef;
+	border-bottom-color: #00f3ef;
+}
+
+#changelogContent code {
+	padding: 0.1em 0.4em;
+	border-radius: 4px;
+	background: #0c1c1d;
+	color: #00f3ef;
+	font-family: Consolas, monospace;
+	font-size: 0.95em;
+}
+
+#changelogContent pre {
+	margin: 0.8em 0;
+	padding: 0.9em 1em;
+	overflow-x: auto;
+	border: 1px solid rgba(183, 255, 253, 0.12);
+	border-radius: 8px;
+	background: #0c1c1d;
+}
+
+#changelogContent pre code {
+	padding: 0;
+	background: none;
 }
 
 #changelogContent blockquote {
-	border-left: 4px solid #ffb347;
-	background: #292929;
-	margin: 1em 0;
+	margin: 0.8em 0;
 	padding: 0.5em 1em;
-	color: #ccc;
+	border-left: 3px solid #00f3ef;
+	border-radius: 0 6px 6px 0;
+	background: rgba(0, 243, 239, 0.06);
+	color: #a9c4c4;
 }
 
-#closeChangelog:hover {
-	background: #333;
-	color: #ffb347;
+#changelogContent hr {
+	border: none;
+	border-top: 1px solid rgba(183, 255, 253, 0.18);
+	margin: 1.2em 0;
 }
 
-#changelogContentWrapper::-webkit-scrollbar {
-	width: 10px;
-	background: #222;
-}
-
-#changelogContentWrapper::-webkit-scrollbar-thumb {
-	background: #444;
-	border-radius: 6px;
-	border: 2px solid #222;
-}
-
-#changelogContentWrapper::-webkit-scrollbar-thumb:hover {
-	background: #666;
-}
-
-#changelogContentWrapper::-webkit-scrollbar-corner {
-	background: #222;
-}
-
-#changelogContentWrapper {
-	scrollbar-width: thin;
-	scrollbar-color: #444 #222;
+#changelogContent img {
+	max-width: 100%;
+	border-radius: 8px;
 }
 
 #changelogContent table {
 	width: 100%;
+	margin: 1em 0;
 	border-collapse: separate;
 	border-spacing: 0;
-	margin: 1.5em 0;
-	background: #232323;
-	border-radius: 8px;
 	overflow: hidden;
+	border: 1px solid rgba(183, 255, 253, 0.18);
+	border-radius: 8px;
 }
 
 #changelogContent th,
 #changelogContent td {
-	padding: 0.7em 1.2em;
+	padding: 0.55em 1em;
 	text-align: left;
-	border-bottom: 1px solid #333;
-	font-size: 1em;
+	border-bottom: 1px solid rgba(183, 255, 253, 0.1);
 }
 
 #changelogContent th {
-	background: #292929;
-	color: #ffb347;
-	font-weight: bold;
-	border-bottom: 2px solid #444;
+	background: rgba(0, 243, 239, 0.08);
+	color: #00f3ef;
 }
 
 #changelogContent tr:last-child td {
 	border-bottom: none;
 }
 
-#changelogContent tr:hover td {
-	background: #282828;
+#changelogError {
+	color: #eb5656;
+}
+
+#changelogActions {
+	display: flex;
+	gap: 0.7em;
+	padding-top: 1em;
+	margin-top: 1em;
+	border-top: 1px solid rgba(183, 255, 253, 0.18);
+}
+
+.changelogButton {
+	flex: 1 1 0;
+	padding: 0.7em 0.5em;
+	border: 1px solid rgba(183, 255, 253, 0.18);
+	border-radius: 8px;
+	background: transparent;
+	color: #8a9a9b;
+	text-align: center;
+	cursor: pointer;
+	user-select: none;
+}
+
+.changelogButton:hover {
+	border-color: rgba(183, 255, 253, 0.4);
+	color: #f2ffff;
+}
+
+#changelogDone {
+	border-color: #00f3ef;
+	background: rgba(0, 243, 239, 0.14);
+	color: #f2ffff;
+}
+
+#changelogDone:hover {
+	background: rgba(0, 243, 239, 0.24);
 }
 </style>
 <div id="changelogPopup">
-	<h2 id="changelogTitle">What's New</h2>
+	<div id="changelogClose" title="Close">&times;</div>
+	<div id="changelogHead">
+		<img id="changelogLogo" alt="">
+		<div>
+			<div id="changelogEyebrow">[ WHAT'S NEW ]</div>
+			<h2 id="changelogTitle">Kute <span id="changelogVersion"></span></h2>
+		</div>
+	</div>
 	<div id="changelogContentWrapper">
 		<div id="changelogContent"></div>
+	</div>
+	<div id="changelogActions">
+		<div class="changelogButton" id="changelogGithub">View on GitHub</div>
+		<div class="changelogButton" id="changelogDone">Done</div>
 	</div>
 </div>

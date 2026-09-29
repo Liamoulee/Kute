@@ -1,0 +1,173 @@
+<style>
+#skOptions {
+	box-sizing: border-box;
+	width: 420px;
+	max-width: 92vw;
+	max-height: 88vh;
+	overflow-y: auto;
+	padding: 1.8em 2.2em 1.4em 2.2em;
+	background: #1e1e1e;
+	color: #fff;
+	border-radius: 14px;
+	box-shadow: 0 8px 48px #000c;
+	font-family: Consolas, monospace;
+}
+
+#skOptions h2 {
+	margin: 0 0 0.3em 0;
+	font-size: 1.6em;
+	letter-spacing: 1px;
+	color: #35e0e8;
+	text-align: center;
+}
+
+.skHint {
+	margin-bottom: 1.2em;
+	color: #999;
+	text-align: center;
+}
+
+#skModes {
+	display: flex;
+	gap: 0.5em;
+	margin-bottom: 1em;
+}
+
+.skMode {
+	flex: 1 1 0;
+	padding: 0.55em;
+	border: 1px solid #2a2a2a;
+	border-radius: 8px;
+	background: #2a2a2a;
+	color: #999;
+	text-align: center;
+	cursor: pointer;
+	user-select: none;
+}
+
+.skMode.active {
+	border-color: #35e0e8;
+	background: #1b5e63;
+	color: #fff;
+}
+
+.skRow {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 1em;
+	margin: 0.5em 0;
+	color: #ccc;
+}
+
+.skRow input[type="color"] {
+	width: 3.2em;
+	height: 1.8em;
+	padding: 0;
+	border: none;
+	border-radius: 6px;
+	background: none;
+	cursor: pointer;
+}
+
+.skRow select {
+	min-width: 0;
+	flex: 1 1 auto;
+	max-width: 14em;
+	padding: 0.35em 0.5em;
+	border: none;
+	border-radius: 6px;
+	background: #2a2a2a;
+	color: #fff;
+	font-family: inherit;
+}
+
+#skSwatches {
+	display: flex;
+	gap: 0.45em;
+	margin-bottom: 0.7em;
+}
+
+.skSwatch {
+	flex: 1 1 0;
+	height: 30px;
+	border: 1px solid #2a2a2a;
+	border-radius: 6px;
+	cursor: pointer;
+}
+
+.skSwatch:hover {
+	border-color: #35e0e8;
+}
+
+#skPreview {
+	height: 64px;
+	margin: 0.8em 0 0.2em 0;
+	border-radius: 8px;
+	background: #2a2a2a;
+}
+
+#skImagePane .skHint {
+	margin: 0.8em 0 0 0;
+	font-size: 0.9em;
+}
+
+.skActions {
+	display: flex;
+	gap: 0.7em;
+	margin-top: 0.8em;
+}
+
+.skButton {
+	flex: 1 1 0;
+	padding: 0.7em 0.5em;
+	border-radius: 8px;
+	background: #2a2a2a;
+	color: #999;
+	text-align: center;
+	cursor: pointer;
+	user-select: none;
+}
+
+.skButton:hover {
+	background: #333;
+}
+
+#skDone {
+	background: #1b5e63;
+	color: #fff;
+}
+
+#skDone:hover {
+	background: #23777d;
+}
+
+[hidden] {
+	display: none !important;
+}
+</style>
+<div id="skOptions">
+	<h2>Custom Sky</h2>
+	<div class="skHint">Replaces the sky of every map. It applies from the next match</div>
+	<div id="skModes">
+		<div class="skMode" id="skModeGradient">Gradient</div>
+		<div class="skMode" id="skModeImage">Image</div>
+	</div>
+	<div id="skGradientPane">
+		<div id="skSwatches"></div>
+		<label class="skRow">Top <input type="color" id="skZenith"></label>
+		<label class="skRow">Horizon <input type="color" id="skHorizon"></label>
+		<div id="skPreview"></div>
+	</div>
+	<div id="skImagePane">
+		<label class="skRow">Image <select id="skImage"></select></label>
+		<div class="skActions">
+			<div class="skButton" id="skOpenFolder">Open folder</div>
+			<div class="skButton" id="skRefresh">Refresh</div>
+		</div>
+		<div class="skHint" id="skImageHint">Put PNG, JPG or WEBP images into Documents\kute\skies</div>
+	</div>
+	<div class="skActions">
+		<div class="skButton" id="skDone">Done</div>
+	</div>
+</div>

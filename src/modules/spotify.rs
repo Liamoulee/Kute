@@ -42,7 +42,7 @@ enum Signal {
 static WORKER: Mutex<Option<Sender<Signal>>> = Mutex::new(None);
 static BROWSER: AtomicI32 = AtomicI32::new(0);
 
-/// Starts watching Spotify for this browser, or resends the current song to it when already watching.
+// Starts watching Spotify for this browser, or resends the current song to it when already watching.
 pub fn start(browser_id: i32) {
     BROWSER.store(browser_id, Ordering::Relaxed);
     let mut worker = WORKER.lock().unwrap();
@@ -55,7 +55,7 @@ pub fn start(browser_id: i32) {
     std::thread::spawn(move || watch(sender, receiver));
 }
 
-/// Stops watching, the event handlers are removed and the thread ends.
+// Stops watching, the event handlers are removed and the thread ends.
 pub fn stop() {
     if let Some(sender) = WORKER.lock().unwrap().take() {
         let _ = sender.send(Signal::Stop);
@@ -67,7 +67,6 @@ struct Song {
     has_artwork: bool,
 }
 
-/// What the page was last told, to extrapolate the position the same way it does.
 struct Sent {
     playing: bool,
     position: i64,
@@ -295,7 +294,6 @@ fn update(state: &mut Watch, properties_changed: bool) {
     post(serde_json::json!({"spotifyState": {"playing": playing, "position": position, "duration": duration}}).to_string());
 }
 
-/// Playing, position now and length, in ms.
 fn playback(session: &Session) -> (bool, i64, i64) {
     let playing = session
         .GetPlaybackInfo()

@@ -144,11 +144,12 @@ Object.defineProperty(window, "gameLoaded", {
         // always: setting only toggles drawing, announce runs regardless
         import("./modules/badges.js");
         import("./modules/externalQueue.js");
-        import("./modules/bpClaimAll.js");
+        const performanceMode = kute.settings.data.performanceMode === true;
+        if (!performanceMode) import("./modules/bpClaimAll.js");
         import("./modules/args.js");
         import("./modules/fixes.js");
-        import("./modules/versionTag.js");
-        import("./modules/rankProgress.js");
+        if (!performanceMode) import("./modules/versionTag.js");
+        if (!performanceMode) import("./modules/rankProgress.js");
         import("./modules/importSettings.js");
         // always: setting is read per F6, filter button needs the module
         import("./modules/matchmaker.js");
@@ -168,6 +169,10 @@ Object.defineProperty(window, "gameLoaded", {
         // always: it also puts the frame loop's potential into the game's counter, the present part needs renderStats
         import("./modules/renderFps.js");
         if (kute?.settings?.data?.spotifyOverlay && kute.hostFeatures?.includes("spotify")) import("./modules/spotifyOverlay.js");
+        if (kute?.settings?.data?.motionBlur) import("./modules/motionBlur.js");
+        if (kute?.settings?.data?.keystrokes) import("./modules/keystrokes.js");
+        // always: customize button needs the module
+        if (kute.hostFeatures?.includes("custom-sky")) import("./modules/customSky.js");
 
         if (kute?.settings?.data?.rampBoost && !checkCompMode()){
             window.chrome.webview.postMessage("toggle-rboost, true");
