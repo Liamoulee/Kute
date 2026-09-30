@@ -151,20 +151,75 @@ pub fn load_flags() {
     if config("disableOnlineFeatures", false) {
         flags.push("--host-resolver-rules=MAP kute.lol ~NOTFOUND, MAP *.kute.lol ~NOTFOUND".to_string());
     }
-    // patch 03 of our libcef. disable it in user_flags.json to get the old input.rs WM_INPUT filter back
-    flags.push("--enable-features=KuteRawInputMovementOnly".to_string());
-    // patch 04, off by default: trades a little panning precision for audio thread time (patches/README.md)
-    if config("audioFix", false) {
-        flags.push("--enable-features=KuteAudioPannerPerQuantum".to_string());
+    // a bench decides its patches itself (bench::flags), the settings decide for the client
+    if modules::bench::config().is_none() {
+        for patch in PATCHES {
+            flags.push(patch.flag(config(patch.setting, patch.default)));
+        }
     }
-    // patch 05: without it the game's per frame setTargetAtTime piles up while Howler's context is suspended
-    flags.push("--enable-features=KuteAudioParamCoalesce".to_string());
-    // patch 06: webgl keeps 3 spare buffers instead of 1, else it recreates them and launches land in a slow mode
-    flags.push("--enable-features=KuteCanvasBufferCache".to_string());
-    // patch 07: foreground renderers explicitly at HighQoS instead of leaving EcoQoS to windows' guess
-    flags.push("--enable-features=KuteHighQoSForeground".to_string());
     *FLAGS.lock().unwrap() = flags;
 }
+
+/// one libcef patch with a feature switch (patches/README.md), toggled by a setting
+pub struct Patch {
+    pub setting: &'static str,
+    pub feature: &'static str,
+    // bench config key
+    pub key: &'static str,
+    pub default: bool,
+}
+
+impl Patch {
+    // explicit either way: chromium lets the disable list win, so a user_flags.json entry cannot re-enable a setting that is off
+    pub fn flag(&self, enabled: bool) -> String {
+        format!("--{}-features={}", if enabled { "enable" } else { "disable" }, self.feature)
+    }
+}
+
+pub const PATCHES: [Patch; 7] = [
+    Patch {
+        setting: "patchInputPriority",
+        feature: "KuteInputNormalPriority",
+        key: "inprio",
+        default: true,
+    },
+    Patch {
+        setting: "patchFramePacing",
+        feature: "KuteFramePacing",
+        key: "pacing",
+        default: true,
+    },
+    Patch {
+        setting: "patchRawInputMovement",
+        feature: "KuteRawInputMovementOnly",
+        key: "rawinput",
+        default: true,
+    },
+    Patch {
+        setting: "audioFix",
+        feature: "KuteAudioPannerPerQuantum",
+        key: "panner",
+        default: false,
+    },
+    Patch {
+        setting: "patchAudioParamCoalesce",
+        feature: "KuteAudioParamCoalesce",
+        key: "coalesce",
+        default: true,
+    },
+    Patch {
+        setting: "patchCanvasBufferCache",
+        feature: "KuteCanvasBufferCache",
+        key: "canvas",
+        default: true,
+    },
+    Patch {
+        setting: "patchHighQoS",
+        feature: "KuteHighQoSForeground",
+        key: "qos",
+        default: true,
+    },
+];
 
 pub fn has_flag(wanted: &str) -> bool {
     FLAGS.lock().unwrap().iter().any(|flag| flag == wanted)

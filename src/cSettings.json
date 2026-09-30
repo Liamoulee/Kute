@@ -384,15 +384,6 @@
         "needsRestart": true,
         "hostFeature": "audio-fix"
     },
-    "hardFlip": {
-        "name": "DXGI Swapchain Hook",
-        "id": "hardFlip",
-        "description": "Needed for the exact FPS limit, the present FPS counter and OBS capture",
-        "type": "checkbox",
-        "category": "Advanced",
-        "defaultValue": true,
-        "needsRestart": true
-    },
     "angleBackend": {
         "name": "Graphics Backend (ANGLE)",
         "id": "angleBackend",
@@ -463,6 +454,75 @@
         "category": "Advanced",
         "button": "Clear Now",
         "buttonAction": "if(confirm('Are you sure you want to clear cache and local storage?')) { localStorage.clear(); sessionStorage.clear(); window.chrome.webview.postMessage('clear-cache'); }"
+    },
+    "hardFlip": {
+        "name": "DXGI Swapchain Hook",
+        "id": "hardFlip",
+        "description": "Exact FPS limit, present FPS counter and OBS capture. Laptops with two graphics chips may run better without it",
+        "type": "checkbox",
+        "category": "Engine",
+        "defaultValue": true,
+        "needsRestart": true
+    },
+    "patchInputPriority": {
+        "name": "Input at Normal Priority",
+        "id": "patchInputPriority",
+        "description": "Chromium patch: mouse input no longer starves the game's server messages. Off brings back the aim freeze",
+        "type": "checkbox",
+        "category": "Engine",
+        "defaultValue": true,
+        "needsRestart": true,
+        "hostFeature": "cef-patches"
+    },
+    "patchFramePacing": {
+        "name": "Frame Pacing",
+        "id": "patchFramePacing",
+        "description": "Chromium patch: the game runs one frame ahead of the screen instead of flooding it. Off brings back the GPU stutter",
+        "type": "checkbox",
+        "category": "Engine",
+        "defaultValue": true,
+        "needsRestart": true,
+        "hostFeature": "cef-patches"
+    },
+    "patchRawInputMovement": {
+        "name": "Raw Input Keeps Movement",
+        "id": "patchRawInputMovement",
+        "description": "Chromium patch: no mouse movement is lost on a click. Off drops a few counts at every shot",
+        "type": "checkbox",
+        "category": "Engine",
+        "defaultValue": true,
+        "needsRestart": true,
+        "hostFeature": "cef-patches"
+    },
+    "patchAudioParamCoalesce": {
+        "name": "Coalesce Audio Automation",
+        "id": "patchAudioParamCoalesce",
+        "description": "Chromium patch: the game's per frame sound updates no longer pile up. Off makes FPS drop over a long match",
+        "type": "checkbox",
+        "category": "Engine",
+        "defaultValue": true,
+        "needsRestart": true,
+        "hostFeature": "cef-patches"
+    },
+    "patchCanvasBufferCache": {
+        "name": "WebGL Buffer Cache",
+        "id": "patchCanvasBufferCache",
+        "description": "Chromium patch: keeps three spare frame buffers instead of one. Off makes some starts land in a slow mode",
+        "type": "checkbox",
+        "category": "Engine",
+        "defaultValue": true,
+        "needsRestart": true,
+        "hostFeature": "cef-patches"
+    },
+    "patchHighQoS": {
+        "name": "Game Process at High QoS",
+        "id": "patchHighQoS",
+        "description": "Chromium patch: Windows may not throttle the game's process to save power. Off leaves that to Windows",
+        "type": "checkbox",
+        "category": "Engine",
+        "defaultValue": true,
+        "needsRestart": true,
+        "hostFeature": "cef-patches"
     },
     "showChangelog": {
         "name": "Show Changelog After Updates",

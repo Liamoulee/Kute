@@ -14,10 +14,12 @@ use cef::{rc::*, *};
 
 use crate::{app, bridge, debug_print, utils, window};
 
-// `kute.exe --bench=hook=1,depth=1,uncap=1,ms=2000,out=C:\path\result.json`
+// `kute.exe --bench=hook=1,depth=1,uncap=1,pacing=0,ms=2000,out=C:\path\result.json`
 pub struct BenchConfig {
     pub hook: bool,
     pub uncap: bool,
+    // one per app::PATCHES, keyed by Patch::key, the patch default unless the config says otherwise
+    pub patches: Vec<bool>,
     // CustomMaxPendingFrames of our libcef, default 1
     pub depth: u32,
     pub limit: u64,
@@ -40,6 +42,7 @@ static CONFIG: LazyLock<Option<BenchConfig>> = LazyLock::new(|| {
     let mut config = BenchConfig {
         hook: true,
         uncap: true,
+        patches: app::PATCHES.iter().map(|patch| patch.default).collect(),
         depth: 1,
         limit: 0,
         throttle: 1.0,
@@ -63,7 +66,10 @@ static CONFIG: LazyLock<Option<BenchConfig>> = LazyLock::new(|| {
                 let edges: Vec<i32> = value.split(':').filter_map(|edge| edge.parse().ok()).collect();
                 config.rect = <[i32; 4]>::try_from(edges).ok();
             }
-            _ => query.push(format!("{key}={value}")),
+            _ => match app::PATCHES.iter().position(|patch| patch.key == key) {
+                Some(index) => config.patches[index] = value != "0",
+                None => query.push(format!("{key}={value}")),
+            },
         }
     }
     // no hook, the page has to cap itself
@@ -117,6 +123,9 @@ pub fn flags(config: &BenchConfig) -> Vec<String> {
     if config.depth != 1 {
         flags.push(format!("--enable-features=CustomMaxPendingFrames:count/{}", config.depth));
     }
+    for (patch, &enabled) in app::PATCHES.iter().zip(&config.patches) {
+        flags.push(patch.flag(enabled));
+    }
     flags
 }
 
@@ -139,8 +148,13 @@ pub fn finish(page_json: &str) {
             "samples": intervals.map(|i| i.4),
         })
     });
+    let patches: serde_json::Map<String, serde_json::Value> = app::PATCHES
+        .iter()
+        .zip(&config.patches)
+        .map(|(patch, &enabled)| (patch.key.to_string(), enabled.into()))
+        .collect();
     let result = serde_json::json!({
-        "config": { "hook": config.hook, "uncap": config.uncap, "depth": config.depth, "limit": config.limit, "throttle": config.throttle },
+        "config": { "hook": config.hook, "uncap": config.uncap, "depth": config.depth, "limit": config.limit, "throttle": config.throttle, "patches": patches },
         "page": page,
         "present": present,
     });

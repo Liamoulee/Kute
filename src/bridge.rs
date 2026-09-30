@@ -50,7 +50,8 @@ pub fn send_info(frame: &Frame) {
             "swapper-editor",
             "x3d-cores",
             "custom-sky",
-            "performance-mode"
+            "performance-mode",
+            "cef-patches"
         ]),
     );
 
