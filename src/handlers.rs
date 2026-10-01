@@ -836,6 +836,15 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
                 modules::devtools::click(browser, x, y);
             }
         }
+        // auto-detect's input script for one sample, see replay.rs
+        ["input-replay", ms] => {
+            if let (Ok(ms), Some(hwnd)) = (ms.parse(), window::root_hwnd(browser)) {
+                modules::replay::start(hwnd, ms);
+            }
+        }
+        ["input-replay-stop"] => {
+            modules::replay::stop();
+        }
         ["close"] => {
             window::close_all();
         }

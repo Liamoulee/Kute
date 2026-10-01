@@ -33,6 +33,7 @@ pub mod modules {
     pub mod power;
     pub mod priority;
     pub mod render_hook;
+    pub mod replay;
     pub mod resource;
     pub mod skybox;
     pub mod specs;
