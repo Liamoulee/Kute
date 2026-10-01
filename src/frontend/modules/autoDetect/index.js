@@ -5,7 +5,7 @@ import { checkCompMode, request } from "../../utils.js";
 import { cancel as cancelBench, currentPipeline, measureCaps, PIPELINE, searchPipeline } from "./clientBench.js";
 import { decide, MIN_RESOLUTION, SIGNIFICANT_SETTING } from "./decide.js";
 import { capCandidates, choose, chooseCap, EXPERIENCE, headroom, refineCaps, relative, summarize, TARGET_REFRESH_MULTIPLE } from "./policy.js";
-import { REPLAY_CIRCLE_MS, takeReading } from "./sample.js";
+import { REPLAY_CIRCLE_MS, takeInputDiagnostics, takeReading } from "./sample.js";
 import * as game from "./gameSettings.js";
 
 const STORAGE_KEY = "kute_autodetect";
@@ -81,6 +81,7 @@ const WORSE = {
  * @property {number|null} halfResolutionGain
  * @property {MeasuredSetting[]} settings
  * @property {import("./decide.js").QualityPlan} plan
+ * @property {import("./sample.js").InputDiagnostics} [input] whether the host's input script reached the game
  * @property {string|null} rolledBack why the run put the player's settings back, null when it did not
  * @property {number} seconds
  */
@@ -283,6 +284,22 @@ function metricCells(summary){
 
 
 /**
+ * @param {import("./sample.js").InputDiagnostics|undefined} input
+ * @return {string} what became of the host's input script, for the advanced view
+ */
+function inputLine(input){
+    if (!input || input.readings === 0) return "";
+    if (input.withInput > 0){
+        return `<p>Input test: ${input.withInput} of ${input.readings} readings in the match had mouse input from Kute (${input.hostSteps} steps sent, ${input.pageEvents} seen by the game).</p>`;
+    }
+    // "stopped" is the next reading taking over a few ms early, not a failure
+    const reasons = Object.entries(input.ended).filter(([reason]) => reason !== "done" && reason !== "stopped").map(([reason, count]) => `${reason}: ${count}x`).join(", ");
+    let why = "the game did not hold the mouse when the readings started";
+    if (input.asked > 0) why = reasons || `Kute sent ${input.hostSteps} steps, the game saw ${input.pageEvents} mouse events`;
+    return `<p class="adChanged">The input test did not reach the game (${why}). Mouse wait and settings that only cost in a fight were not measured.</p>`;
+}
+
+/**
  * @param {Report} report
  * @return {string}
  */
@@ -313,6 +330,7 @@ function advancedHtml(report){
         (${TARGET_REFRESH_MULTIPLE}x your ${report.hz} Hz screen), and this PC needs ${Math.round(report.plan.needed)} to keep that in a fight:
         samples of the same settings differ by ${Math.round(report.noise * 100)} %, and it ended the run at ${Math.round(report.drift * 100)} % of its starting speed.</p>
         ${report.rolledBack ? `<p class="adChanged">${report.rolledBack}</p>` : ""}
+        ${inputLine(report.input)}
         <table><tr><th>As you had it (${capName(report.beforeCap)})</th>${header}</tr><tr><td>before</td>${metricCells(report.before)}<td></td></tr>
         ${report.after ? `<tr><td>after (${capName(report.afterCap)})</td>${metricCells(report.after)}<td></td></tr>` : ""}</table>
         ${pipeline.length > 0 ? `<table><tr><th>Client test</th>${header}</tr>${pipeline.join("")}</table>` : "<p>The client test did not run, the client's own setup was left alone.</p>"}
@@ -758,6 +776,7 @@ class AutoDetect {
 
         if (frameCapBefore > 0) game.write(game.GAME_FRAME_CAP, "0");
         let appliedCap = Number(kute.settings.data.gameFpsLimit) || 0;
+        takeInputDiagnostics();
         window.chrome.webview.postMessage("throttle, off");
         // assets and shaders still loading
         await sleep(2500);
@@ -866,6 +885,7 @@ class AutoDetect {
             halfResolutionGain: null,
             settings: [],
             plan: decide({ capacity: fpsOf(run.uncapped), hz, headroom: 1, halfResolutionGain: null, settings: [] }),
+            input: takeInputDiagnostics(),
             rolledBack: null,
             seconds: (performance.now() - started) / 1000,
             ...fields,
@@ -1120,6 +1140,8 @@ class AutoDetect {
         else if (changed) line = `${count} Without a limit your PC runs ${Math.round(capacity)} FPS in the test match, Kute aims for at least ${aims} with no stutter.`;
         else if (capacity < target) line = `Your PC ran ${Math.round(capacity)} FPS in the test match, Kute aims for at least ${aims}. No setting measurably helps on this PC, so nothing was changed.`;
 
+        // the host says how its last input script ended a moment after the reading itself
+        await sleep(150);
         const needsRestart = restartNeeded();
         return {
             summary: { title: changed ? "Optimized" : "Nothing to change", line: needsRestart ? `${line} Restart Kute to finish.` : line, details, changed, needsRestart },

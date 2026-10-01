@@ -852,7 +852,7 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         // auto-detect's input script for one sample, see replay.rs
         ["input-replay", ms] => {
             if let (Ok(ms), Some(hwnd)) = (ms.parse(), window::root_hwnd(browser)) {
-                modules::replay::start(hwnd, ms);
+                modules::replay::start(hwnd, browser.identifier(), ms);
             }
         }
         ["input-replay-stop"] => {

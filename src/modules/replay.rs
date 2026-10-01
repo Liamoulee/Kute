@@ -11,7 +11,7 @@ use windows::Win32::{
     UI::{Input::KeyboardAndMouse::*, WindowsAndMessaging::GetForegroundWindow},
 };
 
-use crate::{debug_print, modules::input};
+use crate::{bridge, debug_print, modules::input};
 
 // auto-detect's fixed input script: the camera turns in circles and the fire button is held with short releases, so
 // every sample of a run sees the same mouse traffic and the same shots. real input through the OS, nothing in the page
@@ -44,12 +44,8 @@ fn send(flags: MOUSE_EVENT_FLAGS, dx: i32, dy: i32) -> bool {
     unsafe { SendInput(&[input], mem::size_of::<INPUT>() as i32) == 1 }
 }
 
-// only into our own window while the game holds the pointer: never into another app the player switched to
-fn allowed(hwnd: HWND) -> bool {
-    input::pointer_locked() && unsafe { GetForegroundWindow() } == hwnd
-}
-
-pub fn start(hwnd: HWND, ms: u64) {
+// the page gets `{inputReplay: {sent, reason}}` when a script ends: a report without pointer events has to say why
+pub fn start(hwnd: HWND, browser_id: i32, ms: u64) {
     let generation = GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     let hwnd = hwnd.0 as isize;
     let ms = ms.min(LONGEST_MS);
@@ -59,10 +55,20 @@ pub fn start(hwnd: HWND, ms: u64) {
         let (mut x, mut y) = (RADIUS, 0.0f64);
         let mut fire = false;
         let mut sent = 0u64;
-        while GENERATION.load(Ordering::SeqCst) == generation && allowed(hwnd) {
+        let reason = loop {
+            if GENERATION.load(Ordering::SeqCst) != generation {
+                break "stopped";
+            }
+            // only into our own window while the game holds the pointer: never into another app the player switched to
+            if !input::pointer_locked() {
+                break "the game did not hold the mouse";
+            }
+            if unsafe { GetForegroundWindow() } != hwnd {
+                break "Kute was not the window in front";
+            }
             let elapsed = started.elapsed().as_millis() as u64;
             if elapsed >= ms {
-                break;
+                break "done";
             }
             let angle = TAU * (elapsed % CIRCLE_MS) as f64 / CIRCLE_MS as f64;
             // whole counts towards the exact point on the circle, so rounding never adds up
@@ -76,16 +82,17 @@ pub fn start(hwnd: HWND, ms: u64) {
             }
             // blocked input (another process holds the input desktop): stop instead of pretending
             if !send(flags, dx as i32, dy as i32) {
-                break;
+                break "Windows blocked the input";
             }
             fire = want_fire;
             sent += 1;
             thread::sleep(Duration::from_millis(STEP_MS));
-        }
+        };
         if fire {
             send(MOUSEEVENTF_LEFTUP, 0, 0);
         }
-        debug_print!("replay: {sent} input steps in {} ms", started.elapsed().as_millis());
+        debug_print!("replay: {sent} input steps in {} ms, {reason}", started.elapsed().as_millis());
+        bridge::post_json_later(browser_id, serde_json::json!({ "inputReplay": { "sent": sent, "reason": reason } }).to_string());
     });
 }
 
