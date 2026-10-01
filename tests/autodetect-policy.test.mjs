@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { capCandidates, choose, chooseCap, compare, experienceHolds, headroom, refineCaps, relative, screen, summarize } from "../src/frontend/modules/autoDetect/policy.js";
+import { capCandidates, choose, chooseCap, collapses, compare, experienceHolds, headroom, refineCaps, relative, screen, stalled, steady, steadyLimit, steadyRungs, summarize } from "../src/frontend/modules/autoDetect/policy.js";
 
 /**
  * @param {Partial<import("../src/frontend/modules/autoDetect/policy.js").Reading>} values
@@ -111,6 +111,36 @@ describe("chooseCap", () => {
         expect(choice.judged.find((entry) => entry.cap === 180)?.outcome).toBe("worse");
     });
 
+    /**
+     * @param {Partial<import("../src/frontend/modules/autoDetect/policy.js").Reading>} values
+     * @return {import("../src/frontend/modules/autoDetect/policy.js").Reading[]}
+     */
+    const both = (values) => [reading(values), reading(values)];
+
+    test("a longer frame is paid once: equal waits are no gain for the lower limit", () => {
+        // 500 fps with its slowest frames at 4 ms against a flat 250: nothing reaches the player sooner at 250
+        const uncapped = both({ fps: 500, p50: 2, p99: 4, maxMs: 6, stallMs: 0, taskP99: 4, inputP99: 4 });
+        const capped = both({ fps: 250, p50: 4, p99: 4, maxMs: 6, stallMs: 0, taskP99: 4, inputP99: 4 });
+        const choice = chooseCap(new Map([[0, uncapped], [250, capped]]), 0);
+        expect(choice.changed).toBe(false);
+        expect(choice.judged.find((entry) => entry.cap === 250)?.netMs).toBe(0);
+    });
+
+    test("a limit that makes the mouse wait longer is out, even when tasks run sooner", () => {
+        const uncapped = both({ fps: 500, p50: 2, p99: 2.5, maxMs: 3, stallMs: 0, taskP99: 6, inputP99: 2.5 });
+        const capped = both({ fps: 180, p50: 5.55, p99: 6, maxMs: 6.5, stallMs: 0, taskP99: 2, inputP99: 6 });
+        expect(chooseCap(new Map([[0, uncapped], [180, capped]]), 0).judged.find((entry) => entry.cap === 180)?.outcome).toBe("worse");
+    });
+
+    test("a limit wins on measured waits: tasks sooner, the mouse no later", () => {
+        const uncapped = both({ fps: 285, p50: 3.5, p99: 4, maxMs: 5, stallMs: 0, taskP99: 8.2, inputP99: 6.1 });
+        const capped = both({ fps: 180, p50: 5.55, p99: 6, maxMs: 6.5, stallMs: 0, taskP99: 2.6, inputP99: 6.0 });
+        const choice = chooseCap(new Map([[0, uncapped], [180, capped]]), 0);
+        expect(choice.winner).toBe(180);
+        expect(choice.judged.find((entry) => entry.cap === 180)?.gains?.input).toBe(0);
+        expect(choice.judged.find((entry) => entry.cap === 180)?.netMs).toBeCloseTo(5.6);
+    });
+
     test("one reading per cap decides nothing", () => {
         const choice = chooseCap(new Map([[0, at(3.5, 8.15).slice(0, 1)], [180, at(5.55, 2.6).slice(0, 1)]]), 0, { prefer: 180 });
         expect(choice.changed).toBe(false);
@@ -157,6 +187,65 @@ describe("compare", () => {
         const a = summarize([reading({ p99: 2.0 }), reading({ p99: 4.0 })]);
         const b = summarize([reading({ p99: 3.5 }), reading({ p99: 3.6 })]);
         expect(compare("p99", a, b)).toBe("same");
+    });
+});
+
+// the same laptop on 2026-10-01 with the hook off, in the test match: clean at its own 515 limit, and without a limit
+// slower than with one, standing still a third to half of the time. 543 was read right after "no limit" each round
+describe("a PC that collapses when pushed", () => {
+    const at515 = [reading({ fps: 512, p50: 2.0, p99: 3.9, maxMs: 5.8, stallMs: 0, taskP99: 4.2, inputP99: 3.6 }), reading({ fps: 511, p50: 2.0, p99: 4.0, maxMs: 6.2, stallMs: 0, taskP99: 5.2, inputP99: 3.7 })];
+    const at495 = [reading({ fps: 494, p50: 2.0, p99: 3.9, maxMs: 5.1, stallMs: 0, taskP99: 4.4, inputP99: 3.7 }), reading({ fps: 495, p50: 2.0, p99: 4.0, maxMs: 5.4, stallMs: 0, taskP99: 5.7, inputP99: 3.9 })];
+    const at543 = [reading({ fps: 541, p50: 2.0, p99: 4.0, maxMs: 5.9, stallMs: 0, taskP99: 4.5, inputP99: 3.4 }), reading({ fps: 260, p50: 2.0, p99: 31.8, maxMs: 49.1, stallMs: 637, taskP99: 97.4, inputP99: 30.3 })];
+    const noLimit = [reading({ fps: 330, p50: 3.1, p99: 28.2, maxMs: 45.4, stallMs: 336, taskP99: 48.2, inputP99: 28.8 }), reading({ fps: 232, p50: 3.2, p99: 33.7, maxMs: 50.5, stallMs: 587, taskP99: 93.3, inputP99: 36.6 })];
+    const match = new Map([[515, at515], [0, noLimit], [543, at543], [495, at495]]);
+
+    test("a third of the time lost is a stall, one hitch is not", () => {
+        expect(stalled(noLimit[0])).toBe(true);
+        expect(stalled(reading({ stallMs: 33 }))).toBe(false);
+        expect(stalled(reading({ stallMs: null }))).toBe(false);
+    });
+
+    test("one good and one collapsed reading is not steady, and never the better limit", () => {
+        expect(steady(at543, 543)).toBe(false);
+        const choice = chooseCap(match, 515, { prefer: 495 });
+        expect(choice.judged.find((entry) => entry.cap === 543)?.outcome).toBe("not steady");
+        expect(choice.judged.find((entry) => entry.cap === 0)?.outcome).toBe("not steady");
+        expect(choice.winner).not.toBe(543);
+    });
+
+    test("two frame times the clock cannot tell apart are no gain", () => {
+        const twin = [reading({ ...at515[0], p50: 1.9999999403953552 }), reading({ ...at515[1], p50: 1.9999999403953552 })];
+        const choice = chooseCap(new Map([[515, at515], [530, twin.map((entry) => ({ ...entry, fps: 529 }))]]), 515);
+        expect(choice.changed).toBe(false);
+    });
+
+    test("the preferred limit takes over by its number, not by a frame time the clock rounds", () => {
+        const choice = chooseCap(new Map([[515, at515], [495, at495]]), 515, { prefer: 495 });
+        expect(choice.winner).toBe(495);
+        expect(choice.decidedBy).toBe("tie");
+    });
+
+    test("the PC is known by two stalled readings of one setup", () => {
+        expect(collapses(match)).toBe(true);
+        expect(collapses(new Map([[515, at515], [543, at543]]))).toBe(false);
+        expect(collapses(new Map([[0, [reading({ fps: 2800, stallMs: 2 }), reading({ fps: 2790, stallMs: 33 })]]]))).toBe(false);
+    });
+
+    test("the limit is the highest refresh step whose next step still ran steadily", () => {
+        expect(steadyRungs(165)).toEqual([330, 495, 660]);
+        const held = (/** @type {number} */ cap) => [reading({ fps: cap - 1, stallMs: 0 }), reading({ fps: cap - 2, stallMs: 0 })];
+        const missed = (/** @type {number} */ cap) => [reading({ fps: cap * 0.6, stallMs: 410 }), reading({ fps: cap - 1, stallMs: 0 })];
+        // steady up to 495, not at 660: 330 has a step of room
+        expect(steadyLimit(165, new Map([[330, held(330)], [495, held(495)], [660, missed(660)]]))).toEqual({ cap: 330, steadyUpTo: 495 });
+        // the step above the target ran too: the target
+        expect(steadyLimit(165, new Map([[330, held(330)], [495, held(495)], [660, held(660)]]))).toEqual({ cap: 495, steadyUpTo: 660 });
+        // only the first step ran: the refresh rate
+        expect(steadyLimit(165, new Map([[330, held(330)], [495, missed(495)]]))).toEqual({ cap: 165, steadyUpTo: 330 });
+        expect(steadyLimit(165, new Map([[330, missed(330)]]))).toEqual({ cap: 165, steadyUpTo: null });
+        // a step that was skipped proves nothing above it
+        expect(steadyLimit(165, new Map([[330, held(330)], [660, held(660)]]))).toEqual({ cap: 165, steadyUpTo: 330 });
+        // a limit the PC does not reach is no room either
+        expect(steadyLimit(165, new Map([[330, held(330)], [495, [reading({ fps: 420, stallMs: 0 }), reading({ fps: 430, stallMs: 0 })]]]))).toEqual({ cap: 165, steadyUpTo: 330 });
     });
 });
 

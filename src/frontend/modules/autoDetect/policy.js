@@ -25,6 +25,18 @@ export const CLOCK_MS = 0.1;
  * @property {number|null} taskP99 main thread task delay, ms
  * @property {number|null} inputP99 pointer event wait, ms
  * @property {boolean} [invalid] focus lost, still loading, left the room: the window says nothing
+ * @property {string} [why] what made it invalid
+ * @property {Load|null} [load] what the PC did meanwhile, report only
+ */
+
+/**
+ * @typedef {object} Load the host's `load-sample`, averages over a reading. null: Windows has no such counter here
+ * @property {number|null} cpuSpeed percent of the processor's nominal speed, far below 100 while it is throttled
+ * @property {number|null} cpuBusy
+ * @property {number|null} cpuLimit percent of its speed Windows allows it
+ * @property {number|null} thermalLimit percent the firmware allows for heat
+ * @property {number|null} temperature hottest thermal zone, celsius
+ * @property {Record<string, {render: number, copy: number}>} gpu busy percent per adapter luid
  */
 
 /**
@@ -202,6 +214,78 @@ export function choose(incumbent, candidates, options = {}){
 }
 
 /**
+ * the game stood still for more than a tenth of the window. not a difference between two setups but a state: a laptop
+ * that throttles when it is pushed lost 34 to 59 % of the time without a limit and 0 % at its 515 limit. one hitch
+ * while something loads is far below it
+ *
+ * @param {Reading} reading
+ * @return {boolean} false when unknown
+ */
+export function stalled(reading){
+    return !reading.invalid && typeof reading.stallMs === "number" && reading.stallMs > 1000 * IMPORTANT_SHARE;
+}
+
+/**
+ * @param {Reading[]} readings of one setup
+ * @param {number} cap the fps limit they ran at, 0 = none
+ * @return {boolean} a reading stalled, or ran more than a tenth under its limit
+ */
+export function unsteady(readings, cap){
+    return readings.some((reading) => stalled(reading) || (!reading.invalid && cap > 0 && typeof reading.fps === "number" && reading.fps < cap * (1 - IMPORTANT_SHARE)));
+}
+
+/**
+ * @param {Reading[]} readings of one setup
+ * @param {number} cap
+ * @return {boolean} proven: two readings or more, none of them unsteady
+ */
+export function steady(readings, cap){
+    return readings.filter((reading) => !reading.invalid).length >= 2 && !unsteady(readings, cap);
+}
+
+/**
+ * does this PC stop running steadily when it is pushed? two stalled readings of one setup, a single one can be
+ * something loading. such a PC gets its limit from `steadyLimit`, the usual comparisons mean nothing on it: whatever
+ * is read after a collapse still carries it
+ *
+ * @param {Map<number, Reading[]>} readings per fps limit, 0 = none
+ * @return {boolean}
+ */
+export function collapses(readings){
+    return [...readings.values()].some((list) => list.filter(stalled).length >= 2);
+}
+
+/**
+ * @param {number} hz
+ * @return {number[]} the limits `steadyLimit` wants read, lowest first: stop at the first that is not steady
+ */
+export function steadyRungs(hz){
+    return Array.from({ length: TARGET_REFRESH_MULTIPLE }, (_, index) => (index + 2) * hz);
+}
+
+/**
+ * the limit for a PC that collapses when it is pushed: the highest multiple of the refresh rate, up to the target,
+ * whose next step up still ran steadily. the empty test match is the lightest load the game has, so a limit that is
+ * only just steady there is not steady in a fight (the laptop above played at 515, steady in the test, laggy in
+ * matches). the room is one refresh rate, the screen's own unit, and it is measured, not assumed
+ *
+ * @param {number} hz
+ * @param {Map<number, Reading[]>} readings per limit
+ * @return {{cap: number, steadyUpTo: number|null}} steadyUpTo: the highest limit that ran steadily, null: none did
+ */
+export function steadyLimit(hz, readings){
+    let cap = hz;
+    /** @type {number|null} */
+    let steadyUpTo = null;
+    for (const rung of steadyRungs(hz)){
+        if (!steady(readings.get(rung) ?? [], rung)) break;
+        if (steadyUpTo !== null) cap = steadyUpTo;
+        steadyUpTo = rung;
+    }
+    return { cap, steadyUpTo };
+}
+
+/**
  * a reading with its time metrics taken from its own typical frame: how much later than usual the slow frames and
  * the mouse come, not how long a frame is. for comparing across fps limits (a cap's frames are longer by design) and
  * across two spawns in the match (another view costs another frame time). fps is dropped, it is neither comparable
@@ -215,30 +299,47 @@ export function relative(reading){
     return { ...reading, fps: null, p99: beyond(reading.p99), maxMs: beyond(reading.maxMs), inputP99: beyond(reading.inputP99) };
 }
 
-/** what a lower fps limit can buy, each in ms beyond the limit's own frame time */
-const CAP_GAINS = /** @type {Metric[]} */ (["taskP99", "inputP99", "p99"]);
+/**
+ * a reading as fps limits get compared: the waits as they are (a longer frame makes the mouse wait longer, that is the
+ * limit's price and it is in the number), frame spikes from the limit's own frame time (a limit's frames are longer by
+ * design, its spikes are not allowed to be)
+ *
+ * @param {Reading} reading
+ * @return {Reading}
+ */
+export function atLimit(reading){
+    const base = reading.p50;
+    const beyond = (/** @type {number|null} */ value) => (typeof value === "number" && typeof base === "number" ? Math.max(0, value - base) : null);
+    return { ...reading, fps: null, p99: beyond(reading.p99), maxMs: beyond(reading.maxMs) };
+}
+
+/** a limit may not get worse in any of these, see atLimit */
+const CAP_GUARDS = /** @type {Metric[]} */ (["taskP99", "inputP99", "p99", "stallMs", "maxMs"]);
 
 /**
  * @typedef {object} CapJudged
  * @property {number} cap 0 = no limit
- * @property {Summary} summary of the relative readings
+ * @property {Summary} summary of the readings as atLimit sees them
  * @property {number|null} frameMs typical frame time at this limit
- * @property {number|null} netMs delay it removes minus frame time it adds against the limit in use, null: not judged
- * @property {"yours"|"better"|"not better"|"worse"} outcome
+ * @property {number|null} netMs ms the game reacts sooner than at the limit in use: measured task delay and mouse wait.
+ *     without a mouse wait on both sides the frame time difference stands in for it. null: not judged
+ * @property {{task: number, input: number|null}} [gains] the parts of netMs, input null when it was the stand-in
+ * @property {"yours"|"better"|"not better"|"worse"|"not steady"} outcome not steady: stalled or missed the limit in a reading
  */
 
 /**
  * @typedef {object} CapChoice
  * @property {number} winner the limit in use when nothing beats it
  * @property {boolean} changed
- * @property {"net"|"tie"|null} decidedBy net: removes more delay than it adds frame time. tie: the preferred limit, measured equal
+ * @property {"net"|"tie"|null} decidedBy net: something reaches the player sooner and nothing later. tie: the preferred limit, measured equal
  * @property {CapJudged[]} judged every limit, the one in use included
  */
 
 /**
- * which fps limit. a lower limit makes every frame longer, that is its price in ms, and it pays with what it removes:
- * main thread task delay, mouse wait and frame jitter, each beyond the limit's own frame time. a limit wins when it
- * removes more than it adds, and never when it stalls more. only differences beyond the readings' own spread count
+ * which fps limit. a limit is out when it measures worse than the one in use in anything a player feels: main thread
+ * task delay, mouse wait, frame spikes, stalls. it wins when it is out in nothing and task delay or mouse wait get
+ * shorter. both are compared as measured, so a lower limit's longer frames count exactly once, in the mouse wait they
+ * cause. only differences beyond the readings' own spread count
  *
  * @param {Map<number, Reading[]>} readings per limit, 0 = none
  * @param {number} incumbent the limit in use
@@ -247,7 +348,7 @@ const CAP_GAINS = /** @type {Metric[]} */ (["taskP99", "inputP99", "p99"]);
  * @return {CapChoice}
  */
 export function chooseCap(readings, incumbent, options = {}){
-    const summaryOf = (/** @type {number} */ cap) => summarize((readings.get(cap) ?? []).map(relative));
+    const summaryOf = (/** @type {number} */ cap) => summarize((readings.get(cap) ?? []).map(atLimit));
     const frameOf = (/** @type {number} */ cap) => {
         const frames = (readings.get(cap) ?? []).filter((reading) => !reading.invalid).map((reading) => reading.p50).filter((value) => typeof value === "number");
         return frames.length > 0 ? median(/** @type {number[]} */ (frames)) : null;
@@ -255,28 +356,33 @@ export function chooseCap(readings, incumbent, options = {}){
     const base = summaryOf(incumbent);
     const baseFrame = frameOf(incumbent);
 
-    /** @type {Map<number, number>} confident experience gain in ms, for the tie */
-    const gains = new Map();
+    /** @type {Map<number, number>} measured gain in ms, for the tie */
+    const measured = new Map();
     /** @type {CapJudged[]} */
     const judged = [...readings.keys()].map((cap) => {
         const summary = summaryOf(cap);
         const frameMs = frameOf(cap);
         if (cap === incumbent) return { cap, summary, frameMs, netMs: null, outcome: /** @type {const} */ ("yours") };
-        const verdicts = CAP_GAINS.map((metric) => compare(metric, summary, base));
-        if (frameMs === null || baseFrame === null || verdicts.every((verdict) => verdict === "unknown")){
+        // one good and one collapsed reading have a spread no difference gets past: judged by what they are instead
+        if (unsteady(readings.get(cap) ?? [], cap)){
+            return { cap, summary, frameMs, netMs: null, outcome: /** @type {const} */ ("not steady") };
+        }
+        const verdicts = Object.fromEntries(CAP_GUARDS.map((metric) => [metric, compare(metric, summary, base)]));
+        if (frameMs === null || baseFrame === null || verdicts.taskP99 === "unknown"){
             return { cap, summary, frameMs, netMs: null, outcome: /** @type {const} */ ("not better") };
         }
-        let gain = 0;
-        for (const [index, metric] of CAP_GAINS.entries()){
-            if (verdicts[index] === "better" || verdicts[index] === "worse") gain += (base[metric].median ?? 0) - (summary[metric].median ?? 0);
-        }
-        gains.set(cap, gain);
-        const netMs = gain - (frameMs - baseFrame);
+        const gainIn = (/** @type {Metric} */ metric) => (verdicts[metric] === "better" || verdicts[metric] === "worse" ? (base[metric].median ?? 0) - (summary[metric].median ?? 0) : 0);
+        const task = gainIn("taskP99");
+        // no mouse wait on one side (a bench process, a replay that did not arrive): the frame time stands in for it
+        const input = verdicts.inputP99 === "unknown" ? null : gainIn("inputP99");
+        const netMs = task + (input ?? baseFrame - frameMs);
+        measured.set(cap, task + (input ?? 0));
         /** @type {CapJudged["outcome"]} */
         let outcome = "not better";
-        if (compare("stallMs", summary, base) === "worse" || gain < 0) outcome = "worse";
-        else if (netMs > 0) outcome = "better";
-        return { cap, summary, frameMs, netMs, outcome };
+        if (CAP_GUARDS.some((metric) => verdicts[metric] === "worse")) outcome = "worse";
+        // two frame times of 2.0 ms differ by 0.00000006 in floating point, that is not a gain
+        else if (netMs > 2 * CLOCK_MS) outcome = "better";
+        return { cap, summary, frameMs, netMs, gains: { task, input }, outcome };
     });
 
     const better = judged.filter((entry) => entry.outcome === "better").sort((a, b) => (b.netMs ?? 0) - (a.netMs ?? 0));
@@ -284,8 +390,9 @@ export function chooseCap(readings, incumbent, options = {}){
 
     // measured equal: the preferred limit takes over when it draws fewer frames than what runs now
     const preferred = judged.find((entry) => entry.cap === options.prefer && entry.cap !== incumbent);
-    if (preferred && preferred.outcome === "not better" && preferred.netMs !== null && gains.get(preferred.cap) === 0 &&
-        preferred.frameMs !== null && baseFrame !== null && preferred.frameMs > baseFrame){
+    // by the limits themselves: 495 and 515 both measure 2.0 ms frames on the page clock
+    const fewerFrames = preferred !== undefined && (incumbent === 0 || preferred.cap < incumbent);
+    if (preferred && preferred.outcome === "not better" && preferred.netMs !== null && measured.get(preferred.cap) === 0 && fewerFrames){
         return { winner: preferred.cap, changed: true, decidedBy: "tie", judged };
     }
     return { winner: incumbent, changed: false, decidedBy: null, judged };
