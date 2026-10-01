@@ -31,7 +31,7 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] Exact FPS limiter inside Chromium's compositor (our patch): frames start on a fixed grid and reach the screen as soon as they are drawn, nothing spins, and it works with the hook off and on every graphics backend
 - [x] **Proper** Raw input
 - [x] Increased performance tweaks (chromium & CEF flags, game settings, system optimizations)
-- [x] Auto-Detect: measures your PC in a private test match (about a minute) and sets up the game and the client for it, with undo
+- [x] Auto-Detect: tests the client's own setup, then measures your PC in a private test match (about two minutes) and picks what runs best on it: the swapchain hook and the Chromium patches, the FPS limit, and game settings only while your PC misses 3x your refresh rate. Nothing is taken that measures worse anywhere, the result is checked against how you started, and everything can be undone
 - [x] Disable all non-performance features: one switch turns off every cosmetic feature and hides its settings, switch it back and your choices return
 - [x] Laptops with two graphics chips are recognized: Kute picks the fast one in Windows' graphics settings once, and starts without the swapchain hook there (frames get copied between the two chips, where the hook costs)
 - [x] Laptop Power Boost (optional): a plugged in laptop runs on Windows' Best performance mode while Kute is open, and gets its own mode back after
@@ -90,7 +90,7 @@ If you want to support this Project, you can help with Code contributions :octoc
 <summary><b>My game stutters.</b></summary>
 <br>
 
-Run **Auto-Detect Best Settings** (General settings). It plays a private test match, measures what each setting costs on your PC and sets only what makes a real difference (it needs a Krunker account). Leave CPU Throttling at 1 unless Auto-Detect sets it. Still stuttering? Open Auto-Detect's Advanced view, copy the report and [open an issue](https://github.com/NullDev/Kute/issues/choose).
+Run **Auto-Detect Best Settings** (General settings). It tests the client and plays a private test match by itself (don't touch mouse or keyboard for about two minutes), and only keeps what measurably runs better on your PC (it needs a Krunker account). Leave CPU Throttling at 1. Still stuttering? Open Auto-Detect's Advanced view, copy the report and [open an issue](https://github.com/NullDev/Kute/issues/choose).
 
 </details>
 
