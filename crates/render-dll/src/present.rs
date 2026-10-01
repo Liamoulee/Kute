@@ -28,6 +28,12 @@ static GLOBAL_LIMIT_CLOCK: LazyLock<RwLock<Option<std::time::Instant>>> = LazyLo
 
 const HR_TIMER_SPIN: std::time::Duration = std::time::Duration::from_micros(150);
 
+// do frames come at the limit's rate? what chromium's limiter leaves to see of it holding them: the average frame time
+// is the limit's interval, an eighth of slack. a game slower than its limit is held by nothing and keeps the latency wait
+fn on_the_limit(frame_ns_average: u64, target_fps: u64) -> bool {
+    frame_ns_average != 0 && target_fps != 0 && frame_ns_average.saturating_mul(target_fps) <= 1_125_000_000
+}
+
 thread_local! {
     // one per present thread, never closed. a null handle (old windows) falls back to the spin
     static HR_TIMER: cell::Cell<HANDLE> = cell::Cell::new(unsafe {
@@ -186,8 +192,11 @@ pub(crate) unsafe extern "system" fn present_hk(
         }
 
         let target_fps = shared!(ptr, target_fps).load(Ordering::Relaxed);
-        // while the limiter holds frames it already paces, and the latency wait made ~2 % of capped presents late
-        let limiter_paces = is_main && target_fps > 0 && LIMITER_HELD.get();
+        let limiter_mode = shared!(ptr, limiter_mode).load(Ordering::Relaxed);
+        // while a limiter holds frames it already paces, and the latency wait made ~2 % of capped presents late.
+        // chromium's limiter never sets LIMITER_HELD, with it the wait ran on every capped present again
+        let held = LIMITER_HELD.get() || (limiter_mode & LIMITER_VIZ != 0 && on_the_limit(FRAME_NS_EMA.get(), target_fps));
+        let limiter_paces = is_main && target_fps > 0 && held;
         let wait_started = std::time::Instant::now();
         if let Some(mut chain) = cached_chain.filter(|_| !limiter_paces) {
             // hidden windows never signal so pause waiting after a few timeouts
@@ -266,7 +275,6 @@ pub(crate) unsafe extern "system" fn present_hk(
         if is_main {
             LIMITER_HELD.set(false);
         }
-        let limiter_mode = shared!(ptr, limiter_mode).load(Ordering::Relaxed);
         if is_main
             && limiter_mode & LIMITER_VIZ == 0
             && let Some(nanos) = 1_000_000_000u64.checked_div(target_fps)
@@ -369,6 +377,17 @@ mod tests {
 
     unsafe fn present_stub(_: *mut c_void, _: u32, _: DXGI_PRESENT, _: *const DXGI_PRESENT_PARAMETERS) -> HRESULT {
         HRESULT(0)
+    }
+
+    #[test]
+    fn frames_at_the_limits_rate_are_held_slower_ones_are_not() {
+        // 240 limit: 4.17 ms frames are on it, a game that only reaches 180 (5.56 ms) is not
+        assert!(on_the_limit(4_166_667, 240));
+        assert!(on_the_limit(4_300_000, 240));
+        assert!(!on_the_limit(5_555_556, 240));
+        // no limit, or no frame measured yet
+        assert!(!on_the_limit(1_000_000, 0));
+        assert!(!on_the_limit(0, 240));
     }
 
     #[test]
