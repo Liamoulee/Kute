@@ -35,6 +35,8 @@ const CLIENT_KEYS = ["gameFpsLimit", "throttle", ...PIPELINE.map((entry) => entr
 // input replay, bench run ids and the patch switches all live in the exe
 const HOST_FEATURE = "autodetect-v2";
 const HOME = "https://krunker.io/";
+// why a run stopped: leaving the test match loads the page, which took the notification with it
+const STOPPED_KEY = "kute_autodetect_stopped";
 /** an experience metric that got worse, in the player's words @type {Record<string, string>} */
 const WORSE = {
     taskP99: "the game reacted later",
@@ -850,9 +852,10 @@ class AutoDetect {
             location.href = HOME;
         }
         catch (error){
+            const message = `Auto-detect stopped: ${error instanceof Error ? error.message : String(error)}`;
+            if (venue.inMatch) sessionStorage.setItem(STOPPED_KEY, message);
             abandon();
-            const message = error instanceof Error ? error.message : String(error);
-            kute.showNotification(`Auto-detect stopped: ${message}`, false, 7);
+            kute.showNotification(message, false, 7);
         }
         finally {
             document.removeEventListener("keydown", onKey, true);
@@ -1727,6 +1730,11 @@ class AutoDetect {
             if (state.previous) writeState(state.previous);
             else localStorage.removeItem(STORAGE_KEY);
             return;
+        }
+        const stopped = sessionStorage.getItem(STOPPED_KEY);
+        if (stopped){
+            sessionStorage.removeItem(STOPPED_KEY);
+            setTimeout(() => kute.showNotification(stopped, false, 12), RESUME_RUN_DELAY_MS);
         }
         if (state?.showSummary && state.summary){
             state.showSummary = false;
