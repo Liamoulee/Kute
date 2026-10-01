@@ -8,6 +8,12 @@
 /** a difference under this share of the larger value is not worth a change, however repeatable it is */
 export const IMPORTANT_SHARE = 0.1;
 export const TARGET_REFRESH_MULTIPLE = 3;
+/**
+ * performance.now() in a page that is not cross origin isolated moves in 0.1 ms steps. a time metric is the difference
+ * of two such readings, so two values less than two steps apart are the same value: at 2700 fps (0.37 ms frames) cap
+ * verdicts hung on 0.15 against 0.25 ms. the instrument's resolution, not a number from a PC
+ */
+export const CLOCK_MS = 0.1;
 
 /**
  * @typedef {object} Reading one measurement window of one configuration. null = not measured, never a zero
@@ -77,6 +83,14 @@ export function summarize(readings){
 }
 
 /**
+ * @param {Metric} metric
+ * @return {number} the smallest difference the page clock can show in this metric, 0 for a rate
+ */
+function floorOf(metric){
+    return metric === "fps" ? 0 : 2 * CLOCK_MS;
+}
+
+/**
  * candidate against incumbent on one metric. a verdict needs two readings on each side: one reading has no spread
  * to judge a difference against
  *
@@ -90,11 +104,12 @@ export function compare(metric, candidate, incumbent){
     const b = incumbent[metric];
     if (a.median === null || b.median === null || a.spread === null || b.spread === null) return "unknown";
     const gain = HIGHER_IS_BETTER.has(metric) ? a.median - b.median : b.median - a.median;
-    const noise = Math.max(a.spread, b.spread);
+    const noise = Math.max(a.spread, b.spread, floorOf(metric));
     const important = Math.max(Math.abs(a.median), Math.abs(b.median)) * IMPORTANT_SHARE;
     if (Math.abs(gain) <= noise || Math.abs(gain) < important) return "same";
     return gain > 0 ? "better" : "worse";
 }
+
 
 /**
  * one reading of a candidate against the incumbent's readings: is it worth a second reading? only the incumbent's
@@ -113,7 +128,7 @@ export function screen(reading, incumbent){
         if (typeof value !== "number" || base.median === null || base.spread === null) continue;
         const gain = HIGHER_IS_BETTER.has(metric) ? value - base.median : base.median - value;
         const important = Math.max(Math.abs(value), Math.abs(base.median)) * IMPORTANT_SHARE;
-        if (Math.abs(gain) <= base.spread || Math.abs(gain) < important) continue;
+        if (Math.abs(gain) <= Math.max(base.spread, floorOf(metric)) || Math.abs(gain) < important) continue;
         if (gain < 0 && EXPERIENCE.includes(metric)) return "worse";
         if (gain > 0) ahead = true;
     }

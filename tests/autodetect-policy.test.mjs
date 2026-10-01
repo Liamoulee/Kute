@@ -160,6 +160,29 @@ describe("compare", () => {
     });
 });
 
+describe("clock resolution", () => {
+    // an RX 7900 XT at 2700 fps, 2026-10-01: the page clock ticks in 0.1 ms steps and the readings sat one tick apart
+    test("two clock steps or less are no difference, however repeatable", () => {
+        const uncapped = summarize([reading({ p99: 0.1, taskP99: 1.8 }), reading({ p99: 0.1, taskP99: 1.8 })]);
+        const capped = summarize([reading({ p99: 0.3, taskP99: 2.0 }), reading({ p99: 0.3, taskP99: 2.0 })]);
+        expect(compare("p99", capped, uncapped)).toBe("same");
+        expect(compare("taskP99", capped, uncapped)).toBe("same");
+        expect(screen(reading({ p99: 0.3, taskP99: 2.0 }), uncapped)).toBe("same");
+    });
+
+    test("more than two steps still counts", () => {
+        const uncapped = summarize([reading({ taskP99: 1.8 }), reading({ taskP99: 1.8 })]);
+        const capped = summarize([reading({ taskP99: 2.35 }), reading({ taskP99: 2.35 })]);
+        expect(compare("taskP99", capped, uncapped)).toBe("worse");
+    });
+
+    test("fps has no clock floor", () => {
+        const a = summarize([reading({ fps: 1000 }), reading({ fps: 1000 })]);
+        const b = summarize([reading({ fps: 1200 }), reading({ fps: 1200 })]);
+        expect(compare("fps", b, a)).toBe("better");
+    });
+});
+
 describe("capacity and targets", () => {
     test("headroom follows the pc's own drift and noise", () => {
         // last / first = 1 means no drift, the old formula made that a headroom of 3
