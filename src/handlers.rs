@@ -731,13 +731,26 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         modules::bench::finish(result);
         return;
     }
-    if let Some(configs) = message_string.strip_prefix("run-bench-matrix ") {
+    if let Some(payload) = message_string.strip_prefix("run-bench-matrix ") {
+        // "<run id> [configs]", or only "[configs]" from a bundle older than run ids
+        let (run, configs) = match payload.split_once(' ') {
+            Some((run, configs)) if !payload.starts_with('[') => (run.parse().unwrap_or(0), configs),
+            _ => (0, payload),
+        };
         // ends up on a command line, whitelist the chars
         let configs: Vec<String> = serde_json::from_str(configs).unwrap_or_default();
         let harmless = |config: &String| config.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '=' | ',' | '.'));
         if !modules::bench::active() && configs.len() <= 8 && configs.iter().all(harmless) {
-            modules::bench::run_matrix(browser, configs);
+            modules::bench::run_matrix(browser, run, configs);
         }
+        return;
+    }
+    if message_string == "bench-cancel" {
+        modules::bench::cancel_matrix();
+        return;
+    }
+    if let Some(cap) = message_string.strip_prefix("bench-cap ") {
+        modules::bench::set_cap(cap.parse().unwrap_or(0));
         return;
     }
     let parts: Vec<&str> = message_string.split(", ").map(|s| s.trim()).collect();

@@ -78,9 +78,12 @@ static CONFIG: LazyLock<Option<BenchConfig>> = LazyLock::new(|| {
             },
         }
     }
-    // no hook and no chromium limiter, the page has to cap itself
-    if !config.hook && !config.patches[limiter_patch()] && config.limit > 0 {
-        query.push(format!("cap={}", config.limit));
+    // no hook and no chromium limiter, the page has to cap itself (selfcap: also the caps it cycles through)
+    if !config.hook && !config.patches[limiter_patch()] {
+        query.push("selfcap=1".to_string());
+        if config.limit > 0 {
+            query.push(format!("cap={}", config.limit));
+        }
     }
     config.query = query.join("&");
     Some(config)
@@ -247,8 +250,11 @@ pub fn finish(page_json: &str) {
 }
 
 static MATRIX_RUNNING: AtomicBool = AtomicBool::new(false);
+static MATRIX_CANCEL: AtomicBool = AtomicBool::new(false);
 // a bench takes < 4 s, anything longer is hung
 const BENCH_TIMEOUT: Duration = Duration::from_secs(15);
+// one process that cycles through caps (`caps=`) samples each of them, several rounds
+const CAP_CYCLE_TIMEOUT: Duration = Duration::from_secs(60);
 
 wrap_task! {
     struct MatrixDoneTask {
@@ -267,6 +273,18 @@ wrap_task! {
     }
 }
 
+// the running matrix stops after its current process, which gets killed (its gpu and renderer exit with it)
+pub fn cancel_matrix() {
+    MATRIX_CANCEL.store(true, Ordering::SeqCst);
+}
+
+// bench page, cap cycling: the limiter (chromium's or the hook's) reads the target live
+pub fn set_cap(fps: u64) {
+    if active() {
+        app::set_target_fps(fps);
+    }
+}
+
 fn run_one(config: &str, step: usize, steps: usize, rect: [i32; 4], exe: &PathBuf) -> serde_json::Value {
     let out = env::temp_dir().join(format!("kute-bench-{}-{step}.json", std::process::id()));
     fs::remove_file(&out).ok();
@@ -279,12 +297,13 @@ fn run_one(config: &str, step: usize, steps: usize, rect: [i32; 4], exe: &PathBu
         return serde_json::Value::Null;
     };
     let started = Instant::now();
+    let timeout = if config.contains("caps=") { CAP_CYCLE_TIMEOUT } else { BENCH_TIMEOUT };
     loop {
         match child.try_wait() {
             Ok(Some(_)) => break,
-            Ok(None) if started.elapsed() < BENCH_TIMEOUT => thread::sleep(Duration::from_millis(50)),
+            Ok(None) if started.elapsed() < timeout && !MATRIX_CANCEL.load(Ordering::SeqCst) => thread::sleep(Duration::from_millis(50)),
             _ => {
-                debug_print!("bench: {config} timed out, killing it");
+                debug_print!("bench: {config} timed out or cancelled, killing it");
                 child.kill().ok();
                 child.wait().ok();
                 break;
@@ -299,14 +318,16 @@ fn run_one(config: &str, step: usize, steps: usize, rect: [i32; 4], exe: &PathBu
     result
 }
 
-pub fn run_matrix(browser: &Browser, configs: Vec<String>) {
+// `run` comes back in the reply, so the page can tell a stale matrix from its own (0 from the old one-argument command)
+pub fn run_matrix(browser: &Browser, run: u64, configs: Vec<String>) {
     if MATRIX_RUNNING.swap(true, Ordering::SeqCst) {
         return;
     }
+    MATRIX_CANCEL.store(false, Ordering::SeqCst);
     let browser_id = browser.identifier();
     let Some(rect) = window::client_rect_on_screen(browser) else {
         MATRIX_RUNNING.store(false, Ordering::SeqCst);
-        bridge::post_json(browser, &serde_json::json!({ "benchMatrix": [] }).to_string());
+        bridge::post_json(browser, &serde_json::json!({ "benchMatrix": [], "benchRun": run }).to_string());
         return;
     };
     window::set_browser_visible(browser, false);
@@ -317,6 +338,9 @@ pub fn run_matrix(browser: &Browser, configs: Vec<String>) {
         // limit=auto derives from the BEST uncapped result, not the first
         let mut uncapped_fps: f64 = 0.0;
         for (index, config) in configs.iter().enumerate() {
+            if MATRIX_CANCEL.load(Ordering::SeqCst) {
+                break;
+            }
             // no uncapped result: leave auto alone, the caller resolves it
             let config = if uncapped_fps > 0.0 {
                 let auto_limit = (((uncapped_fps * 0.9) / 5.0).round() * 5.0).max(30.0) as u64;
@@ -334,7 +358,7 @@ pub fn run_matrix(browser: &Browser, configs: Vec<String>) {
             }
             results.push(result);
         }
-        let json = serde_json::json!({ "benchMatrix": results }).to_string();
+        let json = serde_json::json!({ "benchMatrix": results, "benchRun": run, "cancelled": MATRIX_CANCEL.load(Ordering::SeqCst) }).to_string();
         let mut task = MatrixDoneTask::new(browser_id, json);
         post_task(ThreadId::UI, Some(&mut task));
     });
