@@ -4,7 +4,7 @@ import { hostLobby, inRoom, spawn } from "../privateMatch.js";
 import { checkCompMode, request } from "../../utils.js";
 import { cancel as cancelBench, currentPipeline, measureCaps, PIPELINE, searchPipeline } from "./clientBench.js";
 import { decide, MIN_RESOLUTION, SIGNIFICANT_SETTING } from "./decide.js";
-import { capCandidates, choose, chooseCap, EXPERIENCE, headroom, refineCaps, relative, summarize, TARGET_REFRESH_MULTIPLE } from "./policy.js";
+import { atLimit, capCandidates, choose, chooseCap, collapses, compare, EXPERIENCE, headroom, IMPORTANT_SHARE, refineCaps, relative, stalled, steady, steadyLimit, steadyRungs, summarize, TARGET_REFRESH_MULTIPLE, unsteady } from "./policy.js";
 import { REPLAY_CIRCLE_MS, takeInputDiagnostics, takeReading } from "./sample.js";
 import * as game from "./gameSettings.js";
 
@@ -21,6 +21,10 @@ const SIGN_IN_WAIT_MS = 20000;
 // whole camera circles of the input replay, so every reading ends where it started
 const READ_MS = 3 * REPLAY_CIRCLE_MS;
 const SETTING_READ_MS = 2 * REPLAY_CIRCLE_MS;
+// a PC that collapses does it in cycles of seconds (about 3 s on the laptop that showed it), a reading has to span one
+const PUSHED_READ_MS = 6 * REPLAY_CIRCLE_MS;
+// a limit held by the page's fallback only starts after two of its 2 s windows
+const LIMIT_WAIT_MS = 6000;
 const SETTLE_MS = 450;
 // a new fps limit needs a moment before the loop runs at it
 const CAP_SETTLE_MS = 700;
@@ -53,10 +57,12 @@ const WORSE = {
  * @typedef {object} CapRow one fps limit the run measured
  * @property {number} cap 0 = no limit
  * @property {"client test"|"test match"} where
- * @property {MetricSummary} summary of the readings relative to the limit's own frame time, see policy.js relative
+ * @property {MetricSummary} summary of the readings as policy.js atLimit sees them
  * @property {number|null} frameMs typical frame time at this limit
- * @property {number|null} netMs delay it removes minus frame time it adds against the limit in use, null: not judged
- * @property {string} outcome "yours", "chosen", "better", "not better" or "worse"
+ * @property {number|null} netMs ms the game reacts sooner than at the limit in use, null: not judged
+ * @property {string} outcome "yours", "chosen", "better", "not better", "worse", "steady", "not steady", or "not used" (better
+ *     in a comparison that a collapse spoiled)
+ * @property {Reading[]} [readings] test match only: the readings themselves, a collapse hides in a median
  */
 
 /**
@@ -69,6 +75,14 @@ const WORSE = {
  * @property {boolean|null} hybrid two graphics chips, frames get copied between them. null: could not tell
  * @property {string|null} powerOverlay windows power mode during the run
  * @property {number} capacity fps without a limit in the test match
+ * @property {{stoodStill: number, steadyUpTo: number|null, limit: number}} [pushed] set when this PC collapsed without a
+ *     limit: share of the time it stood still, the highest limit that ran steadily, the limit that leaves a step of room
+ * @property {Reading[]} [unlimited] the first readings without a limit
+ * @property {Reading[]} [played] the readings as the player had it
+ * @property {Reading[]} [recheck] the readings of a new client setup in the game, after the restart
+ * @property {Record<string, any>} [client] the client settings the run started with, and what limits frames
+ * @property {string|null} [hybridSource] "observed" from the swap chain's device, "inferred" from Windows' preference
+ * @property {{render: string|null, display: string|null}} [adapters] luids of the chip that renders and the one the screen hangs on
  * @property {number} noise spread of the unlimited samples as a share
  * @property {number} drift last unlimited sample / first, below 1 when the PC got slower (heat)
  * @property {number} headroom margin over the target this PC needs, from its own drift and noise
@@ -201,11 +215,11 @@ function readable(value){
 /**
  * test overrides, e.g. `--autodetect-dev=hz:600,battery` to fake a weak PC
  *
- * @return {{hz?: number, battery?: boolean, laptop?: boolean, force?: string}}
+ * @return {{hz?: number, battery?: boolean, laptop?: boolean, force?: string, collapse?: number}}
  */
 function devOverrides(){
     const match = /--autodetect-dev=(\S+)/.exec(kute.launchArgs ?? "");
-    /** @type {{hz?: number, battery?: boolean, laptop?: boolean, force?: string}} */
+    /** @type {{hz?: number, battery?: boolean, laptop?: boolean, force?: string, collapse?: number}} */
     const overrides = {};
     for (const part of match?.[1].split(",") ?? []){
         const [key, value] = part.split(":");
@@ -214,6 +228,8 @@ function devOverrides(){
         if (key === "laptop") overrides.laptop = true;
         // "force:patchHighQoS": that flip wins the client test whatever it measured, to walk through the restart
         if (key === "force") overrides.force = value;
+        // "collapse:600": readings without a limit and at 600 or more come back stalled, a PC that throttles when pushed
+        if (key === "collapse") overrides.collapse = Number(value);
     }
     return overrides;
 }
@@ -300,6 +316,57 @@ function inputLine(input){
 }
 
 /**
+ * @param {(number|null|undefined)[]} values
+ * @param {string} unit
+ * @return {string} "41 to 97 %", one number when they agree, a dash when Windows has no such counter
+ */
+function span(values, unit){
+    const known = /** @type {number[]} */ (values.filter((value) => typeof value === "number")).map(Math.round);
+    if (known.length === 0) return "-";
+    const [low, high] = [Math.min(...known), Math.max(...known)];
+    return low === high ? `${low} ${unit}` : `${low} to ${high} ${unit}`;
+}
+
+/**
+ * what the PC itself did during the readings: a processor that drops to a fraction of its speed, or a graphics chip
+ * at its limit, is where a collapse comes from
+ *
+ * @param {Report} report
+ * @return {string}
+ */
+function loadHtml(report){
+    /** @type {[string, Reading[]][]} */
+    const sets = [
+        [`As you had it (${capName(report.beforeCap)})`, report.played ?? []],
+        ["no limit, first readings", report.unlimited ?? []],
+        ...report.caps.filter((row) => row.where === "test match").map((row) => /** @type {[string, Reading[]]} */ ([capName(row.cap), row.readings ?? []])),
+    ];
+    const { render = null, display = null } = report.adapters ?? {};
+    const two = render !== null && display !== null && render !== display;
+    const rows = sets.filter(([, readings]) => readings.some((reading) => reading.load)).map(([label, readings]) => {
+        const loads = readings.map((reading) => reading.load);
+        const chip = (/** @type {string|null} */ luid, /** @type {"render"|"copy"} */ kind) => span(loads.map((load) => (luid === null ? null : load?.gpu?.[luid]?.[kind])), "%");
+        return `<tr><td>${label}</td><td>${span(readings.map((reading) => reading.fps), "")}</td><td>${span(loads.map((load) => load?.cpuBusy), "%")}</td>
+            <td>${span(loads.map((load) => load?.cpuSpeed), "%")}</td><td>${chip(render, "render")}</td>${two ? `<td>${chip(display, "render")}</td><td>${chip(display, "copy")}</td>` : ""}
+            <td>${span(loads.map((load) => load?.temperature), "C")}</td><td>${span(loads.map((load) => load?.thermalLimit), "%")}</td></tr>`;
+    });
+    if (rows.length === 0) return "";
+    return `<table><tr><th>What the PC did</th><th>FPS</th><th>Processor busy</th><th>Processor speed</th><th>Graphics card busy</th>
+        ${two ? "<th>Screen's chip busy</th><th>Screen's chip copying</th>" : ""}<th>Hottest</th><th>Heat limit</th></tr>${rows.join("")}</table>
+        <p>Processor speed is its share of the nominal clock: above 100 % with turbo, far below while the PC throttles it. A heat limit under 100 % means the firmware slows the PC down.</p>`;
+}
+
+/**
+ * @param {CapRow} row
+ * @return {string} how much of the time an unsteady limit stood still, when that is why
+ */
+function stoodStillNote(row){
+    if (row.outcome !== "not steady") return "";
+    const worst = Math.max(0, ...(row.readings ?? []).map((reading) => reading.stallMs ?? 0));
+    return worst > 0 ? ` (stood still ${Math.round(worst / 10)} % of the time)` : " (did not reach it)";
+}
+
+/**
  * @param {Report} report
  * @return {string}
  */
@@ -316,26 +383,38 @@ function advancedHtml(report){
         return `<tr><td>${row.label}</td>${metricCells(summary)}<td${row.outcome === "better" ? ' class="adChanged"' : ""}>${row.outcome}</td></tr>`;
     });
     const caps = report.caps.map((row) => `<tr><td>${capName(row.cap)} (${row.where})</td><td>${msText(row.frameMs)}</td><td>${msText(row.summary.p99.median, "+")}</td>
-        <td>${msText(row.summary.taskP99.median)}</td><td>${msText(row.summary.inputP99.median, "+")}</td><td>${row.netMs === null ? "" : msText(row.netMs, row.netMs > 0 ? "+" : "")}</td>
-        <td${row.outcome === "chosen" ? ' class="adChanged"' : ""}>${row.outcome}</td></tr>`);
+        <td>${msText(row.summary.taskP99.median)}</td><td>${msText(row.summary.inputP99.median)}</td><td>${row.netMs === null ? "" : msText(row.netMs, row.netMs > 0 ? "+" : "")}</td>
+        <td${row.outcome === "chosen" ? ' class="adChanged"' : ""}>${row.outcome}${stoodStillNote(row)}</td></tr>`);
     const limited = { cpu: "the processor", gpu: "the graphics card", unknown: "not measured" }[report.plan.regime];
     const half = report.halfResolutionGain === null ? "not measured" : percent(report.halfResolutionGain);
     let graphics = "";
     if (report.hybrid === true) graphics = " Two graphics chips: frames get copied from one to the other.";
     else if (report.hybrid === null) graphics = " Could not tell which graphics chip drives the screen.";
     const header = "<th>FPS</th><th>Slowest 1 % of frames</th><th>Other work waits</th><th>Mouse waits</th><th>Result</th>";
+    let capacity = `<p>Without an FPS limit this PC ran ${Math.round(report.capacity)} FPS in the test match. Kute aims for at least ${report.plan.target} FPS
+        (${TARGET_REFRESH_MULTIPLE}x your ${report.hz} Hz screen), and this PC needs ${Math.round(report.plan.needed)} to keep that in a fight:
+        samples of the same settings differ by ${Math.round(report.noise * 100)} %, and it ended the run at ${Math.round(report.drift * 100)} % of its starting speed.</p>`;
+    if (report.pushed){
+        const speeds = (report.unlimited ?? []).map((reading) => shown(reading.fps, 0)).join(", ");
+        const upTo = report.pushed.steadyUpTo === null ? "No limit above the refresh rate ran steadily" : `Up to ${report.pushed.steadyUpTo} FPS it ran steadily in the empty test match`;
+        capacity = `<p class="adChanged">This PC does not run steadily without an FPS limit: it stood still ${Math.round(report.pushed.stoodStill * 100)} % of the time
+        (readings without a limit: ${speeds} FPS). That happens when a PC throttles itself under full load, common on laptops.</p>
+        <p>${upTo}. A real match is heavier than that, so Kute takes the highest multiple of your ${report.hz} Hz with one more step of room above it: ${report.pushed.limit} FPS.
+        Game settings were not measured, their gain is read without a limit.</p>`;
+    }
     return `
         <p>${report.gpu}<br>${report.cpu}${report.laptop ? " (laptop)" : ""}, ${report.hz} Hz${report.powerOverlay ? `, Windows power mode: ${report.powerOverlay}` : ""}.${graphics}</p>
-        <p>Without an FPS limit this PC ran ${Math.round(report.capacity)} FPS in the test match. Kute aims for at least ${report.plan.target} FPS
-        (${TARGET_REFRESH_MULTIPLE}x your ${report.hz} Hz screen), and this PC needs ${Math.round(report.plan.needed)} to keep that in a fight:
-        samples of the same settings differ by ${Math.round(report.noise * 100)} %, and it ended the run at ${Math.round(report.drift * 100)} % of its starting speed.</p>
+        ${capacity}
         ${report.rolledBack ? `<p class="adChanged">${report.rolledBack}</p>` : ""}
         ${inputLine(report.input)}
         <table><tr><th>As you had it (${capName(report.beforeCap)})</th>${header}</tr><tr><td>before</td>${metricCells(report.before)}<td></td></tr>
         ${report.after ? `<tr><td>after (${capName(report.afterCap)})</td>${metricCells(report.after)}<td></td></tr>` : ""}</table>
         ${pipeline.length > 0 ? `<table><tr><th>Client test</th>${header}</tr>${pipeline.join("")}</table>` : "<p>The client test did not run, the client's own setup was left alone.</p>"}
-        <table><tr><th>FPS limit</th><th>Frame time</th><th>Slowest 1 % beyond it</th><th>Other work waits</th><th>Mouse waits beyond it</th><th>Gain</th><th>Result</th></tr>${caps.join("")}</table>
-        <p>A lower limit makes every frame longer. It is only taken when it removes more delay than that (gain above zero), and never when the game stalls more with it.</p>
+        <table><tr><th>FPS limit</th><th>Frame time</th><th>Slowest 1 % beyond it</th><th>Other work waits</th><th>Mouse waits</th><th>Gain</th><th>Result</th></tr>${caps.join("")}</table>
+        <p>${report.pushed
+        ? "On a PC that does not run steadily without a limit, the limits are not compared with each other: each one only has to run steadily."
+        : "A limit is taken when the game reacts sooner or the mouse waits less with it than with yours (gain above zero), and never when anything measures worse. A lower limit's longer frames are in the mouse wait."}</p>
+        ${loadHtml(report)}
         <p>Limited by ${limited} (half the resolution: ${half}).</p>
         <table><tr><th>Setting</th><th>Was</th><th>Measured</th><th>Result</th></tr>${settings.join("")}</table>
         <div class="adButton" id="adCopy" style="margin: 1em 0">Copy this report</div>
@@ -358,9 +437,15 @@ function rankCaps(readings, incumbentCap, where, prefer){
     const rows = choice.judged.map((entry) => ({ cap: entry.cap, where, summary: entry.summary, frameMs: entry.frameMs, netMs: entry.netMs, outcome: entry.outcome }));
     const won = choice.judged.find((entry) => entry.cap === choice.winner);
     let reason = "measures as smooth as before, with fewer frames to draw";
-    if (choice.decidedBy === "net") reason = `${shown(won?.netMs ?? null)} ms less between what happens in the game and what you see`;
+    if (choice.decidedBy === "net"){
+        const { task = 0, input = null } = won?.gains ?? {};
+        const parts = [];
+        if (task > 0) parts.push(`the game reacts ${shown(task)} ms sooner`);
+        if (input !== null && input > 0) parts.push(`the mouse waits ${shown(input)} ms less`);
+        reason = parts.length > 0 ? parts.join(", ") : "frames come sooner and nothing waits longer";
+    }
     const order = choice.judged
-        .filter((entry) => entry.cap !== incumbentCap && entry.outcome !== "worse")
+        .filter((entry) => entry.cap !== incumbentCap && entry.outcome !== "worse" && entry.outcome !== "not steady")
         .sort((a, b) => (b.netMs ?? -Infinity) - (a.netMs ?? -Infinity))
         .map((entry) => entry.cap);
     return { rows, winner: choice.winner, reason, order };
@@ -503,6 +588,70 @@ function shownReport(state){
 }
 
 /**
+ * @param {number} ms
+ * @return {Promise<number>} frames per second over the window
+ */
+function rateOver(ms){
+    return new Promise((resolve) => {
+        const start = performance.now();
+        let frames = 0;
+        const frame = () => {
+            frames++;
+            const elapsed = performance.now() - start;
+            if (elapsed < ms) requestAnimationFrame(frame);
+            else resolve((frames * 1000) / elapsed);
+        };
+        requestAnimationFrame(frame);
+    });
+}
+
+/**
+ * a reading under an fps limit only says something once the limit holds the game. the client's own limiter does at
+ * once, the page's fallback (older exe, limiter patch off without the hook) needs seconds
+ *
+ * @param {number} cap
+ * @return {Promise<boolean>} false: nothing holds this limit
+ */
+async function limitHolds(cap){
+    if (cap === 0) return true;
+    const deadline = performance.now() + LIMIT_WAIT_MS;
+    while (performance.now() < deadline){
+        if (await rateOver(250) <= cap * (1 + IMPORTANT_SHARE)) return true;
+    }
+    return false;
+}
+
+/**
+ * @param {(number|null|undefined)[]} values
+ * @return {number|null} median of the known ones
+ */
+function middle(values){
+    const known = /** @type {number[]} */ (values.filter((value) => typeof value === "number")).sort((a, b) => a - b);
+    if (known.length === 0) return null;
+    const half = Math.floor(known.length / 2);
+    return known.length % 2 === 1 ? known[half] : (known[half - 1] + known[half]) / 2;
+}
+
+/**
+ * @param {Reading} reading
+ * @return {Reading} for the report: two decimals say everything the page clock can
+ */
+function rounded(reading){
+    const short = (/** @type {number|null|undefined} */ value) => (typeof value === "number" ? Math.round(value * 100) / 100 : null);
+    return {
+        fps: short(reading.fps),
+        p50: short(reading.p50),
+        p99: short(reading.p99),
+        maxMs: short(reading.maxMs),
+        stallMs: short(reading.stallMs),
+        taskP99: short(reading.taskP99),
+        inputP99: short(reading.inputP99),
+        ...(reading.invalid ? { invalid: true, why: reading.why } : {}),
+        ...(reading.load ? { load: reading.load } : {}),
+    };
+}
+
+/**
  * @param {Reading[]} readings
  * @return {number} median fps, 0 when none is usable
  */
@@ -594,6 +743,11 @@ class AutoDetect {
         }
         if (document.pointerLockElement || checkCompMode()){
             kute.showNotification("Open the menu outside of a competitive match first", false, 4);
+            return;
+        }
+        // the test would measure the running setup and call it the saved one
+        if (!options.resume && restartNeeded()){
+            kute.showNotification("Restart Kute first: a setting you changed only applies after a restart, auto-detect would test the old one", false, 7);
             return;
         }
         this.running = true;
@@ -709,7 +863,7 @@ class AutoDetect {
         panel.progress("Reading your hardware", 0.02);
         const specs = await request("get-specs", "specs");
         if (specs === null) throw new Error("this needs a newer version of the client");
-        /** @type {{hz: number, hostsWindow: boolean}[]} */
+        /** @type {{hz: number, hostsWindow: boolean, adapter?: string|null}[]} */
         const displays = specs.displays ?? [];
         const display = displays.find((entry) => entry.hostsWindow) ?? displays[0];
         const hz = dev.hz ?? (display?.hz > 1 ? display.hz : 60);
@@ -722,10 +876,13 @@ class AutoDetect {
         const mobile = dev.laptop ?? (Boolean(specs.laptop) || specs.hybrid === true);
         const target = hz * TARGET_REFRESH_MULTIPLE;
 
+        const loadKnown = kute.hostFeatures?.includes("load-sample") === true;
         const frameCapBefore = Number(baseline.game[game.GAME_FRAME_CAP]) || 0;
         const fpsLimitBefore = Number(baseline.client.gameFpsLimit) || 0;
-        // krunker's frame cap spins inside the loop, ours idles: the player's rate gets measured through ours
-        const playedCap = fpsLimitBefore || frameCapBefore;
+        const throttleBefore = Number(baseline.client.throttle) || 1;
+        // both can be set, the lower one is what the game ran at
+        const ownCaps = [fpsLimitBefore, frameCapBefore].filter((cap) => cap > 0);
+        const playedCap = ownCaps.length > 0 ? Math.min(...ownCaps) : 0;
 
         // the client's own setup first, from the menu: bench processes while this page is hidden
         const pipelineBefore = currentPipeline();
@@ -774,14 +931,15 @@ class AutoDetect {
         };
         if (this.cancelled) return null;
 
-        if (frameCapBefore > 0) game.write(game.GAME_FRAME_CAP, "0");
+        // krunker's frame cap spins inside the loop, ours idles: after the first readings every limit runs through ours
+        if (frameCapBefore > 0 && resumed) game.write(game.GAME_FRAME_CAP, "0");
         let appliedCap = Number(kute.settings.data.gameFpsLimit) || 0;
+        let capHeld = true;
         takeInputDiagnostics();
-        window.chrome.webview.postMessage("throttle, off");
+        // the in-game throttle of the player's settings, as every match after the test runs with it
+        window.chrome.webview.postMessage("throttle, game");
         // assets and shaders still loading
         await sleep(2500);
-        // again, pointer lock posts the in-game throttle and can race the first "off"
-        window.chrome.webview.postMessage("throttle, off");
         await sleep(300);
         window.chrome.webview.postMessage("bring-to-front");
 
@@ -797,9 +955,51 @@ class AutoDetect {
                 applyClient("gameFpsLimit", cap);
                 appliedCap = cap;
                 await sleep(CAP_SETTLE_MS);
+                capHeld = await limitHolds(cap);
             }
             stillInRoom();
-            return takeReading({ ms, hz, replay: true });
+            // the counters average from one call to the next: one before the reading, one after
+            if (loadKnown) await request("load-sample", "loadSample", 500);
+            const reading = await takeReading({ ms, hz, replay: true });
+            if (loadKnown) reading.load = await request("load-sample", "loadSample", 500);
+            stillInRoom();
+            // measured without the limit it is labelled with: says nothing about that limit
+            if (!capHeld && !reading.invalid){
+                reading.invalid = true;
+                reading.why = "nothing held the FPS limit";
+            }
+            if (dev.collapse !== undefined && (cap === 0 || cap >= dev.collapse)){
+                return { ...reading, fps: (reading.fps ?? 0) / 2, stallMs: 400, taskP99: (reading.taskP99 ?? 0) + 40 };
+            }
+            return reading;
+        };
+        /**
+         * two usable readings of one limit, what every decision needs. a window that lost focus says nothing and is
+         * read again, a few times
+         *
+         * @param {number} cap
+         * @param {number} [ms]
+         * @return {Promise<Reading[]>} fewer than two: it could not be measured
+         */
+        const sampleTwice = async(cap, ms = READ_MS) => {
+            /** @type {Reading[]} */
+            const usable = [];
+            for (let attempt = 0; attempt < 5 && usable.length < 2 && !this.cancelled; attempt++){
+                const reading = await sample(cap, ms);
+                if (!reading.invalid) usable.push(reading);
+            }
+            return usable;
+        };
+        /**
+         * a collapse outlasts the setup that caused it (the reading after "no limit" still stalled on a laptop).
+         * readings at `cap` until one runs clean, thrown away
+         *
+         * @param {number} cap
+         */
+        const recover = async(cap) => {
+            for (let attempt = 0; attempt < 4 && !this.cancelled; attempt++){
+                if (!unsteady([await sample(cap, SETTING_READ_MS)], cap)) return;
+            }
         };
         /**
          * two readings per limit, interleaved (A B C A B C) so drift hits all of them alike
@@ -823,10 +1023,20 @@ class AutoDetect {
         if (!carry){
             panel.progress("Measuring how the game runs now", 0.45);
             // thrown away: the first seconds after a spawn still load and hitch (stall 9 +- 18 ms per second measured)
-            await sample(playedCap);
-            const asPlayed = [await sample(playedCap), await sample(playedCap)];
+            await sample(appliedCap);
+            // exactly as the player had it: the game's own frame cap, the in-game throttle, nothing of the run's yet
+            const asPlayed = await sampleTwice(appliedCap);
+            if (this.cancelled) return null;
+            if (asPlayed.length < 2) throw new Error("the game could not be measured, the Kute window has to stay in front during the test");
+            if (frameCapBefore > 0) game.write(game.GAME_FRAME_CAP, "0");
+            if (throttleBefore > 1){
+                applyClient("throttle", 1);
+                window.chrome.webview.postMessage("throttle, game");
+                await sleep(SETTLE_MS);
+            }
             panel.progress("Measuring what this PC can do", 0.5);
-            const uncapped = playedCap === 0 ? [...asPlayed, await sample(0)] : [await sample(0), await sample(0), await sample(0)];
+            const unchanged = playedCap === 0 && throttleBefore <= 1;
+            const uncapped = unchanged ? [...asPlayed, await sample(0)] : [await sample(0), await sample(0), await sample(0)];
             if (this.cancelled) return null;
             carry = {
                 asPlayed,
@@ -853,6 +1063,8 @@ class AutoDetect {
                 document.exitPointerLock();
                 panel.choose("Kute restarts once", "The client test found a setup that runs better on this PC. Kute restarts with it and checks it in the game, the test goes on by itself.", []);
                 await sleep(3500);
+                // escape during the countdown: the caller puts everything back
+                if (this.cancelled) return null;
                 window.chrome.webview.postMessage("restart");
                 return "restarting";
             }
@@ -873,6 +1085,17 @@ class AutoDetect {
             hybrid: typeof specs.hybrid === "boolean" ? specs.hybrid : null,
             powerOverlay: specs.powerOverlay ?? null,
             capacity: fpsOf(run.uncapped),
+            unlimited: run.uncapped.map(rounded),
+            played: run.asPlayed.map(rounded),
+            adapters: { render: specs.renderAdapter?.luid ?? null, display: display?.adapter ?? null },
+            hybridSource: specs.hybridSource ?? null,
+            client: {
+                ...Object.fromEntries(["gameFpsLimit", "throttle", "inMenuThrottle", "uncapFps", "patchFrameLimiter", "obsCapturePlugin", "renderStats", "performanceMode", "webviewPriority", ...PIPELINE.map((entry) => entry.setting)]
+                    .map((key) => [key, baseline.client[key] ?? kute.settings.data[key] ?? null])),
+                gameFrameCap: frameCapBefore,
+                limiter: kute.frameLimiter ?? null,
+                running: kute.running ?? null,
+            },
             noise: 0,
             drift: 1,
             headroom: 1,
@@ -917,15 +1140,29 @@ class AutoDetect {
             return metric ? WORSE[metric] : null;
         };
 
+        /**
+         * fewer frames, both sides at the same limit. `feelsWorse` counts from each side's own frame time, which
+         * hides a setup that is slower in every frame (500 fps against 100 looks the same to it)
+         *
+         * @param {Reading[]} first
+         * @param {Reading[]} after
+         * @return {string|null}
+         */
+        const slower = (first, after) => (compare("fps", summarize(after), summarize(first)) === "worse" ? `${Math.round(fpsOf(after))} FPS, ${Math.round(fpsOf(first))} before` : null);
+
         /** @type {string[]} */
         const details = [...earlier];
+        if (throttleBefore > 1) details.push(`<b>CPU Throttling</b>: ${throttleBefore} → off (it slows the game down on purpose, the result is checked against how the game ran with it)`);
         if (resumed && run.pipelineChanged){
             panel.progress("Checking the new setup in the game", 0.5);
-            const uncappedNow = [await sample(0), await sample(0)];
+            const uncappedNow = await sampleTwice(0);
             if (this.cancelled) return null;
-            // faster on the test scene is a hint, the game decides: it must not run worse here
-            const worse = feelsWorse(run.uncapped, uncappedNow);
-            if (worse) return rollBack(`The setup that won the client test ran worse in the game (${worse}), so Kute put yours back.`);
+            const recheck = { recheck: uncappedNow.map(rounded) };
+            if (uncappedNow.length < 2) return rollBack("Kute could not measure the new setup in the game (its window has to stay in front), so it put yours back.", recheck);
+            // faster on the test scene is a hint, the game decides: it must not run worse here. another spawn has
+            // another view, so a setup that is as fast can lose here. it never keeps one that is slower
+            const worse = feelsWorse(run.uncapped, uncappedNow) ?? slower(run.uncapped, uncappedNow);
+            if (worse) return rollBack(`The setup that won the client test ran worse in the game (${worse}), so Kute put yours back.`, recheck);
             const winnerRow = run.rows.find((row) => PIPELINE.every((entry) => row.pipeline[entry.setting] === run.pipelineAfter[entry.setting]));
             const reason = winnerRow ? because(run.decidedBy, summarize(run.rows[0].readings), summarize(winnerRow.readings)) : "measured better";
             for (const entry of PIPELINE){
@@ -941,46 +1178,102 @@ class AutoDetect {
         const allowed = (/** @type {number} */ cap) => !onBattery || cap === originalCap || (cap !== 0 && cap <= target);
         // a laptop that measures the same at its target rate takes it over everything the PC can do
         const prefer = mobile && roughCapacity >= target ? target : undefined;
-        const fromBench = run.capOrder.length > 0 ? run.capOrder.slice(0, 2) : capCandidates({ hz, capacity: roughCapacity, current: originalCap }).slice(1, 3);
-        const candidates = [...new Set([originalCap, 0, ...fromBench, ...(prefer ? [prefer] : []), ...(onBattery ? [batteryCap] : [])])].filter(allowed);
-        const measuredCaps = await sampleEach(candidates);
-        if (this.cancelled) return null;
-        const ranked = rankCaps(measuredCaps, originalCap, "test match", prefer);
-        const { rows: capRows } = ranked;
-        let bestCap = ranked.winner;
-        let capReason = ranked.reason;
+        /** @type {Map<number, Reading[]>} */
+        let measuredCaps = new Map();
+        /** @type {CapRow[]} */
+        let capRows = [];
+        let bestCap = originalCap;
+        let capReason = "";
         // what the pc does without a limit, on this spawn
-        const capacity = fpsOf(measuredCaps.get(0) ?? []) || roughCapacity;
-
-        // one more look between the best limit and its neighbours
-        const between = refineCaps([...measuredCaps.keys()], bestCap, capacity).filter((cap) => allowed(cap) && cap < capacity);
-        if (between.length > 0){
-            panel.progress("Fine tuning the FPS limit", 0.64);
-            const finer = await sampleEach(between);
+        let capacity = roughCapacity;
+        // a PC that stops running steadily when it is pushed: nothing gets compared against "no limit" on it
+        let pushed = collapses(new Map([[0, run.uncapped]]));
+        if (!pushed){
+            const fromBench = run.capOrder.length > 0 ? run.capOrder.slice(0, 2) : capCandidates({ hz, capacity: roughCapacity, current: originalCap }).slice(1, 3);
+            const candidates = [...new Set([originalCap, 0, ...fromBench, ...(prefer ? [prefer] : []), ...(onBattery ? [batteryCap] : [])])].filter(allowed);
+            measuredCaps = await sampleEach(candidates);
             if (this.cancelled) return null;
-            const refined = rankCaps(new Map([[bestCap, measuredCaps.get(bestCap) ?? []], ...finer]), bestCap, "test match");
-            capRows.push(...refined.rows.filter((row) => row.cap !== bestCap));
-            for (const [cap, readings] of finer) measuredCaps.set(cap, readings);
-            if (refined.winner !== bestCap){
-                bestCap = refined.winner;
-                capReason = refined.reason;
+            pushed = collapses(measuredCaps);
+            const ranked = rankCaps(measuredCaps, originalCap, "test match", prefer);
+            capRows = ranked.rows;
+            if (!pushed){
+                bestCap = ranked.winner;
+                capReason = ranked.reason;
+                capacity = fpsOf(measuredCaps.get(0) ?? []) || roughCapacity;
+
+                // one more look between the best limit and its neighbours
+                const between = refineCaps([...measuredCaps.keys()], bestCap, capacity).filter((cap) => allowed(cap) && cap < capacity);
+                if (between.length > 0){
+                    panel.progress("Fine tuning the FPS limit", 0.64);
+                    const finer = await sampleEach(between);
+                    if (this.cancelled) return null;
+                    const refined = rankCaps(new Map([[bestCap, measuredCaps.get(bestCap) ?? []], ...finer]), bestCap, "test match");
+                    capRows.push(...refined.rows.filter((row) => row.cap !== bestCap));
+                    for (const [cap, readings] of finer) measuredCaps.set(cap, readings);
+                    if (refined.winner !== bestCap){
+                        bestCap = refined.winner;
+                        capReason = refined.reason;
+                    }
+                    pushed = collapses(measuredCaps);
+                }
             }
+        }
+
+        /** @type {Report["pushed"]} */
+        let pushedFacts;
+        if (pushed){
+            panel.progress("Finding the FPS limit this PC holds steadily", 0.62);
+            // lowest first, each limit read twice in a row: a collapse spoils what is read after it, never before
+            /** @type {Map<number, Reading[]>} */
+            const ladder = new Map();
+            await recover(hz);
+            for (const rung of [hz, ...steadyRungs(hz)]){
+                if (this.cancelled) return null;
+                const readings = await sampleTwice(rung, PUSHED_READ_MS);
+                ladder.set(rung, readings);
+                if (!steady(readings, rung)) break;
+            }
+            if (this.cancelled) return null;
+            const limit = steadyLimit(hz, ladder);
+            const stoodStill = (middle([...run.uncapped, ...(measuredCaps.get(0) ?? [])].filter(stalled).map((reading) => reading.stallMs)) ?? 0) / 1000;
+            pushedFacts = { stoodStill, steadyUpTo: limit.steadyUpTo, limit: limit.cap };
+            // rows of the comparison stay as they were read, but nothing of it is taken
+            for (const row of capRows){
+                if (row.outcome === "better") row.outcome = "not used";
+            }
+            for (const [rung, readings] of ladder){
+                const outcome = steady(readings, rung) ? "steady" : "not steady";
+                capRows.push({ cap: rung, where: "test match", summary: summarize(readings.map(atLimit)), frameMs: middle(readings.map((reading) => reading.p50)), netMs: null, outcome });
+                measuredCaps.set(rung, readings);
+            }
+            // a limit of the player's own at or under it already has that room
+            bestCap = originalCap > 0 && originalCap <= limit.cap ? originalCap : limit.cap;
+            capReason = limit.steadyUpTo === null
+                ? `without a limit this PC stood still ${Math.round(stoodStill * 100)} % of the time, and no higher limit ran steadily`
+                : `without a limit this PC stood still ${Math.round(stoodStill * 100)} % of the time. Up to ${limit.steadyUpTo} FPS it ran steadily in the empty test match, ${limit.cap} FPS leaves a step of room for a real match`;
         }
         if (onBattery && (bestCap === 0 || bestCap > target) && capRows.find((row) => row.cap === batteryCap)?.outcome !== "worse"){
             bestCap = batteryCap;
             capReason = "on battery";
         }
         for (const row of capRows){
-            if (row.cap === bestCap && row.cap !== originalCap) row.outcome = "chosen";
+            if (row.cap === bestCap && row.cap !== originalCap && row.outcome !== "not steady") row.outcome = "chosen";
+            row.readings = (measuredCaps.get(row.cap) ?? []).map(rounded);
         }
 
         // this PC's own margin: how much it slowed down during the match, and how much two samples of one setup differ
-        const late = await sample(0);
-        const firstUncapped = (resumed ? measuredCaps.get(0)?.[0] : run.uncapped[0])?.fps ?? capacity;
         const speeds = run.uncapped.map((reading) => reading.fps).filter((fps) => typeof fps === "number");
         const noise = speeds.length > 1 ? (Math.max(...speeds) - Math.min(...speeds)) / Math.max(1, ...speeds) : 0;
-        const drift = (late.fps ?? capacity) / Math.max(1, firstUncapped);
-        const margin = headroom(drift, noise);
+        let drift = 1;
+        let margin = 1;
+        /** @type {Reading|null} */
+        let late = null;
+        if (!pushed){
+            late = await sample(0);
+            const firstUncapped = (resumed ? measuredCaps.get(0)?.[0] : run.uncapped[0])?.fps ?? capacity;
+            drift = (late.fps ?? capacity) / Math.max(1, firstUncapped);
+            margin = headroom(drift, noise);
+        }
         const needed = target * margin;
 
         /** @type {MeasuredSetting[]} */
@@ -988,24 +1281,35 @@ class AutoDetect {
         /** @type {number|null} */
         let halfResolutionGain = null;
         const resolution = Number(baseline.game[game.RESOLUTION]) || 1;
-        if (capacity < needed){
+        if (pushed){
+            // a setting's gain is read as fps without a limit, which on this PC is the collapse (117 to 1378 fps on one laptop)
+            for (const setting of game.SETTINGS){
+                settings.push({ id: setting.id, label: setting.label, current: baseline.game[setting.id] ?? "default", cheap: String(setting.cheap), gain: null, steady: true, note: "not tested (this PC does not run steadily without a limit)" });
+            }
+        }
+        else if (capacity < needed){
             // the replay shoots, so what only costs in a fight is on screen. no pointer events: it did not reach the page
             const replayWorks = run.asPlayed.some((reading) => reading.inputP99 !== null);
             // compare against the mean of the samples before and after, cancels heat drift
-            let reference = late.fps ?? capacity;
+            let reference = late?.fps ?? capacity;
             /**
              * @param {() => void} apply
              * @param {() => void} revert
              * @return {Promise<{ratio: number, steady: boolean, raw: number[]}>}
              */
-            const compare = async(apply, revert) => {
+            const measure = async(apply, revert) => {
                 const first = reference;
                 apply();
                 await sleep(SETTLE_MS);
-                const changed = (await sample(0, SETTING_READ_MS)).fps ?? 0;
+                const fpsNow = async() => {
+                    const reading = await sample(0, SETTING_READ_MS);
+                    return reading.invalid ? null : reading.fps;
+                };
+                const changed = await fpsNow();
                 revert();
                 await sleep(SETTLE_MS);
-                const after = (await sample(0, SETTING_READ_MS)).fps ?? 0;
+                const after = await fpsNow();
+                if (changed === null || after === null) return { ratio: 1, steady: false, raw: [first, changed ?? 0, after ?? 0] };
                 reference = after;
                 const mean = (first + after) / 2;
                 return {
@@ -1037,24 +1341,24 @@ class AutoDetect {
                 if (this.cancelled) return null;
                 panel.progress(`Measuring ${setting.label}`, 0.68 + (0.17 * live.indexOf(setting)) / live.length);
                 const flipped = game.opposite(current);
-                const { ratio, steady, raw } = await compare(() => game.write(setting.id, flipped), () => game.write(setting.id, current));
+                const measurement = await measure(() => game.write(setting.id, flipped), () => game.write(setting.id, current));
                 // always stored as what the cheap value gains
-                row.gain = flipped === cheap ? ratio : 1 / Math.max(0.01, ratio);
-                row.steady = steady;
-                row.raw = raw;
+                row.gain = flipped === cheap ? measurement.ratio : 1 / Math.max(0.01, measurement.ratio);
+                row.steady = measurement.steady;
+                row.raw = measurement.raw;
             }
             // settings we'd change get measured twice, the lower gain counts
             for (const row of settings){
                 if (row.gain === null || !row.steady || row.current === row.cheap || row.gain < SIGNIFICANT_SETTING) continue;
                 if (this.cancelled) return null;
                 panel.progress(`Confirming ${row.label}`, 0.86);
-                const { ratio, steady } = await compare(() => game.write(row.id, row.cheap), () => game.write(row.id, row.current));
-                row.confirmGain = ratio;
-                row.gain = Math.min(row.gain, ratio);
-                row.steady = steady;
+                const confirmed = await measure(() => game.write(row.id, row.cheap), () => game.write(row.id, row.current));
+                row.confirmGain = confirmed.ratio;
+                row.gain = Math.min(row.gain, confirmed.ratio);
+                row.steady = confirmed.steady;
             }
             panel.progress("Checking the graphics card", 0.88);
-            const half = await compare(
+            const half = await measure(
                 () => game.write(game.RESOLUTION, String(Math.max(0.1, resolution * 0.5))),
                 () => game.write(game.RESOLUTION, String(resolution)),
             );
@@ -1098,32 +1402,39 @@ class AutoDetect {
         panel.progress("Checking the result", 0.94);
         // thrown away: changed game settings recompile shaders in their first seconds
         if (plan.changes.length > 0) await sample(bestCap);
-        const finalReadings = [await sample(bestCap), await sample(bestCap)];
+        if (pushed) await recover(bestCap);
+        const finalReadings = await sampleTwice(bestCap, pushed ? PUSHED_READ_MS : READ_MS);
         if (this.cancelled) return null;
+        const measured = {
+            capacity,
+            noise,
+            drift,
+            headroom: margin,
+            afterCap: bestCap,
+            after: summarize(finalReadings),
+            caps: [...run.benchCaps, ...capRows],
+            halfResolutionGain,
+            settings,
+            plan,
+            pushed: pushedFacts,
+        };
         const capChanged = bestCap !== originalCap;
         // same number, but held by kute's limiter with the processor idle instead of the game's busy loop
-        const capMoved = !capChanged && frameCapBefore > 0 && fpsLimitBefore === 0;
+        const capMoved = !capChanged && frameCapBefore > 0 && (fpsLimitBefore === 0 || frameCapBefore < fpsLimitBefore);
         if (capChanged) details.push(`<b>FPS Limit</b>: ${capName(originalCap)} → ${capName(bestCap)} (${capReason})`);
         else if (capMoved) details.push(`<b>FPS Limit</b>: ${capName(bestCap)}, now held by Kute instead of the game's frame cap (the game's cap keeps the processor busy while it waits)`);
         const changed = details.length > 0;
         const ownChanges = details.length > earlier.length;
         if (ownChanges){
-            // on this spawn when there was no restart, the readings from before it otherwise
-            const reference = resumed ? run.asPlayed : measuredCaps.get(originalCap) ?? run.asPlayed;
-            const worse = feelsWorse(reference, finalReadings);
-            if (worse){
-                return rollBack(`The new settings measured worse than yours in the last check (${worse}), so Kute put yours back.`, {
-                    capacity,
-                    noise,
-                    drift,
-                    headroom: margin,
-                    afterCap: bestCap,
-                    after: summarize(finalReadings),
-                    caps: [...run.benchCaps, ...capRows],
-                    halfResolutionGain,
-                    settings,
-                    plan,
-                });
+            if (finalReadings.length < 2) return rollBack("Kute could not measure the result (its window has to stay in front), so it put your settings back.", measured);
+            // against the game exactly as the player had it. the limit's own readings stand in when nothing but the
+            // limit changed, they are from this spawn
+            const exact = resumed || frameCapBefore > 0 || throttleBefore > 1;
+            const reference = exact ? run.asPlayed : measuredCaps.get(originalCap) ?? run.asPlayed;
+            const worse = feelsWorse(reference, finalReadings) ?? (bestCap === originalCap ? slower(reference, finalReadings) : null);
+            if (worse) return rollBack(`The new settings measured worse than yours in the last check (${worse}), so Kute put yours back.`, measured);
+            if (unsteady(finalReadings, bestCap) && !unsteady(reference, originalCap)){
+                return rollBack(`The ${capName(bestCap)} limit did not run steadily in the last check, so Kute put your settings back.`, measured);
             }
         }
         else {
@@ -1139,24 +1450,19 @@ class AutoDetect {
         if (changed && capacityAfter !== null) line = `${count} Test match without a limit: ${Math.round(capacity)} FPS before, ${Math.round(capacityAfter)} after. Kute aims for at least ${aims} with no stutter.`;
         else if (changed) line = `${count} Without a limit your PC runs ${Math.round(capacity)} FPS in the test match, Kute aims for at least ${aims} with no stutter.`;
         else if (capacity < target) line = `Your PC ran ${Math.round(capacity)} FPS in the test match, Kute aims for at least ${aims}. No setting measurably helps on this PC, so nothing was changed.`;
+        if (pushedFacts){
+            const still = `Without an FPS limit this PC does not run steadily: it stood still ${Math.round(pushedFacts.stoodStill * 100)} % of the time in the test match.`;
+            line = capChanged
+                ? `${still} Kute limits it to ${bestCap} FPS, which runs steadily with room to spare.`
+                : `${still} Your limit of ${capName(bestCap)} already leaves it room, so nothing needed changing.`;
+        }
 
         // the host says how its last input script ended a moment after the reading itself
         await sleep(150);
         const needsRestart = restartNeeded();
         return {
             summary: { title: changed ? "Optimized" : "Nothing to change", line: needsRestart ? `${line} Restart Kute to finish.` : line, details, changed, needsRestart },
-            report: report({
-                capacity,
-                noise,
-                drift,
-                headroom: margin,
-                afterCap: bestCap,
-                after: ownChanges ? summarize(finalReadings) : null,
-                caps: [...run.benchCaps, ...capRows],
-                halfResolutionGain,
-                settings,
-                plan,
-            }),
+            report: report({ ...measured, after: ownChanges ? measured.after : null }),
         };
     }
 
