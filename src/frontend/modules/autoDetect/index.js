@@ -4,7 +4,7 @@ import { hostLobby, inRoom, spawn } from "../privateMatch.js";
 import { checkCompMode, request } from "../../utils.js";
 import { cancel as cancelBench, currentPipeline, measureCaps, PIPELINE, searchPipeline } from "./clientBench.js";
 import { decide, MIN_RESOLUTION, SIGNIFICANT_SETTING } from "./decide.js";
-import { capCandidates, choose, chooseCap, headroom, refineCaps, relative, summarize, TARGET_REFRESH_MULTIPLE } from "./policy.js";
+import { capCandidates, choose, chooseCap, EXPERIENCE, headroom, refineCaps, relative, summarize, TARGET_REFRESH_MULTIPLE } from "./policy.js";
 import { REPLAY_CIRCLE_MS, takeReading } from "./sample.js";
 import * as game from "./gameSettings.js";
 
@@ -31,6 +31,14 @@ const CLIENT_KEYS = ["gameFpsLimit", "throttle", ...PIPELINE.map((entry) => entr
 // input replay, bench run ids and the patch switches all live in the exe
 const HOST_FEATURE = "autodetect-v2";
 const HOME = "https://krunker.io/";
+/** an experience metric that got worse, in the player's words @type {Record<string, string>} */
+const WORSE = {
+    taskP99: "the game reacted later",
+    inputP99: "the mouse waited longer",
+    p99: "slow frames came later",
+    stallMs: "more stutter",
+    maxMs: "a longer freeze",
+};
 
 /**
  * @typedef {import("./decide.js").MeasuredSetting} MeasuredSetting
@@ -257,12 +265,22 @@ function because(metric, before, after){
 }
 
 /**
+ * @param {number|null} value
+ * @param {string} [sign] "+" for a value that counts from something else
+ * @return {string} "1.4 ms", a dash when it was not measured
+ */
+function msText(value, sign = ""){
+    return value === null ? "-" : `${sign}${value.toFixed(1)} ms`;
+}
+
+/**
  * @param {MetricSummary} summary
  * @return {string} table cells: fps, slowest frames, task delay, mouse wait
  */
 function metricCells(summary){
-    return `<td>${shown(summary.fps.median, 0)}</td><td>${shown(summary.p99.median)} ms</td><td>${shown(summary.taskP99.median)} ms</td><td>${shown(summary.inputP99.median)} ms</td>`;
+    return `<td>${shown(summary.fps.median, 0)}</td><td>${msText(summary.p99.median)}</td><td>${msText(summary.taskP99.median)}</td><td>${msText(summary.inputP99.median)}</td>`;
 }
+
 
 /**
  * @param {Report} report
@@ -280,8 +298,8 @@ function advancedHtml(report){
         const summary = summarize(row.readings);
         return `<tr><td>${row.label}</td>${metricCells(summary)}<td${row.outcome === "better" ? ' class="adChanged"' : ""}>${row.outcome}</td></tr>`;
     });
-    const caps = report.caps.map((row) => `<tr><td>${capName(row.cap)} (${row.where})</td><td>${shown(row.frameMs)} ms</td><td>+${shown(row.summary.p99.median)} ms</td>
-        <td>${shown(row.summary.taskP99.median)} ms</td><td>+${shown(row.summary.inputP99.median)} ms</td><td>${row.netMs === null ? "" : `${row.netMs > 0 ? "+" : ""}${shown(row.netMs)} ms`}</td>
+    const caps = report.caps.map((row) => `<tr><td>${capName(row.cap)} (${row.where})</td><td>${msText(row.frameMs)}</td><td>${msText(row.summary.p99.median, "+")}</td>
+        <td>${msText(row.summary.taskP99.median)}</td><td>${msText(row.summary.inputP99.median, "+")}</td><td>${row.netMs === null ? "" : msText(row.netMs, row.netMs > 0 ? "+" : "")}</td>
         <td${row.outcome === "chosen" ? ' class="adChanged"' : ""}>${row.outcome}</td></tr>`);
     const limited = { cpu: "the processor", gpu: "the graphics card", unknown: "not measured" }[report.plan.regime];
     const half = report.halfResolutionGain === null ? "not measured" : percent(report.halfResolutionGain);
@@ -785,6 +803,8 @@ class AutoDetect {
         let { carry } = state;
         if (!carry){
             panel.progress("Measuring how the game runs now", 0.45);
+            // thrown away: the first seconds after a spawn still load and hitch (stall 9 +- 18 ms per second measured)
+            await sample(playedCap);
             const asPlayed = [await sample(playedCap), await sample(playedCap)];
             panel.progress("Measuring what this PC can do", 0.5);
             const uncapped = playedCap === 0 ? [...asPlayed, await sample(0)] : [await sample(0), await sample(0), await sample(0)];
@@ -852,14 +872,15 @@ class AutoDetect {
         });
         /**
          * @param {string} why
+         * @param {Partial<Report>} [measured] what the run had measured by then, the advanced view explains the rollback with it
          * @return {{summary: Summary, report: Report}} the player's settings are back
          */
-        const rollBack = (why) => {
+        const rollBack = (why, measured = {}) => {
             this.restore(state.snapshot);
             const needsRestart = restartNeeded();
             return {
                 summary: { title: "Nothing changed", line: needsRestart ? `${why} Restart Kute to finish.` : why, details: [], changed: false, needsRestart },
-                report: report({ rolledBack: why }),
+                report: report({ ...measured, rolledBack: why }),
             };
         };
         /**
@@ -868,9 +889,13 @@ class AutoDetect {
          *
          * @param {Reading[]} first
          * @param {Reading[]} after
-         * @return {boolean}
+         * @return {string|null} what got worse, in the player's words. null: nothing did
          */
-        const feelsWorse = (first, after) => choose({ id: "before", readings: first.map(relative) }, [{ id: "after", readings: after.map(relative) }], { fpsCounts: false }).judged[0].rejected;
+        const feelsWorse = (first, after) => {
+            const { verdicts } = choose({ id: "before", readings: first.map(relative) }, [{ id: "after", readings: after.map(relative) }], { fpsCounts: false }).judged[0];
+            const metric = EXPERIENCE.find((entry) => verdicts[entry] === "worse");
+            return metric ? WORSE[metric] : null;
+        };
 
         /** @type {string[]} */
         const details = [...earlier];
@@ -879,7 +904,8 @@ class AutoDetect {
             const uncappedNow = [await sample(0), await sample(0)];
             if (this.cancelled) return null;
             // faster on the test scene is a hint, the game decides: it must not run worse here
-            if (feelsWorse(run.uncapped, uncappedNow)) return rollBack("The setup that won the client test ran worse in the game, so Kute put yours back.");
+            const worse = feelsWorse(run.uncapped, uncappedNow);
+            if (worse) return rollBack(`The setup that won the client test ran worse in the game (${worse}), so Kute put yours back.`);
             const winnerRow = run.rows.find((row) => PIPELINE.every((entry) => row.pipeline[entry.setting] === run.pipelineAfter[entry.setting]));
             const reason = winnerRow ? because(run.decidedBy, summarize(run.rows[0].readings), summarize(winnerRow.readings)) : "measured better";
             for (const entry of PIPELINE){
@@ -1050,6 +1076,8 @@ class AutoDetect {
 
         // the whole result against how the player started. anything worse and everything goes back
         panel.progress("Checking the result", 0.94);
+        // thrown away: changed game settings recompile shaders in their first seconds
+        if (plan.changes.length > 0) await sample(bestCap);
         const finalReadings = [await sample(bestCap), await sample(bestCap)];
         if (this.cancelled) return null;
         const capChanged = bestCap !== originalCap;
@@ -1062,7 +1090,21 @@ class AutoDetect {
         if (ownChanges){
             // on this spawn when there was no restart, the readings from before it otherwise
             const reference = resumed ? run.asPlayed : measuredCaps.get(originalCap) ?? run.asPlayed;
-            if (feelsWorse(reference, finalReadings)) return rollBack("The new settings measured worse than yours in the last check, so Kute put yours back.");
+            const worse = feelsWorse(reference, finalReadings);
+            if (worse){
+                return rollBack(`The new settings measured worse than yours in the last check (${worse}), so Kute put yours back.`, {
+                    capacity,
+                    noise,
+                    drift,
+                    headroom: margin,
+                    afterCap: bestCap,
+                    after: summarize(finalReadings),
+                    caps: [...run.benchCaps, ...capRows],
+                    halfResolutionGain,
+                    settings,
+                    plan,
+                });
+            }
         }
         else {
             // nothing of the run's own to keep: the game's frame cap and the limit as they were
