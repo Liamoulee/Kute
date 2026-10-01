@@ -464,6 +464,15 @@
         "defaultValue": true,
         "needsRestart": true
     },
+    "laptopPowerBoost": {
+        "name": "Laptop Power Boost",
+        "id": "laptopPowerBoost",
+        "description": "Plugged in laptops only: sets Windows' power mode to Best performance while Kute runs and puts yours back after",
+        "type": "checkbox",
+        "category": "Engine",
+        "defaultValue": true,
+        "hostFeature": "hybrid-gpu"
+    },
     "patchInputPriority": {
         "name": "Input at Normal Priority",
         "id": "patchInputPriority",

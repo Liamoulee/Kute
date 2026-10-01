@@ -51,7 +51,8 @@ pub fn send_info(frame: &Frame) {
             "x3d-cores",
             "custom-sky",
             "performance-mode",
-            "cef-patches"
+            "cef-patches",
+            "hybrid-gpu"
         ]),
     );
 

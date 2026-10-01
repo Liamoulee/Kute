@@ -833,6 +833,8 @@ unsafe extern "system" fn wnd_proc_main(hwnd: HWND, msg: u32, wparam: WPARAM, lp
                     bridge::post_json(browser, &format!("{{\"rampWheel\":{}}}", delta as f32 / WHEEL_DELTA as f32));
                 }
             }
+            // plugged in or unplugged
+            WM_POWERBROADCAST if wparam.0 == PBT_APMPOWERSTATUSCHANGE as usize => modules::power::on_power_change(),
             WM_TIMER if wparam.0 == RENDER_STATS_TIMER => {
                 thread_local! {
                     static LAST_RENDER_STATS: std::cell::Cell<Option<(u64, u64)>> = const { std::cell::Cell::new(None) };

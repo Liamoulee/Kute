@@ -29,6 +29,7 @@ pub mod modules {
     pub mod nvidia;
     pub mod obs;
     pub mod ping;
+    pub mod power;
     pub mod priority;
     pub mod render_hook;
     pub mod resource;
@@ -101,6 +102,7 @@ fn main() {
     // before cef starts, the driver reads the profile when the gpu process spawns
     if bench.is_none() {
         modules::nvidia::ensure_profile();
+        modules::power::boost();
     }
     app::create_frame_timing_mapping();
     app::load_flags();
@@ -126,6 +128,7 @@ fn main() {
 
     // bench must not overwrite lastPosition
     if bench.is_none() {
+        modules::power::restore();
         CONFIG.lock().unwrap().save();
     }
 }
