@@ -126,6 +126,7 @@ pub fn sample() -> serde_json::Value {
         "thermalLimit": lowest(counters.thermal).map(round),
         "temperature": hottest,
         "gpu": gpu,
+        "nvidia": super::nvidia::telemetry(),
     })
 }
 
