@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { capCandidates, choose, compare, experienceHolds, headroom, refineCaps, screen, summarize } from "../src/frontend/modules/autoDetect/policy.js";
+import { capCandidates, choose, chooseCap, compare, experienceHolds, headroom, refineCaps, relative, screen, summarize } from "../src/frontend/modules/autoDetect/policy.js";
 
 /**
  * @param {Partial<import("../src/frontend/modules/autoDetect/policy.js").Reading>} values
@@ -48,14 +48,6 @@ describe("choose", () => {
         expect(summarize(withInvalid).p99.median).toBe(1.2);
     });
 
-    test("caps: fps does not count, a laptop takes the lower cap among equals", () => {
-        const same = () => [reading({ fps: 0, p99: 4.7, taskP99: 1.7 }), reading({ fps: 0, p99: 4.7, taskP99: 1.8 })];
-        const incumbent = { id: "0", readings: same(), frames: 800 };
-        const candidates = [{ id: "495", readings: same(), frames: 495 }, { id: "330", readings: same(), frames: 330 }];
-        expect(choose(incumbent, candidates, { fpsCounts: false }).changed).toBe(false);
-        expect(choose(incumbent, candidates, { fpsCounts: false, fewerFramesWinTies: true }).winner).toBe("330");
-    });
-
     test("the earliest experience metric decides between two improving candidates", () => {
         const incumbent = [reading({ p99: 5.0, taskP99: 6.0 }), reading({ p99: 5.1, taskP99: 6.1 })];
         const smoother = [reading({ p99: 3.0, taskP99: 6.0 }), reading({ p99: 3.1, taskP99: 6.1 })];
@@ -63,6 +55,77 @@ describe("choose", () => {
         const choice = choose({ id: "now", readings: incumbent }, [{ id: "smoother", readings: smoother }, { id: "lessLag", readings: lessLag }]);
         expect(choice.winner).toBe("lessLag");
         expect(choice.decidedBy).toBe("taskP99");
+    });
+});
+
+describe("chooseCap", () => {
+    /**
+     * @param {number} p50
+     * @param {number} taskP99
+     * @param {number} [jitter] slowest frames beyond the typical one
+     * @return {import("../src/frontend/modules/autoDetect/policy.js").Reading[]} two readings a hair apart
+     */
+    const at = (p50, taskP99, jitter = 0.5) => [
+        reading({ fps: 1000 / p50, p50, p99: p50 + jitter, maxMs: p50 + jitter + 0.2, stallMs: 0, taskP99 }),
+        reading({ fps: 1000 / p50, p50, p99: p50 + jitter + 0.05, maxMs: p50 + jitter + 0.3, stallMs: 0, taskP99: taskP99 + 0.1 }),
+    ];
+
+    test("a fast pc stays uncapped: 0.8 ms less delay does not pay for 4.9 ms more frame time", () => {
+        // this desktop in the test match, 2026-10-01
+        const choice = chooseCap(new Map([[0, at(0.7, 2.35)], [180, at(5.55, 1.55)]]), 0);
+        expect(choice.changed).toBe(false);
+        expect(choice.judged.find((entry) => entry.cap === 180)?.outcome).toBe("not better");
+    });
+
+    test("a pc whose frames starve everything else gets the cap", () => {
+        // the bench scene at eight times its load, same day: uncapped 8.15 ms task delay, 2.6 at a 180 cap
+        const choice = chooseCap(new Map([[0, at(3.5, 8.15)], [180, at(5.55, 2.6)], [60, at(16.7, 3.35)]]), 0);
+        expect(choice.winner).toBe(180);
+        expect(choice.decidedBy).toBe("net");
+        expect(choice.judged.find((entry) => entry.cap === 60)?.outcome).toBe("not better");
+    });
+
+    test("lifting a cap wins when nothing gets worse", () => {
+        const choice = chooseCap(new Map([[235, at(4.25, 1.5)], [0, at(1.2, 1.5)]]), 235);
+        expect(choice.winner).toBe(0);
+    });
+
+    test("lifting a cap loses when the delay it brings back is bigger than the frame time it saves", () => {
+        const choice = chooseCap(new Map([[235, at(4.25, 1.5)], [0, at(1.2, 9)]]), 235);
+        expect(choice.changed).toBe(false);
+        expect(choice.judged.find((entry) => entry.cap === 0)?.outcome).toBe("worse");
+    });
+
+    test("a laptop takes its target rate when it measures the same as uncapped, a desktop does not", () => {
+        const readings = new Map([[0, at(1.2, 1.5)], [495, at(2.02, 1.5)], [165, at(6.06, 1.5)]]);
+        expect(chooseCap(readings, 0).changed).toBe(false);
+        const laptop = chooseCap(readings, 0, { prefer: 495 });
+        expect(laptop.winner).toBe(495);
+        expect(laptop.decidedBy).toBe("tie");
+    });
+
+    test("a cap that stalls more is out, whatever else it gains", () => {
+        const stalling = at(5.55, 2.6).map((entry) => ({ ...entry, stallMs: 40 }));
+        const choice = chooseCap(new Map([[0, at(3.5, 8.15)], [180, stalling]]), 0);
+        expect(choice.changed).toBe(false);
+        expect(choice.judged.find((entry) => entry.cap === 180)?.outcome).toBe("worse");
+    });
+
+    test("one reading per cap decides nothing", () => {
+        const choice = chooseCap(new Map([[0, at(3.5, 8.15).slice(0, 1)], [180, at(5.55, 2.6).slice(0, 1)]]), 0, { prefer: 180 });
+        expect(choice.changed).toBe(false);
+        expect(choice.judged.find((entry) => entry.cap === 180)?.netMs).toBe(null);
+    });
+});
+
+describe("relative", () => {
+    test("time metrics count from the reading's own typical frame", () => {
+        const result = relative(reading({ fps: 180, p50: 5.5, p99: 6.0, maxMs: 6.5, inputP99: 7.0, taskP99: 2 }));
+        expect(result.p99).toBeCloseTo(0.5);
+        expect(result.maxMs).toBeCloseTo(1.0);
+        expect(result.inputP99).toBeCloseTo(1.5);
+        expect(result.taskP99).toBe(2);
+        expect(result.fps).toBe(null);
     });
 });
 

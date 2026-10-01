@@ -12,6 +12,7 @@ export const TARGET_REFRESH_MULTIPLE = 3;
 /**
  * @typedef {object} Reading one measurement window of one configuration. null = not measured, never a zero
  * @property {number|null} fps
+ * @property {number|null} [p50] typical frame interval, ms. what `relative` and an fps limit's cost are measured from
  * @property {number|null} p99 frame interval, ms
  * @property {number|null} maxMs longest frame interval
  * @property {number|null} stallMs ms per second spent in frames over the hitch threshold
@@ -123,7 +124,6 @@ export function screen(reading, incumbent){
  * @typedef {object} Candidate
  * @property {string} id
  * @property {Reading[]} readings
- * @property {number} [frames] how many frames it produces, for the tie break (a cap, or the measured fps)
  */
 
 /**
@@ -146,13 +146,14 @@ export function screen(reading, incumbent){
  */
 
 /**
- * reject every candidate that is worse than the incumbent in an experience metric, then take the one that is
- * better in the earliest experience metric. fps only decides between candidates equal in all of them, and only when
- * `fpsCounts` (comparing caps, more frames is not a goal)
+ * between setups that run without a limit on the same scene (the client's pipeline): reject every candidate that is
+ * worse than the incumbent in an experience metric, then take the one that is better in the earliest experience
+ * metric. fps only decides between candidates equal in all of them, and not at all when `fpsCounts` is false.
+ * fps limits are chooseCap's business, their frame times cannot be compared like this
  *
  * @param {Candidate} incumbent
  * @param {Candidate[]} candidates
- * @param {{fpsCounts?: boolean, fewerFramesWinTies?: boolean}} [options] fewerFramesWinTies: laptops and hybrid graphics
+ * @param {{fpsCounts?: boolean}} [options]
  * @return {Choice}
  */
 export function choose(incumbent, candidates, options = {}){
@@ -173,19 +174,7 @@ export function choose(incumbent, candidates, options = {}){
     const inconclusive = judged.length > 0 && judged.every((entry) => ALL_METRICS.every((metric) => entry.verdicts[metric] === "unknown"));
     const rank = (/** @type {Judged} */ entry) => (entry.decidedBy === null ? ALL_METRICS.length : ALL_METRICS.indexOf(entry.decidedBy));
     const improving = judged.filter((entry) => !entry.rejected && entry.decidedBy !== null).sort((a, b) => rank(a) - rank(b));
-    let winner = improving[0] ?? null;
-
-    // nothing measurably better: on a laptop the candidate that makes fewer frames wins among the equal ones
-    if (winner === null && options.fewerFramesWinTies){
-        const frames = (/** @type {string} */ id) => [incumbent, ...candidates].find((candidate) => candidate.id === id)?.frames ?? Infinity;
-        // equal in what was measured: nothing better or worse, and at least one metric really compared
-        const equal = judged.filter(
-            (entry) => EXPERIENCE.every((metric) => entry.verdicts[metric] === "same" || entry.verdicts[metric] === "unknown") &&
-                EXPERIENCE.some((metric) => entry.verdicts[metric] === "same"),
-        );
-        const fewest = equal.sort((a, b) => frames(a.id) - frames(b.id))[0];
-        if (fewest && frames(fewest.id) < frames(incumbent.id)) winner = fewest;
-    }
+    const winner = improving[0] ?? null;
 
     return {
         winner: winner?.id ?? incumbent.id,
@@ -195,6 +184,96 @@ export function choose(incumbent, candidates, options = {}){
         incumbent: base,
         judged,
     };
+}
+
+/**
+ * a reading with its time metrics taken from its own typical frame: how much later than usual the slow frames and
+ * the mouse come, not how long a frame is. for comparing across fps limits (a cap's frames are longer by design) and
+ * across two spawns in the match (another view costs another frame time). fps is dropped, it is neither comparable
+ *
+ * @param {Reading} reading
+ * @return {Reading}
+ */
+export function relative(reading){
+    const base = reading.p50;
+    const beyond = (/** @type {number|null} */ value) => (typeof value === "number" && typeof base === "number" ? Math.max(0, value - base) : null);
+    return { ...reading, fps: null, p99: beyond(reading.p99), maxMs: beyond(reading.maxMs), inputP99: beyond(reading.inputP99) };
+}
+
+/** what a lower fps limit can buy, each in ms beyond the limit's own frame time */
+const CAP_GAINS = /** @type {Metric[]} */ (["taskP99", "inputP99", "p99"]);
+
+/**
+ * @typedef {object} CapJudged
+ * @property {number} cap 0 = no limit
+ * @property {Summary} summary of the relative readings
+ * @property {number|null} frameMs typical frame time at this limit
+ * @property {number|null} netMs delay it removes minus frame time it adds against the limit in use, null: not judged
+ * @property {"yours"|"better"|"not better"|"worse"} outcome
+ */
+
+/**
+ * @typedef {object} CapChoice
+ * @property {number} winner the limit in use when nothing beats it
+ * @property {boolean} changed
+ * @property {"net"|"tie"|null} decidedBy net: removes more delay than it adds frame time. tie: the preferred limit, measured equal
+ * @property {CapJudged[]} judged every limit, the one in use included
+ */
+
+/**
+ * which fps limit. a lower limit makes every frame longer, that is its price in ms, and it pays with what it removes:
+ * main thread task delay, mouse wait and frame jitter, each beyond the limit's own frame time. a limit wins when it
+ * removes more than it adds, and never when it stalls more. only differences beyond the readings' own spread count
+ *
+ * @param {Map<number, Reading[]>} readings per limit, 0 = none
+ * @param {number} incumbent the limit in use
+ * @param {{prefer?: number}} [options] prefer: a limit that takes over when it measures equal and draws fewer frames
+ *     (laptops: the target rate instead of everything the PC can do)
+ * @return {CapChoice}
+ */
+export function chooseCap(readings, incumbent, options = {}){
+    const summaryOf = (/** @type {number} */ cap) => summarize((readings.get(cap) ?? []).map(relative));
+    const frameOf = (/** @type {number} */ cap) => {
+        const frames = (readings.get(cap) ?? []).filter((reading) => !reading.invalid).map((reading) => reading.p50).filter((value) => typeof value === "number");
+        return frames.length > 0 ? median(/** @type {number[]} */ (frames)) : null;
+    };
+    const base = summaryOf(incumbent);
+    const baseFrame = frameOf(incumbent);
+
+    /** @type {Map<number, number>} confident experience gain in ms, for the tie */
+    const gains = new Map();
+    /** @type {CapJudged[]} */
+    const judged = [...readings.keys()].map((cap) => {
+        const summary = summaryOf(cap);
+        const frameMs = frameOf(cap);
+        if (cap === incumbent) return { cap, summary, frameMs, netMs: null, outcome: /** @type {const} */ ("yours") };
+        const verdicts = CAP_GAINS.map((metric) => compare(metric, summary, base));
+        if (frameMs === null || baseFrame === null || verdicts.every((verdict) => verdict === "unknown")){
+            return { cap, summary, frameMs, netMs: null, outcome: /** @type {const} */ ("not better") };
+        }
+        let gain = 0;
+        for (const [index, metric] of CAP_GAINS.entries()){
+            if (verdicts[index] === "better" || verdicts[index] === "worse") gain += (base[metric].median ?? 0) - (summary[metric].median ?? 0);
+        }
+        gains.set(cap, gain);
+        const netMs = gain - (frameMs - baseFrame);
+        /** @type {CapJudged["outcome"]} */
+        let outcome = "not better";
+        if (compare("stallMs", summary, base) === "worse" || gain < 0) outcome = "worse";
+        else if (netMs > 0) outcome = "better";
+        return { cap, summary, frameMs, netMs, outcome };
+    });
+
+    const better = judged.filter((entry) => entry.outcome === "better").sort((a, b) => (b.netMs ?? 0) - (a.netMs ?? 0));
+    if (better.length > 0) return { winner: better[0].cap, changed: true, decidedBy: "net", judged };
+
+    // measured equal: the preferred limit takes over when it draws fewer frames than what runs now
+    const preferred = judged.find((entry) => entry.cap === options.prefer && entry.cap !== incumbent);
+    if (preferred && preferred.outcome === "not better" && preferred.netMs !== null && gains.get(preferred.cap) === 0 &&
+        preferred.frameMs !== null && baseFrame !== null && preferred.frameMs > baseFrame){
+        return { winner: preferred.cap, changed: true, decidedBy: "tie", judged };
+    }
+    return { winner: incumbent, changed: false, decidedBy: null, judged };
 }
 
 /**
