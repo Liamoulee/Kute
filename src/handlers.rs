@@ -824,6 +824,13 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             let hwnd = window::root_hwnd(browser).unwrap_or_default();
             bridge::post_json(browser, &serde_json::json!({ "specs": modules::specs::collect(hwnd) }).to_string());
         }
+        // the pc's load since the previous call, for the auto-detect report. the counters block some ms
+        ["load-sample"] => {
+            let browser_id = browser.identifier();
+            std::thread::spawn(move || {
+                bridge::post_json_later(browser_id, serde_json::json!({ "loadSample": modules::load::sample() }).to_string());
+            });
+        }
         // swap chain fps, 0 without the hook
         ["get-present"] => {
             let fps = app::render_stats().map(|(fps, _)| fps).unwrap_or(0);

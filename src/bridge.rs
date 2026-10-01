@@ -53,7 +53,8 @@ pub fn send_info(frame: &Frame) {
             "performance-mode",
             "cef-patches",
             "hybrid-gpu",
-            "autodetect-v2"
+            "autodetect-v2",
+            "load-sample"
         ]),
     );
 

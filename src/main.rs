@@ -27,6 +27,7 @@ pub mod modules {
     pub mod icons;
     pub mod input;
     pub mod lifecycle;
+    pub mod load;
     pub mod nvidia;
     pub mod obs;
     pub mod ping;
