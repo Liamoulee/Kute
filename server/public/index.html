@@ -194,7 +194,7 @@
             </div>
             <div class="perf-body">
               <h3>Auto-Detect</h3>
-              <p>Plays a private test match and measures what each graphics setting costs on your PC. Only the settings that make a real difference get lowered. A PC that is already fast enough keeps its settings.</p>
+              <p>Plays a private test match and measures what each graphics setting costs on your PC. Only the settings that make a real difference get lowered. A PC that is already fast enough keeps its settings, and a laptop that stutters at full speed gets an FPS limit it holds steadily.</p>
               <ul class="tags">
                 <li>Client and game settings</li><li>Undo</li><li>Needs an account</li>
               </ul>
@@ -320,13 +320,14 @@
           <div class="feature-group" id="f-performance">
             <h3>Performance</h3>
             <div><span></span><b>Bundled Chromium</b><p>Kute ships its own Chromium (CEF). Nothing else to install.</p></div>
-            <div><span></span><b>Patched Chromium</b><p>Two patches: no aim freeze with uncapped FPS, no stutter when the GPU is the limit.</p></div>
+            <div><span></span><b>Patched Chromium</b><p>No aim freeze with uncapped FPS, no stutter when the GPU is the limit, and more. Every patch is a switch in the Engine settings.</p></div>
             <div><span></span><b>Uncapped FPS</b><p>Removes the refresh rate cap.</p></div>
             <div><span></span><b>Fix Audio Stutters</b><p>Optional: keeps the game's 3D sound from eating the audio thread at high FPS.</p></div>
+            <div><span></span><b>Laptop setup</b><p>Two graphics chips are recognized: Kute picks the fast one and skips the swap chain hook there. Plugged in, it runs on Best performance and puts your power mode back after.</p></div>
             <div><span></span><b>NVIDIA profile</b><p>A driver profile for Kute alone lifts a global Max Frame Rate or forced V-Sync. Yours to change.</p></div>
-            <div><span></span><b>Exact FPS limit</b><p>Held by the swap chain hook, so the CPU idles between frames.</p></div>
+            <div><span></span><b>Exact FPS limit</b><p>Held inside Chromium's compositor by our own patch, so the CPU idles between frames. Works with or without the swap chain hook.</p></div>
             <div><span></span><b>Present FPS counter</b><p>A second counter for the frames that reach your screen.</p></div>
-            <div><span></span><b>Auto-Detect</b><p>Measures your PC in a private match and sets the client and the game up for it. Can be undone.</p></div>
+            <div><span></span><b>Auto-Detect</b><p>Tests the client's own setup and the FPS limit on your PC, then the game in a private match, and keeps only what measurably runs better. Checked against how you started, can be undone.</p></div>
             <div><span></span><b>Disable non-performance features</b><p>One switch turns off every cosmetic feature and hides its settings. Switch it back and everything is as you left it.</p></div>
             <div><span></span><b>Graphics backend</b><p>D3D11, D3D11on12, OpenGL or Vulkan, plus a color profile setting.</p></div>
             <div><span></span><b>Chromium flags</b><p>A tested default set. Add your own in <code>user_flags.json</code>.</p></div>
