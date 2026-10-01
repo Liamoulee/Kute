@@ -42,6 +42,7 @@ pub(crate) struct SharedStats {
     pub(crate) arrive_p99_ns: u64,
     pub(crate) samples: u64,
     pub(crate) limiter_mode: u64,
+    pub(crate) render_adapter: u64,
 }
 const SHARED_STATS_SIZE: usize = std::mem::size_of::<SharedStats>();
 pub const LIMITER_VIZ: u64 = 1;
@@ -122,6 +123,11 @@ pub fn take_present_intervals() -> Option<(u64, u64, u64, u64, u64)> {
         shared!(arrive_p99_ns)?.load(Ordering::Relaxed),
         shared!(samples)?.load(Ordering::Relaxed),
     ))
+}
+
+// luid of the adapter the game's swap chain was created on, 0 without the hook or before the first chain
+pub fn render_adapter() -> u64 {
+    shared!(render_adapter).map(|field| field.load(Ordering::Relaxed)).unwrap_or(0)
 }
 
 // (fps, frame_ns) from the present hook

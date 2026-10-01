@@ -19,6 +19,8 @@ pub(crate) struct SharedState {
     // LIMITER_VIZ: chromium paces the frames (KuteFrameLimiter), the hook only measures. LIMITER_HR_TIMER: the hook's wait
     // uses a high resolution waitable timer with a short spin instead of sleep plus a 1 ms spin
     pub(crate) limiter_mode: u64,
+    // luid of the adapter the game's swap chain device runs on, 0 until one was created
+    pub(crate) render_adapter: u64,
 }
 pub(crate) const LIMITER_VIZ: u64 = 1;
 pub(crate) const LIMITER_HR_TIMER: u64 = 2;
