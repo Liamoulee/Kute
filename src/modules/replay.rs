@@ -88,7 +88,14 @@ pub fn start(hwnd: HWND, browser_id: i32, ms: u64) {
             sent += 1;
             thread::sleep(Duration::from_millis(STEP_MS));
         };
-        if fire {
+        // back to where the circle began: the loop ends between two steps, and what is left of the circle would move the
+        // view a little with every reading. only while the mouse is still ours, never into an app the player switched to
+        let (dx, dy) = ((RADIUS - x).round() as i32, (-y).round() as i32);
+        let ours = input::pointer_locked() && unsafe { GetForegroundWindow() } == hwnd;
+        let release = if fire { MOUSEEVENTF_LEFTUP } else { MOUSE_EVENT_FLAGS(0) };
+        if ours && matches!(reason, "done" | "stopped") && (dx, dy) != (0, 0) {
+            send(MOUSEEVENTF_MOVE | release, dx, dy);
+        } else if fire {
             send(MOUSEEVENTF_LEFTUP, 0, 0);
         }
         debug_print!("replay: {sent} input steps in {} ms, {reason}", started.elapsed().as_millis());
