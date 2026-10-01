@@ -105,20 +105,34 @@ pub fn topology(monitor: HMONITOR, adapters: &[Adapter]) -> Topology {
 }
 
 const DONE_SETTING: &str = "hybridDefaultsApplied";
+// what the first look found, so later starts need no dxgi
+const HYBRID_SETTING: &str = "hybridSystem";
 
-// once per pc, before cef starts: a laptop that renders on one gpu and shows on the other
+// before cef starts: a laptop that renders on one gpu and shows on the other. the hook default once per pc, windows'
+// gpu preference on every start: it belongs to the exe's path, and a kute that was moved, unzipped somewhere else or
+// installed after a portable build had none (the marker said "done")
 pub fn apply_hybrid_defaults() {
-    if utils::config(DONE_SETTING, false) {
-        return;
-    }
-    let monitor = unsafe { MonitorFromPoint(POINT::default(), MONITOR_DEFAULTTOPRIMARY) };
-    // unknown: asked again on the next start
-    let Some(hybrid) = topology(monitor, &adapters()).hybrid() else {
-        return;
+    let done = utils::config(DONE_SETTING, false);
+    let known = CONFIG.lock().unwrap().get::<bool>(HYBRID_SETTING);
+    let hybrid = match known {
+        Some(hybrid) => hybrid,
+        None => {
+            let monitor = unsafe { MonitorFromPoint(POINT::default(), MONITOR_DEFAULTTOPRIMARY) };
+            // unknown: asked again on the next start
+            let Some(hybrid) = topology(monitor, &adapters()).hybrid() else {
+                return;
+            };
+            hybrid
+        }
     };
-    let mut config = CONFIG.lock().unwrap();
     if hybrid {
         prefer_high_performance_gpu();
+    }
+    if done && known.is_some() {
+        return;
+    }
+    let mut config = CONFIG.lock().unwrap();
+    if hybrid && !done {
         // obs capture and the present counter need the hook, a player who uses them keeps it
         let needs_hook = config.get::<bool>("obsCapturePlugin") == Some(true) || config.get::<bool>("renderStats") == Some(true);
         if !needs_hook {
@@ -131,6 +145,7 @@ pub fn apply_hybrid_defaults() {
         );
     }
     config.set(DONE_SETTING, true);
+    config.set(HYBRID_SETTING, hybrid);
     config.save();
 }
 
