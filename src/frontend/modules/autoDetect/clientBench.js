@@ -44,10 +44,23 @@ const SCREENED = { contender: "better", same: "not better", worse: "worse", fail
  */
 
 /**
- * @return {Pipeline} what the client runs right now
+ * @return {Pipeline} what the client runs right now: as the process was started, a changed setting only counts after a restart
  */
 export function currentPipeline(){
-    return Object.fromEntries(PIPELINE.map((entry) => [entry.setting, kute.settings.data[entry.setting] !== false]));
+    return Object.fromEntries(PIPELINE.map((entry) => [entry.setting, (kute.running?.[entry.setting] ?? kute.settings.data[entry.setting]) !== false]));
+}
+
+/**
+ * @param {string} setting
+ * @param {Pipeline} current
+ * @return {string|null} why the run may not flip this switch, null when it may
+ */
+function keptFor(setting, current){
+    if (setting !== "hardFlip" || !current.hardFlip) return null;
+    // both live in the hook, faster frames are no reason to break them
+    if (kute.settings.data.obsCapturePlugin === true) return "kept, OBS capture needs it";
+    if (kute.settings.data.renderStats === true) return "kept, the FPS counter needs it";
+    return null;
 }
 
 /**
@@ -154,7 +167,7 @@ export async function searchPipeline({ hz, progress, cancelled }){
     const factor = Math.min(LOAD_RANGE[1], Math.max(LOAD_RANGE[0], calibrated.fps / (hz * TARGET_REFRESH_MULTIPLE)));
     const common = `hz=${hz},draws=${Math.round(load.draws * factor)},cpu=${Math.round(load.cpuIterations * factor)}`;
 
-    const flips = PIPELINE.map((entry) => ({ entry, pipeline: { ...current, [entry.setting]: !current[entry.setting] } }));
+    const flips = PIPELINE.filter((entry) => keptFor(entry.setting, current) === null).map((entry) => ({ entry, pipeline: { ...current, [entry.setting]: !current[entry.setting] } }));
     progress("Testing the client (2 of 4)", 0.15);
     // incumbent first and last, its two readings bracket the flips and give the spread
     const first = await matrix([configFor(current, common), ...flips.map((flip) => configFor(flip.pipeline, common)), configFor(current, common)], PROCESS_TIMEOUT_MS * (flips.length + 2));
@@ -165,6 +178,10 @@ export async function searchPipeline({ hz, progress, cancelled }){
 
     /** @type {PipelineRow[]} */
     const rows = [{ id: "current", label: "As you had it", pipeline: current, readings: incumbentReadings, outcome: "current" }];
+    for (const entry of PIPELINE){
+        const kept = keptFor(entry.setting, current);
+        if (kept !== null) rows.push({ id: entry.setting, label: `${entry.label} off`, pipeline: current, readings: [], outcome: kept });
+    }
     const contenders = [];
     for (const [index, flip] of flips.entries()){
         const reading = read(first[index + 1]);
