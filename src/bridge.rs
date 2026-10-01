@@ -55,6 +55,10 @@ pub fn send_info(frame: &Frame) {
         ]),
     );
 
+    // who holds the fps limit: chromium's BeginFrame source (patch 08) or the present hook with the bundle's busy wait fallback
+    let limiter = if crate::app::feature_enabled("KuteFrameLimiter") { "viz" } else { "hook" };
+    info_map.insert("frameLimiter".to_string(), serde_json::Value::String(limiter.to_string()));
+
     if crate::modules::dev::has_token() {
         info_map.insert("dev".to_string(), serde_json::Value::Bool(true));
     }
