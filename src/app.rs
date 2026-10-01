@@ -41,8 +41,11 @@ pub(crate) struct SharedStats {
     pub(crate) present_max_ns: u64,
     pub(crate) arrive_p99_ns: u64,
     pub(crate) samples: u64,
+    pub(crate) limiter_mode: u64,
 }
 const SHARED_STATS_SIZE: usize = std::mem::size_of::<SharedStats>();
+pub const LIMITER_VIZ: u64 = 1;
+pub const LIMITER_HR_TIMER: u64 = 2;
 
 pub(crate) static SHARED_STATS_PTR: AtomicU64 = AtomicU64::new(0);
 
@@ -77,6 +80,23 @@ pub fn create_frame_timing_mapping() {
 pub fn set_target_fps(fps_limit: u64) {
     if let Some(target) = shared!(target_fps) {
         target.store(fps_limit, Ordering::Relaxed);
+    }
+}
+
+// after load_flags, before initialize: the gpu process reads it once it presents
+pub fn set_limiter_mode() {
+    let mut mode = 0;
+    if feature_enabled("KuteFrameLimiter") {
+        mode |= LIMITER_VIZ;
+    }
+    // KUTE_HR_TIMER=0 brings the old sleep plus spin back (bench key timer=sleep), the hook's own wait only runs without the chromium limiter
+    if env::var("KUTE_HR_TIMER").is_ok_and(|value| value == "0") {
+        // old wait wanted
+    } else {
+        mode |= LIMITER_HR_TIMER;
+    }
+    if let Some(field) = shared!(limiter_mode) {
+        field.store(mode, Ordering::Relaxed);
     }
 }
 
@@ -176,7 +196,13 @@ impl Patch {
     }
 }
 
-pub const PATCHES: [Patch; 7] = [
+pub const PATCHES: [Patch; 8] = [
+    Patch {
+        setting: "patchFrameLimiter",
+        feature: "KuteFrameLimiter",
+        key: "limiter",
+        default: true,
+    },
     Patch {
         setting: "patchInputPriority",
         feature: "KuteInputNormalPriority",

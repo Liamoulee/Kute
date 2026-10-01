@@ -724,6 +724,7 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         if modules::bench::config().is_some_and(|bench| bench.hook) {
             app::take_present_intervals();
         }
+        modules::bench::sample_start();
         return;
     }
     if let Some(result) = message_string.strip_prefix("bench-finish ") {

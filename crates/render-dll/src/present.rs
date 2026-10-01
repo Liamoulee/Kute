@@ -26,6 +26,28 @@ pub(crate) static mut ORIGINAL_PRESENT: Option<unsafe fn(*mut c_void, u32, DXGI_
 
 static GLOBAL_LIMIT_CLOCK: LazyLock<RwLock<Option<std::time::Instant>>> = LazyLock::new(|| RwLock::new(None));
 
+const HR_TIMER_SPIN: std::time::Duration = std::time::Duration::from_micros(150);
+
+thread_local! {
+    // one per present thread, never closed. a null handle (old windows) falls back to the spin
+    static HR_TIMER: cell::Cell<HANDLE> = cell::Cell::new(unsafe {
+        CreateWaitableTimerExW(None, None, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS.0).unwrap_or_default()
+    });
+}
+
+fn hr_timer_wait(timer: HANDLE, duration: std::time::Duration) {
+    if timer.is_invalid() {
+        return;
+    }
+    // relative due time in 100 ns units
+    let due = -((duration.as_nanos() / 100) as i64);
+    unsafe {
+        if SetWaitableTimer(timer, &due, 0, None, None, false).is_ok() {
+            WaitForSingleObject(timer, INFINITE);
+        }
+    }
+}
+
 #[link(name = "Avrt")]
 unsafe extern "system" {
     fn AvSetMmThreadCharacteristicsW(task_name: PCWSTR, task_index: *mut u32) -> HANDLE;
@@ -244,7 +266,11 @@ pub(crate) unsafe extern "system" fn present_hk(
         if is_main {
             LIMITER_HELD.set(false);
         }
-        if is_main && let Some(nanos) = 1_000_000_000u64.checked_div(target_fps) {
+        let limiter_mode = shared!(ptr, limiter_mode).load(Ordering::Relaxed);
+        if is_main
+            && limiter_mode & LIMITER_VIZ == 0
+            && let Some(nanos) = 1_000_000_000u64.checked_div(target_fps)
+        {
             let target_frame_time = std::time::Duration::from_nanos(nanos);
             let now = std::time::Instant::now();
             let prev_opt = { *GLOBAL_LIMIT_CLOCK.read().unwrap() };
@@ -262,8 +288,13 @@ pub(crate) unsafe extern "system" fn present_hk(
                     remaining.as_secs_f64() * 1000.0,
                     target_fps
                 );
-                // spin the last ~1ms for accuracy
-                if remaining > std::time::Duration::from_millis(2) {
+                if limiter_mode & LIMITER_HR_TIMER != 0 {
+                    // the timer wakes within ~0.1 ms on windows 10 1803 and up, so the spin is a tenth of the sleep path's
+                    if remaining > HR_TIMER_SPIN {
+                        HR_TIMER.with(|timer| hr_timer_wait(timer.get(), remaining - HR_TIMER_SPIN));
+                    }
+                } else if remaining > std::time::Duration::from_millis(2) {
+                    // spin the last ~1ms for accuracy
                     thread::sleep(remaining - std::time::Duration::from_millis(1));
                 }
                 while std::time::Instant::now() < deadline {

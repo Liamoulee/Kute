@@ -104,6 +104,7 @@ fn main() {
     }
     app::create_frame_timing_mapping();
     app::load_flags();
+    app::set_limiter_mode();
     if app::has_flag("--raise-timer-frequency") {
         utils::raise_timer_frequency();
     }

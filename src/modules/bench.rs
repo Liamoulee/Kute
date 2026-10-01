@@ -20,6 +20,8 @@ pub struct BenchConfig {
     pub uncap: bool,
     // one per app::PATCHES, keyed by Patch::key, the patch default unless the config says otherwise
     pub patches: Vec<bool>,
+    // `timer=sleep`: the hook's wait is the old sleep plus spin instead of the high resolution timer
+    pub hr_timer: bool,
     // CustomMaxPendingFrames of our libcef, default 1
     pub depth: u32,
     pub limit: u64,
@@ -43,6 +45,7 @@ static CONFIG: LazyLock<Option<BenchConfig>> = LazyLock::new(|| {
         hook: true,
         uncap: true,
         patches: app::PATCHES.iter().map(|patch| patch.default).collect(),
+        hr_timer: true,
         depth: 1,
         limit: 0,
         throttle: 1.0,
@@ -57,6 +60,9 @@ static CONFIG: LazyLock<Option<BenchConfig>> = LazyLock::new(|| {
         match key {
             "hook" => config.hook = value != "0",
             "uncap" => config.uncap = value != "0",
+            // `limiter=viz|hook`: the chromium limiter patch on or off, a patch key with names instead of 1/0
+            "limiter" => config.patches[limiter_patch()] = value == "viz" || value == "1",
+            "timer" => config.hr_timer = value != "sleep",
             "depth" => config.depth = value.parse().unwrap_or(1).max(1),
             "limit" => config.limit = value.parse().unwrap_or(0),
             "throttle" => config.throttle = value.parse().unwrap_or(1.0),
@@ -72,8 +78,8 @@ static CONFIG: LazyLock<Option<BenchConfig>> = LazyLock::new(|| {
             },
         }
     }
-    // no hook, the page has to cap itself
-    if !config.hook && config.limit > 0 {
+    // no hook and no chromium limiter, the page has to cap itself
+    if !config.hook && !config.patches[limiter_patch()] && config.limit > 0 {
         query.push(format!("cap={}", config.limit));
     }
     config.query = query.join("&");
@@ -103,6 +109,9 @@ pub fn prepare_environment(config: &BenchConfig) {
     unsafe {
         env::set_var(TIMING_MAPPING_ENV, "KuteFrameTimingBench");
         env::set_var(HOOK_ENV, if config.hook { "1" } else { "0" });
+        if !config.hr_timer {
+            env::set_var("KUTE_HR_TIMER", "0");
+        }
     }
 }
 
@@ -129,6 +138,61 @@ pub fn flags(config: &BenchConfig) -> Vec<String> {
     flags
 }
 
+fn limiter_patch() -> usize {
+    app::PATCHES
+        .iter()
+        .position(|patch| patch.feature == "KuteFrameLimiter")
+        .expect("patch 08 is in PATCHES")
+}
+
+// cpu time of this process and its children (gpu, renderer, utilities), ms
+fn process_tree_cpu_ms() -> u64 {
+    use windows::Win32::System::Diagnostics::ToolHelp::*;
+    use windows::Win32::System::Threading::*;
+    unsafe {
+        let cpu_of = |handle: windows::Win32::Foundation::HANDLE| {
+            let mut times = [windows::Win32::Foundation::FILETIME::default(); 4];
+            let [creation, exit, kernel, user] = &mut times;
+            if GetProcessTimes(handle, creation, exit, kernel, user).is_err() {
+                return 0;
+            }
+            let as_u64 = |t: &windows::Win32::Foundation::FILETIME| ((t.dwHighDateTime as u64) << 32) | t.dwLowDateTime as u64;
+            (as_u64(kernel) + as_u64(user)) / 10_000
+        };
+        let mut total = cpu_of(GetCurrentProcess());
+        let own_pid = GetCurrentProcessId();
+        let Ok(snapshot) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) else {
+            return total;
+        };
+        let mut entry = PROCESSENTRY32W {
+            dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
+            ..Default::default()
+        };
+        if Process32FirstW(snapshot, &mut entry).is_ok() {
+            loop {
+                if entry.th32ParentProcessID == own_pid
+                    && let Ok(handle) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, entry.th32ProcessID)
+                {
+                    total += cpu_of(handle);
+                    windows::Win32::Foundation::CloseHandle(handle).ok();
+                }
+                if Process32NextW(snapshot, &mut entry).is_err() {
+                    break;
+                }
+            }
+        }
+        windows::Win32::Foundation::CloseHandle(snapshot).ok();
+        total
+    }
+}
+
+static SAMPLE_CPU_START: std::sync::Mutex<Option<(u64, Instant)>> = std::sync::Mutex::new(None);
+
+// settle phase over: cpu time from here to finish is what the sample cost
+pub fn sample_start() {
+    *SAMPLE_CPU_START.lock().unwrap() = Some((process_tree_cpu_ms(), Instant::now()));
+}
+
 pub const STUB_PAGE: &str =
     "<!doctype html><html><head><meta charset=\"utf-8\"><title>Kute bench</title></head><body style=\"margin:0;background:#000\"></body></html>";
 
@@ -153,10 +217,20 @@ pub fn finish(page_json: &str) {
         .zip(&config.patches)
         .map(|(patch, &enabled)| (patch.key.to_string(), enabled.into()))
         .collect();
+    // cpu ms of the whole process tree over the sample next to the wall ms it took: 1000 per 1000 is one full core
+    let cpu = SAMPLE_CPU_START
+        .lock()
+        .unwrap()
+        .take()
+        .map(|(cpu_ms, since)| serde_json::json!({ "ms": process_tree_cpu_ms().saturating_sub(cpu_ms), "wallMs": since.elapsed().as_millis() as u64 }));
     let result = serde_json::json!({
-        "config": { "hook": config.hook, "uncap": config.uncap, "depth": config.depth, "limit": config.limit, "throttle": config.throttle, "patches": patches },
+        "config": {
+            "hook": config.hook, "uncap": config.uncap, "depth": config.depth, "limit": config.limit, "throttle": config.throttle,
+            "patches": patches, "limiter": if config.patches[limiter_patch()] { "viz" } else { "hook" }, "timer": if config.hr_timer { "hr" } else { "sleep" },
+        },
         "page": page,
         "present": present,
+        "cpu": cpu,
     });
     debug_print!("bench: {result}");
     if let Some(out) = &config.out {
