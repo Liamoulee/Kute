@@ -18,7 +18,7 @@ const FINISH_GRACE_MS = 400;
 
 const settleMs = numberParam("settle", 700);
 const sampleMs = numberParam("ms", 2000);
-const hitchMs = numberParam("hitch", 8);
+const refreshMs = 1000 / numberParam("hz", 60);
 const cap = numberParam("cap", 0);
 const step = numberParam("step", 0);
 const steps = numberParam("steps", 0);
@@ -94,7 +94,7 @@ function run(){
 
         if (sampling && now - start >= settleMs + sampleMs){
             const otherTasks = tasks.stop();
-            const stats = recorder.stats(hitchMs);
+            const stats = recorder.stats(refreshMs);
             finishedAt = now;
             finish({
                 ok: true,

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { capacityFps, capCandidates, choose, compare, experienceHolds, headroom, refineCaps, summarize } from "../src/frontend/modules/autoDetect/policy.js";
+import { capCandidates, choose, compare, experienceHolds, headroom, refineCaps, summarize } from "../src/frontend/modules/autoDetect/policy.js";
 
 /**
  * @param {Partial<import("../src/frontend/modules/autoDetect/policy.js").Reading>} values
@@ -81,12 +81,6 @@ describe("compare", () => {
 });
 
 describe("capacity and targets", () => {
-    test("a cap is not a weak pc", () => {
-        expect(capacityFps(reading({ fps: 235, workMs: 1.2 }), true)).toBeCloseTo(833, 0);
-        expect(capacityFps(reading({ fps: 235 }), true)).toBe(null);
-        expect(capacityFps(reading({ fps: 829 }), false)).toBe(829);
-    });
-
     test("headroom follows the pc's own drift and noise", () => {
         // last / first = 1 means no drift, the old formula made that a headroom of 3
         expect(headroom(1, 0.03)).toBeCloseTo(1.03);

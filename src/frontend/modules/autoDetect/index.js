@@ -141,7 +141,7 @@ function measure(ms = SAMPLE_MS){
                 return;
             }
             clearTimeout(watchdog);
-            resolve(recorder.stats(8) ?? { frames: 0, seconds: 0, fps: 0, meanMs: 0, p50: 0, p95: 0, p99: 0, p999: 0, maxMs: 0, hitches: 0, hitchesPerSec: 0 });
+            resolve(recorder.stats(8) ?? { frames: 0, seconds: 0, fps: 0, meanMs: 0, p50: 0, p95: 0, p99: 0, p999: 0, maxMs: 0, hitches: 0, hitchesPerSec: 0, stallMs: 0 });
         };
         requestAnimationFrame(frame);
     });

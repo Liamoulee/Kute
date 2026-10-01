@@ -17,7 +17,6 @@ export const TARGET_REFRESH_MULTIPLE = 3;
  * @property {number|null} stallMs ms per second spent in frames over the hitch threshold
  * @property {number|null} taskP99 main thread task delay, ms
  * @property {number|null} inputP99 pointer event wait, ms
- * @property {number|null} [workMs] the game's own work per frame, 1000 / workMs is what the PC could run uncapped
  * @property {boolean} [invalid] focus lost, still loading, left the room: the window says nothing
  */
 
@@ -184,19 +183,6 @@ export function choose(incumbent, candidates, options = {}){
  */
 export function headroom(drift, noise){
     return 1 + Math.max(2 * Math.abs(1 - drift), noise);
-}
-
-/**
- * what the PC could run without a cap: the measured rate uncapped, the game's own work per frame under a cap.
- * never the capped rate itself, a chosen cap must not look like a weak PC
- *
- * @param {Reading} reading
- * @param {boolean} capped
- * @return {number|null}
- */
-export function capacityFps(reading, capped){
-    if (!capped) return reading.fps;
-    return typeof reading.workMs === "number" && reading.workMs > 0 ? 1000 / reading.workMs : null;
 }
 
 /**
