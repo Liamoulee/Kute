@@ -11,6 +11,8 @@ use crate::{CONFIG, debug_print, modules, utils};
 const BEST_PERFORMANCE: GUID = GUID::from_u128(0xded574b5_45a0_4f42_8737_46345c09c238);
 // windows 10's default on ac. windows 11's "balanced" is the zero guid
 const BETTER_PERFORMANCE: GUID = GUID::from_u128(0x3af9b8d9_7c97_431d_ad78_34a8bfea439f);
+// "better battery" on windows 10
+const BEST_EFFICIENCY: GUID = GUID::from_u128(0x961cc777_2547_4f9d_8174_7d86181b8a7a);
 
 // "balanced" or "better" while kute holds the overlay, so a start after a crash knows it is ours and what to put back
 const RESTORE_SETTING: &str = "powerOverlayRestore";
@@ -36,13 +38,16 @@ fn current(get: GetOverlay) -> Option<GUID> {
     (unsafe { get(&mut overlay) } == 0).then_some(overlay)
 }
 
-pub fn overlay_name() -> Option<&'static str> {
+// for the auto-detect report. a mode outside the slider's four (some desktops, vendor tools) is named by its guid:
+// calling everything unknown "power saving" told a desktop player something that was probably not true
+pub fn overlay_name() -> Option<String> {
     let (get, _) = overlay_api()?;
     Some(match current(get)? {
-        overlay if overlay == BEST_PERFORMANCE => "best performance",
-        overlay if overlay == BETTER_PERFORMANCE => "better performance",
-        overlay if overlay == GUID::zeroed() => "balanced",
-        _ => "power saving",
+        overlay if overlay == BEST_PERFORMANCE => "best performance".to_string(),
+        overlay if overlay == BETTER_PERFORMANCE => "better performance".to_string(),
+        overlay if overlay == GUID::zeroed() => "balanced".to_string(),
+        overlay if overlay == BEST_EFFICIENCY => "best power efficiency".to_string(),
+        overlay => format!("unknown ({overlay:?})"),
     })
 }
 
