@@ -35,7 +35,7 @@ const PROCESS_TIMEOUT_MS = 20000;
 const CAP_CYCLE_TIMEOUT_MS = 70000;
 const CAP_SAMPLE_MS = 1500;
 /** the scene's load may move this far from its default to reach the PC's target rate */
-const LOAD_RANGE = [0.25, 8];
+const LOAD_RANGE = [0.25, 16];
 /** a first reading's verdict in the report's words */
 const SCREENED = { contender: "better", same: "not better", worse: "worse", failed: "failed" };
 
@@ -71,6 +71,7 @@ function readingOf(stats, otherTasks){
     const number = (/** @type {unknown} */ value) => (typeof value === "number" && Number.isFinite(value) ? value : null);
     return {
         fps: number(stats?.fps),
+        p50: number(stats?.p50),
         p99: number(stats?.p99),
         maxMs: number(stats?.maxMs),
         stallMs: number(stats?.stallMs),

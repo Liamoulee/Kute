@@ -52,6 +52,7 @@ export function takeReading({ ms, hz, replay }){
             valid = valid && focused() && (document.pointerLockElement !== null) === lockedAtStart;
             resolve({
                 fps: stats?.fps ?? null,
+                p50: stats?.p50 ?? null,
                 p99: stats?.p99 ?? null,
                 maxMs: stats?.maxMs ?? null,
                 stallMs: stats?.stallMs ?? null,

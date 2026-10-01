@@ -74,6 +74,8 @@ interface Kute {
     hostFeatures?: string[];
     /** who holds the fps limit, "viz" = chromium (patch 08), absent or "hook" = the present hook with the busy wait fallback */
     frameLimiter?: "viz" | "hook";
+    /** restart-only settings as this process was started with, by setting id. a stored value that differs needs a restart */
+    running?: Record<string, boolean>;
     /** this PC has a dev token, the token itself never leaves the host */
     dev?: boolean;
     matchmaker: { showFilters(): Promise<void> };

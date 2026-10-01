@@ -2,12 +2,13 @@
     "autoDetect": {
         "name": "Auto-Detect Best Settings",
         "id": "autoDetect",
-        "description": "Tests your PC in a private match for under a minute and picks the best settings. You can undo it",
+        "description": "Tests the client and the game on your PC for about two minutes and picks what runs best. Don't touch mouse or keyboard meanwhile. You can undo it",
         "type": "none",
         "category": "General",
         "button": "Run",
         "buttonAction": "{{kute}}.autoDetect.setUp()",
-        "requiresLogin": true
+        "requiresLogin": true,
+        "hostFeature": "autodetect-v2"
     },
     "autoDetectResult": {
         "name": "Last Auto-Detect Result",

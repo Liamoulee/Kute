@@ -52,11 +52,20 @@ pub fn send_info(frame: &Frame) {
             "custom-sky",
             "performance-mode",
             "cef-patches",
-            "hybrid-gpu"
+            "hybrid-gpu",
+            "autodetect-v2"
         ]),
     );
 
-    // who holds the fps limit: chromium's BeginFrame source (patch 08) or the present hook with the bundle's busy wait fallback
+    // restart-only settings as this process runs them, the page compares them with the stored ones
+    let mut running: serde_json::Map<String, serde_json::Value> = crate::app::PATCHES
+        .iter()
+        .map(|patch| (patch.setting.to_string(), crate::app::feature_enabled(patch.feature).into()))
+        .collect();
+    running.insert("hardFlip".to_string(), (*crate::app::HOOK_AT_START.get().unwrap_or(&true)).into());
+    info_map.insert("running".to_string(), running.into());
+
+    // who holds the fps limit: chromium's display scheduler (patch 08) or the present hook with the bundle's busy wait fallback
     let limiter = if crate::app::feature_enabled("KuteFrameLimiter") { "viz" } else { "hook" };
     info_map.insert("frameLimiter".to_string(), serde_json::Value::String(limiter.to_string()));
 

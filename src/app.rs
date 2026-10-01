@@ -160,7 +160,11 @@ fn color_profile_switch(option: &str) -> Option<&'static str> {
     }
 }
 
+// the gpu process decides about the hook when it starts, a later change of the setting needs a restart
+pub static HOOK_AT_START: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+
 pub fn load_flags() {
+    HOOK_AT_START.get_or_init(|| config("hardFlip", true));
     let mut flags = modules::flaglist::load();
     if let Some(bench) = modules::bench::config() {
         flags.extend(modules::bench::flags(bench));
