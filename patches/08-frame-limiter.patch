@@ -1,10 +1,10 @@
-diff --git a/components/viz/service/display/display.cc b/components/viz/service/display/display.cc
-index 2aa82e4143..5865d9ee1b 100644
---- a/components/viz/service/display/display.cc
-+++ b/components/viz/service/display/display.cc
-@@ -93,10 +93,84 @@
- #include "ui/gfx/android/android_surface_control_compat.h"
- #endif
+diff --git a/components/viz/service/display/display_scheduler.cc b/components/viz/service/display/display_scheduler.cc
+index 442b92908d..0a966d1053 100644
+--- a/components/viz/service/display/display_scheduler.cc
++++ b/components/viz/service/display/display_scheduler.cc
+@@ -26,10 +26,83 @@
+ #include "third_party/perfetto/include/perfetto/tracing/track.h"
+ #include "ui/gfx/presentation_feedback.h"
  
 +#if BUILDFLAG(IS_WIN)
 +#include <windows.h>
@@ -18,19 +18,18 @@ index 2aa82e4143..5865d9ee1b 100644
 +
  namespace viz {
  
-+// Kute: frame production limiter. With --disable-frame-rate-limit a cap had
-+// to be held somewhere: the DXGI hook waited on the present thread (a 1 ms
-+// spin per frame, the whole wait at 500 fps) and without the hook the bundle
-+// busy waited on the game's main thread (other tasks up to 11 ms late). With
-+// this feature the Display draws and presents a frame right away as usual but
-+// holds the surface acks of that frame until the next deadline of the
-+// interval the host writes into its KuteFrameTiming mapping (target_fps,
-+// live). The renderer waits for that ack before its next frame
-+// (KuteFramePacing), so frames start on the grid and reach the screen as soon
-+// as they are drawn, like with the hook's limiter, and nothing spins: a
-+// delayed task covers all but the last two milliseconds, a high resolution
-+// waitable timer the rest. Enabled by Kute with
-+// --enable-features=KuteFrameLimiter.
++// Kute: frame limiter. With --disable-frame-rate-limit a cap had to be held
++// somewhere: the DXGI hook slept inside Present on the GPU thread (a 1 ms spin
++// per frame, the whole wait at 500 fps) and without the hook the bundle busy
++// waited on the game's main thread (other tasks up to 11 ms late). What the
++// hook's sleep really did was delay the swap ack, and a pending swap is what
++// keeps this scheduler from drawing the next frame. With this feature the
++// scheduler does that itself: a swap ack counts only at the next deadline of
++// the interval the host writes into its KuteFrameTiming mapping (target_fps,
++// live). Same state machine path as the hook's limiter, no thread blocked in
++// Present, nothing spins: a precise timer covers all but the last two
++// milliseconds, a high resolution waitable timer the rest. Enabled by Kute
++// with --enable-features=KuteFrameLimiter.
 +BASE_FEATURE(kKuteFrameLimiter,
 +             "KuteFrameLimiter",
 +             base::FEATURE_DISABLED_BY_DEFAULT);
@@ -84,68 +83,73 @@ index 2aa82e4143..5865d9ee1b 100644
 +#endif
 +}
 +
- #if !BUILDFLAG(IS_APPLE)
- DBG_FLAG_FBOOL("delegated.fd.usage", usage_every_frame)
- 
-@@ -358,10 +432,97 @@ Display::~Display() {
-   if (scheduler_)
-     scheduler_->SetClient(nullptr);
- 
-+  // Kute: acks still waiting for their deadline go out now
-+  KuteReleaseAllAcks();
+ base::TimeDelta ComputeAdpfTarget(const BeginFrameArgs& args) {
+   if (args.possible_deadlines) {
+     const auto& deadline = args.possible_deadlines->GetOSPreferredDeadline();
+@@ -131,6 +204,11 @@ DisplayScheduler::~DisplayScheduler() {
+   // in-flight swap. So always mark the gpu as not busy during destruction.
+   begin_frame_source_->SetIsGpuBusy(false);
+   StopObservingBeginFrames();
 +#if BUILDFLAG(IS_WIN)
 +  if (kute_timer_) {
 +    ::CloseHandle(kute_timer_);
 +  }
 +#endif
-+
-   if (damage_tracker_)
-     damage_tracker_->RunDrawCallbacks();
  }
  
-+void Display::KuteHoldAcks(std::vector<SurfaceId> surfaces,
-+                           base::TimeDelta interval) {
-+#if BUILDFLAG(IS_WIN)
-+  base::TimeTicks now = base::TimeTicks::Now();
-+  base::TimeTicks deadline = kute_next_deadline_ + interval;
-+  // anchored to the previous deadline so a late wake does not add up; after
-+  // a pause or on the first frame the schedule restarts from now
-+  if (kute_next_deadline_.is_null() || deadline < now - interval) {
-+    deadline = now;
-+  }
-+  kute_next_deadline_ = deadline;
-+  kute_held_acks_.emplace_back(deadline, std::move(surfaces));
-+  // a running timer serves an older deadline first and re-arms itself
-+  if (!kute_release_timer_.IsRunning()) {
-+    KuteArmRelease();
-+  }
-+#else
-+  damage_tracker_->RunDrawCallbacks();
-+#endif
-+}
-+
-+// Delayed tasks wake at whole milliseconds: all but the last two go through
-+// one, the rest waits on the high resolution timer in KuteReleaseAcks.
-+void Display::KuteArmRelease() {
-+#if BUILDFLAG(IS_WIN)
-+  if (kute_held_acks_.empty()) {
+ void DisplayScheduler::SetTickClockForTesting(  // IN-TEST
+@@ -806,6 +884,19 @@ void DisplayScheduler::DidSwapBuffers() {
+ }
+ 
+ void DisplayScheduler::DidReceiveSwapBuffersAck() {
++  // Kute: with a limit the ack waits for its deadline, see kKuteFrameLimiter.
++  if (KuteLimitInterval().is_positive() || kute_held_swap_acks_ > 0) {
++    kute_held_swap_acks_++;
++    if (!kute_release_timer_.IsRunning()) {
++      KuteArmRelease();
++    }
 +    return;
 +  }
-+  base::TimeTicks deadline = kute_held_acks_.front().first;
-+  kute_release_timer_.SetTaskRunner(current_task_runner_);
++  KuteFinishSwapAck();
++}
++
++// The stock handling of a swap ack.
++void DisplayScheduler::KuteFinishSwapAck() {
+   uint32_t swap_id = next_swap_id_ - pending_swaps_;
+   pending_swaps_--;
+ 
+@@ -818,6 +909,59 @@ void DisplayScheduler::DidReceiveSwapBuffersAck() {
+   ScheduleBeginFrameDeadline();
+ }
+ 
++// One held ack per deadline. The schedule is anchored to the previous deadline
++// so a late wake does not add up; after a pause, on the first frame, or once
++// the limit is lifted it restarts from now.
++void DisplayScheduler::KuteArmRelease() {
++#if BUILDFLAG(IS_WIN)
++  base::TimeDelta interval = KuteLimitInterval();
++  base::TimeTicks now = base::TimeTicks::Now();
++  base::TimeTicks deadline = kute_next_deadline_ + interval;
++  if (interval.is_zero() || kute_next_deadline_.is_null() ||
++      deadline < now - interval) {
++    deadline = now;
++  }
++  kute_release_timer_.SetTaskRunner(task_runner_.get());
 +  kute_release_timer_.Start(
 +      FROM_HERE, deadline - base::Milliseconds(2),
-+      base::BindOnce(&Display::KuteReleaseAcks, base::Unretained(this),
-+                     deadline),
++      base::BindOnce(&DisplayScheduler::KuteReleaseSwapAck,
++                     base::Unretained(this), deadline),
 +      base::subtle::DelayPolicy::kPrecise);
++#else
++  KuteReleaseSwapAck(base::TimeTicks());
 +#endif
 +}
 +
 +// Waits out the rest of the interval on the high resolution timer (the thread
-+// sleeps, no spin), then acks every frame held for this deadline or earlier.
-+void Display::KuteReleaseAcks(base::TimeTicks up_to) {
++// sleeps, no spin), then lets the scheduler see the swap ack.
++void DisplayScheduler::KuteReleaseSwapAck(base::TimeTicks deadline) {
 +#if BUILDFLAG(IS_WIN)
-+  base::TimeDelta remaining = up_to - base::TimeTicks::Now();
++  base::TimeDelta remaining = deadline - base::TimeTicks::Now();
 +  if (remaining.is_positive()) {
 +    if (!kute_timer_) {
 +      kute_timer_ = ::CreateWaitableTimerExW(
@@ -160,122 +164,42 @@ index 2aa82e4143..5865d9ee1b 100644
 +      }
 +    }
 +  }
-+  while (!kute_held_acks_.empty() && kute_held_acks_.front().first <= up_to) {
-+    std::vector<SurfaceId> surfaces = std::move(kute_held_acks_.front().second);
-+    kute_held_acks_.pop_front();
-+    for (const auto& surface_id : surfaces) {
-+      if (Surface* surface = surface_manager_->GetSurfaceForId(surface_id)) {
-+        surface->SendAckToClient();
-+      }
-+    }
++#endif
++  kute_next_deadline_ = deadline;
++  if (kute_held_swap_acks_ > 0) {
++    kute_held_swap_acks_--;
++    KuteFinishSwapAck();
 +  }
-+  KuteArmRelease();
-+#endif
-+}
-+
-+void Display::KuteReleaseAllAcks() {
-+#if BUILDFLAG(IS_WIN)
-+  kute_release_timer_.Stop();
-+#endif
-+  if (!kute_held_acks_.empty()) {
-+    KuteReleaseAcks(base::TimeTicks::Max());
++  if (kute_held_swap_acks_ > 0) {
++    KuteArmRelease();
 +  }
 +}
 +
- void Display::Initialize(DisplayClient* client,
-                          SurfaceManager* surface_manager) {
-   DCHECK(client);
-@@ -604,6 +765,8 @@ bool Display::HasPendingSurfaces(const BeginFrameArgs& args) const {
- }
+ void DisplayScheduler::OnBeginFrameForScheduling(const BeginFrameArgs& args) {
+   if (observing_begin_frame_source_) {
+     OnBeginFrame(args);
+diff --git a/components/viz/service/display/display_scheduler.h b/components/viz/service/display/display_scheduler.h
+index ab50ccc1bf..b63ab8f75c 100644
+--- a/components/viz/service/display/display_scheduler.h
++++ b/components/viz/service/display/display_scheduler.h
+@@ -209,6 +209,20 @@ class VIZ_SERVICE_EXPORT DisplayScheduler
  
- void Display::OnContextLost() {
-+  // Kute: held acks of a lost context go out now, the renderer must not wait
-+  KuteReleaseAllAcks();
-   if (scheduler_)
-     scheduler_->OutputSurfaceLost();
-   // WARNING: The client may delete the Display in this method call. Do not
-@@ -903,7 +1066,14 @@ bool Display::DrawAndSwap(const DrawAndSwapParams& params) {
-       perfetto::NamedTrack("Graphics.Pipeline", display_trace_id));
+   FrameDeadlineDecider decider_;
  
-   // Run callbacks early to allow pipelining and collect presented callbacks.
--  damage_tracker_->RunDrawCallbacks();
-+  // Kute: with the limiter the acks wait for the grid, see kKuteFrameLimiter.
-+  base::TimeDelta kute_interval = KuteLimitInterval();
-+  if (kute_interval.is_positive() && current_task_runner_ &&
-+      !output_surface_->capabilities().skips_draw) {
-+    KuteHoldAcks(damage_tracker_->TakeSurfacesToAck(), kute_interval);
-+  } else {
-+    damage_tracker_->RunDrawCallbacks();
-+  }
- 
-   if (output_surface_->capabilities().skips_draw) {
-     TRACE_EVENT_INSTANT("viz", "Skip draw");
-diff --git a/components/viz/service/display/display.h b/components/viz/service/display/display.h
-index fafc67ded6..02ead228d5 100644
---- a/components/viz/service/display/display.h
-+++ b/components/viz/service/display/display.h
-@@ -19,6 +19,7 @@
- #include "base/task/single_thread_task_runner.h"
- #include "base/threading/platform_thread.h"
- #include "base/time/time.h"
-+#include "base/timer/timer.h"
- #include "components/viz/common/frame_sinks/begin_frame_source.h"
- #include "components/viz/common/gpu/context_lost_observer.h"
- #include "components/viz/common/resources/returned_resource.h"
-@@ -363,6 +364,23 @@ class VIZ_SERVICE_EXPORT Display : public DisplaySchedulerClient,
-   int pending_swaps_ = 0;
- 
-   uint64_t frame_sequence_number_ = 0;
-+
-+  // Kute frame limiter (KuteFrameLimiter): a drawn frame's surface acks are
-+  // held until the next deadline of the interval the host asks for, so the
-+  // renderer (throttled on that ack, KuteFramePacing) starts its next frame on
-+  // the grid while the frame itself was presented right away.
-+  void KuteHoldAcks(std::vector<SurfaceId> surfaces, base::TimeDelta interval);
++  // Kute frame limiter (KuteFrameLimiter): a swap ack is taken note of only at
++  // the next deadline of the interval the host asks for. Until then the swap
++  // counts as pending, which is what already keeps the Display from drawing
++  // the next frame, so frames reach the screen on a fixed grid.
++  void KuteFinishSwapAck();
 +  void KuteArmRelease();
-+  void KuteReleaseAcks(base::TimeTicks up_to);
-+  void KuteReleaseAllAcks();
-+  std::deque<std::pair<base::TimeTicks, std::vector<SurfaceId>>>
-+      kute_held_acks_;
++  void KuteReleaseSwapAck(base::TimeTicks deadline);
++  int kute_held_swap_acks_ = 0;
 +  base::TimeTicks kute_next_deadline_;
-+  // precise delayed task (a plain PostDelayedTask gets its wake aligned,
-+  // measured 1.7 ms late at 240 fps), armed for the oldest held deadline
++  // precise: a plain delayed task gets its wake aligned (1.7 ms late at 240 fps)
 +  base::DeadlineTimer kute_release_timer_;
 +  // high resolution waitable timer, Windows only, created on first use
 +  void* kute_timer_ = nullptr;
++
+   base::WeakPtrFactory<DisplayScheduler> weak_ptr_factory_{this};
  };
  
- }  // namespace viz
-diff --git a/components/viz/service/display/display_damage_tracker.cc b/components/viz/service/display/display_damage_tracker.cc
-index 831a6d3f3e..06f6f7f303 100644
---- a/components/viz/service/display/display_damage_tracker.cc
-+++ b/components/viz/service/display/display_damage_tracker.cc
-@@ -292,6 +292,15 @@ void DisplayDamageTracker::RunDrawCallbacks() {
-   }
- }
- 
-+std::vector<SurfaceId> DisplayDamageTracker::TakeSurfacesToAck() {
-+  std::vector<SurfaceId> surfaces = std::move(surfaces_to_ack_on_next_draw_);
-+  surfaces_to_ack_on_next_draw_.clear();
-+  for (const auto& surface_id : aggregator_->previous_contained_surfaces()) {
-+    surfaces.push_back(surface_id);
-+  }
-+  return surfaces;
-+}
-+
- void DisplayDamageTracker::NotifyDisplayDamaged(SurfaceId surface_id,
-                                                 BeginFrameId frame_id) {
-   if (delegate_) {
-diff --git a/components/viz/service/display/display_damage_tracker.h b/components/viz/service/display/display_damage_tracker.h
-index b3089ab1d8..1063d056e4 100644
---- a/components/viz/service/display/display_damage_tracker.h
-+++ b/components/viz/service/display/display_damage_tracker.h
-@@ -63,6 +63,8 @@ class VIZ_SERVICE_EXPORT DisplayDamageTracker : public SurfaceObserver {
- 
-   // Send Surface Acks to damaged surfaces after draw.
-   void RunDrawCallbacks();
-+  // Kute: the surfaces RunDrawCallbacks would ack now, for acking later.
-+  std::vector<SurfaceId> TakeSurfacesToAck();
- 
-   // This returns whether there are pending surfaces. SurfaceIs pending if the
-   // corresponding CompositorFrameSink has received BeginFrame but hasn't
