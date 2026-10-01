@@ -574,7 +574,8 @@ class AutoDetect {
         const hz = dev.hz ?? (display?.hz > 1 ? display.hz : 60);
         /** @type {{name: string, software: boolean, vramMb: number}[]} */
         const gpus = (specs.gpus ?? []).filter((/** @type {{software: boolean}} */ gpu) => !gpu.software);
-        const gpuName = [...gpus].sort((a, b) => b.vramMb - a.vramMb)[0]?.name ?? "unknown graphics card";
+        // the adapter the game renders on when the exe knows it, else the one with the most memory
+        const gpuName = specs.renderAdapter?.name ?? [...gpus].sort((a, b) => b.vramMb - a.vramMb)[0]?.name ?? "unknown graphics card";
 
         panel.progress("Testing the client", 0.03);
         const settingsNow = {

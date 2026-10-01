@@ -23,6 +23,7 @@ pub mod modules {
     pub mod dpapi;
     pub mod files;
     pub mod flaglist;
+    pub mod gpu;
     pub mod icons;
     pub mod input;
     pub mod lifecycle;
@@ -102,6 +103,8 @@ fn main() {
     // before cef starts, the driver reads the profile when the gpu process spawns
     if bench.is_none() {
         modules::nvidia::ensure_profile();
+        // also before: the gpu process reads hardFlip and windows' gpu preference at its start
+        modules::gpu::apply_hybrid_defaults();
         modules::power::boost();
     }
     app::create_frame_timing_mapping();
