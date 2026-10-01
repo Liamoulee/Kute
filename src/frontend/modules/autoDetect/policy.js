@@ -37,6 +37,8 @@ export const CLOCK_MS = 0.1;
  * @property {number|null} thermalLimit percent the firmware allows for heat
  * @property {number|null} temperature hottest thermal zone, celsius
  * @property {Record<string, {render: number, copy: number}>} gpu busy percent per adapter luid
+ * @property {{clockMhz: number|null, temperature: number|null, heldBack: number|null}[]|null} [nvidia] per NVIDIA chip, at
+ *     the moment of the sample: its clock, and the driver's reasons for holding it back as bits (1 heat, 2 power limit)
  */
 
 /**

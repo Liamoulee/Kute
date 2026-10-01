@@ -80,6 +80,8 @@ const WORSE = {
  * @property {Reading[]} [unlimited] the first readings without a limit
  * @property {Reading[]} [played] the readings as the player had it
  * @property {Reading[]} [recheck] the readings of a new client setup in the game, after the restart
+ * @property {{ms: number, fps: number, load: import("./policy.js").Load|null}[]} [trace] a PC that collapses, without a
+ *     limit, in steps of 300 ms: what gives way when the frame rate drops
  * @property {Record<string, any>} [client] the client settings the run started with, and what limits frames
  * @property {string|null} [hybridSource] "observed" from the swap chain's device, "inferred" from Windows' preference
  * @property {{render: string|null, display: string|null}} [adapters] luids of the chip that renders and the one the screen hangs on
@@ -343,17 +345,34 @@ function loadHtml(report){
     ];
     const { render = null, display = null } = report.adapters ?? {};
     const two = render !== null && display !== null && render !== display;
+    // the fastest clock of the NVIDIA chips: the one that renders, an idle second one sits at its lowest
+    const clockOf = (/** @type {import("./policy.js").Load|null|undefined} */ load) => {
+        const clocks = (load?.nvidia ?? []).map((gpu) => gpu.clockMhz).filter((clock) => typeof clock === "number");
+        return clocks.length > 0 ? Math.max(.../** @type {number[]} */ (clocks)) : null;
+    };
+    const heldBack = (/** @type {import("./policy.js").Load|null|undefined} */ load) => {
+        const bits = (load?.nvidia ?? []).reduce((all, gpu) => all | (gpu.heldBack ?? 0), 0);
+        const reasons = [[1, "heat"], [2, "power limit"], [4, "battery"], [16, "weak power supply"]].filter(([bit]) => (bits & Number(bit)) !== 0).map(([, name]) => name);
+        if (reasons.length > 0) return reasons.join(", ");
+        return bits === 0 ? "no" : `yes (${bits})`;
+    };
+    const nvidia = [...(report.played ?? []), ...(report.unlimited ?? [])].some((reading) => (reading.load?.nvidia ?? []).length > 0);
     const rows = sets.filter(([, readings]) => readings.some((reading) => reading.load)).map(([label, readings]) => {
         const loads = readings.map((reading) => reading.load);
         const chip = (/** @type {string|null} */ luid, /** @type {"render"|"copy"} */ kind) => span(loads.map((load) => (luid === null ? null : load?.gpu?.[luid]?.[kind])), "%");
         return `<tr><td>${label}</td><td>${span(readings.map((reading) => reading.fps), "")}</td><td>${span(loads.map((load) => load?.cpuBusy), "%")}</td>
-            <td>${span(loads.map((load) => load?.cpuSpeed), "%")}</td><td>${chip(render, "render")}</td>${two ? `<td>${chip(display, "render")}</td><td>${chip(display, "copy")}</td>` : ""}
+            <td>${span(loads.map((load) => load?.cpuSpeed), "%")}</td><td>${chip(render, "render")}</td>${nvidia ? `<td>${span(loads.map(clockOf), "MHz")}</td>` : ""}
+            ${two ? `<td>${chip(display, "render")}</td><td>${chip(display, "copy")}</td>` : ""}
             <td>${span(loads.map((load) => load?.temperature), "C")}</td><td>${span(loads.map((load) => load?.thermalLimit), "%")}</td></tr>`;
     });
     if (rows.length === 0) return "";
-    return `<table><tr><th>What the PC did</th><th>FPS</th><th>Processor busy</th><th>Processor speed</th><th>Graphics card busy</th>
+    const trace = (report.trace ?? []).map((step) => `<tr><td>${(step.ms / 1000).toFixed(1)} s</td><td>${step.fps}</td><td>${span([step.load?.cpuSpeed], "%")}</td>
+        <td>${span([render === null ? null : step.load?.gpu?.[render]?.render], "%")}</td><td>${span([clockOf(step.load)], "MHz")}</td><td>${heldBack(step.load)}</td></tr>`);
+    return `<table><tr><th>What the PC did</th><th>FPS</th><th>Processor busy</th><th>Processor speed</th><th>Graphics card busy</th>${nvidia ? "<th>Graphics clock</th>" : ""}
         ${two ? "<th>Screen's chip busy</th><th>Screen's chip copying</th>" : ""}<th>Hottest</th><th>Heat limit</th></tr>${rows.join("")}</table>
-        <p>Processor speed is its share of the nominal clock: above 100 % with turbo, far below while the PC throttles it. A heat limit under 100 % means the firmware slows the PC down.</p>`;
+        <p>Processor speed is its share of the nominal clock: above 100 % with turbo, far below while the PC throttles it. A heat limit under 100 % means the firmware slows the PC down.
+        A graphics clock that drops while the frame rate drops means the graphics driver is saving power.</p>
+        ${trace.length > 0 ? `<table><tr><th>Without a limit</th><th>FPS</th><th>Processor speed</th><th>Graphics card busy</th><th>Graphics clock</th><th>Driver holds it back</th></tr>${trace.join("")}</table>` : ""}`;
 }
 
 /**
@@ -974,6 +993,27 @@ class AutoDetect {
             return reading;
         };
         /**
+         * six seconds without a limit in small steps, for the report of a PC that collapses there: frame rate next to
+         * processor speed, graphics load and graphics clock says which of them gives way. decides nothing
+         *
+         * @return {Promise<NonNullable<Report["trace"]>>}
+         */
+        const traceUnlimited = async() => {
+            if (!loadKnown) return [];
+            await sample(0, REPLAY_CIRCLE_MS);
+            window.chrome.webview.postMessage(`input-replay, ${10 * REPLAY_CIRCLE_MS}`);
+            /** @type {NonNullable<Report["trace"]>} */
+            const steps = [];
+            const start = performance.now();
+            await request("load-sample", "loadSample", 500);
+            while (performance.now() - start < 10 * REPLAY_CIRCLE_MS && !this.cancelled){
+                const fps = await rateOver(300);
+                steps.push({ ms: Math.round(performance.now() - start), fps: Math.round(fps), load: await request("load-sample", "loadSample", 500) });
+            }
+            window.chrome.webview.postMessage("input-replay-stop");
+            return steps;
+        };
+        /**
          * two usable readings of one limit, what every decision needs. a window that lost focus says nothing and is
          * read again, a few times
          *
@@ -1405,6 +1445,13 @@ class AutoDetect {
         if (pushed) await recover(bestCap);
         const finalReadings = await sampleTwice(bestCap, pushed ? PUSHED_READ_MS : READ_MS);
         if (this.cancelled) return null;
+        // after the last check: what it does to the PC must not reach a reading
+        const trace = pushed ? await traceUnlimited() : [];
+        if (pushed && appliedCap !== bestCap){
+            applyClient("gameFpsLimit", bestCap);
+            appliedCap = bestCap;
+        }
+        if (this.cancelled) return null;
         const measured = {
             capacity,
             noise,
@@ -1417,6 +1464,7 @@ class AutoDetect {
             settings,
             plan,
             pushed: pushedFacts,
+            ...(trace.length > 0 ? { trace } : {}),
         };
         const capChanged = bestCap !== originalCap;
         // same number, but held by kute's limiter with the processor idle instead of the game's busy loop
