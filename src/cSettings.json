@@ -458,7 +458,7 @@
     "hardFlip": {
         "name": "DXGI Swapchain Hook",
         "id": "hardFlip",
-        "description": "Exact FPS limit, present FPS counter and OBS capture. Laptops with two graphics chips may run better without it",
+        "description": "Present FPS counter and OBS capture. Laptops with two graphics chips may run better without it",
         "type": "checkbox",
         "category": "Engine",
         "defaultValue": true,
@@ -478,6 +478,16 @@
         "name": "Frame Pacing",
         "id": "patchFramePacing",
         "description": "Chromium patch: the game runs one frame ahead of the screen instead of flooding it. Off brings back the GPU stutter",
+        "type": "checkbox",
+        "category": "Engine",
+        "defaultValue": true,
+        "needsRestart": true,
+        "hostFeature": "cef-patches"
+    },
+    "patchFrameLimiter": {
+        "name": "Chromium FPS Limiter",
+        "id": "patchFrameLimiter",
+        "description": "Chromium patch: holds the FPS limit inside Chromium with the CPU idle, with or without the hook. Off uses the hook's limiter, or a busy wait without the hook",
         "type": "checkbox",
         "category": "Engine",
         "defaultValue": true,
