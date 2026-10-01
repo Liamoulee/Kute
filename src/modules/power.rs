@@ -5,7 +5,7 @@ use windows::{
     core::*,
 };
 
-use crate::{CONFIG, debug_print, modules, utils};
+use crate::{CONFIG, debug_print, modules};
 
 // windows' power mode overlays (the slider), from powrprof's public guids
 const BEST_PERFORMANCE: GUID = GUID::from_u128(0xded574b5_45a0_4f42_8737_46345c09c238);
@@ -64,21 +64,35 @@ pub fn battery() -> (bool, bool) {
 
 // a plugged in laptop on windows' default power mode gets "best performance" while kute runs
 pub fn boost() {
-    if modules::bench::active() || !utils::config("laptopPowerBoost", true) || battery() != (true, false) {
+    if modules::bench::active() {
         return;
     }
     let Some((get, set)) = overlay_api() else { return };
     let Some(now) = current(get) else { return };
     let mut config = CONFIG.lock().unwrap();
-    if now == BEST_PERFORMANCE {
-        // ours from a start that never got to put it back
-        if let Some(previous) = config.get::<String>(RESTORE_SETTING) {
+    // a marker from a start that never put the overlay back (crash, kill). adopted before anything else: a start with
+    // the setting off or on battery has to put it back too, it used to forget it
+    if !BOOSTED.load(Ordering::Relaxed)
+        && let Some(previous) = config.get::<String>(RESTORE_SETTING)
+    {
+        if now == BEST_PERFORMANCE {
             PREVIOUS_BETTER.store(previous == "better", Ordering::Relaxed);
             BOOSTED.store(true, Ordering::Relaxed);
+        } else {
+            // the player picked another mode meanwhile, nothing of ours is left
+            config.set(RESTORE_SETTING, serde_json::Value::Null);
+            config.save();
         }
+    }
+    if !config.get::<bool>("laptopPowerBoost").unwrap_or(true) || battery() != (true, false) {
+        drop(config);
+        restore();
         return;
     }
-    // anything else is a mode the player picked on purpose
+    if BOOSTED.load(Ordering::Relaxed) {
+        return;
+    }
+    // anything but windows' two defaults is a mode the player picked on purpose
     let previous = if now == GUID::zeroed() {
         "balanced"
     } else if now == BETTER_PERFORMANCE {
@@ -86,31 +100,40 @@ pub fn boost() {
     } else {
         return;
     };
+    // the marker first: a crash between the two leaves a marker without a boost, which the next start drops
+    config.set(RESTORE_SETTING, previous);
+    config.save();
     if unsafe { set(&BEST_PERFORMANCE) } == 0 {
         PREVIOUS_BETTER.store(previous == "better", Ordering::Relaxed);
         BOOSTED.store(true, Ordering::Relaxed);
-        config.set(RESTORE_SETTING, previous);
-        config.save();
         debug_print!("power: overlay {previous} -> best performance");
+    } else {
+        config.set(RESTORE_SETTING, serde_json::Value::Null);
+        config.save();
     }
 }
 
 // only puts back an overlay that is still the one kute set, a mode the player changed meanwhile stays.
-// also the panic hook's way out: no config lock (the panicking thread may hold it), the marker then stays for the next start
+// also the panic hook's way out: no config lock (the panicking thread may hold it), the marker then stays for the next start.
+// true: nothing of ours is left, the marker can go. a failed set keeps both for the next try
 pub fn put_back() -> bool {
     if !BOOSTED.swap(false, Ordering::Relaxed) {
         return false;
     }
     let Some((get, set)) = overlay_api() else { return true };
-    if current(get) == Some(BEST_PERFORMANCE) {
-        let overlay = if PREVIOUS_BETTER.load(Ordering::Relaxed) {
-            BETTER_PERFORMANCE
-        } else {
-            GUID::zeroed()
-        };
-        unsafe { set(&overlay) };
+    if current(get) != Some(BEST_PERFORMANCE) {
+        return true;
     }
-    true
+    let overlay = if PREVIOUS_BETTER.load(Ordering::Relaxed) {
+        BETTER_PERFORMANCE
+    } else {
+        GUID::zeroed()
+    };
+    if unsafe { set(&overlay) } == 0 {
+        return true;
+    }
+    BOOSTED.store(true, Ordering::Relaxed);
+    false
 }
 
 pub fn restore() {
