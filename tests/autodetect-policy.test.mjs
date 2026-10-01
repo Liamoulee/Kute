@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { capCandidates, choose, compare, experienceHolds, headroom, refineCaps, summarize } from "../src/frontend/modules/autoDetect/policy.js";
+import { capCandidates, choose, compare, experienceHolds, headroom, refineCaps, screen, summarize } from "../src/frontend/modules/autoDetect/policy.js";
 
 /**
  * @param {Partial<import("../src/frontend/modules/autoDetect/policy.js").Reading>} values
@@ -63,6 +63,23 @@ describe("choose", () => {
         const choice = choose({ id: "now", readings: incumbent }, [{ id: "smoother", readings: smoother }, { id: "lessLag", readings: lessLag }]);
         expect(choice.winner).toBe("lessLag");
         expect(choice.decidedBy).toBe("taskP99");
+    });
+});
+
+describe("screen", () => {
+    const base = summarize(hookOn);
+
+    test("one clearly better reading is worth a second one", () => {
+        expect(screen(hookOff[0], base)).toBe("contender");
+    });
+
+    test("a lag regression is out after one reading, whatever the fps", () => {
+        expect(screen(reading({ fps: 2000, p99: 1.0, taskP99: 11 }), base)).toBe("worse");
+    });
+
+    test("inside the incumbent's own spread nothing is said", () => {
+        expect(screen(reading({ fps: 704, p99: 2.05, taskP99: 2.35 }), base)).toBe("same");
+        expect(screen(reading({ fps: 2000, invalid: true }), base)).toBe("same");
     });
 });
 

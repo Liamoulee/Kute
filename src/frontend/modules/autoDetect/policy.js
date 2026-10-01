@@ -96,6 +96,30 @@ export function compare(metric, candidate, incumbent){
 }
 
 /**
+ * one reading of a candidate against the incumbent's readings: is it worth a second reading? only the incumbent's
+ * spread is known here, so this screens, it never decides
+ *
+ * @param {Reading} reading
+ * @param {Summary} incumbent needs two readings per metric to say anything
+ * @return {"contender"|"worse"|"same"} worse: behind in an experience metric. contender: ahead somewhere and not worse
+ */
+export function screen(reading, incumbent){
+    if (reading.invalid) return "same";
+    let ahead = false;
+    for (const metric of ALL_METRICS){
+        const value = reading[metric];
+        const base = incumbent[metric];
+        if (typeof value !== "number" || base.median === null || base.spread === null) continue;
+        const gain = HIGHER_IS_BETTER.has(metric) ? value - base.median : base.median - value;
+        const important = Math.max(Math.abs(value), Math.abs(base.median)) * IMPORTANT_SHARE;
+        if (Math.abs(gain) <= base.spread || Math.abs(gain) < important) continue;
+        if (gain < 0 && EXPERIENCE.includes(metric)) return "worse";
+        if (gain > 0) ahead = true;
+    }
+    return ahead ? "contender" : "same";
+}
+
+/**
  * @typedef {object} Candidate
  * @property {string} id
  * @property {Reading[]} readings
