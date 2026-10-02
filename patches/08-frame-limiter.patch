@@ -1,0 +1,205 @@
+diff --git a/components/viz/service/display/display_scheduler.cc b/components/viz/service/display/display_scheduler.cc
+index 442b92908d..0a966d1053 100644
+--- a/components/viz/service/display/display_scheduler.cc
++++ b/components/viz/service/display/display_scheduler.cc
+@@ -26,10 +26,83 @@
+ #include "third_party/perfetto/include/perfetto/tracing/track.h"
+ #include "ui/gfx/presentation_feedback.h"
+ 
++#if BUILDFLAG(IS_WIN)
++#include <windows.h>
++
++#include <atomic>
++
++#include "base/environment.h"
++#include "base/functional/bind.h"
++#include "base/strings/utf_string_conversions.h"
++#endif
++
+ namespace viz {
+ 
++// Kute: frame limiter. With --disable-frame-rate-limit a cap had to be held
++// somewhere: the DXGI hook slept inside Present on the GPU thread (a 1 ms spin
++// per frame, the whole wait at 500 fps) and without the hook the bundle busy
++// waited on the game's main thread (other tasks up to 11 ms late). What the
++// hook's sleep really did was delay the swap ack, and a pending swap is what
++// keeps this scheduler from drawing the next frame. With this feature the
++// scheduler does that itself: a swap ack counts only at the next deadline of
++// the interval the host writes into its KuteFrameTiming mapping (target_fps,
++// live). Same state machine path as the hook's limiter, no thread blocked in
++// Present, nothing spins: a precise timer covers all but the last two
++// milliseconds, a high resolution waitable timer the rest. Enabled by Kute
++// with --enable-features=KuteFrameLimiter.
++BASE_FEATURE(kKuteFrameLimiter,
++             "KuteFrameLimiter",
++             base::FEATURE_DISABLED_BY_DEFAULT);
++
+ namespace {
+ 
++#if BUILDFLAG(IS_WIN)
++// target_fps of SharedState in Kute's render-dll (shared.rs), third u64.
++constexpr size_t kKuteTargetFpsOffset = 16;
++
++// The mapping is created by the host before the GPU process starts. Missing
++// means no limit. Opened once, never closed, the process owns it for life.
++const std::atomic<uint64_t>* KuteTargetFpsField() {
++  static const std::atomic<uint64_t>* field = [] {
++    auto env = base::Environment::Create();
++    std::string name = env->GetVar("KUTE_TIMING_MAPPING")
++                           .value_or(std::string("KuteFrameTiming"));
++    HANDLE mapping =
++        ::OpenFileMappingW(FILE_MAP_READ, FALSE, base::UTF8ToWide(name).c_str());
++    if (!mapping) {
++      return static_cast<const std::atomic<uint64_t>*>(nullptr);
++    }
++    void* view = ::MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, 0);
++    if (!view) {
++      return static_cast<const std::atomic<uint64_t>*>(nullptr);
++    }
++    return reinterpret_cast<const std::atomic<uint64_t>*>(
++        static_cast<char*>(view) + kKuteTargetFpsOffset);
++  }();
++  return field;
++}
++#endif
++
++base::TimeDelta KuteLimitInterval() {
++#if BUILDFLAG(IS_WIN)
++  static const bool enabled = base::FeatureList::IsEnabled(kKuteFrameLimiter);
++  if (!enabled) {
++    return base::TimeDelta();
++  }
++  const std::atomic<uint64_t>* field = KuteTargetFpsField();
++  if (!field) {
++    return base::TimeDelta();
++  }
++  uint64_t fps = field->load(std::memory_order_relaxed);
++  if (fps == 0) {
++    return base::TimeDelta();
++  }
++  return base::Nanoseconds(1000000000 / fps);
++#else
++  return base::TimeDelta();
++#endif
++}
++
+ base::TimeDelta ComputeAdpfTarget(const BeginFrameArgs& args) {
+   if (args.possible_deadlines) {
+     const auto& deadline = args.possible_deadlines->GetOSPreferredDeadline();
+@@ -131,6 +204,11 @@ DisplayScheduler::~DisplayScheduler() {
+   // in-flight swap. So always mark the gpu as not busy during destruction.
+   begin_frame_source_->SetIsGpuBusy(false);
+   StopObservingBeginFrames();
++#if BUILDFLAG(IS_WIN)
++  if (kute_timer_) {
++    ::CloseHandle(kute_timer_);
++  }
++#endif
+ }
+ 
+ void DisplayScheduler::SetTickClockForTesting(  // IN-TEST
+@@ -806,6 +884,19 @@ void DisplayScheduler::DidSwapBuffers() {
+ }
+ 
+ void DisplayScheduler::DidReceiveSwapBuffersAck() {
++  // Kute: with a limit the ack waits for its deadline, see kKuteFrameLimiter.
++  if (KuteLimitInterval().is_positive() || kute_held_swap_acks_ > 0) {
++    kute_held_swap_acks_++;
++    if (!kute_release_timer_.IsRunning()) {
++      KuteArmRelease();
++    }
++    return;
++  }
++  KuteFinishSwapAck();
++}
++
++// The stock handling of a swap ack.
++void DisplayScheduler::KuteFinishSwapAck() {
+   uint32_t swap_id = next_swap_id_ - pending_swaps_;
+   pending_swaps_--;
+ 
+@@ -818,6 +909,59 @@ void DisplayScheduler::DidReceiveSwapBuffersAck() {
+   ScheduleBeginFrameDeadline();
+ }
+ 
++// One held ack per deadline. The schedule is anchored to the previous deadline
++// so a late wake does not add up; after a pause, on the first frame, or once
++// the limit is lifted it restarts from now.
++void DisplayScheduler::KuteArmRelease() {
++#if BUILDFLAG(IS_WIN)
++  base::TimeDelta interval = KuteLimitInterval();
++  base::TimeTicks now = base::TimeTicks::Now();
++  base::TimeTicks deadline = kute_next_deadline_ + interval;
++  if (interval.is_zero() || kute_next_deadline_.is_null() ||
++      deadline < now - interval) {
++    deadline = now;
++  }
++  kute_release_timer_.SetTaskRunner(task_runner_.get());
++  kute_release_timer_.Start(
++      FROM_HERE, deadline - base::Milliseconds(2),
++      base::BindOnce(&DisplayScheduler::KuteReleaseSwapAck,
++                     base::Unretained(this), deadline),
++      base::subtle::DelayPolicy::kPrecise);
++#else
++  KuteReleaseSwapAck(base::TimeTicks());
++#endif
++}
++
++// Waits out the rest of the interval on the high resolution timer (the thread
++// sleeps, no spin), then lets the scheduler see the swap ack.
++void DisplayScheduler::KuteReleaseSwapAck(base::TimeTicks deadline) {
++#if BUILDFLAG(IS_WIN)
++  base::TimeDelta remaining = deadline - base::TimeTicks::Now();
++  if (remaining.is_positive()) {
++    if (!kute_timer_) {
++      kute_timer_ = ::CreateWaitableTimerExW(
++          nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION,
++          TIMER_ALL_ACCESS);
++    }
++    if (kute_timer_) {
++      LARGE_INTEGER due;
++      due.QuadPart = -(remaining.InNanoseconds() / 100);
++      if (::SetWaitableTimer(kute_timer_, &due, 0, nullptr, nullptr, FALSE)) {
++        ::WaitForSingleObject(kute_timer_, INFINITE);
++      }
++    }
++  }
++#endif
++  kute_next_deadline_ = deadline;
++  if (kute_held_swap_acks_ > 0) {
++    kute_held_swap_acks_--;
++    KuteFinishSwapAck();
++  }
++  if (kute_held_swap_acks_ > 0) {
++    KuteArmRelease();
++  }
++}
++
+ void DisplayScheduler::OnBeginFrameForScheduling(const BeginFrameArgs& args) {
+   if (observing_begin_frame_source_) {
+     OnBeginFrame(args);
+diff --git a/components/viz/service/display/display_scheduler.h b/components/viz/service/display/display_scheduler.h
+index ab50ccc1bf..b63ab8f75c 100644
+--- a/components/viz/service/display/display_scheduler.h
++++ b/components/viz/service/display/display_scheduler.h
+@@ -209,6 +209,20 @@ class VIZ_SERVICE_EXPORT DisplayScheduler
+ 
+   FrameDeadlineDecider decider_;
+ 
++  // Kute frame limiter (KuteFrameLimiter): a swap ack is taken note of only at
++  // the next deadline of the interval the host asks for. Until then the swap
++  // counts as pending, which is what already keeps the Display from drawing
++  // the next frame, so frames reach the screen on a fixed grid.
++  void KuteFinishSwapAck();
++  void KuteArmRelease();
++  void KuteReleaseSwapAck(base::TimeTicks deadline);
++  int kute_held_swap_acks_ = 0;
++  base::TimeTicks kute_next_deadline_;
++  // precise: a plain delayed task gets its wake aligned (1.7 ms late at 240 fps)
++  base::DeadlineTimer kute_release_timer_;
++  // high resolution waitable timer, Windows only, created on first use
++  void* kute_timer_ = nullptr;
++
+   base::WeakPtrFactory<DisplayScheduler> weak_ptr_factory_{this};
+ };
+ 

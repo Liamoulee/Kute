@@ -724,19 +724,33 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         if modules::bench::config().is_some_and(|bench| bench.hook) {
             app::take_present_intervals();
         }
+        modules::bench::sample_start();
         return;
     }
     if let Some(result) = message_string.strip_prefix("bench-finish ") {
         modules::bench::finish(result);
         return;
     }
-    if let Some(configs) = message_string.strip_prefix("run-bench-matrix ") {
+    if let Some(payload) = message_string.strip_prefix("run-bench-matrix ") {
+        // "<run id> [configs]", or only "[configs]" from a bundle older than run ids
+        let (run, configs) = match payload.split_once(' ') {
+            Some((run, configs)) if !payload.starts_with('[') => (run.parse().unwrap_or(0), configs),
+            _ => (0, payload),
+        };
         // ends up on a command line, whitelist the chars
         let configs: Vec<String> = serde_json::from_str(configs).unwrap_or_default();
         let harmless = |config: &String| config.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '=' | ',' | '.'));
         if !modules::bench::active() && configs.len() <= 8 && configs.iter().all(harmless) {
-            modules::bench::run_matrix(browser, configs);
+            modules::bench::run_matrix(browser, run, configs);
         }
+        return;
+    }
+    if message_string == "bench-cancel" {
+        modules::bench::cancel_matrix();
+        return;
+    }
+    if let Some(cap) = message_string.strip_prefix("bench-cap ") {
+        modules::bench::set_cap(cap.parse().unwrap_or(0));
         return;
     }
     let parts: Vec<&str> = message_string.split(", ").map(|s| s.trim()).collect();
@@ -751,6 +765,13 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             }
             if *setting == "disableCats" {
                 modules::blocklist::set_cats_off(*value == "true");
+            }
+            if *setting == "laptopPowerBoost" {
+                if *value == "true" {
+                    modules::power::boost()
+                } else {
+                    modules::power::restore()
+                }
             }
             // overrides disableCats and swapper, the stored values stay
             if *setting == "performanceMode" {
@@ -803,6 +824,13 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             let hwnd = window::root_hwnd(browser).unwrap_or_default();
             bridge::post_json(browser, &serde_json::json!({ "specs": modules::specs::collect(hwnd) }).to_string());
         }
+        // the pc's load since the previous call, for the auto-detect report. the counters block some ms
+        ["load-sample"] => {
+            let browser_id = browser.identifier();
+            std::thread::spawn(move || {
+                bridge::post_json_later(browser_id, serde_json::json!({ "loadSample": modules::load::sample() }).to_string());
+            });
+        }
         // swap chain fps, 0 without the hook
         ["get-present"] => {
             let fps = app::render_stats().map(|(fps, _)| fps).unwrap_or(0);
@@ -827,6 +855,15 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             if let (Ok(x), Ok(y)) = (x.parse(), y.parse()) {
                 modules::devtools::click(browser, x, y);
             }
+        }
+        // auto-detect's input script for one sample, see replay.rs
+        ["input-replay", ms] => {
+            if let (Ok(ms), Some(hwnd)) = (ms.parse(), window::root_hwnd(browser)) {
+                modules::replay::start(hwnd, browser.identifier(), ms);
+            }
+        }
+        ["input-replay-stop"] => {
+            modules::replay::stop();
         }
         ["close"] => {
             window::close_all();

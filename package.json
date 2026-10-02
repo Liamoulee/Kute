@@ -17,6 +17,7 @@
         "build:auto-update": "bun run esbuild && cargo build --workspace --release --features packaged,auto-update,editor-ignore && bun postbuild.js release",
         "package": "bun run build:auto-update && wix build ./resources/installer_script.wxs -ext WixToolset.Util.wixext -o target/kute-setup-x86_64.msi",
         "lint": "eslint .",
+        "test": "bun test ./tests",
         "lint:fix": "eslint . --fix",
         "typecheck": "tsc -p jsconfig.json && tsc -p src/frontend/jsconfig.json && tsc -p server/tsconfig.json"
     },
@@ -37,7 +38,7 @@
     "devDependencies": {
         "@babel/core": "^8.0.5",
         "@babel/eslint-parser": "^8.0.5",
-        "@types/node": "^22.20.3",
+        "@types/bun": "^1.4.2",
         "@typescript-eslint/eslint-plugin": "^8.70.0",
         "@typescript-eslint/parser": "^8.70.0",
         "@typescript/native": "npm:typescript@^7.0.2",

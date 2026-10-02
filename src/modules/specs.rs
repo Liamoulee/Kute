@@ -2,11 +2,18 @@ use serde_json::{Value, json};
 use windows::{
     Win32::{
         Foundation::*,
-        Graphics::{Dxgi::*, Gdi::*},
-        System::{Power::*, Registry::*, SystemInformation::*},
+        Graphics::Gdi::*,
+        System::{Registry::*, SystemInformation::*},
     },
     core::*,
 };
+
+use crate::modules::{gpu, power};
+
+// luids as hex strings, a u64 does not survive JSON numbers
+fn luid_text(luid: u64) -> String {
+    format!("{luid:x}")
+}
 
 fn wide_to_string(wide: &[u16]) -> String {
     let len = wide.iter().position(|&c| c == 0).unwrap_or(wide.len());
@@ -19,12 +26,11 @@ unsafe extern "system" fn monitor_enum(hmonitor: HMONITOR, _: HDC, _: *mut RECT,
     true.into()
 }
 
-fn displays(hwnd: HWND) -> Vec<Value> {
+fn displays(host: HMONITOR, adapters: &[gpu::Adapter]) -> Vec<Value> {
     let mut monitors: Vec<HMONITOR> = Vec::new();
     unsafe {
         let _ = EnumDisplayMonitors(None, None, Some(monitor_enum), LPARAM(&mut monitors as *mut _ as isize));
     }
-    let host = unsafe { MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) };
 
     monitors
         .into_iter()
@@ -54,31 +60,26 @@ fn displays(hwnd: HWND) -> Vec<Value> {
                 "hz": mode.dmDisplayFrequency,
                 "primary": primary,
                 "hostsWindow": hmonitor == host,
+                // the adapter this display is wired to, null when no adapter lists it
+                "adapter": adapters.iter().find(|adapter| adapter.outputs.contains(&(hmonitor.0 as isize))).map(|adapter| luid_text(adapter.luid)),
             }))
         })
         .collect()
 }
 
-fn gpus() -> Vec<Value> {
-    let mut out = Vec::new();
-    let factory: IDXGIFactory1 = match unsafe { CreateDXGIFactory1() } {
-        Ok(f) => f,
-        Err(_) => return out,
-    };
-    let mut index = 0;
-    while let Ok(adapter) = unsafe { factory.EnumAdapters1(index) } {
-        index += 1;
-        let Ok(desc) = (unsafe { adapter.GetDesc1() }) else {
-            continue;
-        };
-        out.push(json!({
-            "name": wide_to_string(&desc.Description),
-            "vramMb": desc.DedicatedVideoMemory / (1024 * 1024),
-            "vendorId": desc.VendorId,
-            "software": desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE.0 as u32 != 0,
-        }));
-    }
-    out
+fn gpus(adapters: &[gpu::Adapter]) -> Vec<Value> {
+    adapters
+        .iter()
+        .map(|adapter| {
+            json!({
+                "name": adapter.name,
+                "vramMb": adapter.vram_mb,
+                "vendorId": adapter.vendor_id,
+                "software": adapter.software,
+                "luid": luid_text(adapter.luid),
+            })
+        })
+        .collect()
 }
 
 fn cpu_name() -> String {
@@ -109,17 +110,6 @@ fn ram_mb() -> u64 {
     }
 }
 
-fn power() -> (bool, bool) {
-    let mut status = SYSTEM_POWER_STATUS::default();
-    if unsafe { GetSystemPowerStatus(&mut status) }.is_err() {
-        return (false, false);
-    }
-    // BatteryFlag 128 = no system battery, 255 = unknown
-    let laptop = status.BatteryFlag & 128 == 0 && status.BatteryFlag != 255;
-    let on_battery = laptop && status.ACLineStatus == 0;
-    (laptop, on_battery)
-}
-
 // e.g. "26200", the presentation path differs between builds
 fn os_build() -> String {
     let mut buf = [0u16; 32];
@@ -139,15 +129,30 @@ fn os_build() -> String {
 }
 
 pub fn collect(hwnd: HWND) -> Value {
-    let (laptop, on_battery) = power();
+    let (laptop, on_battery) = power::battery();
     let (user_flags, disabled_defaults) = crate::modules::flaglist::user_flag_names();
+    let adapters = gpu::adapters();
+    let host = unsafe { MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) };
+    let topology = gpu::topology(host, &adapters);
+    let render = topology.render.map(|luid| {
+        json!({
+            "luid": luid_text(luid),
+            "name": adapters.iter().find(|adapter| adapter.luid == luid).map(|adapter| adapter.name.as_str()),
+        })
+    });
     json!({
         "osBuild": os_build(),
         // names only, values can contain user paths
         "userFlags": user_flags,
         "disabledDefaults": disabled_defaults,
-        "displays": displays(hwnd),
-        "gpus": gpus(),
+        "displays": displays(host, &adapters),
+        "gpus": gpus(&adapters),
+        // the adapter the game renders on. hybridSource "observed": read from the game's swap chain (hook on),
+        // "inferred": windows' preference order, "unknown": hybrid is null and nothing may be decided from it
+        "renderAdapter": render,
+        "hybrid": topology.hybrid(),
+        "hybridSource": topology.source(),
+        "powerOverlay": power::overlay_name(),
         "cpu": {
             "name": cpu_name(),
             "threads": std::thread::available_parallelism().map(|n| n.get()).unwrap_or(0),

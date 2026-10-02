@@ -181,6 +181,7 @@ pub fn set_panic_hook() -> io::Result<()> {
     let log_file_path = crash_log_path();
 
     panic::set_hook(Box::new(move |panic_info| {
+        crate::modules::power::put_back();
         let crash_message = format!(
             "Version: {}\n\
             Location: {}\n\

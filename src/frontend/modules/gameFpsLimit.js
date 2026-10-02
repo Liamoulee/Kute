@@ -85,7 +85,8 @@ function verifyHostLimiter(targetFps, timestamp){
 
     const fps = framesInWindow / (elapsed / 1000);
     windowsOverTarget = fps > targetFps * TOLERANCE ? windowsOverTarget + 1 : 0;
-    if (windowsOverTarget >= 2) busyWait = true;
+    // chromium itself holds the limit (KuteFrameLimiter): the busy wait would only delay every other task by up to 11 ms
+    if (windowsOverTarget >= 2 && kute.frameLimiter !== "viz") busyWait = true;
 
     framesInWindow = 0;
     windowStart = timestamp;

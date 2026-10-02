@@ -1,5 +1,5 @@
 diff --git a/cc/scheduler/scheduler_state_machine.cc b/cc/scheduler/scheduler_state_machine.cc
-index ce6e121c9b..d86080db59 100644
+index ce6e121c9b..43f86893e8 100644
 --- a/cc/scheduler/scheduler_state_machine.cc
 +++ b/cc/scheduler/scheduler_state_machine.cc
 @@ -7,7 +7,9 @@
@@ -12,13 +12,14 @@ index ce6e121c9b..d86080db59 100644
  #include "base/metrics/histogram_macros.h"
  #include "base/notreached.h"
  #include "base/rand_util.h"
-@@ -30,7 +32,25 @@ namespace cc {
+@@ -30,7 +32,40 @@ namespace cc {
  
  namespace {
  // Surfaces and CompositorTimingHistory don't support more than 1 pending swap.
 -constexpr int kMaxPendingSubmitFrames = 1;
-+constexpr int kMaxPendingSubmitFrames = 1;  // unchanged - safe default
++constexpr int kMaxPendingSubmitFrames = 1;  // unchanged — safe default
 +
++// KCC: expose the frame-queue depth as a runtime-tunable feature param.
 +// Feature params propagate to the renderer process automatically (field
 +// trials), which is required because this scheduler runs in the renderer,
 +// not the browser. The "Higher Max FPS" toggle in the client sets:
@@ -29,26 +30,42 @@ index ce6e121c9b..d86080db59 100644
 +constexpr base::FeatureParam<int> kMaxPendingFramesCount{
 +    &kCustomMaxPendingFrames, "count", kMaxPendingSubmitFrames};  // default 1
 +
-+// Read once and cache. Floor of 1 - 0/negative would disable throttling and
++// Read once and cache. Floor of 1, 0/negative would disable throttling and
 +// reintroduce the unbounded-queue flood the patch exists to prevent.
 +int MaxPendingSubmitFrames() {
 +  static const int value = std::max(1, kMaxPendingFramesCount.Get());
 +  return value;
 +}
++
++// Kute: draw throttling stays on with --disable-frame-rate-limit, so the
++// renderer runs at most MaxPendingSubmitFrames() ahead of the swap acks
++// instead of flooding the main thread with back to back BeginMainFrames
++// (the stutter when the GPU is the limit). Off, stock Chromium exempts an
++// unlimited frame rate from throttling. Enabled by Kute with
++// --enable-features=KuteFramePacing.
++BASE_FEATURE(kKuteFramePacing,
++             "KuteFramePacing",
++             base::FEATURE_DISABLED_BY_DEFAULT);
++
++bool KuteFramePacing() {
++  static const bool value = base::FeatureList::IsEnabled(kKuteFramePacing);
++  return value;
++}
  
  constexpr float kFrameThrottlingSlackFactor = 0.9;
  
-@@ -1507,8 +1527,7 @@ bool SchedulerStateMachine::IsDrawThrottled() const {
+@@ -1507,8 +1542,8 @@ bool SchedulerStateMachine::IsDrawThrottled() const {
    if (base::FeatureList::IsEnabled(features::kNoCompositorFrameAcks)) {
      return false;
    }
 -  return pending_submit_frames_ >= kMaxPendingSubmitFrames &&
 -         !settings_.disable_frame_rate_limit;
-+  return pending_submit_frames_ >= MaxPendingSubmitFrames();
++  return pending_submit_frames_ >= MaxPendingSubmitFrames() &&
++         (KuteFramePacing() || !settings_.disable_frame_rate_limit);
  }
  
  void SchedulerStateMachine::SetVisible(bool visible) {
-@@ -1577,7 +1596,7 @@ void SchedulerStateMachine::DidSubmitCompositorFrame() {
+@@ -1577,7 +1612,7 @@ void SchedulerStateMachine::DidSubmitCompositorFrame() {
      // We should remove or change this once VRR support is implemented for
      // Windows and other platforms potentially.
      if (!settings_.disable_frame_rate_limit) {

@@ -34,16 +34,17 @@
 	transform: unset;
 }
 
+/* season 10 put the class preview in the center, the gap between logo and spectate toggle is free */
 #uiBase.onMenu .spectateInfo {
 	position: fixed;
-	top: calc(50% + 80px);
+	top: calc(40% - 105px);
 	left: 50%;
 	transform: translate(-50%, -50%);
 }
 
 #uiBase.onMenu #spectateUI div .spectateInfo #specTimer {
 	background-color: #00000000;
-	padding: 25px;
+	padding: 0 25px;
 	font-size: 42px;
 	border-radius: 0.5em;
 }
