@@ -78,9 +78,10 @@ function configFor(pipeline, common){
 /**
  * @param {any} stats FrameStats of the bench page
  * @param {any} otherTasks
+ * @param {any} [present] the hook's present intervals, when the bench ran with it
  * @return {Reading}
  */
-function readingOf(stats, otherTasks){
+function readingOf(stats, otherTasks, present){
     const number = (/** @type {unknown} */ value) => (typeof value === "number" && Number.isFinite(value) ? value : null);
     return {
         fps: number(stats?.fps),
@@ -91,6 +92,7 @@ function readingOf(stats, otherTasks){
         taskP99: number(otherTasks?.p99),
         // no mouse in a bench process
         inputP99: null,
+        presentMs: number(present?.p50),
         invalid: !stats || !(stats.fps > 0),
     };
 }
@@ -172,7 +174,7 @@ export async function searchPipeline({ hz, progress, cancelled }){
     // incumbent first and last, its two readings bracket the flips and give the spread
     const first = await matrix([configFor(current, common), ...flips.map((flip) => configFor(flip.pipeline, common)), configFor(current, common)], PROCESS_TIMEOUT_MS * (flips.length + 2));
     if (cancelled() || first === null) return null;
-    const read = (/** @type {any} */ result) => readingOf(result?.page?.stats, result?.page?.otherTasks);
+    const read = (/** @type {any} */ result) => readingOf(result?.page?.stats, result?.page?.otherTasks, result?.present);
     const incumbentReadings = [read(first[0]), read(first[first.length - 1])];
     const base = summarize(incumbentReadings);
 
