@@ -18,12 +18,14 @@ export const CLOCK_MS = 0.1;
 /**
  * @typedef {object} Reading one measurement window of one configuration. null = not measured, never a zero
  * @property {number|null} fps
- * @property {number|null} [p50] typical frame interval, ms. what `relative` and an fps limit's cost are measured from
+ * @property {number|null} [p50] typical frame interval, ms. what frame spikes and an fps limit's cost are measured from
  * @property {number|null} p99 frame interval, ms
  * @property {number|null} maxMs longest frame interval
  * @property {number|null} stallMs ms per second spent in frames over the hitch threshold
  * @property {number|null} taskP99 main thread task delay, ms
  * @property {number|null} inputP99 pointer event wait, ms
+ * @property {number|null} [presentMs] typical interval between two frames handed to the screen, from the present hook.
+ *     null or missing without the hook
  * @property {boolean} [invalid] focus lost, still loading, left the room: the window says nothing
  * @property {string} [why] what made it invalid
  * @property {Load|null} [load] what the PC did meanwhile, report only
@@ -50,6 +52,8 @@ export const CLOCK_MS = 0.1;
  * @property {number} n usable readings
  * @property {number|null} median
  * @property {number|null} spread max - min, null with fewer than two readings
+ * @property {number|null} [worst] the worst usable reading, what `guard` judges a candidate by
+ * @property {number|null} [best] the best one, what a candidate has to beat to win
  */
 
 /**
@@ -87,10 +91,14 @@ export function summarize(readings){
     for (const metric of ALL_METRICS){
         const values = usable.map((reading) => reading[metric]).filter((value) => typeof value === "number" && Number.isFinite(value));
         const known = /** @type {number[]} */ (values);
+        const ends = [Math.min(...known), Math.max(...known)];
+        const [worst, best] = HIGHER_IS_BETTER.has(metric) ? ends : ends.reverse();
         summary[metric] = {
             n: known.length,
             median: known.length > 0 ? median(known) : null,
-            spread: known.length > 1 ? Math.max(...known) - Math.min(...known) : null,
+            spread: known.length > 1 ? Math.abs(best - worst) : null,
+            worst: known.length > 0 ? worst : null,
+            best: known.length > 0 ? best : null,
         };
     }
     return summary;
@@ -124,6 +132,43 @@ export function compare(metric, candidate, incumbent){
     return gain > 0 ? "better" : "worse";
 }
 
+/**
+ * may a candidate be kept, as far as this metric goes? stricter than `compare` on purpose: the candidate counts by its
+ * worst reading, and only the incumbent's own spread excuses a difference. with `compare` a candidate's spread hid its
+ * own regression (readings of 100 and 900 fps were "the same" as a steady 500)
+ *
+ * @param {Metric} metric
+ * @param {Summary} candidate
+ * @param {Summary} incumbent
+ * @param {number} [floor] the smallest difference the clock can show in this metric
+ * @return {"ok"|"worse"|"unknown"} unknown: fewer than two usable readings on a side. never a permission
+ */
+export function guard(metric, candidate, incumbent, floor = floorOf(metric)){
+    const a = candidate[metric];
+    const b = incumbent[metric];
+    if (a.n < 2 || typeof a.worst !== "number" || b.median === null || b.spread === null) return "unknown";
+    const loss = HIGHER_IS_BETTER.has(metric) ? b.median - a.worst : a.worst - b.median;
+    const important = Math.max(Math.abs(a.worst), Math.abs(b.median)) * IMPORTANT_SHARE;
+    return loss > Math.max(b.spread, floor) && loss >= important ? "worse" : "ok";
+}
+
+/**
+ * is the candidate better in this metric, for sure? its worst reading has to beat the incumbent's best by a margin
+ * that counts. medians apart by more than the spread was not enough: a longest frame of 2.2 and 3.0 ms against
+ * 3.1, 3.6 and 3.8 "won" a restart of the client, on single frames
+ *
+ * @param {Metric} metric
+ * @param {Summary} candidate
+ * @param {Summary} incumbent
+ * @return {boolean} false when a side has fewer than two usable readings
+ */
+export function wins(metric, candidate, incumbent){
+    const a = candidate[metric];
+    const b = incumbent[metric];
+    if (a.n < 2 || b.n < 2 || typeof a.worst !== "number" || typeof b.best !== "number") return false;
+    const gain = HIGHER_IS_BETTER.has(metric) ? a.worst - b.best : b.best - a.worst;
+    return gain > floorOf(metric) && gain >= Math.max(Math.abs(a.worst), Math.abs(b.best)) * IMPORTANT_SHARE;
+}
 
 /**
  * one reading of a candidate against the incumbent's readings: is it worth a second reading? only the incumbent's
@@ -193,10 +238,10 @@ export function choose(incumbent, candidates, options = {}){
         /** @type {Partial<Record<Metric, Verdict>>} */
         const verdicts = {};
         for (const metric of ALL_METRICS) verdicts[metric] = compare(metric, summary, base);
-        const rejected = EXPERIENCE.some((metric) => verdicts[metric] === "worse");
+        const rejected = EXPERIENCE.some((metric) => guard(metric, summary, base) === "worse");
         /** @type {Metric|null} */
-        let decidedBy = EXPERIENCE.find((metric) => verdicts[metric] === "better") ?? null;
-        if (decidedBy === null && options.fpsCounts !== false && verdicts.fps === "better") decidedBy = "fps";
+        let decidedBy = EXPERIENCE.find((metric) => wins(metric, summary, base)) ?? null;
+        if (decidedBy === null && options.fpsCounts !== false && wins("fps", summary, base)) decidedBy = "fps";
         return { id: candidate.id, summary, verdicts, rejected, decidedBy };
     });
 
@@ -262,48 +307,50 @@ export function collapses(readings){
  * @return {number[]} the limits `steadyLimit` wants read, lowest first: stop at the first that is not steady
  */
 export function steadyRungs(hz){
-    return Array.from({ length: TARGET_REFRESH_MULTIPLE }, (_, index) => (index + 2) * hz);
+    return Array.from({ length: TARGET_REFRESH_MULTIPLE + 1 }, (_, index) => (index + 1) * hz);
 }
 
 /**
  * the limit for a PC that collapses when it is pushed: the highest multiple of the refresh rate, up to the target,
  * whose next step up still ran steadily. the empty test match is the lightest load the game has, so a limit that is
- * only just steady there is not steady in a fight (the laptop above played at 515, steady in the test, laggy in
- * matches). the room is one refresh rate, the screen's own unit, and it is measured, not assumed
+ * only just steady there is not steady in a fight (a laptop played at 515, steady in the test, laggy in matches).
+ * the room is one refresh rate, the screen's own unit, and it is measured, not assumed. a limit that did not run
+ * steadily itself is never the answer: the refresh rate used to be the fallback without having been proven
  *
  * @param {number} hz
  * @param {Map<number, Reading[]>} readings per limit
- * @return {{cap: number, steadyUpTo: number|null}} steadyUpTo: the highest limit that ran steadily, null: none did
+ * @return {{cap: number|null, steadyUpTo: number|null}} steadyUpTo: the highest limit that ran steadily. both null:
+ *     none did, there is no limit to offer
  */
 export function steadyLimit(hz, readings){
-    let cap = hz;
+    /** @type {number|null} */
+    let cap = null;
     /** @type {number|null} */
     let steadyUpTo = null;
     for (const rung of steadyRungs(hz)){
         if (!steady(readings.get(rung) ?? [], rung)) break;
-        if (steadyUpTo !== null) cap = steadyUpTo;
+        cap = steadyUpTo ?? rung;
         steadyUpTo = rung;
     }
     return { cap, steadyUpTo };
 }
 
 /**
- * a reading with its time metrics taken from its own typical frame: how much later than usual the slow frames and
- * the mouse come, not how long a frame is. for comparing across fps limits (a cap's frames are longer by design) and
- * across two spawns in the match (another view costs another frame time). fps is dropped, it is neither comparable
+ * the game draws frames that never reach the screen: the present hook sees them come slower than the page draws.
+ * what the player sees then follows the presents, not the page's frames
  *
  * @param {Reading} reading
- * @return {Reading}
+ * @return {boolean} false when presents were not measured
  */
-export function relative(reading){
-    const base = reading.p50;
-    const beyond = (/** @type {number|null} */ value) => (typeof value === "number" && typeof base === "number" ? Math.max(0, value - base) : null);
-    return { ...reading, fps: null, p99: beyond(reading.p99), maxMs: beyond(reading.maxMs), inputP99: beyond(reading.inputP99) };
+export function flooding(reading){
+    const { presentMs, p50 } = reading;
+    if (typeof presentMs !== "number" || typeof p50 !== "number") return false;
+    return presentMs - p50 > Math.max(2 * CLOCK_MS, presentMs * IMPORTANT_SHARE);
 }
 
 /**
- * a reading as fps limits get compared: the waits as they are (a longer frame makes the mouse wait longer, that is the
- * limit's price and it is in the number), frame spikes from the limit's own frame time (a limit's frames are longer by
+ * a reading as two setups get compared: the waits as they are (a longer frame makes the mouse wait longer, that is a
+ * limit's price and it is in the number), frame spikes from the setup's own frame time (a limit's frames are longer by
  * design, its spikes are not allowed to be)
  *
  * @param {Reading} reading
@@ -312,11 +359,23 @@ export function relative(reading){
 export function atLimit(reading){
     const base = reading.p50;
     const beyond = (/** @type {number|null} */ value) => (typeof value === "number" && typeof base === "number" ? Math.max(0, value - base) : null);
-    return { ...reading, fps: null, p99: beyond(reading.p99), maxMs: beyond(reading.maxMs) };
+    // a drawn frame that is not shown carries nothing to the player: the mouse waits for the next one that is
+    const unseen = flooding(reading) ? /** @type {number} */ (reading.presentMs) - /** @type {number} */ (base) : 0;
+    const inputP99 = typeof reading.inputP99 === "number" ? reading.inputP99 + unseen : reading.inputP99;
+    return { ...reading, fps: null, p99: beyond(reading.p99), maxMs: beyond(reading.maxMs), inputP99 };
 }
 
 /** a limit may not get worse in any of these, see atLimit */
 const CAP_GUARDS = /** @type {Metric[]} */ (["taskP99", "inputP99", "p99", "stallMs", "maxMs"]);
+
+/**
+ * @param {Metric} metric of a reading as atLimit made it
+ * @return {number} frame spikes there are a frame time minus a frame time: four clock readings, not two. a limiter's
+ *     0.25 ms of jitter counted as "slow frames came later" against a clock that moves in 0.1 ms steps
+ */
+function floorAtLimit(metric){
+    return metric === "p99" || metric === "maxMs" ? 4 * CLOCK_MS : floorOf(metric);
+}
 
 /**
  * @typedef {object} CapJudged
@@ -345,8 +404,9 @@ const CAP_GUARDS = /** @type {Metric[]} */ (["taskP99", "inputP99", "p99", "stal
  *
  * @param {Map<number, Reading[]>} readings per limit, 0 = none
  * @param {number} incumbent the limit in use
- * @param {{prefer?: number}} [options] prefer: a limit that takes over when it measures equal and draws fewer frames
- *     (laptops: the target rate instead of everything the PC can do)
+ * @param {{prefer?: number, inputRequired?: boolean}} [options] prefer: a limit that takes over when it measures equal
+ *     and draws fewer frames (laptops: the target rate instead of everything the PC can do). inputRequired: in the
+ *     match a limit that draws fewer frames is not judged without a mouse wait on both sides, its price would be a guess
  * @return {CapChoice}
  */
 export function chooseCap(readings, incumbent, options = {}){
@@ -370,10 +430,12 @@ export function chooseCap(readings, incumbent, options = {}){
             return { cap, summary, frameMs, netMs: null, outcome: /** @type {const} */ ("not steady") };
         }
         const verdicts = Object.fromEntries(CAP_GUARDS.map((metric) => [metric, compare(metric, summary, base)]));
-        if (frameMs === null || baseFrame === null || verdicts.taskP99 === "unknown"){
+        const fewer = incumbent === 0 || (cap > 0 && cap < incumbent);
+        const unjudged = verdicts.taskP99 === "unknown" || (options.inputRequired === true && fewer && verdicts.inputP99 === "unknown");
+        if (frameMs === null || baseFrame === null || unjudged){
             return { cap, summary, frameMs, netMs: null, outcome: /** @type {const} */ ("not better") };
         }
-        const gainIn = (/** @type {Metric} */ metric) => (verdicts[metric] === "better" || verdicts[metric] === "worse" ? (base[metric].median ?? 0) - (summary[metric].median ?? 0) : 0);
+        const gainIn = (/** @type {Metric} */ metric) => (wins(metric, summary, base) ? (base[metric].median ?? 0) - (summary[metric].median ?? 0) : 0);
         const task = gainIn("taskP99");
         // no mouse wait on one side (a bench process, a replay that did not arrive): the frame time stands in for it
         const input = verdicts.inputP99 === "unknown" ? null : gainIn("inputP99");
@@ -381,7 +443,7 @@ export function chooseCap(readings, incumbent, options = {}){
         measured.set(cap, task + (input ?? 0));
         /** @type {CapJudged["outcome"]} */
         let outcome = "not better";
-        if (CAP_GUARDS.some((metric) => verdicts[metric] === "worse")) outcome = "worse";
+        if (CAP_GUARDS.some((metric) => guard(metric, summary, base, floorAtLimit(metric)) === "worse")) outcome = "worse";
         // two frame times of 2.0 ms differ by 0.00000006 in floating point, that is not a gain
         else if (netMs > 2 * CLOCK_MS) outcome = "better";
         return { cap, summary, frameMs, netMs, gains: { task, input }, outcome };
@@ -398,6 +460,54 @@ export function chooseCap(readings, incumbent, options = {}){
         return { winner: preferred.cap, changed: true, decidedBy: "tie", judged };
     }
     return { winner: incumbent, changed: false, decidedBy: null, judged };
+}
+
+/**
+ * @typedef {object} Acceptance
+ * @property {boolean} keep
+ * @property {"reference"|"result"|"unsteady"|"frame"|Metric|null} failed why not: no two usable readings of the
+ *     player's own setup or of the result, a result that does not run steadily, or the metric that measures worse
+ */
+
+/**
+ * the one rule a result passes before it is kept, whatever chose it (client setup, fps limit, the limit of a PC that
+ * collapses, battery, game settings). the player's setup stays unless both sides have two usable readings, the result
+ * runs steadily, and nothing a player feels measures worse: task delay and mouse wait as measured, frame spikes
+ * beyond the setup's own frame time, stalls, and the frame rate when the limit is the same. what cannot be compared
+ * is not kept: an unknown is never a permission
+ *
+ * @param {Reading[]} reference the game as the player had it
+ * @param {Reading[]} result
+ * @param {{capBefore: number, capAfter: number}} limits the fps limit each side ran at, 0 = none
+ * @return {Acceptance}
+ */
+export function accept(reference, result, { capBefore, capAfter }){
+    const usable = (/** @type {Reading[]} */ readings) => readings.filter((reading) => !reading.invalid);
+    if (usable(reference).length < 2) return { keep: false, failed: "reference" };
+    if (usable(result).length < 2) return { keep: false, failed: "result" };
+    const before = summarize(reference.map(atLimit));
+    const after = summarize(result.map(atLimit));
+    const slower = guard("fps", summarize(result), summarize(reference)) === "worse";
+
+    if (unsteady(result, capAfter)){
+        // both unsteady: kept only on evidence that it stalls less and draws no fewer frames. "also bad" is no reason
+        const improves = unsteady(reference, capBefore) && wins("stallMs", after, before) && !slower;
+        if (!improves) return { keep: false, failed: "unsteady" };
+    }
+    for (const metric of CAP_GUARDS){
+        const verdict = guard(metric, after, before, floorAtLimit(metric));
+        if (verdict === "worse") return { keep: false, failed: metric };
+        // the mouse wait is the one metric a usable reading can lack (the input replay did not reach the game)
+        if (verdict === "unknown" && metric !== "inputP99") return { keep: false, failed: "reference" };
+    }
+    if (guard("inputP99", after, before) === "unknown"){
+        // without it a longer frame is a longer wait
+        const frame = (/** @type {Reading[]} */ readings) => median(usable(readings).map((reading) => reading.p50 ?? 0));
+        const longer = frame(result) - frame(reference);
+        if (longer > Math.max(2 * CLOCK_MS, frame(result) * IMPORTANT_SHARE)) return { keep: false, failed: "frame" };
+    }
+    if (capBefore === capAfter && slower) return { keep: false, failed: "fps" };
+    return { keep: true, failed: null };
 }
 
 /**
