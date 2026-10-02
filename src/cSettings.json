@@ -164,6 +164,15 @@
         "category": "Interface",
         "defaultValue": true
     },
+    "classicMenu": {
+        "name": "Classic Menu",
+        "id": "classicMenu",
+        "performance": false,
+        "description": "Season 9 menu layout, new buttons and features stay",
+        "type": "checkbox",
+        "category": "Interface",
+        "defaultValue": false
+    },
     "betterChat": {
         "name": "Better Chat",
         "id": "betterChat",

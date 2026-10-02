@@ -101,6 +101,19 @@ function applyInterface(id, value){
                 document.querySelector("#kute_menuTimerCSS")?.remove();
             }
             break;
+        case "classicMenu":
+            if (value){
+                import("./components/classicMenu.css").then((css) => {
+                    const classicMenuCSS = document.createElement("style");
+                    classicMenuCSS.id = "kute_classicMenuCSS";
+                    classicMenuCSS.textContent = css.default;
+                    document.head.append(classicMenuCSS);
+                });
+            }
+            else {
+                document.querySelector("#kute_classicMenuCSS")?.remove();
+            }
+            break;
         case "cleanUI": {
             if (value){
                 import("./components/clean.css").then((css) => {

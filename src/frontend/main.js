@@ -85,6 +85,16 @@ document.addEventListener(
                 document.head.append(cleanCSS);
             });
         });
+
+        ready.then(() => {
+            if (!kute.settings.data.classicMenu) return;
+            import("./components/classicMenu.css").then((css) => {
+                const classicMenuCSS = document.createElement("style");
+                classicMenuCSS.id = "kute_classicMenuCSS";
+                classicMenuCSS.textContent = css.default;
+                document.head.append(classicMenuCSS);
+            });
+        });
     },
     { once: true },
 );
