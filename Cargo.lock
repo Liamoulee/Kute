@@ -696,7 +696,7 @@ dependencies = [
 
 [[package]]
 name = "kute"
-version = "0.1.16"
+version = "0.1.17"
 dependencies = [
  "base64",
  "cef",
