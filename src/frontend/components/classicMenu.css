@@ -1,0 +1,166 @@
+/* season 9 menu layout over the season 10 markup, values from s9 main.css */
+
+#uiBase.onMenu #spectButton {
+	top: calc(48% - 60px);
+}
+
+#instructions {
+	top: 50%;
+}
+
+#subLogoButtons {
+	right: auto;
+	left: 50%;
+	bottom: 139px;
+	width: 950px;
+	display: grid;
+	grid-template-columns: repeat(6, 1fr);
+	gap: 10px;
+	transform: translate(-50%, 0) scale(0.95);
+	transform-origin: bottom center;
+}
+
+#matchInfoHolder {
+	grid-column: 1 / -1;
+	position: static;
+	order: -2;
+	box-sizing: border-box;
+	width: 100%;
+	justify-content: space-between;
+	transform: none;
+	padding: 0 0 12px;
+	margin-bottom: 10px;
+	font-size: 20px;
+	background: none;
+	border: none;
+	border-bottom: 5px solid #585858;
+	border-radius: 0;
+	box-shadow: none;
+	backdrop-filter: none;
+}
+
+#mapInfo {
+	font-size: 20px;
+}
+
+#mapInfoHld {
+	padding-left: 7px;
+}
+
+/* two big buttons over three, a lone custom games row looked off */
+#subLogoButtons > .actionCard {
+	grid-column: span 2;
+	justify-content: center;
+	box-sizing: border-box;
+	width: auto;
+	height: auto;
+	padding: 6px 18px;
+	font-size: 27px;
+	text-transform: none;
+	background: rgba(0, 0, 0, 0.2);
+	box-shadow: none;
+}
+
+#subLogoButtons > .actionCard .cardIcon {
+	display: none;
+}
+
+#subLogoButtons > .actionCard .cardLabel {
+	font-size: 27px;
+	text-transform: none;
+	letter-spacing: normal;
+}
+
+#subLogoButtons > #menuBtnQuickMatch,
+#subLogoButtons > #menuBtnRanked {
+	grid-column: span 3;
+}
+
+#menuBtnHost,
+#menuBtnBrowser {
+	border-color: #ed4242 !important;
+}
+
+/* new in s10, kept below the buttons */
+#subLogoButtons > .popRail {
+	grid-column: 1 / -1;
+	order: 1;
+	margin-top: 10px;
+}
+
+#menuClassContainer {
+	left: auto;
+	right: 21px;
+	bottom: 80px;
+	text-align: right;
+	transform: scale(0.7);
+	transform-origin: bottom right;
+}
+
+#menuClassContainer::before {
+	display: none;
+}
+
+#menuClassFooter {
+	flex-direction: column;
+	align-items: flex-end;
+	margin: 0 0 0 auto;
+}
+
+#menuClassContainerInner {
+	justify-content: flex-end;
+	width: 449px;
+	height: 85px;
+	padding: 0;
+	gap: 0;
+	background: none;
+	border: none;
+}
+
+#menuClassContainerInner:hover {
+	background: none;
+	filter: brightness(1.15);
+}
+
+#menuClassContainerInfo {
+	height: 85px;
+	justify-content: space-between;
+}
+
+#menuClassIcn {
+	width: 85px;
+	height: 85px;
+	margin-left: 10px;
+	border: 4px solid #353534;
+	border-radius: 4px;
+}
+
+#menuClassName {
+	font-size: 17px;
+}
+
+#menuClassSubtext {
+	font-size: 30px;
+	margin-bottom: 0;
+}
+
+#classPreviewCanvas {
+	margin-bottom: -100px;
+	margin-right: -113px;
+}
+
+#customizeButton {
+	box-sizing: border-box;
+	width: 449px;
+	padding: 15px;
+	font-size: 27px !important;
+}
+
+#bubbleContainer {
+	right: 420px;
+}
+
+/* the s9 spot under click to play is taken by the popular now row */
+body #uiBase.onMenu .spectateInfo {
+	top: calc(48% - 150px);
+}
