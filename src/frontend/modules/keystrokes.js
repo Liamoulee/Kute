@@ -71,8 +71,10 @@ function keyLabel(code){
 function boundKeys(bind, fallback){
     /** @type {number[]} */
     const codes = [];
-    let stored = false;
-    for (const key of [`cont_${bind}_alt`, `cont_${bind}`]){
+    // krunker stores each slot only once it is changed, an unchanged primary is still the default
+    /** @type {[string, number][]} slot, its value while unchanged */
+    const slots = [[`cont_${bind}_alt`, -1], [`cont_${bind}`, fallback]];
+    for (const [key, unset] of slots){
         let value = null;
         try {
             value = window.localStorage.getItem(key);
@@ -80,12 +82,10 @@ function boundKeys(bind, fallback){
         catch {
             value = null;
         }
-        if (value === null) continue;
-        stored = true;
-        const code = Number(value);
+        const code = value === null ? unset : Number(value);
         if (code > 0 && code < 10000) codes.push(code);
     }
-    return stored ? codes : [fallback];
+    return codes;
 }
 
 class Keystrokes {
