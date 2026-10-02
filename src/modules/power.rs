@@ -120,9 +120,19 @@ pub fn put_back() -> bool {
     if !BOOSTED.swap(false, Ordering::Relaxed) {
         return false;
     }
-    let Some((get, set)) = overlay_api() else { return true };
-    if current(get) != Some(BEST_PERFORMANCE) {
-        return true;
+    // only a mode that was read and is another one says the player changed it. an api or a read that fails says nothing,
+    // the marker stays for the next start
+    let Some((get, set)) = overlay_api() else {
+        BOOSTED.store(true, Ordering::Relaxed);
+        return false;
+    };
+    match current(get) {
+        Some(overlay) if overlay == BEST_PERFORMANCE => {}
+        Some(_) => return true,
+        None => {
+            BOOSTED.store(true, Ordering::Relaxed);
+            return false;
+        }
     }
     let overlay = if PREVIOUS_BETTER.load(Ordering::Relaxed) {
         BETTER_PERFORMANCE
