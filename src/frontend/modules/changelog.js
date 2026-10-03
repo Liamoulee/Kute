@@ -16,48 +16,63 @@ function semverCompare(a, b){
 
 const REPO_API = "https://api.github.com/repos/NullDev/Kute";
 
-/** @type {Promise<string[]>|null} */
-let tagList = null;
+/** @typedef {{tag: string, body: string, date: string}} Release */
+
+/** @type {Map<number, Promise<Release|null>>} published releases by position, 1 = newest */
+const releaseCache = new Map();
+/** @type {number|null} published releases, from the paging header */
+let releaseCount = null;
 
 /**
- * version tags, newest first: names only, the notes load per release. empty when github can't be reached
+ * one release per request, so only the ones the player looks at load. drafts never show to an anonymous request
  *
- * @return {Promise<string[]>}
+ * @param {number} position 1 = newest published release
+ * @return {Promise<Release|null>} null: past the end, or github can't be reached
  */
-function versionTags(){
-    tagList ??= fetch(`${REPO_API}/tags?per_page=100`)
-        .then((res) => (res.ok ? res.json() : []))
-        .then((/** @type {{name?: string}[]} */ data) => data
-            .map((tag) => String(tag.name))
-            .filter((name) => /^\d+\.\d+\.\d+$/.test(name))
-            .sort((x, y) => semverCompare(y, x)))
-        .catch(() => {
-            tagList = null;
-            return [];
-        });
-    return tagList;
-}
-
-/** @type {Map<string, Promise<{body: string, date: string}|null>>} */
-const notesCache = new Map();
-
-/**
- * @param {string} tag
- * @return {Promise<{body: string, date: string}|null>} empty body: no published release (a draft keeps its tag). null: github can't be reached
- */
-function releaseNotes(tag){
-    let notes = notesCache.get(tag);
-    if (!notes){
-        notes = fetch(`${REPO_API}/releases/tags/${encodeURIComponent(tag)}`)
-            .then((res) => (res.ok || res.status === 404 ? res.json() : null))
-            .then((data) => (data ? { body: String(data.body ?? ""), date: String(data.published_at ?? "").slice(0, 10) } : null))
+function releaseAt(position){
+    let release = releaseCache.get(position);
+    if (!release){
+        release = fetch(`${REPO_API}/releases?per_page=1&page=${position}`)
+            .then(async(res) => {
+                if (!res.ok) throw new Error(`github ${res.status}`);
+                /** @type {any[]} */
+                const data = await res.json();
+                const last = (res.headers.get("link") ?? "").match(/[?&]page=(\d+)>; rel="last"/);
+                // the last page has no "last" link of its own
+                if (last) releaseCount = Number(last[1]);
+                else if (data.length > 0) releaseCount = Math.max(releaseCount ?? 0, position);
+                const [item] = data;
+                return item ? { tag: String(item.tag_name), body: String(item.body ?? ""), date: String(item.published_at ?? "").slice(0, 10) } : null;
+            })
             .catch(() => {
-                notesCache.delete(tag);
+                releaseCache.delete(position);
                 return null;
             });
-        notesCache.set(tag, notes);
+        releaseCache.set(position, release);
     }
-    return notes;
+    return release;
+}
+
+/**
+ * @param {string} version
+ * @return {Promise<number>} its position, 1 when it has no published release (dev build) or github can't be reached
+ */
+async function positionOf(version){
+    const newest = await releaseAt(1);
+    if (!newest || newest.tag === version || releaseCount === null) return 1;
+    // newest first, so the versions fall along the positions: a few requests even for an old exe
+    let low = 2;
+    let high = releaseCount;
+    while (low <= high){
+        const middle = Math.floor((low + high) / 2);
+        const release = await releaseAt(middle);
+        if (!release) return 1;
+        const order = semverCompare(release.tag, version);
+        if (order === 0) return middle;
+        if (order > 0) low = middle + 1;
+        else high = middle - 1;
+    }
+    return 1;
 }
 
 (async() => {
@@ -112,42 +127,40 @@ function releaseNotes(tag){
             if (e.target === overlay) close();
         });
 
-        /** @type {string[]} newest first, the opened version is in it even without a tag (dev build) */
-        let tags = [version];
-        let shown = 0;
+        let shown = 1;
         let renders = 0;
 
         const updateNav = () => {
+            const total = releaseCount ?? 1;
             const position = element("changelogPosition");
-            if (position) position.textContent = `${tags.length - shown} / ${tags.length}`;
-            element("changelogOlder")?.classList.toggle("changelogDisabled", shown === tags.length - 1);
-            element("changelogNewer")?.classList.toggle("changelogDisabled", shown === 0);
+            if (position) position.textContent = `${shown} / ${total}`;
+            element("changelogNewer")?.classList.toggle("changelogDisabled", shown <= 1);
+            element("changelogOlder")?.classList.toggle("changelogDisabled", shown >= total);
             const nav = element("changelogNav");
-            if (nav) nav.style.display = tags.length > 1 ? "" : "none";
+            if (nav) nav.style.display = total > 1 ? "" : "none";
         };
 
-        const show = async(/** @type {number} */ index) => {
-            shown = Math.min(Math.max(index, 0), tags.length - 1);
-            const tag = tags[shown];
+        const show = async(/** @type {number} */ position) => {
+            shown = Math.min(Math.max(position, 1), releaseCount ?? 1);
             const render = ++renders;
-            const releaseUrl = `https://github.com/NullDev/Kute/releases/tag/${tag}`;
-            if (versionLabel) versionLabel.textContent = tag;
-            const github = element("changelogGithub");
-            if (github) github.onclick = () => window.chrome.webview.postMessage(`open-url, ${releaseUrl}`);
             updateNav();
-
-            const notes = await releaseNotes(tag);
+            const release = await releaseAt(shown);
             // a quicker click already moved on
             if (render !== renders || !content) return;
-            const eyebrow = element("changelogEyebrow");
-            let label = notes?.date ? `[ RELEASED ${notes.date} ]` : "[ RELEASE NOTES ]";
-            if (tag === version) label = "[ WHAT'S NEW ]";
-            if (eyebrow) eyebrow.textContent = label;
-            if (!notes){
-                content.innerHTML = "<span id='changelogError'>Could not load these release notes. View them on GitHub instead.</span>";
+            if (!release){
+                content.innerHTML = "<span id='changelogError'>Could not load the release notes. View them on GitHub instead.</span>";
+                const github = element("changelogGithub");
+                if (github) github.onclick = () => window.chrome.webview.postMessage(`open-url, https://github.com/NullDev/Kute/releases/tag/${version}`);
                 return;
             }
-            const htmlContent = await marked.parse(notes.body || "No release notes found.", { breaks: true, async: true });
+            const releaseUrl = `https://github.com/NullDev/Kute/releases/tag/${release.tag}`;
+            if (versionLabel) versionLabel.textContent = release.tag;
+            const eyebrow = element("changelogEyebrow");
+            if (eyebrow) eyebrow.textContent = release.tag === version ? "[ WHAT'S NEW ]" : `[ RELEASED ${release.date} ]`;
+            const github = element("changelogGithub");
+            if (github) github.onclick = () => window.chrome.webview.postMessage(`open-url, ${releaseUrl}`);
+
+            const htmlContent = await marked.parse(release.body || "No release notes found.", { breaks: true, async: true });
             if (render !== renders) return;
             content.innerHTML = htmlContent;
             element("changelogContentWrapper")?.scrollTo(0, 0);
@@ -168,23 +181,16 @@ function releaseNotes(tag){
             "keydown",
             (event) => {
                 if (event.key === "Escape") close();
-                else if (event.key === "ArrowLeft") show(shown + 1);
-                else if (event.key === "ArrowRight") show(shown - 1);
+                else if (event.key === "ArrowLeft") show(shown - 1);
+                else if (event.key === "ArrowRight") show(shown + 1);
                 else return;
                 event.stopPropagation();
             },
             { signal: controller.signal, capture: true },
         );
 
-        // the arrows come with the tag names, the opened notes don't wait for them
-        versionTags().then((names) => {
-            if (names.length === 0 || controller.signal.aborted) return;
-            const current = tags[shown];
-            tags = names.includes(version) ? names : [version, ...names].sort((x, y) => semverCompare(y, x));
-            shown = Math.max(0, tags.indexOf(current));
-            updateNav();
-        });
-        await show(0);
+        const opened = await positionOf(version);
+        if (!controller.signal.aborted) await show(opened);
     }
 
     const currentVersion = kute?.version;
