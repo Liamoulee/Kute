@@ -41,6 +41,7 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] Optimized URL blocklist (only ~50 entries, fully customizable), custom Chromium flags
 - [x] Resource swapper with an in-client manager: shows which game files your swaps replace, drop a file onto a game file to put it in the right place, folder names ignore case, create and edit text files like CSS in the built-in editor
 - [x] Classic menu (optional): the Season 9 menu layout, with every new Season 10 button and feature still in it
+- [x] Hide Popular Now (optional): removes the Season 10 "Popular Now" maps row, in the regular and the classic menu
 - [x] Custom CSS with a syntax highlighted editor and live preview, always applied on top of Krunker's own styles
 - [x] Motion blur (optional): a slight blur while you turn the camera, the HUD stays sharp
 - [x] Custom sky (optional): a built-in preset, your own color gradient or your own image as the sky of every map
