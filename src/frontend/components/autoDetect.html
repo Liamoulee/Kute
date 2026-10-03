@@ -94,7 +94,7 @@
 }
 
 #adPanel.adWide {
-	width: 1180px;
+	width: 1300px;
 	max-width: 94vw;
 	max-height: 92vh;
 }
@@ -107,14 +107,25 @@
 	color: #bbb;
 }
 
-#adAdvanced section {
-	margin-top: 1.4em;
-	padding-top: 1.1em;
-	border-top: 1px solid #2c2c2c;
+.adGrid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(440px, 1fr));
+	gap: 14px;
 }
 
-#adAdvanced section:first-child {
-	margin-top: 0;
+.adCard {
+	min-width: 0;
+	padding: 1.1em 1.3em;
+	border-radius: 10px;
+	background: #252525;
+}
+
+.adCard.adSpan {
+	grid-column: 1 / -1;
+}
+
+.adCard > :last-child {
+	margin-bottom: 0;
 }
 
 #adAdvanced h3 {
@@ -124,6 +135,13 @@
 	letter-spacing: 2px;
 	text-transform: uppercase;
 	color: #35e0e8;
+}
+
+#adAdvanced .adUnit {
+	float: right;
+	letter-spacing: 0;
+	text-transform: none;
+	color: #666;
 }
 
 #adAdvanced h4 {
@@ -150,6 +168,7 @@
 }
 
 #adAdvanced .adWarn {
+	max-width: none;
 	padding: 0.5em 0.8em;
 	border-left: 3px solid #f0b040;
 	border-radius: 0 6px 6px 0;
@@ -164,7 +183,7 @@
 }
 
 #adAdvanced table {
-	min-width: 60%;
+	width: 100%;
 	border-collapse: collapse;
 	margin: 0.4em 0;
 	font-variant-numeric: tabular-nums;
@@ -172,24 +191,39 @@
 
 #adAdvanced th,
 #adAdvanced td {
-	padding: 0.4em 1.2em 0.4em 0;
-	border-bottom: 1px solid #2a2a2a;
+	padding: 0.4em 0 0.4em 1em;
+	border-bottom: 1px solid #303030;
 	text-align: left;
 	vertical-align: top;
 }
 
 #adAdvanced th {
 	color: #777;
+	font-size: 0.92em;
 	font-weight: normal;
 	vertical-align: bottom;
 }
 
+#adAdvanced th:first-child,
+#adAdvanced td:first-child {
+	padding-left: 0;
+}
+
+#adAdvanced tr:last-child td {
+	border-bottom: none;
+}
+
 #adAdvanced tr:hover td {
-	background: #242424;
+	background: #2c2c2c;
 }
 
 #adAdvanced td:first-child {
 	color: #ddd;
+	white-space: nowrap;
+}
+
+#adAdvanced table.adWrap td:first-child {
+	white-space: normal;
 }
 
 #adAdvanced table.adNum td:first-child::first-letter {
@@ -199,6 +233,9 @@
 #adAdvanced table.adNum th:not(:first-child),
 #adAdvanced table.adNum td:not(:first-child) {
 	text-align: right;
+}
+
+#adAdvanced table.adNum td:not(:first-child) {
 	white-space: nowrap;
 }
 
@@ -220,13 +257,15 @@
 	color: #fff;
 }
 
+#adAdvanced .adWas {
+	color: #777;
+}
+
 .adFooter {
 	display: flex;
 	gap: 1.6em;
 	align-items: center;
-	margin-top: 1.4em;
-	padding-top: 1.1em;
-	border-top: 1px solid #2c2c2c;
+	margin-top: 1.2em;
 }
 
 .adFooter p {

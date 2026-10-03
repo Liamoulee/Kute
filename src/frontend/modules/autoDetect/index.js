@@ -298,11 +298,20 @@ function msText(value, sign = ""){
 }
 
 /**
+ * @param {number|null} value
+ * @param {string} [sign]
+ * @return {string} msText for a table cell, the unit is in the column header
+ */
+function msCell(value, sign = ""){
+    return value === null ? "-" : `${sign}${value.toFixed(1)}`;
+}
+
+/**
  * @param {MetricSummary} summary
  * @return {string} table cells: fps, slowest frames, task delay, mouse wait
  */
 function metricCells(summary){
-    return `<td>${shown(summary.fps.median, 0)}</td><td>${msText(summary.p99.median)}</td><td>${msText(summary.taskP99.median)}</td><td>${msText(summary.inputP99.median)}</td>`;
+    return `<td>${shown(summary.fps.median, 0)}</td><td>${msCell(summary.p99.median)}</td><td>${msCell(summary.taskP99.median)}</td><td>${msCell(summary.inputP99.median)}</td>`;
 }
 
 
@@ -414,16 +423,17 @@ function outcomeCell(outcome, note = ""){
 /**
  * @param {string} title
  * @param {string} body
+ * @param {{wide?: boolean, unit?: string}} [options] wide spans both columns of the grid, unit names the table's numbers once
  * @return {string}
  */
-function section(title, body){
-    return `<section><h3>${title}</h3>${body}</section>`;
+function section(title, body, { wide = false, unit = "" } = {}){
+    return `<section class="adCard${wide ? " adSpan" : ""}"><h3>${title}${unit ? `<span class="adUnit">${unit}</span>` : ""}</h3>${body}</section>`;
 }
 
 /**
  * @param {string} head
  * @param {string[]} rows
- * @param {string} [kind] "adNum" right-aligns every column after the first
+ * @param {string} [kind] "adNum" right-aligns every column after the first, "adWrap" lets long row labels wrap
  * @return {string}
  */
 function table(head, rows, kind = "adNum"){
@@ -436,32 +446,38 @@ function table(head, rows, kind = "adNum"){
  */
 function advancedHtml(report){
     const changed = new Set(report.plan.changes.map((change) => change.id));
-    const settings = report.settings.map((setting) => {
+    // a row per setting that was measured or changed, the untested ones say the same thing per reason
+    const skipped = (/** @type {MeasuredSetting} */ setting) => setting.gain === null && !changed.has(setting.id) && Boolean(setting.note);
+    const settings = report.settings.filter((setting) => !skipped(setting)).map((setting) => {
         let measured = setting.note ?? "";
         if (setting.gain !== null) measured = setting.steady ? `${percent(setting.gain)} when ${readable(setting.cheap)}` : "unsteady, not used";
         const action = changed.has(setting.id) ? `<td class="adResult adGood">set to ${readable(setting.cheap)}</td>` : "<td class=\"adResult\">kept</td>";
         return `<tr><td>${setting.label}</td><td>${readable(setting.current)}</td><td>${measured}</td>${action}</tr>`;
     });
     const pipeline = report.pipeline.map((row) => `<tr><td>${row.label}</td>${metricCells(summarize(row.readings))}${outcomeCell(row.outcome)}</tr>`);
-    const capsHead = "<th></th><th>Frame time</th><th>Slowest 1 % beyond it</th><th>Other work waits</th><th>Mouse waits</th><th>Gain</th><th class=\"adResult\">Result</th>";
-    const caps = /** @type {CapRow["where"][]} */ (["client test", "test match"]).map((where) => {
-        const rows = report.caps.filter((row) => row.where === where).map((row) => `<tr><td>${capName(row.cap)}</td><td>${msText(row.frameMs)}</td>
-            <td>${msText(row.summary.p99.median, "+")}</td><td>${msText(row.summary.taskP99.median)}</td><td>${msText(row.summary.inputP99.median)}</td>
-            <td>${row.netMs === null ? "" : msText(row.netMs, row.netMs > 0 ? "+" : "")}</td>${outcomeCell(row.outcome, stoodStillNote(row))}</tr>`);
-        return rows.length > 0 ? `<h4>In the ${where}</h4>${table(capsHead, rows)}` : "";
-    }).join("");
+    const capsHead = "<th>Limit</th><th>Frame time</th><th>Slowest&nbsp;1&nbsp;%</th><th>Other work waits</th><th>Mouse waits</th><th>Gain</th><th class=\"adResult\">Result</th>";
+    const capTables = /** @type {CapRow["where"][]} */ (["client test", "test match"]).map((where) => {
+        const rows = report.caps.filter((row) => row.where === where).map((row) => `<tr><td>${capName(row.cap)}</td><td>${msCell(row.frameMs)}</td>
+            <td>${msCell(row.summary.p99.median, "+")}</td><td>${msCell(row.summary.taskP99.median)}</td><td>${msCell(row.summary.inputP99.median)}</td>
+            <td>${row.netMs === null ? "" : msCell(row.netMs, row.netMs > 0 ? "+" : "")}</td>${outcomeCell(row.outcome, stoodStillNote(row))}</tr>`);
+        return { where, html: rows.length > 0 ? table(capsHead, rows) : "" };
+    }).filter((entry) => entry.html);
     const limited = { cpu: "the processor", gpu: "the graphics card", unknown: null }[report.plan.regime];
     let regime = "Not measured whether the processor or the graphics card holds the frame rate back.";
     if (limited) regime = `Limited by ${limited}${report.halfResolutionGain === null ? "" : ` (half the resolution: ${percent(report.halfResolutionGain)})`}.`;
     // a pc that reaches its target tests nothing, one line says that better than a row per setting
-    const untested = report.settings.every((setting) => setting.gain === null && !changed.has(setting.id) && setting.note === report.settings[0]?.note);
-    const settingsHtml = untested && report.settings.length > 0
-        ? `<p>All ${report.settings.length} game settings were kept: ${report.settings[0].note ?? "not tested"}.</p>`
-        : table("<th>Setting</th><th>Was</th><th>Measured</th><th class=\"adResult\">Result</th>", settings, "");
+    /** @type {Map<string, string[]>} */
+    const byReason = new Map();
+    for (const setting of report.settings.filter(skipped)){
+        const reason = setting.note ?? "";
+        byReason.set(reason, [...(byReason.get(reason) ?? []), `${setting.label} <span class="adWas">${readable(setting.current)}</span>`]);
+    }
+    const reasons = [...byReason].map(([reason, names]) => `<p><span class="adMine">${reason.charAt(0).toUpperCase()}${reason.slice(1)}</span>, kept as they were: ${names.join(", ")}.</p>`);
+    const settingsHtml = (settings.length > 0 ? table("<th>Setting</th><th>Was</th><th>Measured</th><th class=\"adResult\">Result</th>", settings, "") : "") + reasons.join("");
     let graphics = "";
     if (report.hybrid === true) graphics = " Two graphics chips: frames get copied from one to the other.";
     else if (report.hybrid === null) graphics = " Could not tell which graphics chip drives the screen.";
-    const metricsHead = "<th>FPS</th><th>Slowest 1 % of frames</th><th>Other work waits</th><th>Mouse waits</th>";
+    const metricsHead = "<th>FPS</th><th>Slowest&nbsp;1&nbsp;%</th><th>Other work waits</th><th>Mouse waits</th>";
     let capacity = `<p>Without an FPS limit this PC ran ${Math.round(report.capacity)} FPS in the test match. Kute aims for at least ${report.plan.target} FPS
         (${TARGET_REFRESH_MULTIPLE}x your ${report.hz} Hz screen), and this PC needs ${Math.round(report.plan.needed)} to keep that in a fight:
         samples of the same settings differ by ${Math.round(report.noise * 100)} %, and it ended the run at ${Math.round(report.drift * 100)} % of its starting speed.</p>`;
@@ -484,24 +500,28 @@ function advancedHtml(report){
     const load = loadHtml(report);
     const capNote = report.pushed
         ? "On a PC that does not run steadily without a limit, the limits are not compared with each other: each one only has to run steadily."
-        : "A limit is taken when the game reacts sooner or the mouse waits less with it than with yours (gain above zero), and never when anything measures worse. A lower limit's longer frames are in the mouse wait.";
-    return [
+        : "A limit is taken when the game reacts sooner or the mouse waits less with it than with yours (gain above zero), and never when anything measures worse. A lower limit's longer frames are in the mouse wait. Slowest 1 % counts beyond the frame time.";
+    // the explanation goes under the last limits table, it covers both
+    const caps = capTables.map((entry, index) => section(`${entry.where}: FPS limits`, `${entry.html}${index === capTables.length - 1 ? `<p class="adNote">${capNote}</p>` : ""}`, { unit: "times in ms" }));
+    // reading order: the pc and the result, then the client test, then the test match
+    const cards = [
         section("This PC", `<p><b>${report.gpu}</b><br><b>${report.cpu}</b>${report.laptop ? " (laptop)" : ""}, ${report.hz} Hz${report.powerOverlay ? `, Windows power mode: ${report.powerOverlay}` : ""}.${graphics}</p>
             ${capacity}${report.rolledBack ? `<p class="adWarn">${report.rolledBack}</p>` : ""}${inputLine(report.input)}${flood}`),
-        section("Before and after", table(`<th></th>${metricsHead}`, [
+        section("Before and after", `${table(`<th></th>${metricsHead}`, [
             `<tr><td>Before (${capName(report.beforeCap)})</td>${metricCells(report.before)}</tr>`,
             report.after ? `<tr><td>After (${capName(report.afterCap)})</td>${metricCells(report.after)}</tr>` : "",
-        ])),
-        section("Client test", pipeline.length > 0
-            ? table(`<th></th>${metricsHead}<th class="adResult">Result</th>`, pipeline)
-            : "<p>The client test did not run, the client's own setup was left alone.</p>"),
-        section("FPS limits", `${caps}<p class="adNote">${capNote}</p>`),
-        load ? section("What the PC did", load) : "",
-        section("Game settings", `<p>${regime}</p>${settingsHtml}
+        ])}${report.after ? "" : "<p class=\"adNote\">Your setup stayed as it was, so there is no after to measure.</p>"}`, { unit: "times in ms" }),
+        section("Client test: setup", pipeline.length > 0
+            ? table(`<th>Setup</th>${metricsHead}<th class="adResult">Result</th>`, pipeline, "adNum adWrap")
+            : "<p>The client test did not run, the client's own setup was left alone.</p>", { unit: "times in ms" }),
+        ...caps,
+        section("Test match: game settings", `<p>${regime}</p>${settingsHtml}
             <p class="adNote">Settings that need a reload cannot be measured in one test match, they were not changed.</p>`),
-        `<div class="adFooter"><p class="adNote">The run took ${report.seconds.toFixed(0)} s. A difference only counts when it is bigger than the spread between two samples of the same setup,
-        and a setup that measures worse anywhere is never taken.</p><div class="adButton" id="adCopy">Copy this report</div></div>`,
-    ].join("");
+        load ? section("What the PC did", load, { wide: true }) : "",
+    ];
+    return `<div class="adGrid">${cards.join("")}</div>
+        <div class="adFooter"><p class="adNote">The run took ${report.seconds.toFixed(0)} s. A difference only counts when it is bigger than the spread between two samples of the same setup,
+        and a setup that measures worse anywhere is never taken.</p><div class="adButton" id="adCopy">Copy this report</div></div>`;
 }
 
 /**
