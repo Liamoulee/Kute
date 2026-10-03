@@ -252,7 +252,10 @@ wrap_render_process_handler! {
             if context.enter() == 0 {
                 return;
             }
-            install_bridge(context);
+            // cloudflare turnstile (krunker login since season 10) fails with chrome.webview in its iframe
+            if frame.is_main() != 0 {
+                install_bridge(context);
+            }
             if frame.is_main() != 0 && browser.is_popup() == 0 {
                 inject_scripts(&utils::cef_to_string(&frame.url()), context);
             }
