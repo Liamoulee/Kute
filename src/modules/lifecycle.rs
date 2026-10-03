@@ -100,9 +100,37 @@ pub fn check_major_update() {
         return;
     };
 
-    let download_url = match json["assets"][0]["browser_download_url"].as_str() {
-        Some(url) => url,
-        None => return,
+    if utils::is_portable() {
+        let answer = unsafe {
+            MessageBoxW(
+                None,
+                w!("A new version of Kute is available. Open the download page?"),
+                w!("Update available"),
+                MB_ICONQUESTION | MB_YESNO,
+            )
+        };
+        if answer == IDYES {
+            unsafe {
+                ShellExecuteW(
+                    None,
+                    w!("open"),
+                    PCWSTR(create_utf_string(constants::RELEASE_PAGE_URL).as_ptr()),
+                    None,
+                    None,
+                    SW_SHOWNORMAL,
+                );
+            }
+        }
+        return;
+    }
+
+    // by name, the release also carries the portable zip. older exes take assets[0], so the workflow uploads the msi first
+    let Some(download_url) = json["assets"]
+        .as_array()
+        .and_then(|assets| assets.iter().find(|asset| asset["name"].as_str() == Some(constants::INSTALLER_ASSET)))
+        .and_then(|asset| asset["browser_download_url"].as_str())
+    else {
+        return;
     };
 
     // ask before downloading: installer_cleanup deletes a declined msi, so a "no" used to cost 100+ MB on every start
@@ -121,7 +149,7 @@ pub fn check_major_update() {
     let mut output_path = env::current_exe().expect("can't get exe path");
     output_path.pop();
     // same name as the release asset: msi registers the file name, and a later run of the github download under another name fails its repair with 1316
-    output_path.push("kute-setup-x86_64.msi");
+    output_path.push(constants::INSTALLER_ASSET);
 
     if let Err(e) = download_to(download_url, &output_path) {
         eprintln!("Failed to download the update: {e}");
@@ -157,6 +185,10 @@ fn download_to(url: &str, path: &std::path::Path) -> result::Result<(), Box<dyn 
 }
 
 pub fn installer_cleanup() -> io::Result<()> {
+    // a portable folder may be the downloads folder, its msi files are not ours
+    if utils::is_portable() {
+        return Ok(());
+    }
     let current_dir = env::current_dir()?;
 
     for entry in fs::read_dir(&current_dir)? {

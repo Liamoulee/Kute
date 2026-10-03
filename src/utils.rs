@@ -107,6 +107,12 @@ pub fn exe_dir() -> path::PathBuf {
     env::current_exe().unwrap().parent().unwrap().to_path_buf()
 }
 
+// the portable zip ships this file, such a folder is not an msi install and must never run one
+pub fn is_portable() -> bool {
+    static PORTABLE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *PORTABLE.get_or_init(|| exe_dir().join(crate::constants::PORTABLE_MARKER).exists())
+}
+
 pub fn config<T: serde::de::DeserializeOwned>(setting: &str, default: T) -> T {
     CONFIG.lock().unwrap().get(setting).unwrap_or(default)
 }

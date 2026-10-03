@@ -1,5 +1,8 @@
 pub const DISCORD_CLIENT_ID: &str = "1549875633276981249";
 pub const UPDATE_URL: &str = "https://api.github.com/repos/NullDev/Kute/releases/latest";
+pub const RELEASE_PAGE_URL: &str = "https://github.com/NullDev/Kute/releases/latest";
+pub const INSTALLER_ASSET: &str = "kute-setup-x86_64.msi";
+pub const PORTABLE_MARKER: &str = "portable.flag";
 pub const API_URL: &str = "https://kute.lol/api";
 // any page script can post open-url, keep this short. trailing slash so look-alike domains don't match
 pub const OPEN_URL_ALLOWED: [&str; 3] = ["https://github.com/", "https://kute.lol/", "https://discord.com/invite/"];
