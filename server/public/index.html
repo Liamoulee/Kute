@@ -249,6 +249,10 @@
             <p>Kute uses pure raw input: your mouse's movement goes straight to the game, without Windows pointer acceleration, and none of it gets lost, not even the movement in the same instant as a click or a scroll. No other client passes every bit of it through. It is more accurate, and exactly because of that it can feel different for a few rounds if your aim is used to another client. Give it some time before you change your sensitivity.</p>
           </details>
           <details class="faq-item reveal">
+            <summary>Is there a portable version?</summary>
+            <p>Yes, the <a href="https://github.com/NullDev/Kute/releases/latest/download/kute-portable-x86_64.zip" target="_blank" rel="noreferrer">portable zip</a>. Unpack it anywhere and start <b>kute.exe</b>, nothing gets installed. Settings and scripts still live in <b>Documents\kute</b>, shared with an installed Kute. Small updates apply by themselves. When a new client version is out, Kute asks and opens the download page, then replace the folder with the new zip.</p>
+          </details>
+          <details class="faq-item reveal">
             <summary>My FPS is lower, but the client is smoother</summary>
             <p>Uncapped, other clients count every frame the game computes, including frames that never reach your screen: they pile up behind the GPU and get replaced before they are shown. A big number, but those frames are only extra load and extra input lag. Kute's swap chain hook and patched Chromium let the game run just one frame ahead, so it only computes frames that actually get shown, and the <b>Present FPS Counter</b> shows the frames that reach your screen. A lower number that is real, instead of a higher one that is not.</p>
           </details>
@@ -428,6 +432,7 @@
         <a class="button button-primary button-large" href="https://github.com/NullDev/Kute/releases/latest/download/kute-setup-x86_64.msi" target="_blank" rel="noreferrer">
           Download Kute <span aria-hidden="true">↓</span>
         </a>
+        <a class="cta-alt" href="https://github.com/NullDev/Kute/releases/latest/download/kute-portable-x86_64.zip" target="_blank" rel="noreferrer">or get the portable zip ↓</a>
         <div class="cta-meta"><span>WINDOWS 10 / 11</span><span>64-BIT</span><span>UPDATES ITSELF</span></div>
       </section>
     </main>
