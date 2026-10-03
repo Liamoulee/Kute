@@ -6,6 +6,8 @@ import { postUrls as postIconUrls } from "./modules/kuteIcons/slots.js";
 // static import: the host only hands over the userscript registry during bundle eval
 import "./modules/managers/registry.js";
 import "./modules/customCss.js";
+// static import: a hung load never reaches gameLoaded
+import "./modules/sessionRecovery.js";
 
 const isBenchPage = location.pathname === "/kute-bench";
 if (isBenchPage) import("./modules/autoDetect/bench.js");
