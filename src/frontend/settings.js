@@ -193,7 +193,12 @@ function applyBlocker(id, blocking){
 kute.settings.changeSetting = (id, rawValue, slider) => {
     if (rawValue === "") return;
 
-    getInput(`#${id}`).value = String(rawValue);
+    // a hotkey can flip a setting while the settings window is closed
+    const input = document.querySelector(`#${id}`);
+    if (input instanceof HTMLInputElement){
+        input.value = String(rawValue);
+        if (input.type === "checkbox") input.checked = rawValue === true;
+    }
     let value = rawValue;
 
     if (typeof value === "string"){

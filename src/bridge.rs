@@ -54,7 +54,8 @@ pub fn send_info(frame: &Frame) {
             "cef-patches",
             "hybrid-gpu",
             "autodetect-v2",
-            "load-sample"
+            "load-sample",
+            "hotkeys"
         ]),
     );
 

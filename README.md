@@ -68,7 +68,7 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] Discord Rich Presence
 - [x] CPU throttler (a last resort, see below)
 - [x] Autoupdater with a download progress window that never closes the client by itself (restart now, or it installs when you close Kute), plus changelogs
-- [x] Basic shortcuts (F4 new lobby, F6 matchmaker, F5 reload, F11 fullscreen, F12 devtools)
+- [x] Rebindable hotkeys (F4 new lobby, F6 matchmaker, F5 reload, F11 fullscreen, F12 devtools by default), each can be cleared, plus optional keys to toggle the Spotify overlay and Keystrokes. The menu warns when Krunker or another hotkey already uses a key
 - [x] Matchmaker
 - [ ] Skin Swapper (coming soon)
 - [ ] BetterKDR™️ (coming soon)

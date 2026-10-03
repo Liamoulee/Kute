@@ -171,12 +171,6 @@ wrap_request_context_handler! {
     }
 }
 
-const VK_F4: i32 = 0x73;
-const VK_F5: i32 = 0x74;
-const VK_F6: i32 = 0x75;
-const VK_F11: i32 = 0x7A;
-const VK_F12: i32 = 0x7B;
-
 // page still gets the key
 wrap_keyboard_handler! {
     struct KuteKeyboardHandler;
@@ -193,8 +187,8 @@ wrap_keyboard_handler! {
             if event.type_ != KeyEventType::RAWKEYDOWN {
                 return 0;
             }
-            if matches!(event.windows_key_code, VK_F4 | VK_F5 | VK_F6 | VK_F11 | VK_F12) {
-                window::handle_accelerator_key(browser, event.windows_key_code as u16);
+            if let Some(action) = crate::modules::hotkeys::action_for(event.windows_key_code, event.modifiers) {
+                window::handle_accelerator_key(browser, action);
             }
             0
         }
@@ -684,6 +678,9 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         {
             crate::CONFIG.lock().unwrap().set(setting, value);
             crate::config::save_soon();
+            if setting == "hotkeys" {
+                crate::modules::hotkeys::reload();
+            }
         }
         return;
     }
@@ -908,6 +905,9 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         ["toggle-rboost", value] => {
             let value = value.parse::<bool>().unwrap_or(false);
             modules::input::set_rampboost(value);
+        }
+        ["hotkeys-pause", value] => {
+            modules::hotkeys::pause(value.parse::<bool>().unwrap_or(false));
         }
         ["ping"] => {
             modules::ping::ping(browser.identifier());

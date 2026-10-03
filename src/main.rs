@@ -24,6 +24,7 @@ pub mod modules {
     pub mod files;
     pub mod flaglist;
     pub mod gpu;
+    pub mod hotkeys;
     pub mod icons;
     pub mod input;
     pub mod lifecycle;

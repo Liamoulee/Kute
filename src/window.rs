@@ -1,4 +1,4 @@
-use crate::{app, bridge, debug_print, handlers, modules, utils, utils::config};
+use crate::{app, bridge, debug_print, handlers, modules, modules::hotkeys::Action, utils, utils::config};
 use cef::*;
 use std::{
     cell::RefCell,
@@ -343,11 +343,11 @@ pub fn close_all() {
     }
 }
 
-pub fn handle_accelerator_key(browser: &Browser, key: u16) {
-    match VIRTUAL_KEY(key) {
+pub fn handle_accelerator_key(browser: &Browser, action: Action) {
+    match action {
         // matchmaker.js handles it
-        VK_F6 if utils::config("matchmaker", true) => {}
-        VK_F4 | VK_F6 => {
+        Action::Matchmaker if utils::config("matchmaker", true) => {}
+        Action::NewLobby | Action::Matchmaker => {
             modules::devtools::set_cpu_throttling(browser, 1.0);
             if let Some(frame) = browser.main_frame() {
                 let current_url = utils::cef_to_string(&frame.url());
@@ -361,22 +361,21 @@ pub fn handle_accelerator_key(browser: &Browser, key: u16) {
             }
             modules::input::set_pointer_locked(false);
         }
-        VK_F5 => {
+        Action::Reload => {
             modules::devtools::set_cpu_throttling(browser, 1.0);
             browser.reload();
             modules::input::set_pointer_locked(false);
         }
-        VK_F11 => {
+        Action::Fullscreen => {
             if let Some(window) = window_from_browser(browser) {
                 window.toggle_fullscreen();
             }
         }
-        VK_F12 => {
+        Action::DevTools => {
             if let Some(host) = browser.host() {
                 host.show_dev_tools(None, None, None, None);
             }
         }
-        _ => {}
     }
 }
 
