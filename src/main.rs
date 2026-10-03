@@ -40,6 +40,7 @@ pub mod modules {
     pub mod specs;
     pub mod spotify;
     pub mod swapper;
+    pub mod updater;
     pub mod userscripts;
 }
 
@@ -89,7 +90,7 @@ fn main() {
     #[cfg(feature = "packaged")]
     {
         modules::lifecycle::set_panic_hook().ok();
-        modules::lifecycle::installer_cleanup().ok();
+        modules::updater::installer_cleanup().ok();
     }
 
     if let Err(e) = app::init_fs() {
@@ -136,4 +137,6 @@ fn main() {
         modules::power::restore();
         CONFIG.lock().unwrap().save();
     }
+    #[cfg(feature = "auto-update")]
+    modules::updater::install_pending();
 }
