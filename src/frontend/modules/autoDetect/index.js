@@ -330,7 +330,7 @@ function inputLine(input){
     const reasons = Object.entries(input.ended).filter(([reason]) => reason !== "done" && reason !== "stopped").map(([reason, count]) => `${reason}: ${count}x`).join(", ");
     let why = "the game did not hold the mouse when the readings started";
     if (input.asked > 0) why = reasons || `Kute sent ${input.hostSteps} steps, the game saw ${input.pageEvents} mouse events`;
-    return `<p class="adChanged">The input test did not reach the game (${why}). Mouse wait and settings that only cost in a fight were not measured.</p>`;
+    return `<p class="adWarn">The input test did not reach the game (${why}). Mouse wait and settings that only cost in a fight were not measured.</p>`;
 }
 
 /**
@@ -384,11 +384,11 @@ function loadHtml(report){
     if (rows.length === 0) return "";
     const trace = (report.trace ?? []).map((step) => `<tr><td>${(step.ms / 1000).toFixed(1)} s</td><td>${step.fps}</td><td>${span([step.load?.cpuSpeed], "%")}</td>
         <td>${span([render === null ? null : step.load?.gpu?.[render]?.render], "%")}</td><td>${span([clockOf(step.load)], "MHz")}</td><td>${heldBack(step.load)}</td></tr>`);
-    return `<table><tr><th>What the PC did</th><th>FPS</th><th>Processor busy</th><th>Processor speed</th><th>Graphics card busy</th>${nvidia ? "<th>Graphics clock</th>" : ""}
-        ${two ? "<th>Screen's chip busy</th><th>Screen's chip copying</th>" : ""}<th>Hottest</th><th>Heat limit</th></tr>${rows.join("")}</table>
-        <p>Processor speed is its share of the nominal clock: above 100 % with turbo, far below while the PC throttles it. A heat limit under 100 % means the firmware slows the PC down.
+    return `<div class="adScroll"><table class="adNum"><tr><th></th><th>FPS</th><th>Processor busy</th><th>Processor speed</th><th>Graphics card busy</th>${nvidia ? "<th>Graphics clock</th>" : ""}
+        ${two ? "<th>Screen's chip busy</th><th>Screen's chip copying</th>" : ""}<th>Hottest</th><th>Heat limit</th></tr>${rows.join("")}</table></div>
+        <p class="adNote">Processor speed is its share of the nominal clock: above 100 % with turbo, far below while the PC throttles it. A heat limit under 100 % means the firmware slows the PC down.
         A graphics clock that drops while the frame rate drops means the graphics driver is saving power.</p>
-        ${trace.length > 0 ? `<table><tr><th>Without a limit</th><th>FPS</th><th>Processor speed</th><th>Graphics card busy</th><th>Graphics clock</th><th>Driver holds it back</th></tr>${trace.join("")}</table>` : ""}`;
+        ${trace.length > 0 ? `<h4>Without a limit, step by step</h4><div class="adScroll"><table class="adNum"><tr><th>Time</th><th>FPS</th><th>Processor speed</th><th>Graphics card busy</th><th>Graphics clock</th><th>Driver holds it back</th></tr>${trace.join("")}</table></div>` : ""}`;
 }
 
 /**
@@ -402,6 +402,35 @@ function stoodStillNote(row){
 }
 
 /**
+ * @param {string} outcome
+ * @param {string} [note]
+ * @return {string} result cell, colored by what it means for the player
+ */
+function outcomeCell(outcome, note = ""){
+    const tone = { chosen: "adGood", better: "adGood", worse: "adBad", "not steady": "adBad", yours: "adMine", current: "adMine" }[outcome] ?? "";
+    return `<td class="adResult ${tone}">${outcome}${note}</td>`;
+}
+
+/**
+ * @param {string} title
+ * @param {string} body
+ * @return {string}
+ */
+function section(title, body){
+    return `<section><h3>${title}</h3>${body}</section>`;
+}
+
+/**
+ * @param {string} head
+ * @param {string[]} rows
+ * @param {string} [kind] "adNum" right-aligns every column after the first
+ * @return {string}
+ */
+function table(head, rows, kind = "adNum"){
+    return `<div class="adScroll"><table class="${kind}"><tr>${head}</tr>${rows.join("")}</table></div>`;
+}
+
+/**
  * @param {Report} report
  * @return {string}
  */
@@ -410,22 +439,29 @@ function advancedHtml(report){
     const settings = report.settings.map((setting) => {
         let measured = setting.note ?? "";
         if (setting.gain !== null) measured = setting.steady ? `${percent(setting.gain)} when ${readable(setting.cheap)}` : "unsteady, not used";
-        const action = changed.has(setting.id) ? `<td class="adChanged">set to ${readable(setting.cheap)}</td>` : "<td>kept</td>";
+        const action = changed.has(setting.id) ? `<td class="adResult adGood">set to ${readable(setting.cheap)}</td>` : "<td class=\"adResult\">kept</td>";
         return `<tr><td>${setting.label}</td><td>${readable(setting.current)}</td><td>${measured}</td>${action}</tr>`;
     });
-    const pipeline = report.pipeline.map((row) => {
-        const summary = summarize(row.readings);
-        return `<tr><td>${row.label}</td>${metricCells(summary)}<td${row.outcome === "better" ? ' class="adChanged"' : ""}>${row.outcome}</td></tr>`;
-    });
-    const caps = report.caps.map((row) => `<tr><td>${capName(row.cap)} (${row.where})</td><td>${msText(row.frameMs)}</td><td>${msText(row.summary.p99.median, "+")}</td>
-        <td>${msText(row.summary.taskP99.median)}</td><td>${msText(row.summary.inputP99.median)}</td><td>${row.netMs === null ? "" : msText(row.netMs, row.netMs > 0 ? "+" : "")}</td>
-        <td${row.outcome === "chosen" ? ' class="adChanged"' : ""}>${row.outcome}${stoodStillNote(row)}</td></tr>`);
-    const limited = { cpu: "the processor", gpu: "the graphics card", unknown: "not measured" }[report.plan.regime];
-    const half = report.halfResolutionGain === null ? "not measured" : percent(report.halfResolutionGain);
+    const pipeline = report.pipeline.map((row) => `<tr><td>${row.label}</td>${metricCells(summarize(row.readings))}${outcomeCell(row.outcome)}</tr>`);
+    const capsHead = "<th></th><th>Frame time</th><th>Slowest 1 % beyond it</th><th>Other work waits</th><th>Mouse waits</th><th>Gain</th><th class=\"adResult\">Result</th>";
+    const caps = /** @type {CapRow["where"][]} */ (["client test", "test match"]).map((where) => {
+        const rows = report.caps.filter((row) => row.where === where).map((row) => `<tr><td>${capName(row.cap)}</td><td>${msText(row.frameMs)}</td>
+            <td>${msText(row.summary.p99.median, "+")}</td><td>${msText(row.summary.taskP99.median)}</td><td>${msText(row.summary.inputP99.median)}</td>
+            <td>${row.netMs === null ? "" : msText(row.netMs, row.netMs > 0 ? "+" : "")}</td>${outcomeCell(row.outcome, stoodStillNote(row))}</tr>`);
+        return rows.length > 0 ? `<h4>In the ${where}</h4>${table(capsHead, rows)}` : "";
+    }).join("");
+    const limited = { cpu: "the processor", gpu: "the graphics card", unknown: null }[report.plan.regime];
+    let regime = "Not measured whether the processor or the graphics card holds the frame rate back.";
+    if (limited) regime = `Limited by ${limited}${report.halfResolutionGain === null ? "" : ` (half the resolution: ${percent(report.halfResolutionGain)})`}.`;
+    // a pc that reaches its target tests nothing, one line says that better than a row per setting
+    const untested = report.settings.every((setting) => setting.gain === null && !changed.has(setting.id) && setting.note === report.settings[0]?.note);
+    const settingsHtml = untested && report.settings.length > 0
+        ? `<p>All ${report.settings.length} game settings were kept: ${report.settings[0].note ?? "not tested"}.</p>`
+        : table("<th>Setting</th><th>Was</th><th>Measured</th><th class=\"adResult\">Result</th>", settings, "");
     let graphics = "";
     if (report.hybrid === true) graphics = " Two graphics chips: frames get copied from one to the other.";
     else if (report.hybrid === null) graphics = " Could not tell which graphics chip drives the screen.";
-    const header = "<th>FPS</th><th>Slowest 1 % of frames</th><th>Other work waits</th><th>Mouse waits</th><th>Result</th>";
+    const metricsHead = "<th>FPS</th><th>Slowest 1 % of frames</th><th>Other work waits</th><th>Mouse waits</th>";
     let capacity = `<p>Without an FPS limit this PC ran ${Math.round(report.capacity)} FPS in the test match. Kute aims for at least ${report.plan.target} FPS
         (${TARGET_REFRESH_MULTIPLE}x your ${report.hz} Hz screen), and this PC needs ${Math.round(report.plan.needed)} to keep that in a fight:
         samples of the same settings differ by ${Math.round(report.noise * 100)} %, and it ended the run at ${Math.round(report.drift * 100)} % of its starting speed.</p>`;
@@ -437,29 +473,35 @@ function advancedHtml(report){
             found = `Up to ${steadyUpTo} FPS it ran steadily in the empty test match. A real match is heavier than that, so the limit with room is the highest multiple of your ${report.hz} Hz
             that has ${steadyUpTo > limit ? "one more steady step above it" : "run steadily"}: ${limit} FPS. A limit of your own that runs steadily is kept, a lower one would make the mouse wait longer.`;
         }
-        capacity = `<p class="adChanged">This PC does not run steadily without an FPS limit: it stood still ${Math.round(report.pushed.stoodStill * 100)} % of the time
+        capacity = `<p class="adWarn">This PC does not run steadily without an FPS limit: it stood still ${Math.round(report.pushed.stoodStill * 100)} % of the time
         (readings without a limit: ${speeds} FPS). That happens when a PC throttles itself under full load, common on laptops.</p>
         <p>${found} Game settings were not measured, their gain is read without a limit.</p>`;
     }
-    return `
-        <p>${report.gpu}<br>${report.cpu}${report.laptop ? " (laptop)" : ""}, ${report.hz} Hz${report.powerOverlay ? `, Windows power mode: ${report.powerOverlay}` : ""}.${graphics}</p>
-        ${capacity}
-        ${report.rolledBack ? `<p class="adChanged">${report.rolledBack}</p>` : ""}
-        ${inputLine(report.input)}
-        ${(report.played ?? []).some(flooding) ? `<p class="adChanged">The game drew more frames than reached the screen: one every ${msText(middle((report.played ?? []).map((reading) => reading.p50)))}, shown one every ${msText(middle((report.played ?? []).map((reading) => reading.presentMs)))}.</p>` : ""}
-        <table><tr><th>As you had it (${capName(report.beforeCap)})</th>${header}</tr><tr><td>before</td>${metricCells(report.before)}<td></td></tr>
-        ${report.after ? `<tr><td>after (${capName(report.afterCap)})</td>${metricCells(report.after)}<td></td></tr>` : ""}</table>
-        ${pipeline.length > 0 ? `<table><tr><th>Client test</th>${header}</tr>${pipeline.join("")}</table>` : "<p>The client test did not run, the client's own setup was left alone.</p>"}
-        <table><tr><th>FPS limit</th><th>Frame time</th><th>Slowest 1 % beyond it</th><th>Other work waits</th><th>Mouse waits</th><th>Gain</th><th>Result</th></tr>${caps.join("")}</table>
-        <p>${report.pushed
+    const played = report.played ?? [];
+    const flood = played.some(flooding)
+        ? `<p class="adWarn">The game drew more frames than reached the screen: one every ${msText(middle(played.map((reading) => reading.p50)))}, shown one every ${msText(middle(played.map((reading) => reading.presentMs)))}.</p>`
+        : "";
+    const load = loadHtml(report);
+    const capNote = report.pushed
         ? "On a PC that does not run steadily without a limit, the limits are not compared with each other: each one only has to run steadily."
-        : "A limit is taken when the game reacts sooner or the mouse waits less with it than with yours (gain above zero), and never when anything measures worse. A lower limit's longer frames are in the mouse wait."}</p>
-        ${loadHtml(report)}
-        <p>Limited by ${limited} (half the resolution: ${half}).</p>
-        <table><tr><th>Setting</th><th>Was</th><th>Measured</th><th>Result</th></tr>${settings.join("")}</table>
-        <div class="adButton" id="adCopy" style="margin: 1em 0">Copy this report</div>
-        <p>${report.seconds.toFixed(0)} s. A difference only counts when it is bigger than the spread between two samples of the same setup,
-        and a setup that measures worse anywhere is never taken. Settings that need a reload cannot be measured in one test match, they were not changed.</p>`;
+        : "A limit is taken when the game reacts sooner or the mouse waits less with it than with yours (gain above zero), and never when anything measures worse. A lower limit's longer frames are in the mouse wait.";
+    return [
+        section("This PC", `<p><b>${report.gpu}</b><br><b>${report.cpu}</b>${report.laptop ? " (laptop)" : ""}, ${report.hz} Hz${report.powerOverlay ? `, Windows power mode: ${report.powerOverlay}` : ""}.${graphics}</p>
+            ${capacity}${report.rolledBack ? `<p class="adWarn">${report.rolledBack}</p>` : ""}${inputLine(report.input)}${flood}`),
+        section("Before and after", table(`<th></th>${metricsHead}`, [
+            `<tr><td>Before (${capName(report.beforeCap)})</td>${metricCells(report.before)}</tr>`,
+            report.after ? `<tr><td>After (${capName(report.afterCap)})</td>${metricCells(report.after)}</tr>` : "",
+        ])),
+        section("Client test", pipeline.length > 0
+            ? table(`<th></th>${metricsHead}<th class="adResult">Result</th>`, pipeline)
+            : "<p>The client test did not run, the client's own setup was left alone.</p>"),
+        section("FPS limits", `${caps}<p class="adNote">${capNote}</p>`),
+        load ? section("What the PC did", load) : "",
+        section("Game settings", `<p>${regime}</p>${settingsHtml}
+            <p class="adNote">Settings that need a reload cannot be measured in one test match, they were not changed.</p>`),
+        `<div class="adFooter"><p class="adNote">The run took ${report.seconds.toFixed(0)} s. A difference only counts when it is bigger than the spread between two samples of the same setup,
+        and a setup that measures worse anywhere is never taken.</p><div class="adButton" id="adCopy">Copy this report</div></div>`,
+    ].join("");
 }
 
 /**
@@ -571,8 +613,14 @@ class Panel {
         if (actions.report){
             const advanced = this.element("adAdvanced");
             advanced.innerHTML = advancedHtml(actions.report);
-            this.element("adAdvancedButton").onclick = () => {
-                advanced.style.display = advanced.style.display === "block" ? "none" : "block";
+            const button = this.element("adAdvancedButton");
+            button.textContent = "Advanced";
+            button.onclick = () => {
+                const open = advanced.style.display !== "block";
+                advanced.style.display = open ? "block" : "none";
+                // the tables need the room, the summary above stays at reading width
+                this.element("adPanel").classList.toggle("adWide", open);
+                button.textContent = open ? "Hide advanced" : "Advanced";
             };
             // raw numbers for bug reports
             this.element("adCopy").onclick = () => {
