@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 const releaseDir = path.join(process.cwd(), "target", "release");
 const stageDir = path.join(process.cwd(), "target", "portable");
 const appDir = path.join(stageDir, "kute");
-const zipPath = path.join(process.cwd(), "target", "kute-portable-x86_64.zip");
+const zipPath = path.join(process.cwd(), "target", "kute-x86_64-portable.zip");
 
 try {
     fs.rmSync(stageDir, { recursive: true, force: true });

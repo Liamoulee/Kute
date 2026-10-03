@@ -124,7 +124,7 @@ pub fn check_major_update() {
         return;
     }
 
-    // by name, the release also carries the portable zip. older exes take assets[0], so the workflow uploads the msi first
+    // by name, the release also carries the portable zip. older exes take assets[0], the api sorts assets by name
     let Some(download_url) = json["assets"]
         .as_array()
         .and_then(|assets| assets.iter().find(|asset| asset["name"].as_str() == Some(constants::INSTALLER_ASSET)))

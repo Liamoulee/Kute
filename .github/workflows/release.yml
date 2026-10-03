@@ -101,8 +101,8 @@ jobs:
       - name: Upload portable artifact
         uses: actions/upload-artifact@v7
         with:
-          name: kute-portable-x86_64-zip-${{ steps.version.outputs.version }}-${{ github.sha }}
-          path: target/kute-portable-x86_64.zip
+          name: kute-x86_64-portable-zip-${{ steps.version.outputs.version }}-${{ github.sha }}
+          path: target/kute-x86_64-portable.zip
           retention-days: 7
 
       # via the API so GitHub signs it. if master moved during the build the bump goes on top as long as
@@ -159,6 +159,7 @@ jobs:
           Add-Content $env:GITHUB_OUTPUT "oid=$oid"
 
       - name: Create GitHub Release
+        id: release
         if: inputs.mode != 'build only'
         uses: softprops/action-gh-release@v3
         with:
@@ -167,12 +168,18 @@ jobs:
           name: ${{ steps.version.outputs.version }}
           draft: true
           generate_release_notes: true
-          files: target/kute-setup-x86_64.msi
+          files: |
+            target/kute-setup-x86_64.msi
+            target/kute-x86_64-portable.zip
 
-      # own step so the msi is always the first asset: older exes take assets[0] as the installer
-      - name: Add the portable zip to the release
+      # exes before the portable zip download assets[0] as the installer, and the api sorts assets by name
+      - name: Check that the installer is the first asset
         if: inputs.mode != 'build only'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ steps.version.outputs.version }}" target/kute-portable-x86_64.zip --clobber
+        run: |
+          $first = gh api "repos/${{ github.repository }}/releases/${{ steps.release.outputs.id }}" --jq '.assets[0].name'
+          if ($first -ne "kute-setup-x86_64.msi") {
+            throw "The first release asset is $first, older clients would run it as the installer. Rename the other assets so they sort after kute-setup-x86_64.msi."
+          }
