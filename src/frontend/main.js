@@ -95,6 +95,16 @@ document.addEventListener(
                 document.head.append(classicMenuCSS);
             });
         });
+
+        ready.then(() => {
+            if (!kute.settings.data.hidePopularNow) return;
+            import("./components/hidePopularNow.css").then((css) => {
+                const hidePopularCSS = document.createElement("style");
+                hidePopularCSS.id = "kute_hidePopularNowCSS";
+                hidePopularCSS.textContent = css.default;
+                document.head.append(hidePopularCSS);
+            });
+        });
     },
     { once: true },
 );
@@ -163,6 +173,10 @@ Object.defineProperty(window, "gameLoaded", {
         import("./modules/importSettings.js");
         // always: setting is read per F6, filter button needs the module
         import("./modules/matchmaker.js");
+        // always: toggle keys and the menu button
+        import("./modules/hotkeys.js");
+        // always: export and import buttons in About
+        import("./modules/settingsTransfer.js");
         // always: customize button needs the module
         import("./modules/nukeCounter.js");
         // always: customize button needs it, host needs icon url changes

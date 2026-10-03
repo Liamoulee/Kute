@@ -19,6 +19,16 @@
         "button": "Show",
         "buttonAction": "{{kute}}.autoDetect.showLast()"
     },
+    "hotkeys": {
+        "name": "Hotkeys",
+        "id": "hotkeys",
+        "description": "Change or clear Kute's own keys (new lobby, matchmaker, reload, fullscreen) and add keys for toggles",
+        "type": "none",
+        "category": "General",
+        "button": "Change",
+        "buttonAction": "{{kute}}.hotkeys.edit()",
+        "hostFeature": "hotkeys"
+    },
     "performanceMode": {
         "name": "Disable All Non-Performance Features",
         "id": "performanceMode",
@@ -203,6 +213,15 @@
         "name": "Hide Bundle Popups",
         "id": "hideBundles",
         "description": "Stops store bundle popups from showing up outside the store",
+        "type": "checkbox",
+        "category": "Interface",
+        "defaultValue": false
+    },
+    "hidePopularNow": {
+        "name": "Hide Popular Now",
+        "id": "hidePopularNow",
+        "performance": false,
+        "description": "Hides the Popular Now maps row in the menu",
         "type": "checkbox",
         "category": "Interface",
         "defaultValue": false
@@ -580,5 +599,23 @@
         "category": "About",
         "defaultValue": true,
         "needsRestart": true
+    },
+    "exportClientSettings": {
+        "name": "Export Kute Settings",
+        "id": "exportClientSettings",
+        "description": "Saves Kute's settings, HUD positions, matchmaker filters and hotkeys as a file in Downloads",
+        "type": "none",
+        "category": "About",
+        "button": "Export",
+        "buttonAction": "{{kute}}.settingsTransfer.exportFile()"
+    },
+    "importClientSettings": {
+        "name": "Import Kute Settings",
+        "id": "importClientSettings",
+        "description": "Loads a file from Export Kute Settings and restarts Kute",
+        "type": "none",
+        "category": "About",
+        "button": "Import",
+        "buttonAction": "{{kute}}.settingsTransfer.importFile()"
     }
 }

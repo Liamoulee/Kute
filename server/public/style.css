@@ -1040,6 +1040,10 @@ h2 {
   font-weight: 600;
 }
 
+.faq-item p a {
+  color: var(--cyan);
+}
+
 .screenshots {
   padding: clamp(4.5rem, 8vw, 7rem) 0 clamp(3rem, 6vw, 5rem);
 }
@@ -1474,6 +1478,20 @@ footer > a:focus-visible {
 .button-large {
   min-width: min(330px, 100%);
   font-size: 0.82rem;
+}
+
+.cta-alt {
+  margin-top: 1rem;
+  color: var(--muted);
+  font: 650 0.68rem/1 var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: color 180ms ease;
+}
+
+.cta-alt:hover,
+.cta-alt:focus-visible {
+  color: var(--cyan);
 }
 
 .cta-meta {

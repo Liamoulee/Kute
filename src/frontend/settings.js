@@ -128,6 +128,20 @@ function applyInterface(id, value){
             }
             break;
         }
+        case "hidePopularNow": {
+            if (value){
+                import("./components/hidePopularNow.css").then((css) => {
+                    const hidePopularCSS = document.createElement("style");
+                    hidePopularCSS.id = "kute_hidePopularNowCSS";
+                    hidePopularCSS.textContent = css.default;
+                    document.head.append(hidePopularCSS);
+                });
+            }
+            else {
+                document.querySelector("#kute_hidePopularNowCSS")?.remove();
+            }
+            break;
+        }
         case "textSelect": {
             if (value){
                 const textSelectCSS = document.createElement("style");
@@ -179,7 +193,12 @@ function applyBlocker(id, blocking){
 kute.settings.changeSetting = (id, rawValue, slider) => {
     if (rawValue === "") return;
 
-    getInput(`#${id}`).value = String(rawValue);
+    // a hotkey can flip a setting while the settings window is closed
+    const input = document.querySelector(`#${id}`);
+    if (input instanceof HTMLInputElement){
+        input.value = String(rawValue);
+        if (input.type === "checkbox") input.checked = rawValue === true;
+    }
     let value = rawValue;
 
     if (typeof value === "string"){

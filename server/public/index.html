@@ -249,6 +249,10 @@
             <p>Kute uses pure raw input: your mouse's movement goes straight to the game, without Windows pointer acceleration, and none of it gets lost, not even the movement in the same instant as a click or a scroll. No other client passes every bit of it through. It is more accurate, and exactly because of that it can feel different for a few rounds if your aim is used to another client. Give it some time before you change your sensitivity.</p>
           </details>
           <details class="faq-item reveal">
+            <summary>Is there a portable version?</summary>
+            <p>Yes, the <a href="https://github.com/NullDev/Kute/releases/latest/download/kute-x86_64-portable.zip" target="_blank" rel="noreferrer">portable zip</a>. Unpack it anywhere and start <b>kute.exe</b>, nothing gets installed. Settings and scripts still live in <b>Documents\kute</b>, shared with an installed Kute. Small updates apply by themselves. When a new client version is out, Kute asks and opens the download page, then replace the folder with the new zip.</p>
+          </details>
+          <details class="faq-item reveal">
             <summary>My FPS is lower, but the client is smoother</summary>
             <p>Uncapped, other clients count every frame the game computes, including frames that never reach your screen: they pile up behind the GPU and get replaced before they are shown. A big number, but those frames are only extra load and extra input lag. Kute's swap chain hook and patched Chromium let the game run just one frame ahead, so it only computes frames that actually get shown, and the <b>Present FPS Counter</b> shows the frames that reach your screen. A lower number that is real, instead of a higher one that is not.</p>
           </details>
@@ -351,7 +355,7 @@
             <div><span></span><b>Matchmaker</b><p>F6 joins the lowest ping lobby that fits your filters: region, mode, map, players, time left.</p></div>
             <div><span></span><b>Ranked queue</b><p>Queue for ranked from a small window without the game open.</p></div>
             <div><span></span><b>Rank progress</b><p>Elo progress to the next rank and the rank distribution.</p></div>
-            <div><span></span><b>Shortcuts</b><p>F4 new lobby, F5 reload, F11 fullscreen, F12 devtools.</p></div>
+            <div><span></span><b>Hotkeys</b><p>F4 new lobby, F6 matchmaker, F5 reload, F11 fullscreen, F12 devtools. Rebind or clear any of them, add keys to toggle Spotify and Keystrokes.</p></div>
           </div>
 
           <div class="feature-group" id="f-interface">
@@ -360,6 +364,7 @@
             <div><span></span><b>Menu timer</b><p>The match timer in the menu.</p></div>
             <div><span></span><b>Classic menu</b><p>The Season 9 menu layout, new buttons included.</p></div>
             <div><span></span><b>Cleaner menu</b><p>Hides menu clutter and store popups, adds an exit button.</p></div>
+            <div><span></span><b>Hide Popular Now</b><p>Removes the Popular Now maps row from the menu.</p></div>
             <div><span></span><b>Clan colors</b><p>Colored clan tags in the player lists.</p></div>
             <div><span></span><b>HUD editor</b><p>Drag, resize and hide every HUD element, snapping to the edges and to each other.</p></div>
             <div><span></span><b>Nuke counter</b><p>Your career nuke total in game, with an optional goal. Place it where you want it.</p></div>
@@ -378,12 +383,13 @@
             <div><span></span><b>Custom sky</b><p>Your own sky on every map: starfield, aurora, synthwave and more built in, a color gradient, or any image you drop into the skies folder.</p></div>
             <div><span></span><b>Userscripts</b><p>Crankshaft and idkr scripts work as they are. Manage them in the client: turn them on and off live, change their settings, edit them in the built-in editor or drop new ones in.</p></div>
             <div><span></span><b>Mods</b><p>Krunker mods load right in the game window. Mod, lobby and invite links never open a second game that would end your match.</p></div>
-            <div><span></span><b>Settings import</b><p>Pick which parts to import: keybinds, sensitivity, sound.</p></div>
+            <div><span></span><b>Krunker settings import</b><p>Pick which parts to import: keybinds, sensitivity, sound.</p></div>
           </div>
 
           <div class="feature-group" id="f-client">
             <h3>Client</h3>
             <div><span></span><b>Account manager</b><p>Saved accounts, encrypted by Windows. Passwords never reach the page.</p></div>
+            <div><span></span><b>Settings transfer</b><p>Export Kute's settings, HUD positions, matchmaker filters and hotkeys to one file, import it on another PC.</p></div>
             <div><span></span><b>OBS capture</b><p>An OBS source that takes the frames straight from the game, plus a separate audio window.</p></div>
             <div><span></span><b>Medal.tv</b><p>Officially supported by Medal.tv, so clipping your plays just works.</p></div>
             <div><span></span><b>Auto-updater</b><p>Updates the client, and script fixes arrive without a reinstall. Shows a changelog.</p></div>
@@ -428,6 +434,7 @@
         <a class="button button-primary button-large" href="https://github.com/NullDev/Kute/releases/latest/download/kute-setup-x86_64.msi" target="_blank" rel="noreferrer">
           Download Kute <span aria-hidden="true">↓</span>
         </a>
+        <a class="cta-alt" href="https://github.com/NullDev/Kute/releases/latest/download/kute-x86_64-portable.zip" target="_blank" rel="noreferrer">or get the portable zip ↓</a>
         <div class="cta-meta"><span>WINDOWS 10 / 11</span><span>64-BIT</span><span>UPDATES ITSELF</span></div>
       </section>
     </main>

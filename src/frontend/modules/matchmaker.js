@@ -1,6 +1,7 @@
 import styles from "../components/matchmaker.css";
 import { kute } from "../client.js";
 import { request } from "../utils.js";
+import { matches } from "./hotkeys.js";
 
 // ---
 // ported from the Krunker Civilian Client (GPL-3.0) <3
@@ -249,7 +250,7 @@ class Matchmaker {
         };
 
         kute.matchmaker = { showFilters: () => this.showFilters() };
-        // F6 checks the setting per press, the host leaves F6 alone while it's on
+        // the matchmaker key checks the setting per press, the host leaves it alone while it's on
         kute.settings.toggleMatchmaker = () => {};
 
         // older exes load a new lobby on F6 themselves
@@ -257,7 +258,7 @@ class Matchmaker {
         window.addEventListener(
             "keydown",
             (event) => {
-                if (event.key !== "F6" || event.repeat || !kute.settings.data.matchmaker) return;
+                if (!matches(event, "matchmaker") || event.repeat || !kute.settings.data.matchmaker) return;
                 if (document.activeElement?.tagName === "INPUT") return;
                 this.start().catch((error) => console.error("[kute] matchmaker:", error));
             },

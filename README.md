@@ -7,6 +7,7 @@
 ## :arrow_down: Download
 
 - [Download the latest installer](https://github.com/NullDev/Kute/releases/latest/download/kute-setup-x86_64.msi)
+- [Download the portable zip](https://github.com/NullDev/Kute/releases/latest/download/kute-x86_64-portable.zip) (unpack anywhere and start `kute.exe`. Settings stay in `Documents\kute`, small updates still apply by themselves, a new client version opens the download page instead of installing)
 - [Release notes](https://github.com/NullDev/Kute/releases/latest)
 - [All Releases](https://github.com/NullDev/Kute/releases)
 
@@ -25,25 +26,27 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 
 - [x] Runs on its own bundled Chromium (CEF), no browser or runtime install needed
   - [x] Patched CEF: fixes the aim freeze and the GPU bottleneck stutter of uncapped clients
-  - [x] Every Chromium patch is a switch in the Engine settings (input priority, frame pacing, raw input movement, audio automation, WebGL buffer cache, process QoS), so any of them can be turned off on a PC where it does not help
+  - [x] Every Chromium patch is a switch in the Engine settings, so any of them can be turned off on a PC where it does not help
   - [x] Fix Audio Stutters (optional): sound that cuts out at high FPS costs the audio thread about 60 % less
 - [x] Uncapped FPS with a DXGI present hook: waitable flip swapchain, frame pacing and a present FPS counter
-- [x] Exact FPS limiter inside Chromium's compositor (our patch): frames start on a fixed grid and reach the screen as soon as they are drawn, nothing spins, and it works with the hook off and on every graphics backend
-- [x] **Proper** Raw input
+- [x] Exact FPS limiter inside Chromium's compositor (our patch): frames start on a fixed grid and reach the screen as soon as they are drawn
+- [x] **Proper** Raw input (100%)
 - [x] Increased performance tweaks (chromium & CEF flags, game settings, system optimizations)
-- [x] Auto-Detect: tests the client's own setup, then measures your PC in a private test match (about two minutes) and picks what runs best on it: the swapchain hook and the Chromium patches, the FPS limit, and game settings only while your PC misses 3x your refresh rate. A PC that stops running steadily when it is pushed (many laptops) gets the highest limit it holds with room to spare, unless your own limit already runs steadily. Your setup stays unless the result measurably runs no worse in anything: reaction time, mouse wait, slow frames, stutter. Nothing is taken that measures worse anywhere, the result is checked against how you started, and everything can be undone
+- [x] Auto-Detect Best Settings: Client benchmarks your PC and automatically selects the optimal settings for performance and stability. Can be reverted at any time
 - [x] Disable all non-performance features: one switch turns off every cosmetic feature and hides its settings, switch it back and your choices return
-- [x] Laptops with two graphics chips are recognized: Kute picks the fast one in Windows' graphics settings once, and starts without the swapchain hook there (frames get copied between the two chips, where the hook costs)
+- [x] Laptops with two graphics chips are recognized: Kute picks the fast one in Windows' graphics settings once, and starts without the swapchain hook there
 - [x] Laptop Power Boost (optional): a plugged in laptop runs on Windows' Best performance mode while Kute is open, and gets its own mode back after
-- [x] NVIDIA driver caps lifted for Kute only: its own driver profile (no Max Frame Rate, V-Sync left to the client) is created once, your global settings and other games stay as they are, and you can change or delete it in the NVIDIA Control Panel
+- [x] NVIDIA driver caps lifted for Kute only: its own driver profile
 - [x] Selectable graphics backend (ANGLE: D3D11, D3D11on12, OpenGL, Vulkan) and color profile
 - [x] Optimized URL blocklist (only ~50 entries, fully customizable), custom Chromium flags
-- [x] Resource swapper with an in-client manager: shows which game files your swaps replace, drop a file onto a game file to put it in the right place, folder names ignore case, create and edit text files like CSS in the built-in editor
+- [x] Resource swapper with an in-client manager: shows which game files your swaps replace, drag'n'drop & built-in editor
 - [x] Classic menu (optional): the Season 9 menu layout, with every new Season 10 button and feature still in it
+- [x] Hide Popular Now (optional): removes the Season 10 "Popular Now" maps row, in the regular and the classic menu
 - [x] Custom CSS with a syntax highlighted editor and live preview, always applied on top of Krunker's own styles
 - [x] Motion blur (optional): a slight blur while you turn the camera, the HUD stays sharp
 - [x] Custom sky (optional): a built-in preset, your own color gradient or your own image as the sky of every map
 - [x] All settings togglable
+- [x] Export and import Kute's settings (client settings, HUD positions, matchmaker filters, hotkeys) as one file, for a second PC or a fresh install
 - [x] Battle pass claim-all
 - [x] Userscripts (Crankshaft and idkr formats) with an in-client manager: live on/off, script settings, a built-in editor, drag and drop
 - [x] Mod compatibility: mods, lobby and invite links open in the game window instead of a second one that would end your match
@@ -65,15 +68,13 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] Kute icons: our own counter, ammo, hitmarker, reticle and scope icons, each one optional, without touching your settings
 - [x] Discord Rich Presence
 - [x] CPU throttler (a last resort, see below)
-- [x] Lightweight autoupdater & changelogs
-- [x] Basic shortcuts (F4 new lobby, F6 matchmaker, F5 reload, F11 fullscreen, F12 devtools)
+- [x] Autoupdater with a download progress window, plus changelogs
+- [x] Rebindable kute hotkeys
 - [x] Matchmaker
-- [ ] Skin Swapper (coming soon)
+- [x] Spotify overlay - by [@Liamoulee](https://github.com/Liamoulee)
+- [ ] Skin Swapper (coming soon, maybe)
 - [ ] BetterKDR™️ (coming soon)
 - [ ] Bloomberg-style trading terminal & market analysis (coming soon)
-- [ ] Music overlay (in progress)
-  - [x] Spotify (in progress) - by [@Liamoulee](https://github.com/Liamoulee)
-  - [ ] YouTube (coming soon)
 - [x] and more...
 
 <hr>
