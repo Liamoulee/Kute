@@ -34,6 +34,7 @@ fn main() {
 
     println!("cargo:rerun-if-changed=Cargo.toml");
     println!("cargo:rerun-if-changed=resources/kute.exe.manifest");
+    println!("cargo:rerun-if-changed=resources/comctl6.manifest");
     println!("cargo:rerun-if-changed=resources/kute-manifest.rc");
     println!("cargo:rerun-if-changed=resources/client.rc");
     println!("cargo:rerun-if-changed=resources/version_resource.rs");

@@ -411,11 +411,8 @@ wrap_browser_process_handler! {
 
             #[cfg(feature = "auto-update")]
             if config("checkUpdates", true) {
-                std::thread::spawn(|| {
-                    modules::lifecycle::check_major_update();
-                    // new bundle applies on the next navigation
-                    modules::lifecycle::check_minor_update();
-                });
+                // a new bundle applies on the next navigation
+                std::thread::spawn(modules::updater::run);
             }
         }
     }

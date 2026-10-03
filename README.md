@@ -7,6 +7,7 @@
 ## :arrow_down: Download
 
 - [Download the latest installer](https://github.com/NullDev/Kute/releases/latest/download/kute-setup-x86_64.msi)
+- [Download the portable zip](https://github.com/NullDev/Kute/releases/latest/download/kute-x86_64-portable.zip) (unpack anywhere and start `kute.exe`. Settings stay in `Documents\kute`, small updates still apply by themselves, a new client version opens the download page instead of installing)
 - [Release notes](https://github.com/NullDev/Kute/releases/latest)
 - [All Releases](https://github.com/NullDev/Kute/releases)
 
@@ -65,7 +66,7 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] Kute icons: our own counter, ammo, hitmarker, reticle and scope icons, each one optional, without touching your settings
 - [x] Discord Rich Presence
 - [x] CPU throttler (a last resort, see below)
-- [x] Lightweight autoupdater & changelogs
+- [x] Autoupdater with a download progress window that never closes the client by itself (restart now, or it installs when you close Kute), plus changelogs
 - [x] Basic shortcuts (F4 new lobby, F6 matchmaker, F5 reload, F11 fullscreen, F12 devtools)
 - [x] Matchmaker
 - [ ] Skin Swapper (coming soon)

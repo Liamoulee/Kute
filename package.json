@@ -15,7 +15,7 @@
         "start:prod": "bun run esbuild && cargo build --workspace --release --features packaged,editor-ignore && bun postbuild.js release && ./target/release/kute.exe",
         "build": "bun run esbuild && cargo build --workspace --release --features packaged,editor-ignore && bun postbuild.js release",
         "build:auto-update": "bun run esbuild && cargo build --workspace --release --features packaged,auto-update,editor-ignore && bun postbuild.js release",
-        "package": "bun run build:auto-update && wix build ./resources/installer_script.wxs -ext WixToolset.Util.wixext -o target/kute-setup-x86_64.msi",
+        "package": "bun run build:auto-update && wix build ./resources/installer_script.wxs -ext WixToolset.Util.wixext -o target/kute-setup-x86_64.msi && bun portable.js",
         "lint": "eslint .",
         "test": "bun test ./tests",
         "lint:fix": "eslint . --fix",
