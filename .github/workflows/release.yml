@@ -98,6 +98,13 @@ jobs:
           path: target/kute-setup-x86_64.msi
           retention-days: 7
 
+      - name: Upload portable artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: kute-portable-x86_64-zip-${{ steps.version.outputs.version }}-${{ github.sha }}
+          path: target/kute-portable-x86_64.zip
+          retention-days: 7
+
       # via the API so GitHub signs it. if master moved during the build the bump goes on top as long as
       # the version files are unchanged there, expectedHeadOid guards the rest
       - name: Commit the version bump
@@ -161,3 +168,11 @@ jobs:
           draft: true
           generate_release_notes: true
           files: target/kute-setup-x86_64.msi
+
+      # own step so the msi is always the first asset: older exes take assets[0] as the installer
+      - name: Add the portable zip to the release
+        if: inputs.mode != 'build only'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ steps.version.outputs.version }}" target/kute-portable-x86_64.zip --clobber
