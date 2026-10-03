@@ -79,6 +79,7 @@ interface Kute {
     /** this PC has a dev token, the token itself never leaves the host */
     dev?: boolean;
     matchmaker: { showFilters(): Promise<void> };
+    hotkeys: { edit(): void };
     nukeCounter: { showOptions(): Promise<void> };
     customSky: { showOptions(): Promise<void> };
     hudEditor: { edit(): void; apply(): void };

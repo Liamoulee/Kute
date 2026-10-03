@@ -19,6 +19,16 @@
         "button": "Show",
         "buttonAction": "{{kute}}.autoDetect.showLast()"
     },
+    "hotkeys": {
+        "name": "Hotkeys",
+        "id": "hotkeys",
+        "description": "Change or clear Kute's own keys (new lobby, matchmaker, reload, fullscreen) and add keys for toggles",
+        "type": "none",
+        "category": "General",
+        "button": "Change",
+        "buttonAction": "{{kute}}.hotkeys.edit()",
+        "hostFeature": "hotkeys"
+    },
     "performanceMode": {
         "name": "Disable All Non-Performance Features",
         "id": "performanceMode",

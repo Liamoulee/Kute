@@ -1,0 +1,146 @@
+<style>
+#hkPanel {
+	box-sizing: border-box;
+	width: 620px;
+	max-width: 92vw;
+	max-height: 88vh;
+	overflow-y: auto;
+	scrollbar-width: thin;
+	scrollbar-color: #444 #1e1e1e;
+	padding: 1.8em 2.2em 1.4em 2.2em;
+	background: #1e1e1e;
+	color: #fff;
+	border-radius: 14px;
+	box-shadow: 0 8px 48px #000c;
+	font-family: Consolas, monospace;
+}
+
+#hkPanel h2 {
+	margin: 0 0 0.3em 0;
+	font-size: 1.6em;
+	letter-spacing: 1px;
+	color: #35e0e8;
+	text-align: center;
+}
+
+#hkHint {
+	margin-bottom: 1em;
+	color: #999;
+	text-align: center;
+	line-height: 1.5;
+}
+
+#hkPanel h3 {
+	margin: 1.2em 0 0.4em 0;
+	font-size: 0.85em;
+	font-weight: normal;
+	letter-spacing: 2px;
+	text-transform: uppercase;
+	color: #35e0e8;
+}
+
+.hkRow {
+	display: flex;
+	gap: 0.8em;
+	align-items: center;
+	padding: 0.45em 0;
+	border-bottom: 1px solid #2a2a2a;
+}
+
+.hkLabel {
+	flex: 1;
+	min-width: 0;
+}
+
+.hkNote {
+	display: block;
+	font-size: 0.8em;
+	color: #777;
+}
+
+.hkKey {
+	min-width: 8em;
+	padding: 0.45em 0.8em;
+	border: 1px solid #3a3a3a;
+	border-radius: 8px;
+	background: #2a2a2a;
+	text-align: center;
+	cursor: pointer;
+	user-select: none;
+}
+
+.hkKey:hover {
+	border-color: #35e0e8;
+	color: #35e0e8;
+}
+
+.hkKey.hkNone {
+	color: #777;
+}
+
+.hkKey.hkWaiting {
+	border-color: #35e0e8;
+	color: #35e0e8;
+	animation: hkPulse 1s ease-in-out infinite;
+}
+
+@keyframes hkPulse {
+	50% {
+		background: #1f3a3c;
+	}
+}
+
+.hkClear {
+	color: #888;
+	cursor: pointer;
+	user-select: none;
+}
+
+.hkClear:hover {
+	color: #ff7a7a;
+}
+
+.hkWarn {
+	margin: 0.3em 0 0.2em 0;
+	padding: 0.4em 0.7em;
+	border-left: 3px solid #f0b040;
+	border-radius: 0 6px 6px 0;
+	background: #2a2416;
+	color: #f3d08a;
+	font-size: 0.85em;
+	line-height: 1.5;
+}
+
+#hkActions {
+	display: flex;
+	gap: 0.7em;
+	margin-top: 1.4em;
+}
+
+.hkButton {
+	flex: 1;
+	padding: 0.65em 0.5em;
+	border-radius: 8px;
+	background: #2a2a2a;
+	text-align: center;
+	cursor: pointer;
+	user-select: none;
+}
+
+.hkButton:hover {
+	background: #333;
+	color: #35e0e8;
+}
+</style>
+<div id="hkPanel">
+	<h2>Hotkeys</h2>
+	<div id="hkHint">Click a key, then press the new one. Escape cancels.<br>Ctrl, Alt and Shift combinations work too.</div>
+	<h3>Lobby and window</h3>
+	<div id="hkGroup-window"></div>
+	<h3>Toggles</h3>
+	<div id="hkGroup-toggle"></div>
+	<div id="hkActions">
+		<div class="hkButton" id="hkReset">Reset to defaults</div>
+		<div class="hkButton" id="hkDone">Done</div>
+	</div>
+</div>

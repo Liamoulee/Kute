@@ -173,6 +173,8 @@ Object.defineProperty(window, "gameLoaded", {
         import("./modules/importSettings.js");
         // always: setting is read per F6, filter button needs the module
         import("./modules/matchmaker.js");
+        // always: toggle keys and the menu button
+        import("./modules/hotkeys.js");
         // always: customize button needs the module
         import("./modules/nukeCounter.js");
         // always: customize button needs it, host needs icon url changes
