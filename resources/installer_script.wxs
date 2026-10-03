@@ -43,7 +43,7 @@
     </ComponentGroup>
         <CustomAction Id="ExecuteKute" Impersonate="yes" Return="asyncNoWait" FileRef="kute.exe" ExeCommand="" />
     <InstallExecuteSequence >
-      <Custom Action="ExecuteKute" After="InstallFinalize" />
+      <Custom Action="ExecuteKute" After="InstallFinalize" Condition="NOT KUTE_NO_LAUNCH" />
     </InstallExecuteSequence>
   </Fragment>
 </Wix>
