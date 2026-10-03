@@ -599,5 +599,23 @@
         "category": "About",
         "defaultValue": true,
         "needsRestart": true
+    },
+    "exportClientSettings": {
+        "name": "Export Kute Settings",
+        "id": "exportClientSettings",
+        "description": "Saves Kute's settings, HUD positions, matchmaker filters and hotkeys as a file in Downloads",
+        "type": "none",
+        "category": "About",
+        "button": "Export",
+        "buttonAction": "{{kute}}.settingsTransfer.exportFile()"
+    },
+    "importClientSettings": {
+        "name": "Import Kute Settings",
+        "id": "importClientSettings",
+        "description": "Loads a file from Export Kute Settings and restarts Kute",
+        "type": "none",
+        "category": "About",
+        "button": "Import",
+        "buttonAction": "{{kute}}.settingsTransfer.importFile()"
     }
 }

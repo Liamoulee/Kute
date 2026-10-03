@@ -80,6 +80,7 @@ interface Kute {
     dev?: boolean;
     matchmaker: { showFilters(): Promise<void> };
     hotkeys: { edit(): void };
+    settingsTransfer: { exportFile(): void; importFile(): void };
     nukeCounter: { showOptions(): Promise<void> };
     customSky: { showOptions(): Promise<void> };
     hudEditor: { edit(): void; apply(): void };
