@@ -46,6 +46,7 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] Motion blur (optional): a slight blur while you turn the camera, the HUD stays sharp
 - [x] Custom sky (optional): a built-in preset, your own color gradient or your own image as the sky of every map
 - [x] All settings togglable
+- [x] Export and import Kute's settings (client settings, HUD positions, matchmaker filters, hotkeys) as one file, for a second PC or a fresh install
 - [x] Battle pass claim-all
 - [x] Userscripts (Crankshaft and idkr formats) with an in-client manager: live on/off, script settings, a built-in editor, drag and drop
 - [x] Mod compatibility: mods, lobby and invite links open in the game window instead of a second one that would end your match
