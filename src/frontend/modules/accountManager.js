@@ -1,5 +1,5 @@
 import { kute } from "../client.js";
-import { getElement, getInput, checkCompMode, waitForElement, request } from "../utils.js";
+import { getElement, getInput, checkCompMode, request } from "../utils.js";
 import { confirmPopup } from "./confirmPopup.js";
 
 /**
@@ -19,12 +19,10 @@ import { confirmPopup } from "./confirmPopup.js";
 
 const LEGACY_KEY = "accounts";
 const DEFAULT_COLOR = "#35e0e8";
-const STALE_SESSION = /different account/i;
-// popup shows right after login or never
-const WATCH_MS = 30000;
-// sessionStorage, stops hop loops
-const HOP_KEY = "kute_account_hop";
-const HOP_QUIET_MS = 15000;
+// sessionStorage, the login after the reload that follows a logout (sessionRecovery.js)
+const SWITCH_KEY = "kute_account_switch";
+// logout reload plus a hung load and its recovery reload
+const SWITCH_MAX_MS = 120000;
 
 /**
  * @param {string} encoded
@@ -116,15 +114,7 @@ class AccountManager {
         this.headerItem.innerHTML = '<span class="material-icons" style="font-size: 20px;">switch_account</span><span>Accounts</span>';
 
         /** @type {MutationObserver} */
-        this.headerObserver = new MutationObserver(() => {
-            this.placeButton();
-            this.trackAccount();
-        });
-
-        this.sessionAccount = localStorage.getItem("krunker_username") ?? "";
-        this.watching = false;
-        /** @type {(() => void)|null} */
-        this.stopWatching = null;
+        this.headerObserver = new MutationObserver(() => this.placeButton());
 
         // shadow root so krunker's ids and css can't reach the menu
         /** @type {HTMLDivElement|null} */
@@ -168,6 +158,25 @@ class AccountManager {
             this.accounts = accounts;
         }
         this.renderAccounts();
+        this.resumeSwitch();
+    }
+
+    resumeSwitch(){
+        const raw = sessionStorage.getItem(SWITCH_KEY);
+        if (raw === null) return;
+        sessionStorage.removeItem(SWITCH_KEY);
+        /** @type {{username?: unknown, at?: unknown}} */
+        let pending = {};
+        try {
+            pending = JSON.parse(raw) ?? {};
+        }
+        catch {
+            return;
+        }
+        if (Date.now() - Number(pending.at) > SWITCH_MAX_MS) return;
+        if (localStorage.getItem("krunker_token") !== null) return;
+        const account = this.accounts.find((entry) => entry.username === pending.username);
+        if (account) this.login(account);
     }
 
     /**
@@ -227,7 +236,6 @@ class AccountManager {
             this.headerSeparator.remove();
             this.headerItem.remove();
             this.closeMenu();
-            this.stopWatching?.();
         }
     }
 
@@ -256,76 +264,6 @@ class AccountManager {
         }
         const signedOut = document.querySelector("#signedOutHeaderBar");
         if (signedOut && !signedOut.contains(this.button)) signedOut.append(this.button);
-    }
-
-    /**
-     * only a switch within one page load goes stale, not a first login or logout
-     */
-    trackAccount(){
-        const current = localStorage.getItem("krunker_username") ?? "";
-        if (current === "" || current === this.sessionAccount) return;
-        const switched = this.sessionAccount !== "";
-        this.sessionAccount = current;
-        if (switched) this.watchForStaleSession();
-    }
-
-    watchForStaleSession(){
-        if (this.watching) return;
-        this.watching = true;
-
-        /**
-         * textContent, innerText forces a layout
-         *
-         * @param {Node} node
-         * @return {boolean}
-         */
-        const isPopup = (node) => STALE_SESSION.test(node.textContent ?? "");
-        /** @type {{observer?: MutationObserver, timer: number}} */
-        const watch = { timer: 0 };
-        const stop = () => {
-            clearTimeout(watch.timer);
-            watch.observer?.disconnect();
-            this.watching = false;
-            this.stopWatching = null;
-        };
-
-        watch.observer = new MutationObserver((records) => {
-            for (const record of records){
-                // popup is either inserted or an existing element gets shown
-                const hit = record.type === "childList"
-                    ? [...record.addedNodes].some(isPopup)
-                    : record.target !== document.body && record.target !== document.documentElement && isPopup(record.target);
-                if (!hit) continue;
-                stop();
-                this.leaveStaleSession();
-                return;
-            }
-        });
-        watch.timer = setTimeout(stop, WATCH_MS);
-        this.stopWatching = stop;
-
-        // body wide, hence the time limit. popup has no stable container
-        watch.observer.observe(document.body, {
-            childList: true,
-            subtree: true,
-            characterData: true,
-            attributeFilter: ["style", "class"],
-        });
-    }
-
-    /**
-     * new lobby like F4 (?exclude=), a plain reload often hits "game is full"
-     */
-    leaveStaleSession(){
-        const last = Number(sessionStorage.getItem(HOP_KEY) ?? 0);
-        if (Date.now() - last < HOP_QUIET_MS) return;
-        sessionStorage.setItem(HOP_KEY, String(Date.now()));
-
-        // raw id like the host cuts it, re-encoding changes it
-        const game = location.search.split("game=")[1]?.trim();
-        const target = game ? `https://krunker.io/?exclude=${game}` : "https://krunker.io/";
-        // krunker still writes the new session when the popup shows
-        setTimeout(() => window.location.assign(target), 300);
     }
 
     openMenu = () => {
@@ -424,8 +362,7 @@ class AccountManager {
             const row = document.createElement("div");
             row.className = "accRow";
             row.title = `Log in as ${account.username}`;
-            // waitForElement rejects when the header never switches
-            row.onclick = () => this.login(account).catch((error) => console.error("[kute] accounts:", error));
+            row.onclick = () => this.login(account);
 
             const avatar = document.createElement("div");
             avatar.className = "accAvatar";
@@ -539,18 +476,16 @@ class AccountManager {
 
     /**
      * @param {Account} account
-     * @return {Promise<void>}
      */
-    async login(account){
+    login(account){
         this.closeMenu();
-        // session is from the page load, logging in over it goes stale
-        const wasSignedIn = document.querySelector("#signedInHeaderBar") !== null;
-        if (wasSignedIn){
+        // frvr can't log in again on the page of a logout, sessionRecovery reloads and resumeSwitch finishes it
+        if (localStorage.getItem("krunker_token") !== null){
+            sessionStorage.setItem(SWITCH_KEY, JSON.stringify({ username: account.username, at: Date.now() }));
             window.logoutAcc();
-            await waitForElement("#signedOutHeaderBar");
+            return;
         }
         window.loginOrRegister();
-        if (wasSignedIn) this.watchForStaleSession();
 
         queueMicrotask(() => {
             const authToggle = getElement(".auth-toggle-btn");
