@@ -75,6 +75,44 @@
 	color: #00f3ef;
 }
 
+#changelogNav {
+	display: flex;
+	align-items: center;
+	gap: 0.5em;
+	margin: 0 1.6em 0 auto;
+}
+
+.changelogArrow {
+	width: 2em;
+	height: 2em;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	border: 1px solid rgba(183, 255, 253, 0.18);
+	border-radius: 8px;
+	color: #8a9a9b;
+	font-size: 1.2em;
+	cursor: pointer;
+	user-select: none;
+}
+
+.changelogArrow:hover {
+	border-color: #00f3ef;
+	color: #00f3ef;
+}
+
+.changelogArrow.changelogDisabled {
+	opacity: 0.3;
+	pointer-events: none;
+}
+
+#changelogPosition {
+	min-width: 4.5em;
+	color: #5f6d6e;
+	font-size: 0.85em;
+	text-align: center;
+}
+
 #changelogContentWrapper {
 	flex: 1 1 auto;
 	min-height: 2em;
@@ -285,6 +323,11 @@
 		<div>
 			<div id="changelogEyebrow">[ WHAT'S NEW ]</div>
 			<h2 id="changelogTitle">Kute <span id="changelogVersion"></span></h2>
+		</div>
+		<div id="changelogNav" style="display: none">
+			<div class="changelogArrow" id="changelogOlder" title="Older release (Left arrow)">&lsaquo;</div>
+			<div id="changelogPosition"></div>
+			<div class="changelogArrow" id="changelogNewer" title="Newer release (Right arrow)">&rsaquo;</div>
 		</div>
 	</div>
 	<div id="changelogContentWrapper">
