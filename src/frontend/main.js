@@ -95,6 +95,16 @@ document.addEventListener(
                 document.head.append(classicMenuCSS);
             });
         });
+
+        ready.then(() => {
+            if (!kute.settings.data.hidePopularNow) return;
+            import("./components/hidePopularNow.css").then((css) => {
+                const hidePopularCSS = document.createElement("style");
+                hidePopularCSS.id = "kute_hidePopularNowCSS";
+                hidePopularCSS.textContent = css.default;
+                document.head.append(hidePopularCSS);
+            });
+        });
     },
     { once: true },
 );

@@ -207,6 +207,15 @@
         "category": "Interface",
         "defaultValue": false
     },
+    "hidePopularNow": {
+        "name": "Hide Popular Now",
+        "id": "hidePopularNow",
+        "performance": false,
+        "description": "Hides the Popular Now maps row in the menu",
+        "type": "checkbox",
+        "category": "Interface",
+        "defaultValue": false
+    },
     "clanColors": {
         "name": "Show Clan Colors",
         "id": "clanColors",
