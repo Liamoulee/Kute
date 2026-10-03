@@ -175,6 +175,8 @@ Object.defineProperty(window, "gameLoaded", {
         import("./modules/matchmaker.js");
         // always: toggle keys and the menu button
         import("./modules/hotkeys.js");
+        // always: export and import buttons in About
+        import("./modules/settingsTransfer.js");
         // always: customize button needs the module
         import("./modules/nukeCounter.js");
         // always: customize button needs it, host needs icon url changes

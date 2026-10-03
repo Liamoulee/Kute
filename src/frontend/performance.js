@@ -25,6 +25,14 @@ export function hiddenByPerformance(data, id){
 }
 
 /**
+ * @param {Record<string, any>} data kute.settings.data
+ * @return {Record<string, any>} a copy with the player's own values where performance mode overrides them
+ */
+export function playerValues(data){
+    return { ...data, ...stored };
+}
+
+/**
  * Puts the performance values into `data`, or the player's values back.
  *
  * @param {Record<string, any>} data kute.settings.data
