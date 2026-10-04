@@ -16,7 +16,7 @@ use windows::Win32::{
 };
 use windows::core::*;
 
-use crate::capture;
+use crate::{capture, shared::*};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(transparent)]
@@ -158,6 +158,18 @@ pub(crate) unsafe extern "system" fn create_swapchain_hk(
                     None
                 }
             };
+            // the host compares it with the adapter the monitor is wired to (hybrid laptops)
+            let shared = SHARED_MEM_PTR.load(Ordering::Acquire);
+            if shared != 0
+                && let Some(adapter) = device
+                    .as_ref()
+                    .and_then(|device| device.cast::<IDXGIDevice>().ok())
+                    .and_then(|device| device.GetAdapter().ok())
+                && let Ok(adapter_desc) = adapter.GetDesc()
+            {
+                let luid = ((adapter_desc.AdapterLuid.HighPart as u32 as u64) << 32) | adapter_desc.AdapterLuid.LowPart as u64;
+                shared!(shared, render_adapter).store(luid, Ordering::Relaxed);
+            }
             capture::capture_on_swapchain(*ppswapchain, device);
             if let Ok(swap_chain2) = swap_chain.cast::<IDXGISwapChain2>() {
                 swap_chain2

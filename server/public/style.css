@@ -1040,6 +1040,16 @@ h2 {
   font-weight: 600;
 }
 
+.faq-item p a {
+  color: var(--paper);
+  font-weight: 600;
+  box-shadow: inset 0 -1px var(--cyan);
+}
+
+.faq-item p a:hover {
+  color: var(--cyan);
+}
+
 .screenshots {
   padding: clamp(4.5rem, 8vw, 7rem) 0 clamp(3rem, 6vw, 5rem);
 }
@@ -1372,7 +1382,13 @@ h2 {
   font: 500 0.78rem/1.3 var(--mono);
 }
 
+.credits li.wide {
+  grid-column: 1 / -1;
+}
+
 .credits a {
+  flex: none;
+  max-width: 65%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1383,8 +1399,9 @@ h2 {
 }
 
 .credits span {
-  flex: none;
+  min-width: 0;
   color: var(--dim);
+  text-align: right;
 }
 
 .about-links {
@@ -1474,6 +1491,20 @@ footer > a:focus-visible {
 .button-large {
   min-width: min(330px, 100%);
   font-size: 0.82rem;
+}
+
+.cta-alt {
+  margin-top: 1rem;
+  color: var(--muted);
+  font: 650 0.68rem/1 var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: color 180ms ease;
+}
+
+.cta-alt:hover,
+.cta-alt:focus-visible {
+  color: var(--cyan);
 }
 
 .cta-meta {

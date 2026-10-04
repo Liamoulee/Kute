@@ -23,19 +23,25 @@ pub mod modules {
     pub mod dpapi;
     pub mod files;
     pub mod flaglist;
+    pub mod gpu;
+    pub mod hotkeys;
     pub mod icons;
     pub mod input;
     pub mod lifecycle;
+    pub mod load;
     pub mod nvidia;
     pub mod obs;
     pub mod ping;
+    pub mod power;
     pub mod priority;
     pub mod render_hook;
+    pub mod replay;
     pub mod resource;
     pub mod skybox;
     pub mod specs;
     pub mod spotify;
     pub mod swapper;
+    pub mod updater;
     pub mod userscripts;
 }
 
@@ -85,7 +91,7 @@ fn main() {
     #[cfg(feature = "packaged")]
     {
         modules::lifecycle::set_panic_hook().ok();
-        modules::lifecycle::installer_cleanup().ok();
+        modules::updater::installer_cleanup().ok();
     }
 
     if let Err(e) = app::init_fs() {
@@ -101,9 +107,13 @@ fn main() {
     // before cef starts, the driver reads the profile when the gpu process spawns
     if bench.is_none() {
         modules::nvidia::ensure_profile();
+        // also before: the gpu process reads hardFlip and windows' gpu preference at its start
+        modules::gpu::apply_hybrid_defaults();
+        modules::power::boost();
     }
     app::create_frame_timing_mapping();
     app::load_flags();
+    app::set_limiter_mode();
     if app::has_flag("--raise-timer-frequency") {
         utils::raise_timer_frequency();
     }
@@ -125,6 +135,9 @@ fn main() {
 
     // bench must not overwrite lastPosition
     if bench.is_none() {
+        modules::power::restore();
         CONFIG.lock().unwrap().save();
     }
+    #[cfg(feature = "auto-update")]
+    modules::updater::install_pending();
 }

@@ -1,12 +1,12 @@
 [package]
 name = "kute"
-version = "0.1.16"
+version = "0.1.18"
 description = "A high-performance Krunker client with enhanced features"
 authors = ["NullDev"]
 edition = "2024"
 
 [package.metadata]
-js_bundle_version = "0.1.59"
+js_bundle_version = "0.1.68"
 
 [workspace]
 members = ["crates/*"]
@@ -36,7 +36,9 @@ windows = { version = "0.62.2", features = [
     "Win32_UI_Input",
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_Accessibility",
+    "Win32_UI_Controls",
     "Win32_UI_Shell",
+    "Win32_System_ApplicationInstallationAndServicing",
     "Win32_System_Com",
     "Win32_System_DataExchange",
     "Win32_System_Diagnostics_Debug",
@@ -57,6 +59,7 @@ windows = { version = "0.62.2", features = [
     "Win32_Graphics_Dxgi_Common",
     "Win32_System_Registry",
     "Win32_System_Power",
+    "Win32_System_Performance",
     "Win32_System_SystemInformation",
     "Foundation",
     "Media_Control",

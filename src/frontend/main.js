@@ -6,6 +6,8 @@ import { postUrls as postIconUrls } from "./modules/kuteIcons/slots.js";
 // static import: the host only hands over the userscript registry during bundle eval
 import "./modules/managers/registry.js";
 import "./modules/customCss.js";
+// static import: a hung load never reaches gameLoaded
+import "./modules/sessionRecovery.js";
 
 const isBenchPage = location.pathname === "/kute-bench";
 if (isBenchPage) import("./modules/autoDetect/bench.js");
@@ -85,6 +87,26 @@ document.addEventListener(
                 document.head.append(cleanCSS);
             });
         });
+
+        ready.then(() => {
+            if (!kute.settings.data.classicMenu) return;
+            import("./components/classicMenu.css").then((css) => {
+                const classicMenuCSS = document.createElement("style");
+                classicMenuCSS.id = "kute_classicMenuCSS";
+                classicMenuCSS.textContent = css.default;
+                document.head.append(classicMenuCSS);
+            });
+        });
+
+        ready.then(() => {
+            if (!kute.settings.data.hidePopularNow) return;
+            import("./components/hidePopularNow.css").then((css) => {
+                const hidePopularCSS = document.createElement("style");
+                hidePopularCSS.id = "kute_hidePopularNowCSS";
+                hidePopularCSS.textContent = css.default;
+                document.head.append(hidePopularCSS);
+            });
+        });
     },
     { once: true },
 );
@@ -153,6 +175,10 @@ Object.defineProperty(window, "gameLoaded", {
         import("./modules/importSettings.js");
         // always: setting is read per F6, filter button needs the module
         import("./modules/matchmaker.js");
+        // always: toggle keys and the menu button
+        import("./modules/hotkeys.js");
+        // always: export and import buttons in About
+        import("./modules/settingsTransfer.js");
         // always: customize button needs the module
         import("./modules/nukeCounter.js");
         // always: customize button needs it, host needs icon url changes

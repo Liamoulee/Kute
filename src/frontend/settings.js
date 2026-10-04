@@ -101,6 +101,19 @@ function applyInterface(id, value){
                 document.querySelector("#kute_menuTimerCSS")?.remove();
             }
             break;
+        case "classicMenu":
+            if (value){
+                import("./components/classicMenu.css").then((css) => {
+                    const classicMenuCSS = document.createElement("style");
+                    classicMenuCSS.id = "kute_classicMenuCSS";
+                    classicMenuCSS.textContent = css.default;
+                    document.head.append(classicMenuCSS);
+                });
+            }
+            else {
+                document.querySelector("#kute_classicMenuCSS")?.remove();
+            }
+            break;
         case "cleanUI": {
             if (value){
                 import("./components/clean.css").then((css) => {
@@ -112,6 +125,20 @@ function applyInterface(id, value){
             }
             else {
                 document.querySelector("#kute_cleanCSS")?.remove();
+            }
+            break;
+        }
+        case "hidePopularNow": {
+            if (value){
+                import("./components/hidePopularNow.css").then((css) => {
+                    const hidePopularCSS = document.createElement("style");
+                    hidePopularCSS.id = "kute_hidePopularNowCSS";
+                    hidePopularCSS.textContent = css.default;
+                    document.head.append(hidePopularCSS);
+                });
+            }
+            else {
+                document.querySelector("#kute_hidePopularNowCSS")?.remove();
             }
             break;
         }
@@ -166,7 +193,12 @@ function applyBlocker(id, blocking){
 kute.settings.changeSetting = (id, rawValue, slider) => {
     if (rawValue === "") return;
 
-    getInput(`#${id}`).value = String(rawValue);
+    // a hotkey can flip a setting while the settings window is closed
+    const input = document.querySelector(`#${id}`);
+    if (input instanceof HTMLInputElement){
+        input.value = String(rawValue);
+        if (input.type === "checkbox") input.checked = rawValue === true;
+    }
     let value = rawValue;
 
     if (typeof value === "string"){

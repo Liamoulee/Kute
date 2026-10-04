@@ -150,6 +150,10 @@ pub fn set_pointer_locked(locked: bool) {
     debug_print!("input: pointer locked={locked}");
 }
 
+pub fn pointer_locked() -> bool {
+    POINTER_LOCKED.load(sync::atomic::Ordering::Relaxed)
+}
+
 // remembered so widgets hooked after a page load get the same one
 fn widget_proc() -> isize {
     if RAMPBOOST.load(sync::atomic::Ordering::Relaxed) {

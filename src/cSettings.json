@@ -2,12 +2,13 @@
     "autoDetect": {
         "name": "Auto-Detect Best Settings",
         "id": "autoDetect",
-        "description": "Tests your PC in a private match for under a minute and picks the best settings. You can undo it",
+        "description": "Tests the client and the game on your PC for about two minutes and picks what runs best. Don't touch mouse or keyboard meanwhile. You can undo it",
         "type": "none",
         "category": "General",
         "button": "Run",
         "buttonAction": "{{kute}}.autoDetect.setUp()",
-        "requiresLogin": true
+        "requiresLogin": true,
+        "hostFeature": "autodetect-v2"
     },
     "autoDetectResult": {
         "name": "Last Auto-Detect Result",
@@ -17,6 +18,16 @@
         "category": "General",
         "button": "Show",
         "buttonAction": "{{kute}}.autoDetect.showLast()"
+    },
+    "hotkeys": {
+        "name": "Hotkeys",
+        "id": "hotkeys",
+        "description": "Change or clear Kute's own keys (new lobby, matchmaker, reload, fullscreen) and add keys for toggles",
+        "type": "none",
+        "category": "General",
+        "button": "Change",
+        "buttonAction": "{{kute}}.hotkeys.edit()",
+        "hostFeature": "hotkeys"
     },
     "performanceMode": {
         "name": "Disable All Non-Performance Features",
@@ -163,6 +174,15 @@
         "category": "Interface",
         "defaultValue": true
     },
+    "classicMenu": {
+        "name": "Classic Menu",
+        "id": "classicMenu",
+        "performance": false,
+        "description": "Season 9 menu layout, new buttons and features stay",
+        "type": "checkbox",
+        "category": "Interface",
+        "defaultValue": false
+    },
     "betterChat": {
         "name": "Better Chat",
         "id": "betterChat",
@@ -193,6 +213,15 @@
         "name": "Hide Bundle Popups",
         "id": "hideBundles",
         "description": "Stops store bundle popups from showing up outside the store",
+        "type": "checkbox",
+        "category": "Interface",
+        "defaultValue": false
+    },
+    "hidePopularNow": {
+        "name": "Hide Popular Now",
+        "id": "hidePopularNow",
+        "performance": false,
+        "description": "Hides the Popular Now maps row in the menu",
         "type": "checkbox",
         "category": "Interface",
         "defaultValue": false
@@ -384,15 +413,6 @@
         "needsRestart": true,
         "hostFeature": "audio-fix"
     },
-    "hardFlip": {
-        "name": "DXGI Swapchain Hook",
-        "id": "hardFlip",
-        "description": "Needed for the exact FPS limit, the present FPS counter and OBS capture",
-        "type": "checkbox",
-        "category": "Advanced",
-        "defaultValue": true,
-        "needsRestart": true
-    },
     "angleBackend": {
         "name": "Graphics Backend (ANGLE)",
         "id": "angleBackend",
@@ -464,6 +484,94 @@
         "button": "Clear Now",
         "buttonAction": "if(confirm('Are you sure you want to clear cache and local storage?')) { localStorage.clear(); sessionStorage.clear(); window.chrome.webview.postMessage('clear-cache'); }"
     },
+    "hardFlip": {
+        "name": "DXGI Swapchain Hook",
+        "id": "hardFlip",
+        "description": "Present FPS counter and OBS capture. Laptops with two graphics chips may run better without it",
+        "type": "checkbox",
+        "category": "Engine",
+        "defaultValue": true,
+        "needsRestart": true
+    },
+    "laptopPowerBoost": {
+        "name": "Laptop Power Boost",
+        "id": "laptopPowerBoost",
+        "description": "Plugged in laptops only: sets Windows' power mode to Best performance while Kute runs and puts yours back after",
+        "type": "checkbox",
+        "category": "Engine",
+        "defaultValue": true,
+        "hostFeature": "hybrid-gpu"
+    },
+    "patchInputPriority": {
+        "name": "Input at Normal Priority",
+        "id": "patchInputPriority",
+        "description": "Chromium patch: mouse input no longer starves the game's server messages. Off brings back the aim freeze",
+        "type": "checkbox",
+        "category": "Engine",
+        "defaultValue": true,
+        "needsRestart": true,
+        "hostFeature": "cef-patches"
+    },
+    "patchFramePacing": {
+        "name": "Frame Pacing",
+        "id": "patchFramePacing",
+        "description": "Chromium patch: the game runs one frame ahead of the screen instead of flooding it. Off brings back the GPU stutter",
+        "type": "checkbox",
+        "category": "Engine",
+        "defaultValue": true,
+        "needsRestart": true,
+        "hostFeature": "cef-patches"
+    },
+    "patchFrameLimiter": {
+        "name": "Chromium FPS Limiter",
+        "id": "patchFrameLimiter",
+        "description": "Chromium patch: holds the FPS limit inside Chromium with the CPU idle, with or without the hook. Off uses the hook's limiter, or a busy wait without the hook",
+        "type": "checkbox",
+        "category": "Engine",
+        "defaultValue": true,
+        "needsRestart": true,
+        "hostFeature": "cef-patches"
+    },
+    "patchRawInputMovement": {
+        "name": "Raw Input Keeps Movement",
+        "id": "patchRawInputMovement",
+        "description": "Chromium patch: no mouse movement is lost on a click. Off drops a few counts at every shot",
+        "type": "checkbox",
+        "category": "Engine",
+        "defaultValue": true,
+        "needsRestart": true,
+        "hostFeature": "cef-patches"
+    },
+    "patchAudioParamCoalesce": {
+        "name": "Coalesce Audio Automation",
+        "id": "patchAudioParamCoalesce",
+        "description": "Chromium patch: the game's per frame sound updates no longer pile up. Off makes FPS drop over a long match",
+        "type": "checkbox",
+        "category": "Engine",
+        "defaultValue": true,
+        "needsRestart": true,
+        "hostFeature": "cef-patches"
+    },
+    "patchCanvasBufferCache": {
+        "name": "WebGL Buffer Cache",
+        "id": "patchCanvasBufferCache",
+        "description": "Chromium patch: keeps three spare frame buffers instead of one. Off makes some starts land in a slow mode",
+        "type": "checkbox",
+        "category": "Engine",
+        "defaultValue": true,
+        "needsRestart": true,
+        "hostFeature": "cef-patches"
+    },
+    "patchHighQoS": {
+        "name": "Game Process at High QoS",
+        "id": "patchHighQoS",
+        "description": "Chromium patch: Windows may not throttle the game's process to save power. Off leaves that to Windows",
+        "type": "checkbox",
+        "category": "Engine",
+        "defaultValue": true,
+        "needsRestart": true,
+        "hostFeature": "cef-patches"
+    },
     "showChangelog": {
         "name": "Show Changelog After Updates",
         "id": "showChangelog",
@@ -491,5 +599,23 @@
         "category": "About",
         "defaultValue": true,
         "needsRestart": true
+    },
+    "exportClientSettings": {
+        "name": "Export Kute Settings",
+        "id": "exportClientSettings",
+        "description": "Saves Kute's settings, HUD positions, matchmaker filters and hotkeys as a file in Downloads",
+        "type": "none",
+        "category": "About",
+        "button": "Export",
+        "buttonAction": "{{kute}}.settingsTransfer.exportFile()"
+    },
+    "importClientSettings": {
+        "name": "Import Kute Settings",
+        "id": "importClientSettings",
+        "description": "Loads a file from Export Kute Settings and restarts Kute",
+        "type": "none",
+        "category": "About",
+        "button": "Import",
+        "buttonAction": "{{kute}}.settingsTransfer.importFile()"
     }
 }

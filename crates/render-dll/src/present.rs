@@ -26,6 +26,34 @@ pub(crate) static mut ORIGINAL_PRESENT: Option<unsafe fn(*mut c_void, u32, DXGI_
 
 static GLOBAL_LIMIT_CLOCK: LazyLock<RwLock<Option<std::time::Instant>>> = LazyLock::new(|| RwLock::new(None));
 
+const HR_TIMER_SPIN: std::time::Duration = std::time::Duration::from_micros(150);
+
+// do frames come at the limit's rate? what chromium's limiter leaves to see of it holding them: the average frame time
+// is the limit's interval, an eighth of slack. a game slower than its limit is held by nothing and keeps the latency wait
+fn on_the_limit(frame_ns_average: u64, target_fps: u64) -> bool {
+    frame_ns_average != 0 && target_fps != 0 && frame_ns_average.saturating_mul(target_fps) <= 1_125_000_000
+}
+
+thread_local! {
+    // one per present thread, never closed. a null handle (old windows) falls back to the spin
+    static HR_TIMER: cell::Cell<HANDLE> = cell::Cell::new(unsafe {
+        CreateWaitableTimerExW(None, None, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS.0).unwrap_or_default()
+    });
+}
+
+fn hr_timer_wait(timer: HANDLE, duration: std::time::Duration) {
+    if timer.is_invalid() {
+        return;
+    }
+    // relative due time in 100 ns units
+    let due = -((duration.as_nanos() / 100) as i64);
+    unsafe {
+        if SetWaitableTimer(timer, &due, 0, None, None, false).is_ok() {
+            WaitForSingleObject(timer, INFINITE);
+        }
+    }
+}
+
 #[link(name = "Avrt")]
 unsafe extern "system" {
     fn AvSetMmThreadCharacteristicsW(task_name: PCWSTR, task_index: *mut u32) -> HANDLE;
@@ -164,8 +192,11 @@ pub(crate) unsafe extern "system" fn present_hk(
         }
 
         let target_fps = shared!(ptr, target_fps).load(Ordering::Relaxed);
-        // while the limiter holds frames it already paces, and the latency wait made ~2 % of capped presents late
-        let limiter_paces = is_main && target_fps > 0 && LIMITER_HELD.get();
+        let limiter_mode = shared!(ptr, limiter_mode).load(Ordering::Relaxed);
+        // while a limiter holds frames it already paces, and the latency wait made ~2 % of capped presents late.
+        // chromium's limiter never sets LIMITER_HELD, with it the wait ran on every capped present again
+        let held = LIMITER_HELD.get() || (limiter_mode & LIMITER_VIZ != 0 && on_the_limit(FRAME_NS_EMA.get(), target_fps));
+        let limiter_paces = is_main && target_fps > 0 && held;
         let wait_started = std::time::Instant::now();
         if let Some(mut chain) = cached_chain.filter(|_| !limiter_paces) {
             // hidden windows never signal so pause waiting after a few timeouts
@@ -244,7 +275,10 @@ pub(crate) unsafe extern "system" fn present_hk(
         if is_main {
             LIMITER_HELD.set(false);
         }
-        if is_main && let Some(nanos) = 1_000_000_000u64.checked_div(target_fps) {
+        if is_main
+            && limiter_mode & LIMITER_VIZ == 0
+            && let Some(nanos) = 1_000_000_000u64.checked_div(target_fps)
+        {
             let target_frame_time = std::time::Duration::from_nanos(nanos);
             let now = std::time::Instant::now();
             let prev_opt = { *GLOBAL_LIMIT_CLOCK.read().unwrap() };
@@ -262,8 +296,13 @@ pub(crate) unsafe extern "system" fn present_hk(
                     remaining.as_secs_f64() * 1000.0,
                     target_fps
                 );
-                // spin the last ~1ms for accuracy
-                if remaining > std::time::Duration::from_millis(2) {
+                if limiter_mode & LIMITER_HR_TIMER != 0 {
+                    // the timer wakes within ~0.1 ms on windows 10 1803 and up, so the spin is a tenth of the sleep path's
+                    if remaining > HR_TIMER_SPIN {
+                        HR_TIMER.with(|timer| hr_timer_wait(timer.get(), remaining - HR_TIMER_SPIN));
+                    }
+                } else if remaining > std::time::Duration::from_millis(2) {
+                    // spin the last ~1ms for accuracy
                     thread::sleep(remaining - std::time::Duration::from_millis(1));
                 }
                 while std::time::Instant::now() < deadline {
@@ -338,6 +377,17 @@ mod tests {
 
     unsafe fn present_stub(_: *mut c_void, _: u32, _: DXGI_PRESENT, _: *const DXGI_PRESENT_PARAMETERS) -> HRESULT {
         HRESULT(0)
+    }
+
+    #[test]
+    fn frames_at_the_limits_rate_are_held_slower_ones_are_not() {
+        // 240 limit: 4.17 ms frames are on it, a game that only reaches 180 (5.56 ms) is not
+        assert!(on_the_limit(4_166_667, 240));
+        assert!(on_the_limit(4_300_000, 240));
+        assert!(!on_the_limit(5_555_556, 240));
+        // no limit, or no frame measured yet
+        assert!(!on_the_limit(1_000_000, 0));
+        assert!(!on_the_limit(0, 240));
     }
 
     #[test]

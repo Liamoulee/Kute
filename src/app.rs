@@ -41,8 +41,12 @@ pub(crate) struct SharedStats {
     pub(crate) present_max_ns: u64,
     pub(crate) arrive_p99_ns: u64,
     pub(crate) samples: u64,
+    pub(crate) limiter_mode: u64,
+    pub(crate) render_adapter: u64,
 }
 const SHARED_STATS_SIZE: usize = std::mem::size_of::<SharedStats>();
+pub const LIMITER_VIZ: u64 = 1;
+pub const LIMITER_HR_TIMER: u64 = 2;
 
 pub(crate) static SHARED_STATS_PTR: AtomicU64 = AtomicU64::new(0);
 
@@ -80,6 +84,23 @@ pub fn set_target_fps(fps_limit: u64) {
     }
 }
 
+// after load_flags, before initialize: the gpu process reads it once it presents
+pub fn set_limiter_mode() {
+    let mut mode = 0;
+    if feature_enabled("KuteFrameLimiter") {
+        mode |= LIMITER_VIZ;
+    }
+    // KUTE_HR_TIMER=0 brings the old sleep plus spin back (bench key timer=sleep), the hook's own wait only runs without the chromium limiter
+    if env::var("KUTE_HR_TIMER").is_ok_and(|value| value == "0") {
+        // old wait wanted
+    } else {
+        mode |= LIMITER_HR_TIMER;
+    }
+    if let Some(field) = shared!(limiter_mode) {
+        field.store(mode, Ordering::Relaxed);
+    }
+}
+
 static STATS_REQUEST_LOCK: Mutex<()> = Mutex::new(());
 
 // present interval distribution since the last call. blocks up to 150 ms, never call on the UI thread
@@ -102,6 +123,11 @@ pub fn take_present_intervals() -> Option<(u64, u64, u64, u64, u64)> {
         shared!(arrive_p99_ns)?.load(Ordering::Relaxed),
         shared!(samples)?.load(Ordering::Relaxed),
     ))
+}
+
+// luid of the adapter the game's swap chain was created on, 0 without the hook or before the first chain
+pub fn render_adapter() -> u64 {
+    shared!(render_adapter).map(|field| field.load(Ordering::Relaxed)).unwrap_or(0)
 }
 
 // (fps, frame_ns) from the present hook
@@ -134,7 +160,11 @@ fn color_profile_switch(option: &str) -> Option<&'static str> {
     }
 }
 
+// the gpu process decides about the hook when it starts, a later change of the setting needs a restart
+pub static HOOK_AT_START: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+
 pub fn load_flags() {
+    HOOK_AT_START.get_or_init(|| config("hardFlip", true));
     let mut flags = modules::flaglist::load();
     if let Some(bench) = modules::bench::config() {
         flags.extend(modules::bench::flags(bench));
@@ -151,20 +181,81 @@ pub fn load_flags() {
     if config("disableOnlineFeatures", false) {
         flags.push("--host-resolver-rules=MAP kute.lol ~NOTFOUND, MAP *.kute.lol ~NOTFOUND".to_string());
     }
-    // patch 03 of our libcef. disable it in user_flags.json to get the old input.rs WM_INPUT filter back
-    flags.push("--enable-features=KuteRawInputMovementOnly".to_string());
-    // patch 04, off by default: trades a little panning precision for audio thread time (patches/README.md)
-    if config("audioFix", false) {
-        flags.push("--enable-features=KuteAudioPannerPerQuantum".to_string());
+    // a bench decides its patches itself (bench::flags), the settings decide for the client
+    if modules::bench::config().is_none() {
+        for patch in PATCHES {
+            flags.push(patch.flag(config(patch.setting, patch.default)));
+        }
     }
-    // patch 05: without it the game's per frame setTargetAtTime piles up while Howler's context is suspended
-    flags.push("--enable-features=KuteAudioParamCoalesce".to_string());
-    // patch 06: webgl keeps 3 spare buffers instead of 1, else it recreates them and launches land in a slow mode
-    flags.push("--enable-features=KuteCanvasBufferCache".to_string());
-    // patch 07: foreground renderers explicitly at HighQoS instead of leaving EcoQoS to windows' guess
-    flags.push("--enable-features=KuteHighQoSForeground".to_string());
     *FLAGS.lock().unwrap() = flags;
 }
+
+/// one libcef patch with a feature switch (patches/README.md), toggled by a setting
+pub struct Patch {
+    pub setting: &'static str,
+    pub feature: &'static str,
+    // bench config key
+    pub key: &'static str,
+    pub default: bool,
+}
+
+impl Patch {
+    // explicit either way: chromium lets the disable list win, so a user_flags.json entry cannot re-enable a setting that is off
+    pub fn flag(&self, enabled: bool) -> String {
+        format!("--{}-features={}", if enabled { "enable" } else { "disable" }, self.feature)
+    }
+}
+
+pub const PATCHES: [Patch; 8] = [
+    Patch {
+        setting: "patchFrameLimiter",
+        feature: "KuteFrameLimiter",
+        key: "limiter",
+        default: true,
+    },
+    Patch {
+        setting: "patchInputPriority",
+        feature: "KuteInputNormalPriority",
+        key: "inprio",
+        default: true,
+    },
+    Patch {
+        setting: "patchFramePacing",
+        feature: "KuteFramePacing",
+        key: "pacing",
+        default: true,
+    },
+    Patch {
+        setting: "patchRawInputMovement",
+        feature: "KuteRawInputMovementOnly",
+        key: "rawinput",
+        default: true,
+    },
+    Patch {
+        setting: "audioFix",
+        feature: "KuteAudioPannerPerQuantum",
+        key: "panner",
+        default: false,
+    },
+    Patch {
+        setting: "patchAudioParamCoalesce",
+        feature: "KuteAudioParamCoalesce",
+        key: "coalesce",
+        default: true,
+    },
+    Patch {
+        setting: "patchCanvasBufferCache",
+        feature: "KuteCanvasBufferCache",
+        key: "canvas",
+        default: true,
+    },
+    Patch {
+        setting: "patchHighQoS",
+        feature: "KuteHighQoSForeground",
+        key: "qos",
+        default: true,
+    },
+];
 
 pub fn has_flag(wanted: &str) -> bool {
     FLAGS.lock().unwrap().iter().any(|flag| flag == wanted)
@@ -320,11 +411,8 @@ wrap_browser_process_handler! {
 
             #[cfg(feature = "auto-update")]
             if config("checkUpdates", true) {
-                std::thread::spawn(|| {
-                    modules::lifecycle::check_major_update();
-                    // new bundle applies on the next navigation
-                    modules::lifecycle::check_minor_update();
-                });
+                // a new bundle applies on the next navigation
+                std::thread::spawn(modules::updater::run);
             }
         }
     }
