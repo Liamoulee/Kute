@@ -46,7 +46,7 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] NVIDIA driver caps lifted for Kute only: its own driver profile
 - [x] Selectable graphics backend (ANGLE: D3D11, D3D11on12, OpenGL, Vulkan) and color profile
 - [x] Optimized URL blocklist (only ~50 entries, fully customizable), custom Chromium flags
-- [x] Resource swapper with an in-client manager: shows which game files your swaps replace, drag'n'drop & built-in editor
+- [x] Resource swapper with an in-client manager: shows which game files your swaps replace, drag'n'drop & built-in editor. CSS swaps apply instantly, and your swaps win over the built-in blocklist
 - [x] Classic menu (optional): the Season 9 menu layout, with every new Season 10 button and feature still in it
 - [x] Cleaner menu (optional): hides the store ad, live streams, featured maps, the "Popular Now" row and other promos in the menu, in the regular and the classic menu. The logo, every button and the match info stay
 - [x] Custom CSS with a syntax highlighted editor and live preview, always applied on top of Krunker's own styles
@@ -56,7 +56,7 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] All settings togglable
 - [x] Export and import Kute's settings (client settings, HUD positions, matchmaker filters, hotkeys) as one file, for a second PC or a fresh install
 - [x] Battle pass claim-all
-- [x] Userscripts (Crankshaft and idkr formats) with an in-client manager: live on/off, script settings, a built-in editor, drag and drop. Ships with example scripts, off by default: Class Roulette draws a random class on every respawn (Sharp Shooter in any mode), with a toggle per class and a "don't repeat the last N" option; Quick Sell by Rarity sells every quick sellable item of one rarity at once, with a preview of items and KR and a confirmation before anything is sold
+- [x] Userscripts (Crankshaft and idkr formats) with an in-client manager: live on/off, script settings, a built-in editor, drag and drop. New and edited scripts load without a refresh. Ships with example scripts, off by default: Class Roulette draws a random class on every respawn (Sharp Shooter in any mode), with a toggle per class and a "don't repeat the last N" option; Quick Sell by Rarity sells every quick sellable item of one rarity at once, with a preview of items and KR and a confirmation before anything is sold
 - [x] Mod compatibility: mods, lobby and invite links open in the game window instead of a second one that would end your match
 - [x] One-click mod download: a download button on every mod in Krunker's Mods window saves its zip to your Downloads folder
 - [x] OBS capture plugin (shared texture game capture plus a dedicated audio window)
