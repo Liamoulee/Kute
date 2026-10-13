@@ -5,6 +5,8 @@ use std::{cell::RefCell, collections::HashMap};
 // "message" listeners per frame id
 thread_local! {
     static LISTENERS: RefCell<HashMap<String, Vec<V8Value>>> = RefCell::new(HashMap::new());
+    // the runner's load function per frame id, for scripts added or changed after the page load
+    static SCRIPT_LOADERS: RefCell<HashMap<String, V8Value>> = RefCell::new(HashMap::new());
 }
 
 fn frame_key(frame: &Frame) -> String {
@@ -58,14 +60,10 @@ const REGISTRY_KEY: &str = "__kuteUserscripts";
 const CUSTOM_CSS_KEY: &str = "__kuteCustomCss";
 
 // runs before any page script. popups get theirs from handlers::on_after_created
-fn inject_scripts(url: &str, context: &V8Context) {
-    debug_print!("renderer: injecting into {url}");
-    // from disk: the toggle in settings only needs a page refresh this way
-    let registry = if utils::config_on_disk("userscripts", true) {
-        v8_value_create_object(None, None)
-    } else {
-        None
-    };
+fn inject_scripts(frame: &Frame, context: &V8Context) {
+    debug_print!("renderer: injecting into {}", utils::cef_to_string(&frame.url()));
+    // also with userscripts off, switching them on later loads them into this page
+    let registry = v8_value_create_object(None, None);
     let global = context.global();
     if let (Some(global), Some(registry)) = (&global, &registry) {
         global.set_value_bykey(
@@ -90,22 +88,62 @@ fn inject_scripts(url: &str, context: &V8Context) {
     }
     if let (Some(global), Some(registry)) = (global, registry) {
         global.delete_value_bykey(Some(&CefString::from(REGISTRY_KEY)));
-        run_userscripts(context, registry);
+        // from disk: the renderer's config is a copy from its own start
+        let scripts = if utils::config_on_disk("userscripts", true) {
+            modules::userscripts::load_group("game")
+        } else {
+            Vec::new()
+        };
+        run_userscripts(frame, context, registry, &scripts);
     }
 }
 
-// compiled here because krunker traps eval and Function, the bundle must never compile anything
-fn run_userscripts(context: &V8Context, registry: V8Value) {
-    let scripts = modules::userscripts::load_group("game");
-    if scripts.is_empty() {
-        return;
-    }
+fn run_userscripts(frame: &Frame, context: &V8Context, registry: V8Value, scripts: &[modules::userscripts::Script]) {
     let runner_source = format!("(function () {{\n{}\nreturn runUserscripts;\n}})()", modules::userscripts::RUNNER);
     let Ok(runner) = eval_value(context, &runner_source, "userscript-runner.js") else {
         return;
     };
+    let Some(list) = compile_scripts(context, scripts) else { return };
+    if let Some(loader) = runner.execute_function(None, Some(&[Some(list), Some(registry)]))
+        && loader.is_function() != 0
+    {
+        SCRIPT_LOADERS.with_borrow_mut(|map| map.insert(frame_key(frame), loader));
+    }
+}
+
+// scripts-load from the manager, queued behind the file writes it depends on
+fn load_userscripts(frame: &Frame, request: &str) {
+    let Some(loader) = SCRIPT_LOADERS.with_borrow(|map| map.get(&frame_key(frame)).cloned()) else {
+        return;
+    };
+    let request = serde_json::from_str::<serde_json::Value>(request).unwrap_or_default();
+    let keys: Option<Vec<&str>> = request["keys"].as_array().map(|keys| keys.iter().filter_map(serde_json::Value::as_str).collect());
+    let replace = request["replace"].as_bool().unwrap_or(false);
+    let start = request["start"].as_bool().unwrap_or(true);
+    let scripts: Vec<_> = modules::userscripts::load_group("game")
+        .into_iter()
+        .filter(|script| keys.as_ref().is_none_or(|keys| keys.contains(&script.key.as_str())))
+        .map(|mut script| {
+            script.enabled &= start;
+            script
+        })
+        .collect();
+    let Some(context) = frame.v8_context() else { return };
+    if context.enter() == 0 {
+        return;
+    }
+    if let Some(list) = compile_scripts(&context, &scripts)
+        && let Some(replace) = v8_value_create_bool(i32::from(replace))
+    {
+        loader.execute_function(None, Some(&[Some(list), Some(replace)]));
+    }
+    context.exit();
+}
+
+// compiled here because krunker traps eval and Function, the bundle must never compile anything
+fn compile_scripts(context: &V8Context, scripts: &[modules::userscripts::Script]) -> Option<V8Value> {
     let described = serde_json::Value::Array(scripts.iter().map(|script| script.describe()).collect());
-    let Some(list) = json_parse(context, &described.to_string()) else { return };
+    let list = json_parse(context, &described.to_string())?;
 
     for (index, script) in scripts.iter().enumerate() {
         let Some(item) = list.value_byindex(index as i32) else { continue };
@@ -120,7 +158,7 @@ fn run_userscripts(context: &V8Context, registry: V8Value) {
             item.set_value_bykey(Some(&CefString::from(key)), Some(value), V8Propertyattribute::default());
         }
     }
-    runner.execute_function(None, Some(&[Some(list), Some(registry)]));
+    Some(list)
 }
 
 wrap_v8_handler! {
@@ -262,7 +300,7 @@ wrap_render_process_handler! {
                 install_bridge(context);
             }
             if frame.is_main() != 0 && browser.is_popup() == 0 {
-                inject_scripts(&utils::cef_to_string(&frame.url()), context);
+                inject_scripts(frame, context);
             }
             context.exit();
         }
@@ -271,6 +309,7 @@ wrap_render_process_handler! {
             let Some(frame) = frame else { return };
             let key = frame_key(frame);
             LISTENERS.with_borrow_mut(|map| map.remove(&key));
+            SCRIPT_LOADERS.with_borrow_mut(|map| map.remove(&key));
         }
 
         fn on_process_message_received(
@@ -281,7 +320,14 @@ wrap_render_process_handler! {
             message: Option<&mut ProcessMessage>,
         ) -> ::std::os::raw::c_int {
             let (Some(frame), Some(message)) = (frame, message) else { return 0 };
-            if utils::cef_to_string(&message.name()) != constants::MSG_TO_PAGE {
+            let name = utils::cef_to_string(&message.name());
+            if name == constants::MSG_LOAD_SCRIPTS {
+                if let Some(args) = message.argument_list() {
+                    load_userscripts(frame, &utils::cef_to_string(&args.string(0)));
+                }
+                return 1;
+            }
+            if name != constants::MSG_TO_PAGE {
                 return 0;
             }
             let Some(args) = message.argument_list() else { return 1 };

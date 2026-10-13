@@ -612,6 +612,11 @@ static MANAGER_QUEUE: LazyLock<Option<mpsc::Sender<(i32, String)>>> = LazyLock::
         .spawn(move || {
             for (browser_id, message) in receiver {
                 let reply = match message.split_once('-') {
+                    // after the writes queued before it, the renderer reads the scripts from disk
+                    Some(("scripts", rest)) if rest.starts_with("load ") => {
+                        bridge::load_scripts_later(browser_id, rest["load ".len()..].to_string());
+                        None
+                    }
                     Some(("scripts", rest)) => handle_scripts_message(rest),
                     Some(("swapper", rest)) => handle_swapper_message(rest),
                     Some(("css", rest)) => handle_css_message(rest),
