@@ -241,6 +241,10 @@ pub fn is_mod_page(url: &str) -> bool {
     query.split('#').next().unwrap_or("").split('&').any(|pair| pair.split('=').next() == Some("mod"))
 }
 
+pub fn main_browser() -> Option<Browser> {
+    MAIN_BROWSER.with_borrow(|b| b.clone())
+}
+
 pub fn has_main_browser() -> bool {
     MAIN_BROWSER.with_borrow(|b| b.is_some())
 }

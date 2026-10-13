@@ -27,14 +27,17 @@ pub static SWAPS: LazyLock<RwLock<Arc<Index>>> = LazyLock::new(|| {
     } else {
         Vec::new()
     };
-    let index = build_index(&files);
+    let index = build_index(&files, &HashMap::new(), &Index::new());
     PUBLISHED.store(signature_of(&files), Ordering::Release);
+    *PUBLISHED_FILES.lock().unwrap() = metadata_of(&files);
     INITIALIZED.store(true, Ordering::Release);
     RwLock::new(Arc::new(index))
 });
 
 // fingerprint (names, sizes, mtimes) of the published index, so a reload skips the read when nothing changed
 static PUBLISHED: AtomicU64 = AtomicU64::new(0);
+// lowercased path -> (size, mtime) of the published index: unchanged files keep their bytes, the page learns what changed
+static PUBLISHED_FILES: LazyLock<Mutex<Metadata>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 static INITIALIZED: AtomicBool = AtomicBool::new(false);
 // held during a reload so reloads run in order
 static RELOAD_LOCK: Mutex<()> = Mutex::new(());
@@ -45,6 +48,7 @@ const MAX_SEEN: usize = 20_000;
 
 // (relative path, full path, size, mtime)
 type Scanned = (String, PathBuf, u64, Option<SystemTime>);
+type Metadata = HashMap<String, (u64, Option<SystemTime>)>;
 
 fn scan_folder(root: &Path, dir: &Path, out: &mut Vec<Scanned>) {
     let Ok(entries) = fs::read_dir(dir) else { return };
@@ -75,12 +79,27 @@ fn scan() -> Vec<Scanned> {
     files
 }
 
-fn build_index(files: &[Scanned]) -> Index {
+fn metadata_of(files: &[Scanned]) -> Metadata {
+    files
+        .iter()
+        .map(|(relative, _, size, modified)| (relative.to_lowercase(), (*size, *modified)))
+        .collect()
+}
+
+// reads only files whose size or mtime changed, a rescan after one dropped file does not reread a whole pack
+fn build_index(files: &[Scanned], old_files: &Metadata, old_index: &Index) -> Index {
     let mut swaps: Index = BUILT_IN
         .iter()
         .map(|(path, body)| (path.to_lowercase(), Arc::new(body.as_bytes().to_vec())))
         .collect();
-    for (relative, path, ..) in files {
+    for (relative, path, size, modified) in files {
+        let key = relative.to_lowercase();
+        if old_files.get(&key) == Some(&(*size, *modified))
+            && let Some(bytes) = old_index.get(&key)
+        {
+            swaps.insert(key, bytes.clone());
+            continue;
+        }
         match fs::read(path) {
             Ok(bytes) => {
                 swaps.insert(relative.to_lowercase(), Arc::new(bytes));
@@ -97,10 +116,10 @@ fn signature_of(files: &[Scanned]) -> u64 {
     hasher.finish()
 }
 
-// manager thread. skips the read if paths, sizes and mtimes are unchanged
+// manager and watcher thread. skips the read if paths, sizes and mtimes are unchanged
 pub fn reload() {
     let _guard = RELOAD_LOCK.lock().unwrap();
-    reload_locked();
+    reload_locked(true);
 }
 
 // ui thread, before a navigation: a file dropped into the folder has to apply on the next reload, not the next
@@ -110,21 +129,49 @@ pub fn rescan() {
         return;
     }
     let Ok(_guard) = RELOAD_LOCK.try_lock() else { return };
-    reload_locked();
+    // the page is about to load its files anew, nothing to tell it
+    reload_locked(false);
 }
 
-fn reload_locked() {
+fn reload_locked(notify: bool) {
+    // before PUBLISHED_FILES: the startup scan that SWAPS may still run locks it too
+    let current = SWAPS.read().unwrap().clone();
     let files = if utils::config("swapper", true) { scan() } else { Vec::new() };
     let signature = signature_of(&files);
     if PUBLISHED.load(Ordering::Acquire) == signature {
         return;
     }
-    let index = Arc::new(build_index(&files));
+    let metadata = metadata_of(&files);
+    let mut published = PUBLISHED_FILES.lock().unwrap();
+    let index = Arc::new(build_index(&files, &published, &current));
+    drop(current);
     // drop the old index outside the lock, freeing a big pack must not block requests
     let old = std::mem::replace(&mut *SWAPS.write().unwrap(), index);
     drop(old);
     PUBLISHED.store(signature, Ordering::Release);
+
+    let mut changed: Vec<String> = metadata
+        .iter()
+        .filter(|(path, meta)| published.get(*path) != Some(meta))
+        .map(|(path, _)| path.clone())
+        .collect();
+    changed.extend(published.keys().filter(|path| !metadata.contains_key(*path)).cloned());
+    *published = metadata;
+    drop(published);
+    if notify {
+        tell_page(&changed);
+    }
 }
+
+// css swaps reload in place, the swapper manager lists again
+#[cfg(windows)]
+fn tell_page(changed: &[String]) {
+    let css: Vec<&String> = changed.iter().filter(|path| path.ends_with(".css")).collect();
+    crate::bridge::post_json_to_main_later(json!({ "swapperChanged": { "css": css, "count": changed.len() } }).to_string());
+}
+
+#[cfg(not(windows))]
+fn tell_page(_changed: &[String]) {}
 
 // "https://assets.krunker.io/textures/a.png?build=x" -> "textures/a.png"
 pub fn swap_for(url: &str) -> Option<Arc<Vec<u8>>> {

@@ -53,7 +53,8 @@ fn host_features() -> serde_json::Value {
         "video-skins",
         "mute",
         "userscripts-live",
-        "swapper-over-blocklist"
+        "swapper-over-blocklist",
+        "swapper-watch"
     ])
 }
 
@@ -160,6 +161,28 @@ wrap_task! {
             frame.send_process_message(ProcessId::RENDERER, Some(&mut message));
         }
     }
+}
+
+#[cfg(windows)]
+wrap_task! {
+    pub struct PostMainJsonTask {
+        json: String,
+    }
+
+    impl Task {
+        fn execute(&self) {
+            if let Some(browser) = crate::window::main_browser() {
+                post_json(&browser, &self.json);
+            }
+        }
+    }
+}
+
+// usable from any thread
+#[cfg(windows)]
+pub fn post_json_to_main_later(json: String) {
+    let mut task = PostMainJsonTask::new(json);
+    post_task(ThreadId::UI, Some(&mut task));
 }
 
 // usable from any thread
