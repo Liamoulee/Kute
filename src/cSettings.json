@@ -326,6 +326,15 @@
         "needsRestart": true,
         "requires": "hardFlip"
     },
+    "kuteCss": {
+        "name": "Kute CSS",
+        "id": "kuteCss",
+        "performance": false,
+        "description": "Kute's own look for menus, settings, HUD and social, with a few cats",
+        "type": "checkbox",
+        "category": "Customization",
+        "defaultValue": false
+    },
     "motionBlur": {
         "name": "Motion Blur",
         "id": "motionBlur",

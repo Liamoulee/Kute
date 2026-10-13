@@ -1,5 +1,10 @@
 /* season 9 menu layout over the season 10 markup, values from s9 main.css */
 
+/* kute css leaves the lobby buttons alone while this is set */
+:root {
+	--kute-classic-menu: 1;
+}
+
 #uiBase.onMenu #spectButton {
 	top: calc(48% - 60px);
 }
