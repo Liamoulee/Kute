@@ -2,6 +2,7 @@ import { kute } from "../../client.js";
 import html from "../../components/managers/swapper.html";
 import { openManagerPopup, makeDropTarget, readBase64, askText, askConfirm, hostSupportsManagers, formatSize } from "./popup.js";
 import { createEditorView, languageFor } from "./editor.js";
+import { reloadStylesheets, hostWatchesSwapper } from "./stylesheets.js";
 
 const TEXT_FILES = new Set(["css", "js", "mjs", "json", "txt", "html", "htm", "svg", "xml", "obj", "mtl", "glsl", "frag", "vert", "md", "csv"]);
 
@@ -119,27 +120,6 @@ const buildTree = (files, dirs) => {
  */
 const countFiles = (folder) => folder.files.length + [...folder.folders.values()].reduce((sum, child) => sum + countFiles(child), 0);
 
-/**
- * Loads the page's stylesheets for these swapper paths again, so a css swap applies without a refresh.
- *
- * @param {Set<string>} paths lowercased, relative to krunker.io/
- */
-const reloadStylesheets = (paths) => {
-    for (const link of document.querySelectorAll("link[rel=\"stylesheet\"]")){
-        if (!(link instanceof HTMLLinkElement) || !link.href) continue;
-        const url = new URL(link.href);
-        if (!/(^|\.)krunker\.io$/.test(url.hostname) || !paths.has(url.pathname.slice(1).toLowerCase())) continue;
-        // a new url skips the memory cache, the host ignores the query when it looks up the swap
-        url.searchParams.set("kuteSwap", String(Date.now()));
-        const fresh = /** @type {HTMLLinkElement} */ (link.cloneNode());
-        fresh.href = url.href;
-        // the old sheet stays until the new one applied, no unstyled flash
-        fresh.addEventListener("load", () => link.remove(), { once: true });
-        fresh.addEventListener("error", () => fresh.remove(), { once: true });
-        link.after(fresh);
-    }
-};
-
 class SwapperManager {
     constructor(){
         /** @type {import("./popup.js").ManagerPopup|null} */
@@ -208,10 +188,12 @@ class SwapperManager {
         };
         /** @type {HTMLElement} */ (shadow.querySelector("#swOwnTree")).textContent = "Loading...";
         this.send("list", {});
-        // back from explorer: pick up what was dropped into the folder
-        window.addEventListener("focus", () => {
-            if (!this.editing && !this.uploadDone) this.send("list", {});
-        }, { signal });
+        // back from explorer: pick up what was dropped into the folder. an exe that watches the folder says so itself
+        if (!hostWatchesSwapper()){
+            window.addEventListener("focus", () => {
+                if (!this.editing && !this.uploadDone) this.send("list", {});
+            }, { signal });
+        }
     }
 
     /**
@@ -311,6 +293,7 @@ class SwapperManager {
                 if (this.editing.closeAfterSave) this.closeEditor();
             }
         }
+        if (data.swapperChanged && !this.editing && !this.uploadDone) this.send("list", {});
         if (!data.swapper) return;
         const before = this.list;
         this.list = data.swapper;
@@ -343,7 +326,8 @@ class SwapperManager {
         if (!changed.size) return;
 
         const css = new Set([...changed].filter((path) => path.endsWith(".css")));
-        if (css.size) reloadStylesheets(css);
+        // index.js does it when the exe reports the change
+        if (css.size && !hostWatchesSwapper()) reloadStylesheets(css);
         const seen = new Set(after.seen.map((path) => path.toLowerCase()));
         for (const path of changed) if (!css.has(path) && seen.has(path)) this.stale.add(path);
     }

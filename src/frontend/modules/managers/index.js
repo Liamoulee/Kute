@@ -1,5 +1,6 @@
 import { kute } from "../../client.js";
 import { registry, canLoadLive, loadScripts } from "./registry.js";
+import { reloadStylesheets } from "./stylesheets.js";
 
 kute.userscriptManager = {
     open: () => {
@@ -20,6 +21,11 @@ kute.settings.toggleUserscripts = (/** @type {boolean} */ on) => {
     else if (!kute.userscriptManager.masterChanged) kute.showNotification("Refresh the page to start your userscripts.", false, 5);
     kute.userscriptManager.masterChanged?.(on);
 };
+// the exe reports swaps that changed on disk, also while the swapper manager is closed
+window.chrome.webview.addEventListener("message", (/** @type {{ data: any }} */ event) => {
+    const css = event.data?.swapperChanged?.css;
+    if (Array.isArray(css) && css.length) reloadStylesheets(new Set(css.map(String)));
+});
 kute.swapperManager = {
     open: () => {
         import("./swapper.js").then((module) => module.open()).catch((error) => console.error("[kute] swapper manager:", error));
