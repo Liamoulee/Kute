@@ -51,7 +51,8 @@ fn host_features() -> serde_json::Value {
         "load-sample",
         "hotkeys",
         "video-skins",
-        "mute"
+        "mute",
+        "swapper-over-blocklist"
     ])
 }
 
@@ -79,7 +80,8 @@ fn host_features() -> serde_json::Value {
         "autodetect-v2",
         "video-skins",
         "prime-offload",
-        "mute"
+        "mute",
+        "swapper-over-blocklist"
     ])
 }
 

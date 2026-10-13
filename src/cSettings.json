@@ -369,7 +369,7 @@
         "defaultValue": true,
         "button": "Manage",
         "buttonAction": "{{kute}}.swapperManager.open()",
-        "needsRestart": true
+        "needsRefresh": true
     },
     "customCss": {
         "name": "Custom CSS",

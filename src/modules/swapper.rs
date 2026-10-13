@@ -139,6 +139,10 @@ pub fn swap_for(url: &str) -> Option<Arc<Vec<u8>>> {
     SWAPS.read().unwrap().get(&path.to_lowercase()).cloned()
 }
 
+pub fn has_swap(url: &str) -> bool {
+    utils::krunker_path(url).is_some_and(|path| SWAPS.read().unwrap().contains_key(&path.to_lowercase()))
+}
+
 pub fn mime_for(path: &str) -> &'static str {
     match path.rsplit('.').next().unwrap_or("").to_ascii_lowercase().as_str() {
         "js" | "mjs" => "text/javascript",
