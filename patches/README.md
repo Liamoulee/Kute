@@ -24,6 +24,8 @@ Plain `git diff` files against `chromium/src` at 151.0.7922.174 (CEF branch 7922
 
 - `11-no-exclusive-bubble.patch`: `chrome/browser/ui/views/frame/browser_view.cc`, feature `KuteNoExclusiveAccessBubble`, off by default, the Linux host always turns it on (`app.rs`). On Linux the browser is a Chrome style Views browser, so Kute's F11 (`Window::set_fullscreen`) goes through Chrome's fullscreen controller, which shows the "Press Esc to exit full screen" bubble, and pointer lock shows "Press Esc to show your cursor". The bubble is a separate window over the game: while it shows, Wayland and X11 compositors (Hyprland, KWin) give the game no direct scanout and no tearing (player report 2026-10-07, the first seconds after F11 played with more latency). With the feature `UpdateExclusiveAccessBubble` takes the path it already has for trusted pinned mode: no bubble, a shown one is closed. Esc handling itself is untouched. Not applied to the Windows DLL: the Win32 host makes its own window fullscreen and the browser never knows.
 
+- `12-libcef-thinlto-max.patch`: `cef/BUILD.gn` (CEF's own repo, not Chromium), no feature switch, build-time only. The `libcef` target links with Chromium's `thinlto_optimize_default` config, which runs the ThinLTO link step at optimization level 0 (`/opt:lldlto=0`); `chrome.dll` itself takes `thinlto_optimize_max` (`/opt:lldlto=2`, cross-module inlining and optimization at link time). The patch gives libcef the same config. Relink only, about 10 minutes, the DLL grows from 288 to 304 MB. Measured 2026-10-13 on a 12900K/3090 Ti: orb bench scene +5 % frames with less CPU in four of four interleaved rounds, private Burg match with the host's input replay +6 to +13 % frames (1119/1151/1153 to 1252/1218/1299) with shorter frame tails in three of three rounds. Thorium's twelve extra `-mllvm` link flags on top measured below this alone and were dropped. The Linux `libcef.so` was not rebuilt with it yet.
+
 Every patch is the exact diff of the tree the shipped DLL was built from. Since 2026-10-01 each one has a feature switch and a setting in Kute's Engine category (`src/app.rs::PATCHES` maps setting to feature), so a player and the auto-detect bench can turn any of them off: a `--disable-features=` line is pushed for a setting that is off, and Chromium lets the disable list win over `user_flags.json`.
 
 ## Rebuilding the DLL
@@ -59,9 +61,11 @@ What the shipped DLL was built with: CEF branch 7922, CEF commit `2384915b7b1f0f
    git apply <kute>\patches\01-input-priority.patch
    git apply <kute>\patches\02-frame-pacing.patch
    git apply <kute>\patches\03-raw-input-movement.patch
+   ...
+   git apply <kute>\patches\12-libcef-thinlto-max.patch
    ```
 
-   If one rejects on a new Chromium, the places to find are `MainThreadSchedulerImpl::ComputePriority` (the `kInput` case) and `ComputeCompositorPriority` (01), `SchedulerStateMachine::IsDrawThrottled` (02), `HWNDMessageHandler::OnInputEvent` (03). Save the re-anchored `git diff` back into this folder.
+   If one rejects on a new Chromium, the places to find are `MainThreadSchedulerImpl::ComputePriority` (the `kInput` case) and `ComputeCompositorPriority` (01), `SchedulerStateMachine::IsDrawThrottled` (02), `HWNDMessageHandler::OnInputEvent` (03), the `shared_library("libcef")` target's `configs` in `cef/BUILD.gn` (12, the file lives in the nested `cef` git repo, so save its diff with `git -C cef diff --src-prefix=a/cef/ --dst-prefix=b/cef/`). Save the re-anchored `git diff` back into this folder.
 
 5. Build (with `C:\cef\depot_tools` on `PATH`, in `chromium\src`), about 3 hours from scratch on a 12900K, one to two minutes for a small change afterwards:
 
@@ -88,7 +92,7 @@ Same CEF branch, commit and Chromium version as above. Built in a WSL2 Ubuntu 24
 
 2. Checkout with the same `automate-git.py` call as on Windows (`--download-dir=$HOME/cef`, no `py -3.12`), then `sudo build/install-build-deps.sh --no-prompt --no-arm --no-nacl --no-chromeos-fonts` and `python3 build/linux/sysroot_scripts/install-sysroot.py --arch=amd64` in `chromium/src`.
 
-3. Apply 01, 02, 04, 05, 06, 08, 09, 10 and 11 in `chromium/src`. 03 and 07 only touch Windows files and are left out, so `KuteRawInputMovementOnly` and `KuteHighQoSForeground` do not exist in this build.
+3. Apply 01, 02, 04, 05, 06, 08, 09, 10 and 11 in `chromium/src`. 03 and 07 only touch Windows files and are left out, so `KuteRawInputMovementOnly` and `KuteHighQoSForeground` do not exist in this build. 12 applies on Linux too (`-Wl,--lto-O2` there), the shipped `libcef.so` predates it.
 
 4. In `chromium/src/cef` run `./cef_create_projects.sh`, then in `chromium/src`:
 
