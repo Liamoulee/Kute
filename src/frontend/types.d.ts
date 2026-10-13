@@ -88,7 +88,8 @@ interface Kute {
     customSky: { showOptions(): Promise<void> };
     hudEditor: { edit(): void; apply(): void };
     kuteIcons: { customize(): void; refresh(): void };
-    userscriptManager: { open(): void };
+    /** masterChanged is set once the manager module loaded */
+    userscriptManager: { open(): void; masterChanged?: (on: boolean) => void };
     swapperManager: { open(): void };
     customCss: { open(): void };
 }

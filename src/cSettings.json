@@ -390,8 +390,7 @@
         "category": "Customization",
         "defaultValue": true,
         "button": "Manage",
-        "buttonAction": "{{kute}}.userscriptManager.open()",
-        "needsRefresh": true
+        "buttonAction": "{{kute}}.userscriptManager.open()"
     },
     "blocklist": {
         "name": "URL Blocklist",
