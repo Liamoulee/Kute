@@ -16,6 +16,11 @@ if (isBenchPage) import("./modules/autoDetect/bench.js");
 // default to advanced settings, otherwise client settings are invisible. unset = never chose
 if (!isBenchPage && localStorage.getItem("krk_advanced") === null) localStorage.setItem("krk_advanced", "1");
 if (!isBenchPage) postIconUrls();
+if (!isBenchPage){
+    ready.then(() => {
+        if (kute.settings?.data?.kuteCss === true) import("./modules/kuteCss.js").catch(() => {});
+    });
+}
 
 // krunker reads its settings once at start, before the account is known. accountEndMessage.js sets the right one
 if (location.hostname === "krunker.io" && location.pathname === "/"){
