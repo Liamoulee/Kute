@@ -20,6 +20,7 @@ pub const KRUNKER_URL: &str = "https://krunker.io";
 
 pub const MSG_TO_PAGE: &str = "kute-message";
 pub const MSG_FROM_PAGE: &str = "kute-post";
+pub const MSG_LOAD_SCRIPTS: &str = "kute-load-scripts";
 
 pub const DEFAULT_BLOCKLIST: &str = r#"[
 	"*://*.pollfish.com/*",

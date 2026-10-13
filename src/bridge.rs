@@ -51,7 +51,10 @@ fn host_features() -> serde_json::Value {
         "load-sample",
         "hotkeys",
         "video-skins",
-        "mute"
+        "mute",
+        "userscripts-live",
+        "swapper-over-blocklist",
+        "swapper-watch"
     ])
 }
 
@@ -79,7 +82,9 @@ fn host_features() -> serde_json::Value {
         "autodetect-v2",
         "video-skins",
         "prime-offload",
-        "mute"
+        "mute",
+        "userscripts-live",
+        "swapper-over-blocklist"
     ])
 }
 
@@ -137,5 +142,51 @@ wrap_task! {
 // usable from any thread
 pub fn post_json_later(browser_id: i32, json: String) {
     let mut task = PostJsonTask::new(browser_id, json);
+    post_task(ThreadId::UI, Some(&mut task));
+}
+
+wrap_task! {
+    pub struct LoadScriptsTask {
+        browser_id: i32,
+        request: String,
+    }
+
+    impl Task {
+        fn execute(&self) {
+            let Some(frame) = crate::window::browser_by_id(self.browser_id).and_then(|browser| browser.main_frame()) else { return };
+            let Some(mut message) = process_message_create(Some(&CefString::from(constants::MSG_LOAD_SCRIPTS))) else { return };
+            if let Some(args) = message.argument_list() {
+                args.set_string(0, Some(&CefString::from(self.request.as_str())));
+            }
+            frame.send_process_message(ProcessId::RENDERER, Some(&mut message));
+        }
+    }
+}
+
+#[cfg(windows)]
+wrap_task! {
+    pub struct PostMainJsonTask {
+        json: String,
+    }
+
+    impl Task {
+        fn execute(&self) {
+            if let Some(browser) = crate::window::main_browser() {
+                post_json(&browser, &self.json);
+            }
+        }
+    }
+}
+
+// usable from any thread
+#[cfg(windows)]
+pub fn post_json_to_main_later(json: String) {
+    let mut task = PostMainJsonTask::new(json);
+    post_task(ThreadId::UI, Some(&mut task));
+}
+
+// usable from any thread
+pub fn load_scripts_later(browser_id: i32, request: String) {
+    let mut task = LoadScriptsTask::new(browser_id, request);
     post_task(ThreadId::UI, Some(&mut task));
 }

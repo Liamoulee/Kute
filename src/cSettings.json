@@ -369,7 +369,7 @@
         "defaultValue": true,
         "button": "Manage",
         "buttonAction": "{{kute}}.swapperManager.open()",
-        "needsRestart": true
+        "needsRefresh": true
     },
     "customCss": {
         "name": "Custom CSS",
@@ -390,8 +390,7 @@
         "category": "Customization",
         "defaultValue": true,
         "button": "Manage",
-        "buttonAction": "{{kute}}.userscriptManager.open()",
-        "needsRefresh": true
+        "buttonAction": "{{kute}}.userscriptManager.open()"
     },
     "blocklist": {
         "name": "URL Blocklist",

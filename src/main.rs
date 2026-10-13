@@ -83,6 +83,8 @@ pub mod modules {
     pub use crate::linux::spotify;
     pub mod swapper;
     #[cfg(windows)]
+    pub mod swapper_watch;
+    #[cfg(windows)]
     pub mod updater;
     #[cfg(target_os = "linux")]
     pub use crate::linux::updater;
@@ -149,6 +151,8 @@ fn main() {
         std::thread::spawn(|| {
             std::sync::LazyLock::force(&modules::swapper::SWAPS);
         });
+        #[cfg(windows)]
+        modules::swapper_watch::start();
     }
 
     // before cef starts, the driver reads the profile when the gpu process spawns

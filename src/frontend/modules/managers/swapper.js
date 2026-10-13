@@ -2,6 +2,7 @@ import { kute } from "../../client.js";
 import html from "../../components/managers/swapper.html";
 import { openManagerPopup, makeDropTarget, readBase64, askText, askConfirm, hostSupportsManagers, formatSize } from "./popup.js";
 import { createEditorView, languageFor } from "./editor.js";
+import { reloadStylesheets, hostWatchesSwapper } from "./stylesheets.js";
 
 const TEXT_FILES = new Set(["css", "js", "mjs", "json", "txt", "html", "htm", "svg", "xml", "obj", "mtl", "glsl", "frag", "vert", "md", "csv"]);
 
@@ -130,7 +131,10 @@ class SwapperManager {
         /** @type {Set<string>} folders of the game tree the player opened */
         this.expandedGame = new Set();
         this.search = "";
-        this.changed = false;
+        /** @type {Set<string>} paths this manager wrote since the last list, lowercased. a same size edit does not show in the list */
+        this.touched = new Set();
+        /** @type {Set<string>} changed paths the game already loaded in this page, they apply after a refresh */
+        this.stale = new Set();
         /** @type {((error: string|null) => void)|null} resolves once the host saved the current upload */
         this.uploadDone = null;
         /** @type {{ path: string, editor: import("./editor.js").CodeEditor, closeAfterSave: boolean }|null} */
@@ -184,6 +188,12 @@ class SwapperManager {
         };
         /** @type {HTMLElement} */ (shadow.querySelector("#swOwnTree")).textContent = "Loading...";
         this.send("list", {});
+        // back from explorer: pick up what was dropped into the folder. an exe that watches the folder says so itself
+        if (!hostWatchesSwapper()){
+            window.addEventListener("focus", () => {
+                if (!this.editing && !this.uploadDone) this.send("list", {});
+            }, { signal });
+        }
     }
 
     /**
@@ -252,8 +262,8 @@ class SwapperManager {
                 this.send("upload", { path, data });
             });
             if (error) problems.push(error);
+            else this.touched.add(path.toLowerCase());
         }
-        this.changed = true;
         // list once at the end, it rereads the folder and rebuilds the index
         this.send("list", {});
         if (problems.length) this.popup?.showError(problems.join("\n"));
@@ -278,14 +288,48 @@ class SwapperManager {
             this.saving = false;
             if (data.swapperWritten.error) this.popup?.showError(data.swapperWritten.error);
             else if (this.editing){
-                this.changed = true;
+                this.touched.add(this.editing.path.toLowerCase());
                 this.editing.editor.markSaved();
                 if (this.editing.closeAfterSave) this.closeEditor();
             }
         }
+        if (data.swapperChanged && !this.editing && !this.uploadDone) this.send("list", {});
         if (!data.swapper) return;
+        const before = this.list;
         this.list = data.swapper;
+        if (before) this.applyChanges(before, data.swapper);
         this.render();
+    }
+
+    /**
+     * Css swaps apply right away, other files the game already loaded wait for a refresh. Files it did not load yet
+     * (another map, a skin) need nothing, the host serves the new index from now on.
+     *
+     * @param {SwapperList} before
+     * @param {SwapperList} after
+     */
+    applyChanges(before, after){
+        /**
+         * @param {SwapperList} list
+         * @return {Map<string, number>}
+         */
+        const sizes = (list) => new Map(list.files.map((file) => [file.path.toLowerCase(), file.size]));
+        const old = sizes(before);
+        const now = sizes(after);
+        const changed = new Set(this.touched);
+        this.touched.clear();
+        if (before.enabled !== after.enabled){
+            for (const path of [...old.keys(), ...now.keys()]) changed.add(path);
+        }
+        for (const [path, size] of now) if (old.get(path) !== size) changed.add(path);
+        for (const path of old.keys()) if (!now.has(path)) changed.add(path);
+        if (!changed.size) return;
+
+        const css = new Set([...changed].filter((path) => path.endsWith(".css")));
+        // index.js does it when the exe reports the change
+        if (css.size && !hostWatchesSwapper()) reloadStylesheets(css);
+        const seen = new Set(after.seen.map((path) => path.toLowerCase()));
+        for (const path of changed) if (!css.has(path) && seen.has(path)) this.stale.add(path);
     }
 
     /**
@@ -300,10 +344,11 @@ class SwapperManager {
         if (!this.popup || !this.list) return;
         const notice = this.get("#swNotice");
         const off = this.list.enabled === false;
-        notice.hidden = !off && !this.changed;
+        notice.hidden = !off && !this.stale.size;
+        const count = this.stale.size;
         /** @type {HTMLElement} */ (notice.querySelector("span")).textContent = off
             ? "The swapper is switched off (Settings, Customization), none of these files are used."
-            : "Changes apply after a page refresh.";
+            : `The game already loaded ${count === 1 ? "1 changed file" : `${count} changed files`}, ${count === 1 ? "it changes" : "they change"} after a page refresh.`;
         this.renderOwn();
         this.renderGame();
     }
@@ -399,10 +444,7 @@ class SwapperManager {
             state.title = `The game asks for this file as ${elsewhere.join(", ")}`;
             const fix = element("div", "btn small", "Move there");
             fix.title = `Move to ${target}`;
-            fix.onclick = () => {
-                this.changed = true;
-                this.send("move", { from: file.path, to: target });
-            };
+            fix.onclick = () => this.send("move", { from: file.path, to: target });
             row.append(state, fix);
         }
         else {
@@ -622,7 +664,6 @@ class SwapperManager {
         if (!this.popup) return;
         const answer = await askText(this.popup.shadow, "Rename or move", path, "The new path inside the swapper folder. Change the folders in front to move it.");
         if (!answer || answer === path) return;
-        this.changed = true;
         this.send("move", { from: path, to: answer });
     }
 
@@ -633,7 +674,6 @@ class SwapperManager {
         if (!this.popup) return;
         const sure = await askConfirm(this.popup.shadow, `Delete ${baseName(path)}?`, "It goes to the recycle bin, so you can still get it back.", "Delete");
         if (!sure) return;
-        this.changed = true;
         this.send("delete", { path });
     }
 }

@@ -96,7 +96,12 @@ wrap_resource_request_handler! {
             }
 
             // kute icons answer the player's kute.lol/kr urls locally, that is no contact with the server
-            if modules::blocklist::is_blocked(&url) && modules::icons::bytes_for(&url).is_none() && !modules::blocklist::wants_empty_model(&url) {
+            // a file the player swapped in beats our blocklist (muzflash.png, ambient sounds, cats)
+            if modules::blocklist::is_blocked(&url)
+                && modules::icons::bytes_for(&url).is_none()
+                && !modules::blocklist::wants_empty_model(&url)
+                && !modules::swapper::has_swap(&url)
+            {
                 debug_print!("handlers: blocked {url}");
                 return ReturnValue::CANCEL;
             }
@@ -607,6 +612,11 @@ static MANAGER_QUEUE: LazyLock<Option<mpsc::Sender<(i32, String)>>> = LazyLock::
         .spawn(move || {
             for (browser_id, message) in receiver {
                 let reply = match message.split_once('-') {
+                    // after the writes queued before it, the renderer reads the scripts from disk
+                    Some(("scripts", rest)) if rest.starts_with("load ") => {
+                        bridge::load_scripts_later(browser_id, rest["load ".len()..].to_string());
+                        None
+                    }
                     Some(("scripts", rest)) => handle_scripts_message(rest),
                     Some(("swapper", rest)) => handle_swapper_message(rest),
                     Some(("css", rest)) => handle_css_message(rest),
@@ -878,6 +888,9 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
                 } else {
                     modules::power::restore()
                 }
+            }
+            if *setting == "swapper" {
+                queue_manager_message(browser, "swapper-list");
             }
             // overrides disableCats, disableVideoSkins and swapper, the stored values stay
             if *setting == "performanceMode" {
