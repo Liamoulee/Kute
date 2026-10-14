@@ -202,6 +202,10 @@ wrap_request_handler! {
             let text = format!("renderer ended: {status:?} code {error_code} {}", utils::cef_str(error_string));
             debug_print!("{text}");
             modules::eventlog::push("host", &text);
+            // a kill is kute closing it or the player in the task manager, everything else died on its own
+            if status.get_raw() != TerminationStatus::PROCESS_WAS_KILLED.get_raw() {
+                modules::recovery::renderer_crashed();
+            }
         }
     }
 }
@@ -857,6 +861,12 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         }
         return;
     }
+    if let Some(command) = message_string.strip_prefix("recovery-") {
+        if is_krunker_frame(frame) {
+            modules::recovery::command(command);
+        }
+        return;
+    }
     // replies never contain a password
     if let Some(rest) = message_string.strip_prefix("accounts-") {
         handle_accounts_message(browser, rest);
@@ -957,6 +967,10 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
                 host.set_audio_muted(0);
             }
             bridge::send_info(frame);
+            // the bundle runs on the game page: what the crash tests count as loaded, krunker's own menu may take minutes
+            if is_krunker_frame(frame) {
+                modules::recovery::milestone("loaded");
+            }
         }
         ["mute", value] => {
             if let Some(host) = browser.host() {
@@ -988,6 +1002,9 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             // true = menu open, pointer free
             let value = value.parse::<bool>().unwrap_or(false);
             modules::input::set_pointer_locked(!value);
+            if !value {
+                modules::recovery::milestone("match");
+            }
         }
         ["throttle", status] => {
             // "off" is used by auto-detect

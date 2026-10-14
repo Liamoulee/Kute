@@ -591,6 +591,11 @@ fn build(specs: Value, page: Value) -> Collected {
             &page["autodetect"],
         ));
     }
+    entries.push(text_entry(
+        "recovery.json",
+        "how the last sessions ended, safe mode and crash test state",
+        &crate::modules::recovery::report(),
+    ));
     let events = eventlog::lines();
     if !events.is_empty() {
         entries.push(Entry {
@@ -709,6 +714,33 @@ pub fn save(browser_id: i32, excluded_json: &str) {
     });
 }
 
+// civil date from days since 1970 (howard hinnant's algorithm), no date crate for one file name
+#[cfg(any(windows, test))]
+fn today() -> (u32, u32, u32) {
+    let days = (SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map(|time| time.as_secs()).unwrap_or(0) / 86_400) as i64 + 719_468;
+    let era = days.div_euclid(146_097);
+    let day_of_era = days.rem_euclid(146_097);
+    let year_of_era = (day_of_era - day_of_era / 1460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let month_index = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * month_index + 2) / 5 + 1;
+    let month = if month_index < 10 { month_index + 3 } else { month_index - 9 };
+    let year = year_of_era + era * 400 + i64::from(month <= 2);
+    (year as u32, month as u32, day as u32)
+}
+
+/// the recovery dialog before cef starts: no page, so no krunker settings and no auto-detect state
+#[cfg(windows)]
+pub fn save_without_page() {
+    let (year, month, day) = today();
+    let page = json!({ "date": format!("{year:04}-{month:02}-{day:02}") });
+    let collected = build(crate::modules::specs::collect(Default::default()), page);
+    let target = utils::download_target(&format!("kute-diagnostics-{year:04}-{month:02}-{day:02}.kutediag"));
+    if fs::write(&target, zipped(&collected, &[])).is_ok() {
+        files::reveal(&target);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -742,6 +774,12 @@ mod tests {
         );
         assert_eq!(redact_with("1.2.3.4.5", &who), "1.2.3.4.5");
         assert_eq!(redact_with("Chrome/151.0.0.0 Electron", &who), "Chrome/151.0.0.0 Electron");
+    }
+
+    #[test]
+    fn today_is_a_real_date() {
+        let (year, month, day) = today();
+        assert!(year >= 2026 && (1..=12).contains(&month) && (1..=31).contains(&day));
     }
 
     #[test]

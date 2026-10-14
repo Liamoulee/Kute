@@ -60,6 +60,7 @@ pub mod modules {
     pub mod ping;
     #[cfg(windows)]
     pub mod power;
+    pub mod recovery;
     #[cfg(target_os = "linux")]
     pub use crate::linux::power;
     #[cfg(windows)]
@@ -138,6 +139,7 @@ fn main() {
     } else {
         modules::lifecycle::wait_for_previous_instance();
         modules::lifecycle::register_instance();
+        modules::recovery::start();
     }
     #[cfg(feature = "packaged")]
     {
@@ -196,6 +198,7 @@ fn main() {
     if bench.is_none() {
         modules::power::restore();
         CONFIG.lock().unwrap().save();
+        modules::recovery::clean_exit();
     }
     #[cfg(feature = "auto-update")]
     modules::updater::install_pending();

@@ -244,10 +244,10 @@ enum Stage {
     Failed,
 }
 
-type TaskDialogIndirect = unsafe extern "system" fn(*const TASKDIALOGCONFIG, *mut i32, *mut i32, *mut BOOL) -> HRESULT;
+pub(crate) type TaskDialogIndirect = unsafe extern "system" fn(*const TASKDIALOGCONFIG, *mut i32, *mut i32, *mut BOOL) -> HRESULT;
 
 // the activation context stays on for this thread, the dialog's controls are created under it
-fn load_task_dialog() -> Option<TaskDialogIndirect> {
+pub(crate) fn load_task_dialog() -> Option<TaskDialogIndirect> {
     unsafe {
         let module = GetModuleHandleW(None).ok()?;
         let context = ACTCTXW {

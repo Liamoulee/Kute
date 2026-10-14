@@ -671,7 +671,7 @@ pub fn create_window(start_mode: &str, is_subwindow: bool, init_state: Option<Wi
         let hwnd: HWND = CreateWindowExW(
             WINDOW_EX_STYLE::default(),
             class_name,
-            w!("Kute"),
+            PCWSTR(crate::utils::create_utf_string(crate::modules::recovery::window_title()).as_ptr()),
             WS_OVERLAPPEDWINDOW,
             x,
             y,

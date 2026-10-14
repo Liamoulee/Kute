@@ -15,6 +15,8 @@ use std::{
 #[derive(Deserialize)]
 struct SettingInfo {
     #[serde(default)]
+    name: String,
+    #[serde(default)]
     #[serde(rename = "defaultValue")]
     default_value: serde_json::Value,
     // null only hides the setting's row
@@ -32,6 +34,14 @@ pub struct Config {
 
 fn settings_info() -> HashMap<String, SettingInfo> {
     serde_json::from_str(include_str!("./cSettings.json")).unwrap_or_else(|_| HashMap::new())
+}
+
+pub fn defaults() -> serde_json::Map<String, Value> {
+    settings_info().into_iter().map(|(key, info)| (key, info.default_value)).collect()
+}
+
+pub fn setting_name(key: &str) -> Option<String> {
+    settings_info().remove(key).map(|info| info.name).filter(|name| !name.is_empty())
 }
 
 impl Config {
@@ -86,6 +96,9 @@ impl Config {
     }
 
     pub fn get<T: serde::de::DeserializeOwned>(&self, setting: &str) -> Option<T> {
+        if let Some(value) = crate::modules::recovery::setting(setting) {
+            return serde_json::from_value(value).ok();
+        }
         let overridden = self
             .performance
             .get(setting)

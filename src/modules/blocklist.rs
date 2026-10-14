@@ -16,6 +16,25 @@ struct UserBlocklist {
     disabled_defaults: HashSet<String>,
 }
 
+// what the player added or switched off, without the example the file starts with
+pub fn user_entries() -> Vec<String> {
+    let examples = ["*://example1.com", "*://*.example2.com/*", ""];
+    let Some(user) = fs::read_to_string(utils::settings_dir().join("user_blocklist.json"))
+        .ok()
+        .and_then(|text| serde_json::from_str::<UserBlocklist>(&text).ok())
+    else {
+        return Vec::new();
+    };
+    let mut entries: Vec<String> = user
+        .blocked
+        .into_iter()
+        .chain(user.disabled_defaults.into_iter().map(|url| format!("-{url}")))
+        .filter(|entry| !examples.contains(&entry.as_str()) && entry != "-")
+        .collect();
+    entries.sort();
+    entries
+}
+
 // checked on the IO thread for every request
 pub static BLOCKLIST: LazyLock<Vec<String>> = LazyLock::new(|| if utils::config("blocklist", true) { load() } else { Vec::new() });
 
@@ -105,6 +124,9 @@ pub fn load() -> Vec<String> {
 }"#;
 
     let defaults: Vec<String> = serde_json::from_str(constants::DEFAULT_BLOCKLIST).unwrap();
+    if crate::modules::recovery::overrides().no_user_blocklist {
+        return defaults;
+    }
     let blocklist_path = utils::settings_dir().join("user_blocklist.json");
     let mut blocklist_file = if let Ok(file) = fs::OpenOptions::new().write(true).read(true).create(true).truncate(false).open(&blocklist_path) {
         file

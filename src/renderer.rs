@@ -14,15 +14,18 @@ fn frame_key(frame: &Frame) -> String {
 }
 
 fn bundle_source() -> String {
-    // bundle from the updater wins over the embedded one
+    // bundle from the updater wins over the embedded one, except in safe mode and a test that switched it off
     #[cfg(all(feature = "auto-update", windows))]
-    if let Ok(bundle) = std::fs::read_to_string(utils::exe_dir().join("resources").join("bundle.js"))
+    if !modules::recovery::overrides().embedded_bundle
+        && let Ok(bundle) = std::fs::read_to_string(utils::exe_dir().join("resources").join("bundle.js"))
         && !bundle.is_empty()
     {
         return bundle;
     }
     #[cfg(all(feature = "auto-update", target_os = "linux"))]
-    if let Some(bundle) = modules::updater::downloaded_bundle() {
+    if !modules::recovery::overrides().embedded_bundle
+        && let Some(bundle) = modules::updater::downloaded_bundle()
+    {
         return bundle;
     }
 
