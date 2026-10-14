@@ -183,6 +183,7 @@ Object.defineProperty(window, "gameLoaded", {
         if (!performanceMode) import("./modules/bpClaimAll.js");
         import("./modules/args.js");
         import("./modules/fixes.js");
+        import("./modules/inventoryScroll.js");
         import("./modules/chatDraft.js");
         if (!performanceMode) import("./modules/versionTag.js");
         if (!performanceMode) import("./modules/rankProgress.js");
