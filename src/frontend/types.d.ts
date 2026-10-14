@@ -52,6 +52,19 @@ interface KuteSettings {
     [toggleFunction: `toggle${string}`]: (value: any) => void;
 }
 
+interface RecoveryInfo {
+    mode: "safe" | "test" | "result" | "offer";
+    canFind?: boolean;
+    kind?: "startup" | "play";
+    step?: number;
+    suspects?: number;
+    minutes?: number;
+    ranFine?: boolean;
+    verdict?: "culprit" | "notTheSetup";
+    culprits?: { label: string; fixable: boolean }[];
+    tests?: { crashed: number; ranFine: number };
+}
+
 interface Kute {
     settings: KuteSettings;
     version: string;
@@ -86,6 +99,8 @@ interface Kute {
     accounts?: { loginSlot(index: number): void };
     settingsTransfer: { exportFile(): void; importFile(): void };
     diagnostics: { open(): void };
+    /** safe mode, a crash test or its result, absent otherwise and on older exes */
+    recovery?: RecoveryInfo;
     nukeCounter: { showOptions(): Promise<void> };
     customSky: { showOptions(): Promise<void> };
     hudEditor: { edit(): void; apply(): void };
