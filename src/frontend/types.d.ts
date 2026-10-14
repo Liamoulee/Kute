@@ -85,6 +85,7 @@ interface Kute {
     chatLogs?: { open(): void; toggle(): void };
     accounts?: { loginSlot(index: number): void };
     settingsTransfer: { exportFile(): void; importFile(): void };
+    diagnostics: { open(): void };
     nukeCounter: { showOptions(): Promise<void> };
     customSky: { showOptions(): Promise<void> };
     hudEditor: { edit(): void; apply(): void };
