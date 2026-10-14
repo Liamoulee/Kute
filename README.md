@@ -181,6 +181,6 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before
 - [Alx8g/wok-client](https://github.com/Alx8g/wok-client) - motion blur idea
 - [PC7 Client](https://github.com/PC7-Client/PC7-Client) - ideas (badges, QoL, etc.) 
 - [Water Client](https://github.com/ghostypostie/Water) - ideas (direct mod downloads)
-- [krunkerresourcehub/krh-client](https://github.com/krunkerresourcehub/krh-client) - ideas (Quick Alt-Login)
+- [krunkerresourcehub/krh-client](https://github.com/krunkerresourcehub/krh-client) - ideas (Quick Alt-Login, Safe Mode)
 
 <hr>
