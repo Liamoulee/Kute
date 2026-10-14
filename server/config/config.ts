@@ -3,7 +3,7 @@ import Log from "../src/util/log";
 
 // ========================= //
 // = Copyright (c) NullDev = //
-// =     - SPDX: MIT -     = //
+// =  All rights reserved  = //
 // ========================= //
 
 const isObject = (item: unknown): boolean => !!item && typeof item === "object" && !Array.isArray(item);

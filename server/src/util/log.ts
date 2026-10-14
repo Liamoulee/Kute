@@ -4,7 +4,7 @@ import path from "node:path";
 
 // ========================= //
 // = Copyright (c) NullDev = //
-// =     - SPDX: MIT -     = //
+// =  All rights reserved  = //
 // ========================= //
 
 const appNameFromPackageJson = await fs.readFile(path.resolve("./package.json"), "utf-8").then(d => JSON.parse(d).name);

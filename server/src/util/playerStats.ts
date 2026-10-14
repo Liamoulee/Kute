@@ -2,7 +2,7 @@ import { getDb } from "../db";
 
 // ========================= //
 // = Copyright (c) NullDev = //
-// =     - SPDX: MIT -     = //
+// =  All rights reserved  = //
 // ========================= //
 
 let online = 0;
