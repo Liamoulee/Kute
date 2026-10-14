@@ -4,14 +4,16 @@
 // measured: the list resets ~0.7 s after the popup's button, a slow server answers later
 const RESET_AFTER_POPUP_MS = 5000;
 const RESTORE_LIMIT_MS = 10000;
-// no new page after a kick: the inventory has no more
+// no new page for this long: the inventory has no more
 const PAGE_WAIT_MS = 1500;
+// quicksell and destroy open a view stack overlay, listing a modal overlay
+const POPUPS = ".view-stack-overlay, .modal-overlay";
 
 /**
  * @typedef {object} Restore
  * @property {HTMLElement} scroller
  * @property {HTMLElement} grid
- * @property {HTMLElement|null} sentinel
+ * @property {Set<HTMLElement>} sentinels every one styled, the inventory's end removes it and the reset makes a new one
  * @property {number} top
  * @property {number} count items before the reset
  * @property {number} until
@@ -20,11 +22,28 @@ const PAGE_WAIT_MS = 1500;
  */
 
 /**
+ * @param {HTMLElement} grid
+ * @return {HTMLElement|null}
+ */
+function sentinelOf(grid){
+    const next = grid.nextElementSibling;
+    return next instanceof HTMLElement && next.matches(".market-grid-sentinel") ? next : null;
+}
+
+/**
  * @return {Promise<void>}
  */
 const nextFrame = () => new Promise((resolve) => {
     requestAnimationFrame(() => resolve());
 });
+
+/**
+ * @param {number} count
+ * @return {Promise<void>}
+ */
+async function frames(count){
+    for (let frame = 0; frame < count; frame++) await nextFrame();
+}
 
 class InventoryScroll {
     constructor(){
@@ -41,7 +60,7 @@ class InventoryScroll {
         document.addEventListener(
             "click",
             (event) => {
-                if (event.target instanceof Element && event.target.closest(".view-stack-overlay")) this.popupClickAt = performance.now();
+                if (event.target instanceof Element && event.target.closest(POPUPS)) this.popupClickAt = performance.now();
             },
             { capture: true, passive: true },
         );
@@ -99,14 +118,15 @@ class InventoryScroll {
      * @param {Node[]} removed
      */
     start(scroller, grid, count, removed){
-        const sentinel = grid.nextElementSibling instanceof HTMLElement && grid.nextElementSibling.matches(".market-grid-sentinel") ? grid.nextElementSibling : null;
         // the pages come back one by one over ~150 ms, blank or half filled frames read as a jump
         const picture = document.createElement("div");
         picture.className = grid.className;
         picture.style.cssText = grid.style.cssText;
         picture.append(...removed);
-        this.restore = { scroller, grid, sentinel, top: this.lastTop, count, until: performance.now() + RESTORE_LIMIT_MS, pageTimer: 0, picture };
+        this.restore = { scroller, grid, sentinels: new Set(), top: this.lastTop, count, until: performance.now() + RESTORE_LIMIT_MS, pageTimer: 0, picture };
         grid.style.minHeight = `${this.lastHeight}px`;
+        // the held height stretched the few rows there are into huge gaps
+        grid.style.alignContent = "start";
         Object.assign(picture.style, {
             position: "absolute",
             top: `${grid.offsetTop}px`,
@@ -120,13 +140,9 @@ class InventoryScroll {
         scroller.append(picture);
         scroller.style.overflowAnchor = "none";
         scroller.scrollTop = this.lastTop;
-        // stuck to the bottom of the view the sentinel is always in it, every blink then asks for the next page
-        if (sentinel){
-            sentinel.style.position = "sticky";
-            sentinel.style.bottom = "0";
-        }
         scroller.addEventListener("wheel", this.onWheel, { passive: true });
-        this.kick();
+        this.waitForPage();
+        this.blink(this.restore).catch((error) => console.error("[kute] inventory scroll:", error));
     }
 
     pageArrived(){
@@ -134,19 +150,38 @@ class InventoryScroll {
         if (!restore) return;
         // a quicksell or destroy leaves one item less
         if (restore.grid.children.length >= restore.count - 1 || performance.now() > restore.until) this.finish(true);
-        else this.kick();
+        else this.waitForPage();
     }
 
-    async kick(){
+    waitForPage(){
         const { restore } = this;
         if (!restore) return;
         clearTimeout(restore.pageTimer);
         restore.pageTimer = window.setTimeout(() => this.finish(true), PAGE_WAIT_MS);
-        if (!restore.sentinel) return;
-        restore.sentinel.style.display = "none";
-        await nextFrame();
-        await nextFrame();
-        if (this.restore === restore) restore.sentinel.style.display = "";
+    }
+
+    /**
+     * @param {Restore} restore
+     * @return {Promise<void>}
+     */
+    async blink(restore){
+        while (this.restore === restore){
+            // the end of the inventory removes the sentinel and the reset makes a new one, so it is looked up every time
+            const sentinel = sentinelOf(restore.grid);
+            if (sentinel){
+                // stuck to the bottom of the view the sentinel is always in it, every blink then asks for the next page
+                restore.sentinels.add(sentinel);
+                sentinel.style.position = "sticky";
+                sentinel.style.bottom = "0";
+                sentinel.style.display = "none";
+                await frames(2);
+                sentinel.style.display = "";
+            }
+            // the loader ignores the sentinel while the game is busy with the list call and then never hears of it
+            // again (the original bug), so it blinks until the pages are back. observers run after rAF, so the
+            // visible state needs two frames to be seen
+            await frames(2);
+        }
     }
 
     /**
@@ -160,11 +195,12 @@ class InventoryScroll {
         restore.scroller.removeEventListener("wheel", this.onWheel);
         restore.picture.remove();
         restore.grid.style.minHeight = "";
+        restore.grid.style.alignContent = "";
         restore.scroller.style.overflowAnchor = "";
-        if (restore.sentinel){
-            restore.sentinel.style.position = "";
-            restore.sentinel.style.bottom = "";
-            restore.sentinel.style.display = "";
+        for (const sentinel of restore.sentinels){
+            sentinel.style.position = "";
+            sentinel.style.bottom = "";
+            sentinel.style.display = "";
         }
         if (putBack) restore.scroller.scrollTop = restore.top;
         this.lastTop = restore.scroller.scrollTop;
