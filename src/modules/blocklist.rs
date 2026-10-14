@@ -45,8 +45,6 @@ static API_HOST: LazyLock<String> = LazyLock::new(|| url_host(&utils::api_url())
 // separate from the blocklist setting, turning that off must not bring the cats back
 static CATS_OFF: LazyLock<AtomicBool> = LazyLock::new(|| AtomicBool::new(utils::config("disableCats", true)));
 
-static VIDEO_SKINS_OFF: LazyLock<AtomicBool> = LazyLock::new(|| AtomicBool::new(utils::config("disableVideoSkins", false)));
-
 pub fn set_online_off(off: bool) {
     ONLINE_OFF.store(off, Ordering::Relaxed);
 }
@@ -55,14 +53,9 @@ pub fn set_cats_off(off: bool) {
     CATS_OFF.store(off, Ordering::Relaxed);
 }
 
-pub fn set_video_skins_off(off: bool) {
-    VIDEO_SKINS_OFF.store(off, Ordering::Relaxed);
-}
-
 pub fn is_blocked(url: &str) -> bool {
     (ONLINE_OFF.load(Ordering::Relaxed) && is_kute_server(url))
         || (CATS_OFF.load(Ordering::Relaxed) && constants::CAT_BLOCKLIST.iter().any(|pattern| glob_match(pattern, url)))
-        || (VIDEO_SKINS_OFF.load(Ordering::Relaxed) && constants::VIDEO_SKIN_BLOCKLIST.iter().any(|pattern| glob_match(pattern, url)))
         || BLOCKLIST.iter().any(|pattern| glob_match(pattern, url))
 }
 

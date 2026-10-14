@@ -927,9 +927,6 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             if *setting == "disableCats" {
                 modules::blocklist::set_cats_off(*value == "true");
             }
-            if *setting == "disableVideoSkins" {
-                modules::blocklist::set_video_skins_off(*value == "true");
-            }
             if *setting == "laptopPowerBoost" {
                 if *value == "true" {
                     modules::power::boost()
@@ -940,10 +937,9 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             if *setting == "swapper" {
                 queue_manager_message(browser, "swapper-list");
             }
-            // overrides disableCats, disableVideoSkins and swapper, the stored values stay
+            // overrides disableCats and swapper, the stored values stay
             if *setting == "performanceMode" {
                 modules::blocklist::set_cats_off(config("disableCats", true));
-                modules::blocklist::set_video_skins_off(config("disableVideoSkins", false));
                 queue_manager_message(browser, "swapper-list");
             }
             // present hook paces the game loop, gameFpsLimit.js has the fallback

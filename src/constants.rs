@@ -62,9 +62,6 @@ pub const DEFAULT_BLOCKLIST: &str = r#"[
   "*://krunker.io/libs/anzu.js*"
 ]"#;
 
-// video skin textures (Glitch etc.), blocked while "disableVideoSkins" is on. tutorial videos sit in videos/tutorial/, map video textures under user-assets/<id>/
-pub const VIDEO_SKIN_BLOCKLIST: &[&str] = &["*://assets.krunker.io/videos/video_*.mp4*", "*://user-assets.krunker.io/skins/*.mp4*"];
-
 // the cat models, blocked while "disableCats" is on
 pub const CAT_BLOCKLIST: &[&str] = &[
     "*://user-assets.krunker.io/61822/model.obj*",
