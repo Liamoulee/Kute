@@ -90,6 +90,7 @@ pub mod modules {
     #[cfg(target_os = "linux")]
     pub use crate::linux::updater;
     pub mod userscripts;
+    pub mod zip;
 }
 
 static LAUNCH_ARGS: LazyLock<Mutex<Vec<String>>> =
