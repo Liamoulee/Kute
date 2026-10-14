@@ -29,6 +29,7 @@ pub mod modules {
     pub mod dpapi;
     #[cfg(target_os = "linux")]
     pub use crate::linux::dpapi;
+    pub mod eventlog;
     pub mod files;
     pub mod flaglist;
     #[cfg(windows)]
@@ -126,6 +127,7 @@ fn main() {
     if code >= 0 {
         std::process::exit(code);
     }
+    std::sync::LazyLock::force(&modules::eventlog::START);
 
     let bench = modules::bench::config();
     if let Some(bench) = bench {

@@ -191,6 +191,18 @@ wrap_request_handler! {
         ) -> Option<ResourceRequestHandler> {
             Some(KuteResourceRequestHandler::new())
         }
+
+        fn on_render_process_terminated(
+            &self,
+            _browser: Option<&mut Browser>,
+            status: TerminationStatus,
+            error_code: ::std::os::raw::c_int,
+            error_string: Option<&CefString>,
+        ) {
+            let text = format!("renderer ended: {status:?} code {error_code} {}", utils::cef_str(error_string));
+            debug_print!("{text}");
+            modules::eventlog::push("host", &text);
+        }
     }
 }
 
@@ -377,12 +389,19 @@ wrap_display_handler! {
         fn on_console_message(
             &self,
             _browser: Option<&mut Browser>,
-            _level: LogSeverity,
-            _message: Option<&CefString>,
-            _source: Option<&CefString>,
-            _line: ::std::os::raw::c_int,
+            level: LogSeverity,
+            message: Option<&CefString>,
+            source: Option<&CefString>,
+            line: ::std::os::raw::c_int,
         ) -> ::std::os::raw::c_int {
-            debug_print!("console: {} ({}:{_line})", utils::cef_str(_message), utils::cef_str(_source));
+            debug_print!("console: {} ({}:{line})", utils::cef_str(message), utils::cef_str(source));
+            if level == LogSeverity::WARNING || level == LogSeverity::ERROR || level == LogSeverity::FATAL {
+                let source = utils::cef_str(source);
+                let file = source.split(['?', '#']).next().unwrap_or_default().rsplit('/').next().unwrap_or_default();
+                let kind = if level == LogSeverity::WARNING { "warn" } else { "error" };
+                let at = if file.is_empty() { String::new() } else { format!(" ({file}:{line})") };
+                modules::eventlog::push(kind, &format!("{}{at}", utils::cef_str(message)));
+            }
             0
         }
     }
