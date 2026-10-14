@@ -843,6 +843,20 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         }
         return;
     }
+    // json carries ", ", and the page part can be large (auto-detect state)
+    if let Some(rest) = message_string.strip_prefix("diagnostics-collect ") {
+        if is_krunker_frame(frame) {
+            let hwnd = window::root_hwnd(browser).unwrap_or_default();
+            modules::diagnostics::collect(browser.identifier(), modules::specs::collect(hwnd), rest.to_string());
+        }
+        return;
+    }
+    if let Some(rest) = message_string.strip_prefix("diagnostics-save ") {
+        if is_krunker_frame(frame) {
+            modules::diagnostics::save(browser.identifier(), rest);
+        }
+        return;
+    }
     // replies never contain a password
     if let Some(rest) = message_string.strip_prefix("accounts-") {
         handle_accounts_message(browser, rest);

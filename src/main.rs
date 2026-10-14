@@ -25,6 +25,7 @@ pub mod modules {
     pub mod custom_css;
     pub mod dev;
     pub mod devtools;
+    pub mod diagnostics;
     #[cfg(windows)]
     pub mod dpapi;
     #[cfg(target_os = "linux")]

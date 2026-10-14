@@ -32,7 +32,7 @@ pub fn post_string(browser: &Browser, text: &str) {
 }
 
 #[cfg(windows)]
-fn host_features() -> serde_json::Value {
+pub fn host_features() -> serde_json::Value {
     serde_json::json!([
         "matchmaker",
         "dev-proof",
@@ -55,13 +55,14 @@ fn host_features() -> serde_json::Value {
         "userscripts-live",
         "swapper-over-blocklist",
         "swapper-watch",
-        "accounts-order"
+        "accounts-order",
+        "diagnostics"
     ])
 }
 
 // what the linux host really does, the rest are stubs there (src/linux)
 #[cfg(target_os = "linux")]
-fn host_features() -> serde_json::Value {
+pub fn host_features() -> serde_json::Value {
     serde_json::json!([
         "matchmaker",
         "dev-proof",
@@ -86,7 +87,8 @@ fn host_features() -> serde_json::Value {
         "mute",
         "userscripts-live",
         "swapper-over-blocklist",
-        "accounts-order"
+        "accounts-order",
+        "diagnostics"
     ])
 }
 
