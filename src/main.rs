@@ -21,14 +21,17 @@ use linux::window;
 pub mod modules {
     pub mod accounts;
     pub mod bench;
+    pub mod bisect;
     pub mod blocklist;
     pub mod custom_css;
     pub mod dev;
     pub mod devtools;
+    pub mod diagnostics;
     #[cfg(windows)]
     pub mod dpapi;
     #[cfg(target_os = "linux")]
     pub use crate::linux::dpapi;
+    pub mod eventlog;
     pub mod files;
     pub mod flaglist;
     #[cfg(windows)]
@@ -57,6 +60,7 @@ pub mod modules {
     pub mod ping;
     #[cfg(windows)]
     pub mod power;
+    pub mod recovery;
     #[cfg(target_os = "linux")]
     pub use crate::linux::power;
     #[cfg(windows)]
@@ -89,6 +93,7 @@ pub mod modules {
     #[cfg(target_os = "linux")]
     pub use crate::linux::updater;
     pub mod userscripts;
+    pub mod zip;
 }
 
 static LAUNCH_ARGS: LazyLock<Mutex<Vec<String>>> =
@@ -126,6 +131,7 @@ fn main() {
     if code >= 0 {
         std::process::exit(code);
     }
+    std::sync::LazyLock::force(&modules::eventlog::START);
 
     let bench = modules::bench::config();
     if let Some(bench) = bench {
@@ -133,6 +139,7 @@ fn main() {
     } else {
         modules::lifecycle::wait_for_previous_instance();
         modules::lifecycle::register_instance();
+        modules::recovery::start();
     }
     #[cfg(feature = "packaged")]
     {
@@ -191,6 +198,7 @@ fn main() {
     if bench.is_none() {
         modules::power::restore();
         CONFIG.lock().unwrap().save();
+        modules::recovery::clean_exit();
     }
     #[cfg(feature = "auto-update")]
     modules::updater::install_pending();

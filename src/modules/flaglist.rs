@@ -20,6 +20,10 @@ pub fn load() -> Vec<String> {
 }"#;
 
     let defaults: Vec<String> = serde_json::from_str(constants::DEFAULT_FLAGS).unwrap();
+    let off = crate::modules::recovery::overrides();
+    if off.no_user_flags {
+        return defaults;
+    }
     let flaglist_path = utils::settings_dir().join("user_flags.json");
     let mut flaglist_file = if let Ok(flaglist_file) = fs::OpenOptions::new().write(true).read(true).create(true).truncate(false).open(&flaglist_path) {
         flaglist_file
@@ -59,8 +63,20 @@ pub fn load() -> Vec<String> {
     defaults
         .into_iter()
         .filter(|flag| !flaglist.disabled_defaults.contains(flag))
-        .chain(flaglist.flags)
+        .chain(flaglist.flags.into_iter().filter(|flag| !off.user_flags_off.contains(flag)))
         .collect()
+}
+
+// the player's own flags as written, sorted so two reads compare equal
+pub fn user_flags() -> Vec<String> {
+    let path = utils::settings_dir().join("user_flags.json");
+    let mut flags: Vec<String> = fs::read_to_string(path)
+        .ok()
+        .and_then(|text| serde_json::from_str::<UserFlags>(&text).ok())
+        .map(|user| user.flags.into_iter().filter(|flag| !flag.trim().is_empty()).collect())
+        .unwrap_or_default();
+    flags.sort();
+    flags
 }
 
 // untouched since it was written, a file someone edited differs in some way

@@ -682,5 +682,15 @@
         "category": "About",
         "button": "Import",
         "buttonAction": "{{kute}}.settingsTransfer.importFile()"
+    },
+    "diagnosticsReport": {
+        "name": "Diagnostics Report",
+        "id": "diagnosticsReport",
+        "description": "Puts what helps fix a problem into one file you can send. You see all of it first, nothing is uploaded",
+        "type": "none",
+        "category": "About",
+        "button": "Create",
+        "buttonAction": "{{kute}}.diagnostics.open()",
+        "hostFeature": "diagnostics"
     }
 }

@@ -82,6 +82,9 @@ unsafe extern "system" fn crash_filter(info: *const EXCEPTION_POINTERS) -> i32 {
             if dumped { dump_path.display().to_string() } else { "not written".to_string() },
         );
         fs::write(&log_path, &message).ok();
+        if crate::modules::recovery::on_crash(&format!("native {code:#010x} at {}", module_offset(address))) {
+            return EXCEPTION_CONTINUE_SEARCH;
+        }
         let result = MessageBoxW(
             None,
             PCWSTR(
@@ -187,6 +190,10 @@ pub fn set_panic_hook() -> io::Result<()> {
             fs::create_dir_all(folder).ok();
         }
         fs::write(&log_file_path, &crash_message).ok();
+        let location = panic_info.location().map(|loc| loc.to_string()).unwrap_or_default();
+        if crate::modules::recovery::on_crash(&format!("panic at {location}")) {
+            return;
+        }
 
         #[cfg(windows)]
         unsafe {
@@ -231,7 +238,13 @@ pub fn restart() {
     #[cfg(windows)]
     let exe = env::current_exe();
     if let Ok(exe) = exe {
-        process::Command::new(exe).args(args).arg(format!("{WAIT_PID_ARG}{}", process::id())).spawn().ok();
+        // the new client decides its own session overrides
+        process::Command::new(exe)
+            .args(args)
+            .arg(wait_pid_arg())
+            .env_remove(crate::modules::recovery::ENV)
+            .spawn()
+            .ok();
     }
     crate::window::close_all();
 }
@@ -251,6 +264,10 @@ pub fn wait_for_previous_instance() {
             CloseHandle(handle).ok();
         }
     }
+}
+
+pub fn wait_pid_arg() -> String {
+    format!("{WAIT_PID_ARG}{}", process::id())
 }
 
 pub fn is_internal_arg(arg: &str) -> bool {

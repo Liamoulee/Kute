@@ -32,7 +32,7 @@ pub fn post_string(browser: &Browser, text: &str) {
 }
 
 #[cfg(windows)]
-fn host_features() -> serde_json::Value {
+pub fn host_features() -> serde_json::Value {
     serde_json::json!([
         "matchmaker",
         "dev-proof",
@@ -55,13 +55,15 @@ fn host_features() -> serde_json::Value {
         "userscripts-live",
         "swapper-over-blocklist",
         "swapper-watch",
-        "accounts-order"
+        "accounts-order",
+        "diagnostics",
+        "recovery"
     ])
 }
 
 // what the linux host really does, the rest are stubs there (src/linux)
 #[cfg(target_os = "linux")]
-fn host_features() -> serde_json::Value {
+pub fn host_features() -> serde_json::Value {
     serde_json::json!([
         "matchmaker",
         "dev-proof",
@@ -86,14 +88,27 @@ fn host_features() -> serde_json::Value {
         "mute",
         "userscripts-live",
         "swapper-over-blocklist",
-        "accounts-order"
+        "accounts-order",
+        "diagnostics",
+        "recovery"
     ])
 }
 
 pub fn send_info(frame: &Frame) {
     let version = env!("CARGO_PKG_VERSION");
     let mut info_map = serde_json::Map::new();
-    info_map.insert("settings".to_string(), serde_json::json!(&*crate::CONFIG.lock().unwrap()));
+    let mut settings = serde_json::json!(&*crate::CONFIG.lock().unwrap());
+    // safe mode and crash tests: the page shows and follows this session's values, the stored ones stay
+    if let Some(data) = settings["data"].as_object_mut() {
+        for (key, value) in &crate::modules::recovery::overrides().settings {
+            data.insert(key.clone(), value.clone());
+        }
+    }
+    info_map.insert("settings".to_string(), settings);
+    let recovery = crate::modules::recovery::page_info();
+    if !recovery.is_null() {
+        info_map.insert("recovery".to_string(), recovery);
+    }
     info_map.insert("version".to_string(), serde_json::Value::String(version.to_string()));
     info_map.insert("apiBase".to_string(), serde_json::Value::String(crate::utils::api_url()));
     // an exe without this field is a windows one

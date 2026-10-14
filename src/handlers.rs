@@ -191,6 +191,22 @@ wrap_request_handler! {
         ) -> Option<ResourceRequestHandler> {
             Some(KuteResourceRequestHandler::new())
         }
+
+        fn on_render_process_terminated(
+            &self,
+            _browser: Option<&mut Browser>,
+            status: TerminationStatus,
+            error_code: ::std::os::raw::c_int,
+            error_string: Option<&CefString>,
+        ) {
+            let text = format!("renderer ended: {status:?} code {error_code} {}", utils::cef_str(error_string));
+            debug_print!("{text}");
+            modules::eventlog::push("host", &text);
+            // a kill is kute closing it or the player in the task manager, everything else died on its own
+            if status.get_raw() != TerminationStatus::PROCESS_WAS_KILLED.get_raw() {
+                modules::recovery::renderer_crashed();
+            }
+        }
     }
 }
 
@@ -377,12 +393,19 @@ wrap_display_handler! {
         fn on_console_message(
             &self,
             _browser: Option<&mut Browser>,
-            _level: LogSeverity,
-            _message: Option<&CefString>,
-            _source: Option<&CefString>,
-            _line: ::std::os::raw::c_int,
+            level: LogSeverity,
+            message: Option<&CefString>,
+            source: Option<&CefString>,
+            line: ::std::os::raw::c_int,
         ) -> ::std::os::raw::c_int {
-            debug_print!("console: {} ({}:{_line})", utils::cef_str(_message), utils::cef_str(_source));
+            debug_print!("console: {} ({}:{line})", utils::cef_str(message), utils::cef_str(source));
+            if level == LogSeverity::WARNING || level == LogSeverity::ERROR || level == LogSeverity::FATAL {
+                let source = utils::cef_str(source);
+                let file = source.split(['?', '#']).next().unwrap_or_default().rsplit('/').next().unwrap_or_default();
+                let kind = if level == LogSeverity::WARNING { "warn" } else { "error" };
+                let at = if file.is_empty() { String::new() } else { format!(" ({file}:{line})") };
+                modules::eventlog::push(kind, &format!("{}{at}", utils::cef_str(message)));
+            }
             0
         }
     }
@@ -824,6 +847,26 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         }
         return;
     }
+    // json carries ", ", and the page part can be large (auto-detect state)
+    if let Some(rest) = message_string.strip_prefix("diagnostics-collect ") {
+        if is_krunker_frame(frame) {
+            let hwnd = window::root_hwnd(browser).unwrap_or_default();
+            modules::diagnostics::collect(browser.identifier(), modules::specs::collect(hwnd), rest.to_string());
+        }
+        return;
+    }
+    if let Some(rest) = message_string.strip_prefix("diagnostics-save ") {
+        if is_krunker_frame(frame) {
+            modules::diagnostics::save(browser.identifier(), rest);
+        }
+        return;
+    }
+    if let Some(command) = message_string.strip_prefix("recovery-") {
+        if is_krunker_frame(frame) {
+            modules::recovery::command(command);
+        }
+        return;
+    }
     // replies never contain a password
     if let Some(rest) = message_string.strip_prefix("accounts-") {
         handle_accounts_message(browser, rest);
@@ -924,6 +967,10 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
                 host.set_audio_muted(0);
             }
             bridge::send_info(frame);
+            // the bundle runs on the game page: what the crash tests count as loaded, krunker's own menu may take minutes
+            if is_krunker_frame(frame) {
+                modules::recovery::milestone("loaded");
+            }
         }
         ["mute", value] => {
             if let Some(host) = browser.host() {
@@ -955,6 +1002,9 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             // true = menu open, pointer free
             let value = value.parse::<bool>().unwrap_or(false);
             modules::input::set_pointer_locked(!value);
+            if !value {
+                modules::recovery::milestone("match");
+            }
         }
         ["throttle", status] => {
             // "off" is used by auto-detect

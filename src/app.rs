@@ -354,6 +354,10 @@ pub const PATCHES: [Patch; 8] = [
     },
 ];
 
+pub fn flags() -> Vec<String> {
+    FLAGS.lock().unwrap().clone()
+}
+
 pub fn has_flag(wanted: &str) -> bool {
     FLAGS.lock().unwrap().iter().any(|flag| flag == wanted)
 }

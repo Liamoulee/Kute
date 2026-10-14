@@ -194,6 +194,10 @@ Object.defineProperty(window, "gameLoaded", {
         import("./modules/hotkeys.js");
         // always: export and import buttons in About
         import("./modules/settingsTransfer.js");
+        // always: create button in About
+        import("./modules/diagnostics.js");
+        // only from an exe that is in safe mode, testing, or has a result
+        if (kute.recovery) import("./modules/recovery.js");
         // always: customize button needs the module
         import("./modules/nukeCounter.js");
         // always: turning it on keeps the current message, only its toggle knows that
