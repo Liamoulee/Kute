@@ -1,5 +1,6 @@
 import html from "../components/diagnostics.html";
 import { kute } from "../client.js";
+import { highlight } from "./managers/editor.js";
 
 /**
  * Diagnostics Report: the host collects, the player sees every entry and saves a .kutediag (a zip) into Downloads.
@@ -8,6 +9,8 @@ import { kute } from "../client.js";
 
 const HOST_FEATURE = "diagnostics";
 const KRUNKER_SETTING_PREFIX = "kro_setngss_";
+// tens of thousands of spans make the preview sluggish, bigger files stay plain
+const MAX_HIGHLIGHT_CHARS = 256 * 1024;
 
 /**
  * @typedef {object} DiagnosticsEntry
@@ -233,6 +236,7 @@ class Diagnostics {
         this.element("dgNote").textContent = entry.note;
         const text = this.element("dgText");
         if (entry.kind === "binary") text.textContent = `${entry.name}: ${size(entry.bytes)} of binary data, goes into the file as it is.`;
+        else if (entry.kind === "json" && !entry.truncated && (entry.text ?? "").length <= MAX_HIGHLIGHT_CHARS) text.innerHTML = highlight(entry.text ?? "", "json");
         else text.textContent = entry.truncated ? `${entry.text}\n\n... (the preview ends here, the file holds all of it)` : (entry.text ?? "");
         text.scrollTop = 0;
     }
