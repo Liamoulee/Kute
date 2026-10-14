@@ -893,6 +893,11 @@ class AutoDetect {
             kute.showNotification("Auto-detect needs a newer Kute, update the client to use it", false, 6);
             return;
         }
+        // it would measure this session's overrides and keep them as the player's setup
+        if (kute.recovery){
+            kute.showNotification("Auto-detect can't run in safe mode or while Kute looks for the cause of a crash", false, 6);
+            return;
+        }
         if (!loggedIn()){
             kute.showNotification("Log in first: auto-detect measures in a private test match, and hosting one needs an account", false, 6);
             return;
@@ -1717,7 +1722,7 @@ class AutoDetect {
     // once per client start at most
     offer(){
         // an exe older than the run's host side: no prompt for something it cannot do
-        if (this.running || sessionStorage.getItem(ASKED_KEY) || !kute.hostFeatures?.includes(HOST_FEATURE)) return;
+        if (this.running || sessionStorage.getItem(ASKED_KEY) || !kute.hostFeatures?.includes(HOST_FEATURE) || kute.recovery) return;
         // already in a match, ask once back in the menu
         if (document.pointerLockElement){
             document.addEventListener("pointerlockchange", () => setTimeout(() => this.offer(), 1500), { once: true });

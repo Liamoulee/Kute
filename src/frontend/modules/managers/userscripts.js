@@ -1,6 +1,6 @@
 import { kute } from "../../client.js";
 import html from "../../components/managers/userscripts.html";
-import { registry } from "./registry.js";
+import { registry, canLoadLive, loadScripts } from "./registry.js";
 import { openManagerPopup, makeDropTarget, askText, askConfirm, hostSupportsManagers, formatSize } from "./popup.js";
 import { createEditorView } from "./editor.js";
 
@@ -100,8 +100,8 @@ class UserscriptManager {
         this.prefsTimers = new Map();
 
         if (registry) registry.onChange = () => this.queueRender();
-        // the checkbox in the settings and the header toggle are the same switch
-        kute.settings.toggleUserscripts = (/** @type {boolean} */ on) => this.onMasterChanged(on);
+        // the settings checkbox and the header toggle both end up here, through toggleUserscripts in index.js
+        kute.userscriptManager.masterChanged = (on) => this.onMasterChanged(on);
     }
 
     masterOn(){
@@ -109,31 +109,38 @@ class UserscriptManager {
     }
 
     /**
-     * Userscripts switched on or off, from either toggle. Mirrors the per script toggle for every game script.
+     * Userscripts switched on or off. index.js already stopped or loaded them, this covers exes without live loading.
      *
      * @param {boolean} on
      */
     onMasterChanged(on){
-        // changeSetting stores the value after calling this
-        kute.settings.data.userscripts = on;
-        if (!registry){
+        if (on && !registry){
             // this page loaded without userscripts, the exe injects them with the next load
-            if (on) this.needsRefresh = true;
+            this.needsRefresh = true;
         }
-        else {
+        else if (on && !canLoadLive()){
             for (const script of this.groups.filter((group) => group.id === "game").flatMap((group) => group.scripts)){
                 const entry = this.entryFor(script.key);
-                if (!entry) continue;
-                if (on){
-                    if (!script.enabled) continue;
-                    entry.start();
-                    if (entry.tainted || (entry.state !== "running" && entry.state !== "waiting" && entry.state !== "error")) this.needsRefresh = true;
-                }
-                else if ((entry.state === "running" || entry.state === "waiting") && !entry.stop()) this.needsRefresh = true;
+                if (!entry || !script.enabled) continue;
+                entry.start();
+                if (entry.tainted || (entry.state !== "running" && entry.state !== "waiting" && entry.state !== "error")) this.needsRefresh = true;
             }
         }
         this.updateNotice();
         if (!this.editing) this.render();
+    }
+
+    /**
+     * Swaps the code on disk into this page after a write or a move. Game scripts only, social ones load with the next popup.
+     *
+     * @param {string[]} keys
+     * @return {boolean} false when this page cannot take it, a refresh is needed then
+     */
+    reload(keys){
+        if (!keys.length) return true;
+        if (!canLoadLive()) return false;
+        loadScripts(keys, true, this.masterOn());
+        return true;
     }
 
     applyMaster(){
@@ -208,7 +215,7 @@ class UserscriptManager {
                 const { closeAfter } = this.pendingSave;
                 this.pendingSave = null;
                 this.editing.editor.markSaved();
-                this.needsRefresh = true;
+                if (this.editing.group === "game" && !this.reload([this.editing.file])) this.needsRefresh = true;
                 if (closeAfter) this.editing = null;
             }
             if (!this.editing) this.render();
@@ -245,10 +252,11 @@ class UserscriptManager {
     }
 
     queueRender(){
-        if (!this.popup || this.editing || this.renderQueued) return;
+        if (!this.popup || this.renderQueued) return;
         this.renderQueued = true;
         queueMicrotask(() => {
             this.renderQueued = false;
+            this.updateNotice();
             if (this.popup && !this.editing) this.render();
         });
     }
@@ -256,7 +264,9 @@ class UserscriptManager {
     updateNotice(){
         const notice = /** @type {HTMLElement|null} */ (this.popup?.shadow.querySelector("#usRefresh"));
         if (!notice) return;
-        notice.hidden = !this.needsRefresh;
+        const on = this.masterOn();
+        const stuck = registry?.entries?.some((entry) => entry.outdated || (!on && entry.state === "running"));
+        notice.hidden = !this.needsRefresh && !stuck;
     }
 
     render(){
@@ -314,7 +324,7 @@ class UserscriptManager {
         }
         // list once, listing parses every header
         this.send("list", {});
-        if (scripts.length) this.needsRefresh = true;
+        if (group.id === "game" && !this.reload(scripts.map(({ file }) => file.name))) this.needsRefresh = true;
         this.updateNotice();
         if (problems.length) this.popup?.showError(problems.join("\n"));
     }
@@ -327,14 +337,16 @@ class UserscriptManager {
      */
     stateOf(script, entry, social){
         if (entry?.state === "error") return ["Error", "bad", entry.error];
+        if (entry?.outdated) return ["Old version", "warn", "Your changes apply after a refresh, this script has no unload to stop the running version"];
         if (!this.masterOn()){
             if (entry?.state === "running") return ["Until refresh", "warn", "This script has no unload, it stops with the next page load"];
             return script.enabled ? ["On", "", "Runs once userscripts are on"] : ["Off", "", ""];
         }
         if (social || !registry) return script.enabled ? ["On", "ok", ""] : ["Off", "", ""];
         if (script.enabled){
-            if (entry?.state === "running") return ["Running", "ok", ""];
+            if (entry?.state === "running") return ["Running", "ok", entry.late ? "Started after the page loaded. It is a document-start script, refresh if it misses something" : ""];
             if (entry?.state === "waiting") return ["Starting", "ok", "Starts once the page has loaded"];
+            if (!entry && canLoadLive()) return ["Starting", "ok", ""];
             return ["After refresh", "warn", "On, starts with the next page load"];
         }
         if (entry?.state === "running") return ["Until refresh", "warn", "This script has no unload, it stops with the next page load"];
@@ -382,7 +394,7 @@ class UserscriptManager {
                 this.pendingRead = script.key;
                 this.send("read", { key: script.key });
             }),
-            iconButton("swap_horiz", `Move to ${social ? "Game" : "Social"}`, () => this.send("move", { key: script.key, group: social ? "game" : "social" })),
+            iconButton("swap_horiz", `Move to ${social ? "Game" : "Social"}`, () => this.move(script, entry, social)),
             iconButton("folder_open", "Show in folder", () => this.send("reveal", { key: script.key })),
             iconButton("delete", "Delete (goes to the recycle bin)", () => this.deleteScript(script, entry), "danger"),
         );
@@ -404,8 +416,12 @@ class UserscriptManager {
         if (social){
             // social scripts pick it up on the next popup
         }
-        else if (!entry || !registry){
-            if (script.enabled || kute.settings?.data?.userscripts !== false) this.needsRefresh = true;
+        else if (!this.masterOn()){
+            // starts once userscripts are on
+        }
+        else if (!entry){
+            if (script.enabled && canLoadLive()) loadScripts([script.key], false, true);
+            else if (script.enabled) this.needsRefresh = true;
         }
         else if (script.enabled){
             entry.start();
@@ -415,6 +431,18 @@ class UserscriptManager {
         else if (!entry.stop()) this.needsRefresh = true;
         this.updateNotice();
         this.render();
+    }
+
+    /**
+     * @param {ListedScript} script
+     * @param {ScriptEntry|undefined} entry
+     * @param {boolean} social
+     */
+    move(script, entry, social){
+        if (entry && !entry.stop() && entry.state === "running") this.needsRefresh = true;
+        this.send("move", { key: script.key, group: social ? "game" : "social" });
+        if (social && !this.reload([script.file])) this.needsRefresh = true;
+        this.updateNotice();
     }
 
     /**

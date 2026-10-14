@@ -46,22 +46,25 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] NVIDIA driver caps lifted for Kute only: its own driver profile
 - [x] Selectable graphics backend (ANGLE: D3D11, D3D11on12, OpenGL, Vulkan) and color profile
 - [x] Optimized URL blocklist (only ~50 entries, fully customizable), custom Chromium flags
-- [x] Resource swapper with an in-client manager: shows which game files your swaps replace, drag'n'drop & built-in editor
+- [x] Resource swapper with an in-client manager: shows which game files your swaps replace, drag'n'drop & built-in editor. CSS swaps apply instantly, and your swaps win over the built-in blocklist
 - [x] Classic menu (optional): the Season 9 menu layout, with every new Season 10 button and feature still in it
 - [x] Cleaner menu (optional): hides the store ad, live streams, featured maps, the "Popular Now" row and other promos in the menu, in the regular and the classic menu. The logo, every button and the match info stay
 - [x] Custom CSS with a syntax highlighted editor and live preview, always applied on top of Krunker's own styles
+- [x] Kute CSS (optional): Kute's own look for the whole client, menus, settings, every window and popup, the social window and the HUD, with a few cats. Colors that carry meaning (KR, rarities, teams, health) stay Krunker's, the classic menu keeps its buttons, and your Custom CSS still wins
 - [x] Motion blur (optional): a slight blur while you turn the camera, the HUD stays sharp
 - [x] Custom sky (optional): a built-in preset, your own color gradient or your own image as the sky of every map
 - [x] Disable video skins (optional): animated video skins like Glitch are not loaded, for more FPS
 - [x] All settings togglable
 - [x] Export and import Kute's settings (client settings, HUD positions, matchmaker filters, hotkeys) as one file, for a second PC or a fresh install
+- [x] Diagnostics Report (About settings): hardware, drivers, system load, Kute and Krunker settings, the last Auto-Detect run, recent errors and crash logs in one file to attach to an issue. You see every part first and can leave any out, user names and addresses are removed, nothing is uploaded
+- [x] Safe mode and crash finder: after two crashes in a row Kute offers to start without your userscripts, swaps, custom CSS, flags and engine tweaks, or finds the cause by itself, restarting with parts switched off until it can name the one that crashes. Nothing of yours changes until you say so. Hold Shift while starting Kute (or start it with `--safe-mode`) for safe mode at any time
 - [x] Battle pass claim-all
-- [x] Userscripts (Crankshaft and idkr formats) with an in-client manager: live on/off, script settings, a built-in editor, drag and drop. Ships with example scripts, off by default: Class Roulette draws a random class on every respawn (Sharp Shooter in any mode), with a toggle per class and a "don't repeat the last N" option; Quick Sell by Rarity sells every quick sellable item of one rarity at once, with a preview of items and KR and a confirmation before anything is sold
+- [x] Userscripts (Crankshaft and idkr formats) with an in-client manager: live on/off, script settings, a built-in editor, drag and drop. New and edited scripts load without a refresh. Ships with example scripts, off by default: Class Roulette draws a random class on every respawn (Sharp Shooter in any mode), with a toggle per class and a "don't repeat the last N" option; Quick Sell by Rarity sells every quick sellable item of one rarity at once, with a preview of items and KR and a confirmation before anything is sold
 - [x] Mod compatibility: mods, lobby and invite links open in the game window instead of a second one that would end your match
 - [x] One-click mod download: a download button on every mod in Krunker's Mods window saves its zip to your Downloads folder
 - [x] OBS capture plugin (shared texture game capture plus a dedicated audio window)
 - [x] Officially supported by Medal.tv
-- [x] Encrypted Account Manager
+- [x] Encrypted Account Manager: drag accounts into your order, Ctrl+Alt+1, 2 and 3 log in the first three (rebindable)
 - [x] Match end message per account (optional): Krunker's end message is remembered for each account, so an alt never sends your main's message. An account without one sends nothing
 - [x] Queue ranked without the game open
 - [x] Better ranked with ELO system
@@ -104,7 +107,7 @@ If you want to support this Project, you can help with Code contributions :octoc
 <summary><b>My game stutters.</b></summary>
 <br>
 
-Run **Auto-Detect Best Settings** (General settings). It tests the client and plays a private test match by itself (don't touch mouse or keyboard for about two minutes), and only keeps what measurably runs better on your PC (it needs a Krunker account). Leave CPU Throttling at 1. Still stuttering? Open Auto-Detect's Advanced view, copy the report and [open an issue](https://github.com/NullDev/Kute/issues/choose).
+Run **Auto-Detect Best Settings** (General settings). It tests the client and plays a private test match by itself (don't touch mouse or keyboard for about two minutes), and only keeps what measurably runs better on your PC (it needs a Krunker account). Leave CPU Throttling at 1. Still stuttering? Save a **Diagnostics Report** (About settings) and attach it to [an issue](https://github.com/NullDev/Kute/issues/choose).
 
 </details>
 
@@ -155,6 +158,7 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before
 
 > [!IMPORTANT]
 > Standalone forks may **not** use the [kute.lol](https://kute.lol) website or its API. If you ship your own client based on Kute, point it at your own server.
+> The server (`server/`) is **not** open source. Its code is published for reference only, all rights reserved (see [server/LICENSE](server/LICENSE)), so you may not run, host, copy or reuse it. Write your own. The GPL-3.0 license of this repository covers the client only.
 
 **Contributors <3**
 
@@ -175,6 +179,8 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before
 - [bigjakk/Electron-Websocket-Fix](https://github.com/bigjakk/Electron-Websocket-Fix) - aim-freeze fix
 - [bigjakk/Krunker-Civilian-Client](https://github.com/bigjakk/Krunker-Civilian-Client) - matchmaker, nuke counter, custom sky and keystrokes ideas
 - [Alx8g/wok-client](https://github.com/Alx8g/wok-client) - motion blur idea
-- [PC7 Client](https://github.com/PC7-Client/PC7-Client) and [Water Client](https://github.com/ghostypostie/Water) - ideas
+- [PC7 Client](https://github.com/PC7-Client/PC7-Client) - ideas (badges, QoL, etc.) 
+- [Water Client](https://github.com/ghostypostie/Water) - ideas (direct mod downloads)
+- [krunkerresourcehub/krh-client](https://github.com/krunkerresourcehub/krh-client) - ideas (Quick Alt-Login, Safe Mode)
 
 <hr>

@@ -52,6 +52,19 @@ interface KuteSettings {
     [toggleFunction: `toggle${string}`]: (value: any) => void;
 }
 
+interface RecoveryInfo {
+    mode: "safe" | "test" | "result" | "offer";
+    canFind?: boolean;
+    kind?: "startup" | "play";
+    step?: number;
+    suspects?: number;
+    minutes?: number;
+    ranFine?: boolean;
+    verdict?: "culprit" | "notTheSetup";
+    culprits?: { label: string; fixable: boolean }[];
+    tests?: { crashed: number; ranFine: number };
+}
+
 interface Kute {
     settings: KuteSettings;
     version: string;
@@ -83,12 +96,17 @@ interface Kute {
     matchmaker: { showFilters(): Promise<void> };
     hotkeys: { edit(): void };
     chatLogs?: { open(): void; toggle(): void };
+    accounts?: { loginSlot(index: number): void };
     settingsTransfer: { exportFile(): void; importFile(): void };
+    diagnostics: { open(): void };
+    /** safe mode, a crash test or its result, absent otherwise and on older exes */
+    recovery?: RecoveryInfo;
     nukeCounter: { showOptions(): Promise<void> };
     customSky: { showOptions(): Promise<void> };
     hudEditor: { edit(): void; apply(): void };
     kuteIcons: { customize(): void; refresh(): void };
-    userscriptManager: { open(): void };
+    /** masterChanged is set once the manager module loaded */
+    userscriptManager: { open(): void; masterChanged?: (on: boolean) => void };
     swapperManager: { open(): void };
     customCss: { open(): void };
 }

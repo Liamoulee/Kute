@@ -4,7 +4,7 @@ import Log from "./util/log";
 
 // ========================= //
 // = Copyright (c) NullDev = //
-// =     - SPDX: MIT -     = //
+// =  All rights reserved  = //
 // ========================= //
 
 let db: Database;

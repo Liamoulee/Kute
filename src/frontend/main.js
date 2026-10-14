@@ -16,6 +16,11 @@ if (isBenchPage) import("./modules/autoDetect/bench.js");
 // default to advanced settings, otherwise client settings are invisible. unset = never chose
 if (!isBenchPage && localStorage.getItem("krk_advanced") === null) localStorage.setItem("krk_advanced", "1");
 if (!isBenchPage) postIconUrls();
+if (!isBenchPage){
+    ready.then(() => {
+        if (kute.settings?.data?.kuteCss === true) import("./modules/kuteCss.js").catch(() => {});
+    });
+}
 
 // krunker reads its settings once at start, before the account is known. accountEndMessage.js sets the right one
 if (location.hostname === "krunker.io" && location.pathname === "/"){
@@ -178,6 +183,7 @@ Object.defineProperty(window, "gameLoaded", {
         if (!performanceMode) import("./modules/bpClaimAll.js");
         import("./modules/args.js");
         import("./modules/fixes.js");
+        import("./modules/inventoryScroll.js");
         import("./modules/chatDraft.js");
         if (!performanceMode) import("./modules/versionTag.js");
         if (!performanceMode) import("./modules/rankProgress.js");
@@ -188,6 +194,10 @@ Object.defineProperty(window, "gameLoaded", {
         import("./modules/hotkeys.js");
         // always: export and import buttons in About
         import("./modules/settingsTransfer.js");
+        // always: create button in About
+        import("./modules/diagnostics.js");
+        // only from an exe that is in safe mode, testing, or has a result
+        if (kute.recovery) import("./modules/recovery.js");
         // always: customize button needs the module
         import("./modules/nukeCounter.js");
         // always: turning it on keeps the current message, only its toggle knows that

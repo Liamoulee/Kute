@@ -1090,6 +1090,7 @@ dependencies = [
  "discord-rich-presence",
  "dns-lookup",
  "embed-resource",
+ "flate2",
  "libc",
  "obs-kute-capture",
  "ping-rs",

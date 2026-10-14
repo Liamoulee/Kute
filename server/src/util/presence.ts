@@ -2,7 +2,7 @@ import type { Developer } from "./developers";
 
 // ========================= //
 // = Copyright (c) NullDev = //
-// =     - SPDX: MIT -     = //
+// =  All rights reserved  = //
 // ========================= //
 
 const MAX_PLAYERS_PER_GAME = 64;

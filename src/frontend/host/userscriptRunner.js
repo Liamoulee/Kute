@@ -33,6 +33,8 @@
  * @property {Record<string, ScriptSetting>|null} settings
  * @property {boolean} canUnload
  * @property {boolean} tainted Failed halfway (run or unload), only runs again after a refresh
+ * @property {boolean} outdated A newer version is on disk but this one could not be stopped, the new one runs after a refresh
+ * @property {boolean} late A document-start script loaded after the page, it may have missed what it waits for
  * @property {Record<string, string>} meta
  * @property {() => void} start
  * @property {() => boolean} stop false when it could not clean up, needs a refresh then
@@ -45,8 +47,13 @@
  * @property {() => void} [onChange] Set by the bundle
  */
 
+/**
+ * @param {HostScript[]} scripts
+ * @param {Registry|null} registry
+ * @return {(scripts: HostScript[], replace: boolean) => void} The host keeps it to load scripts added or changed later
+ */
 // eslint-disable-next-line no-unused-vars
-function runUserscripts(/** @type {HostScript[]} */ scripts, /** @type {Registry|null} */ registry){
+function runUserscripts(scripts, registry){
     // krunker swaps the console methods later, keep the real ones (crankshaft's _console)
     const nativeConsole = {
         log: console.log.bind(console),
@@ -145,6 +152,8 @@ function runUserscripts(/** @type {HostScript[]} */ scripts, /** @type {Registry
             settings: null,
             canUnload: false,
             tainted: false,
+            outdated: false,
+            late: script.runAt === "document-start" && document.readyState !== "loading",
             meta: script.meta,
             start: () => undefined,
             stop: () => false,
@@ -260,18 +269,44 @@ function runUserscripts(/** @type {HostScript[]} */ scripts, /** @type {Registry
         return entry;
     };
 
-    const entries = scripts
-        .map((script, index) => ({ script, index }))
-        .sort((a, b) => (b.script.priority - a.script.priority) || (a.index - b.index))
-        .map(({ script }) => ({ script, entry: createEntry(script) }));
+    /** @type {{ key: string, entry: ScriptEntry }[]} */
+    const loaded = [];
 
-    if (registry) registry.entries = entries.map(({ entry }) => entry);
-    for (const { script, entry } of entries){
-        if (script.compileError){
-            entry.state = "error";
-            nativeConsole.error(`[kute] userscript ${script.file} does not compile: ${script.compileError}`);
+    /**
+     * @param {HostScript[]} incoming
+     * @param {boolean} replace true swaps in the new code, false only starts the enabled ones that are already loaded
+     */
+    const load = (incoming, replace) => {
+        const sorted = incoming
+            .map((script, index) => ({ script, index }))
+            .sort((a, b) => (b.script.priority - a.script.priority) || (a.index - b.index))
+            .map(({ script }) => script);
+        for (const script of sorted){
+            const at = loaded.findIndex((item) => item.key === script.key);
+            const old = at === -1 ? null : loaded[at].entry;
+            if (old && !replace){
+                if (script.enabled) old.start();
+                continue;
+            }
+            // two copies of a script without unload would both run
+            if (old && !old.stop()){
+                old.outdated = true;
+                continue;
+            }
+            const entry = createEntry(script);
+            if (old) loaded[at] = { key: script.key, entry };
+            else loaded.push({ key: script.key, entry });
+            if (registry) registry.entries = loaded.map((item) => item.entry);
+            if (script.compileError){
+                entry.state = "error";
+                nativeConsole.error(`[kute] userscript ${script.file} does not compile: ${script.compileError}`);
+            }
+            else if (script.enabled) entry.start();
         }
-        else if (script.enabled) entry.start();
-    }
-    notify();
+        if (registry) registry.entries = loaded.map((item) => item.entry);
+        notify();
+    };
+
+    load(scripts, true);
+    return load;
 }

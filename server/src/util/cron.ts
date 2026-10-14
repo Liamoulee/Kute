@@ -5,7 +5,7 @@ import Log from "./log";
 
 // ========================= //
 // = Copyright (c) NullDev = //
-// =     - SPDX: MIT -     = //
+// =  All rights reserved  = //
 // ========================= //
 
 const sheduleCrons = async function(): Promise<void> {

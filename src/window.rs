@@ -241,6 +241,10 @@ pub fn is_mod_page(url: &str) -> bool {
     query.split('#').next().unwrap_or("").split('&').any(|pair| pair.split('=').next() == Some("mod"))
 }
 
+pub fn main_browser() -> Option<Browser> {
+    MAIN_BROWSER.with_borrow(|b| b.clone())
+}
+
 pub fn has_main_browser() -> bool {
     MAIN_BROWSER.with_borrow(|b| b.is_some())
 }
@@ -667,7 +671,7 @@ pub fn create_window(start_mode: &str, is_subwindow: bool, init_state: Option<Wi
         let hwnd: HWND = CreateWindowExW(
             WINDOW_EX_STYLE::default(),
             class_name,
-            w!("Kute"),
+            PCWSTR(crate::utils::create_utf_string(crate::modules::recovery::window_title()).as_ptr()),
             WS_OVERLAPPEDWINDOW,
             x,
             y,

@@ -245,7 +245,12 @@ fn load_group_from(group: &str, whole: bool) -> Vec<Script> {
         })
         .unwrap_or_default();
     names.sort_by_key(|name| name.to_lowercase());
-    names.into_iter().filter_map(|file| load_script(id, file, &tracker, &prefs, whole)).collect()
+    let off = crate::modules::recovery::overrides();
+    names
+        .into_iter()
+        .filter_map(|file| load_script(id, file, &tracker, &prefs, whole))
+        .filter(|script| !off.scripts_off.contains(&script.key))
+        .collect()
 }
 
 // also drops tracker and prefs entries of deleted files

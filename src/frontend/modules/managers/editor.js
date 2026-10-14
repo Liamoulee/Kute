@@ -17,7 +17,7 @@ const escapeHtml = (text) => text.replaceAll("&", "&amp;").replaceAll("<", "&lt;
 // comments, strings, at-rules and !important, hex colors, numbers with units, words
 const CSS_TOKENS = /(\/\*[\s\S]*?(?:\*\/|$))|("(?:[^"\\\n]|\\.)*"?|'(?:[^'\\\n]|\\.)*'?)|(@[\w-]+|!\s*important\b)|(#[\da-fA-F]{3,8}\b|-?(?:\d*\.)?\d+(?:e[+-]?\d+)?(?:%|[a-zA-Z]+)?)|(-?-?[a-zA-Z_][\w-]*)/g;
 
-/** @typedef {"js"|"css"|"text"} Language */
+/** @typedef {"js"|"json"|"css"|"text"} Language */
 
 /**
  * @param {string} path
@@ -26,7 +26,8 @@ const CSS_TOKENS = /(\/\*[\s\S]*?(?:\*\/|$))|("(?:[^"\\\n]|\\.)*"?|'(?:[^'\\\n]|
 export const languageFor = (path) => {
     const extension = path.slice(path.lastIndexOf(".") + 1).toLowerCase();
     if (extension === "css") return "css";
-    if (["js", "mjs", "json"].includes(extension)) return "js";
+    if (extension === "json") return "json";
+    if (["js", "mjs"].includes(extension)) return "js";
     return "text";
 };
 
@@ -66,7 +67,7 @@ export function highlight(source, language = "js"){
         else {
             const [, comment, string, number, word] = match;
             if (comment) kind = "c";
-            else if (string) kind = "s";
+            else if (string) kind = language === "json" && /^\s*:/.test(source.slice(index + text.length, index + text.length + 20)) ? "p" : "s";
             else if (number) kind = "n";
             else if (word){
                 if (KEYWORDS.has(word)) kind = "k";

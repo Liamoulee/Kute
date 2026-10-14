@@ -326,6 +326,15 @@
         "needsRestart": true,
         "requires": "hardFlip"
     },
+    "kuteCss": {
+        "name": "Kute CSS",
+        "id": "kuteCss",
+        "performance": false,
+        "description": "Kute's own look for menus, settings, HUD and social, with a few cats",
+        "type": "checkbox",
+        "category": "Customization",
+        "defaultValue": false
+    },
     "motionBlur": {
         "name": "Motion Blur",
         "id": "motionBlur",
@@ -369,7 +378,7 @@
         "defaultValue": true,
         "button": "Manage",
         "buttonAction": "{{kute}}.swapperManager.open()",
-        "needsRestart": true
+        "needsRefresh": true
     },
     "customCss": {
         "name": "Custom CSS",
@@ -390,8 +399,7 @@
         "category": "Customization",
         "defaultValue": true,
         "button": "Manage",
-        "buttonAction": "{{kute}}.userscriptManager.open()",
-        "needsRefresh": true
+        "buttonAction": "{{kute}}.userscriptManager.open()"
     },
     "blocklist": {
         "name": "URL Blocklist",
@@ -674,5 +682,15 @@
         "category": "About",
         "button": "Import",
         "buttonAction": "{{kute}}.settingsTransfer.importFile()"
+    },
+    "diagnosticsReport": {
+        "name": "Diagnostics Report",
+        "id": "diagnosticsReport",
+        "description": "Puts what helps fix a problem into one file you can send. You see all of it first, nothing is uploaded",
+        "type": "none",
+        "category": "About",
+        "button": "Create",
+        "buttonAction": "{{kute}}.diagnostics.open()",
+        "hostFeature": "diagnostics"
     }
 }

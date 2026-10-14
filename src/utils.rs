@@ -148,6 +148,9 @@ pub fn config<T: serde::de::DeserializeOwned>(setting: &str, default: T) -> T {
 
 // subprocesses only: their CONFIG is a copy from process start, and a page reload keeps the renderer process
 pub fn config_on_disk<T: serde::de::DeserializeOwned>(setting: &str, default: T) -> T {
+    if let Some(value) = crate::modules::recovery::setting(setting) {
+        return serde_json::from_value(value).unwrap_or(default);
+    }
     std::fs::read_to_string(settings_dir().join("settings.json"))
         .ok()
         .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
