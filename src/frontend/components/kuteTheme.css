@@ -98,7 +98,9 @@ a:visited {
 	transition: background-color .15s, border-color .15s;
 }
 
+/* krunker's hover sets a 4px border, which grows the card and shifts the row */
 .setSugBox2:hover {
+	border-width: 1px;
 	background-color: var(--kute-raised);
 	border-color: var(--kute-cyan);
 }
