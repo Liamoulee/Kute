@@ -83,6 +83,7 @@ interface Kute {
     matchmaker: { showFilters(): Promise<void> };
     hotkeys: { edit(): void };
     chatLogs?: { open(): void; toggle(): void };
+    accounts?: { loginSlot(index: number): void };
     settingsTransfer: { exportFile(): void; importFile(): void };
     nukeCounter: { showOptions(): Promise<void> };
     customSky: { showOptions(): Promise<void> };

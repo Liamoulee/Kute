@@ -54,7 +54,8 @@ fn host_features() -> serde_json::Value {
         "mute",
         "userscripts-live",
         "swapper-over-blocklist",
-        "swapper-watch"
+        "swapper-watch",
+        "accounts-order"
     ])
 }
 
@@ -84,7 +85,8 @@ fn host_features() -> serde_json::Value {
         "prime-offload",
         "mute",
         "userscripts-live",
-        "swapper-over-blocklist"
+        "swapper-over-blocklist",
+        "accounts-order"
     ])
 }
 

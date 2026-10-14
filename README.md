@@ -62,7 +62,7 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] One-click mod download: a download button on every mod in Krunker's Mods window saves its zip to your Downloads folder
 - [x] OBS capture plugin (shared texture game capture plus a dedicated audio window)
 - [x] Officially supported by Medal.tv
-- [x] Encrypted Account Manager
+- [x] Encrypted Account Manager: drag accounts into your order, Ctrl+Alt+1, 2 and 3 log in the first three (rebindable)
 - [x] Match end message per account (optional): Krunker's end message is remembered for each account, so an alt never sends your main's message. An account without one sends nothing
 - [x] Queue ranked without the game open
 - [x] Better ranked with ELO system

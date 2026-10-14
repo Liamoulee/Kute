@@ -131,6 +131,19 @@ pub fn remove(username: &str) {
     save(&accounts);
 }
 
+// names missing from `order` keep their relative order after the listed ones, so a stale page can't drop an account
+pub fn reorder(order: &[String]) {
+    let mut accounts: Vec<(Option<usize>, Stored)> = load()
+        .into_iter()
+        .map(|stored| {
+            let rank = unprotect(&stored.username).and_then(|name| order.iter().position(|wanted| *wanted == name));
+            (rank, stored)
+        })
+        .collect();
+    accounts.sort_by_key(|(rank, _)| rank.unwrap_or(usize::MAX));
+    save(&accounts.into_iter().map(|(_, stored)| stored).collect::<Vec<_>>());
+}
+
 // fills and submits krunker's open login form over CDP, page scripts can't see that
 #[cfg(windows)]
 pub fn login(browser: &Browser, username: &str) {

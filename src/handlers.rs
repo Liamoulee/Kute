@@ -580,6 +580,11 @@ fn accounts_command(message: &str, run_login: impl FnOnce(String)) -> Option<Str
                 }
             }
         }
+        "order" => {
+            if let Ok(order) = serde_json::from_str::<Vec<String>>(payload) {
+                modules::accounts::reorder(&order);
+            }
+        }
         "remove" | "login" => {
             let value = serde_json::from_str::<serde_json::Value>(payload).ok()?;
             let username = value["username"].as_str()?;
