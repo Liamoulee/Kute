@@ -21,6 +21,7 @@ use linux::window;
 pub mod modules {
     pub mod accounts;
     pub mod bench;
+    pub mod bisect;
     pub mod blocklist;
     pub mod custom_css;
     pub mod dev;
