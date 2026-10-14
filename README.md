@@ -177,6 +177,8 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before
 - [bigjakk/Electron-Websocket-Fix](https://github.com/bigjakk/Electron-Websocket-Fix) - aim-freeze fix
 - [bigjakk/Krunker-Civilian-Client](https://github.com/bigjakk/Krunker-Civilian-Client) - matchmaker, nuke counter, custom sky and keystrokes ideas
 - [Alx8g/wok-client](https://github.com/Alx8g/wok-client) - motion blur idea
-- [PC7 Client](https://github.com/PC7-Client/PC7-Client) and [Water Client](https://github.com/ghostypostie/Water) - ideas
+- [PC7 Client](https://github.com/PC7-Client/PC7-Client) - ideas (badges, QoL, etc.) 
+- [Water Client](https://github.com/ghostypostie/Water) - ideas (direct mod downloads)
+- [krunkerresourcehub/krh-client](https://github.com/krunkerresourcehub/krh-client) - ideas (Quick Alt-Login)
 
 <hr>
