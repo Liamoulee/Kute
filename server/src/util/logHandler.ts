@@ -4,7 +4,7 @@ import Log from "../util/log.js";
 
 // ========================= //
 // = Copyright (c) NullDev = //
-// =     - SPDX: MIT -     = //
+// =  All rights reserved  = //
 // ========================= //
 
 class LogHandler {

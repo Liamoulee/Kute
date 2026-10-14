@@ -9,7 +9,7 @@ import { connectionClosed, connectionOpened, countFirstStart } from "../util/pla
 
 // ========================= //
 // = Copyright (c) NullDev = //
-// =     - SPDX: MIT -     = //
+// =  All rights reserved  = //
 // ========================= //
 
 /** bun's ws layer ignores maxPayload, so size is checked by hand */

@@ -1,6 +1,6 @@
 // ========================= //
 // = Copyright (c) NullDev = //
-// =     - SPDX: MIT -     = //
+// =  All rights reserved  = //
 // ========================= //
 
 export const isDevelopment = process.env.NODE_ENV === "development";

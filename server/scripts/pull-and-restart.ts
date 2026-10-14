@@ -4,7 +4,7 @@ import { exec } from "node:child_process";
 
 // ========================= //
 // = Copyright (c) NullDev = //
-// =     - SPDX: MIT -     = //
+// =  All rights reserved  = //
 // ========================= //
 
 const serverDir = path.resolve(import.meta.dir, "..");

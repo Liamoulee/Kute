@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 
 // ========================= //
 // = Copyright (c) NullDev = //
-// =     - SPDX: MIT -     = //
+// =  All rights reserved  = //
 // ========================= //
 
 if (await fs.stat("./config/config.custom.ts").catch(() => false)){

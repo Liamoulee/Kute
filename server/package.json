@@ -13,7 +13,7 @@
         "type": "git",
         "url": "git+https://github.com/NullDev/Kute.git"
     },
-    "license": "GPL-3.0-only",
+    "license": "SEE LICENSE IN LICENSE",
     "engines": {
         "bun": ">=1.4.2"
     },

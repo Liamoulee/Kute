@@ -156,6 +156,7 @@ Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before
 
 > [!IMPORTANT]
 > Standalone forks may **not** use the [kute.lol](https://kute.lol) website or its API. If you ship your own client based on Kute, point it at your own server.
+> The server (`server/`) is **not** open source. Its code is published for reference only, all rights reserved (see [server/LICENSE](server/LICENSE)), so you may not run, host, copy or reuse it. Write your own. The GPL-3.0 license of this repository covers the client only.
 
 **Contributors <3**
 

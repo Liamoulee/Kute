@@ -4,7 +4,7 @@ import Log from "./log";
 
 // ========================= //
 // = Copyright (c) NullDev = //
-// =     - SPDX: MIT -     = //
+// =  All rights reserved  = //
 // ========================= //
 
 export type Developer = { clan: string };
