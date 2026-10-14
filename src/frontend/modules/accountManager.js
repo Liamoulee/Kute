@@ -2,6 +2,7 @@ import { kute } from "../client.js";
 import { getElement, getInput, checkCompMode, request } from "../utils.js";
 import { confirmPopup } from "./confirmPopup.js";
 import { holdRestart, restart } from "./sessionRecovery.js";
+import { bindings } from "./hotkeys.js";
 
 /**
  * host keeps the credentials, the page only ever gets names and colors
@@ -30,6 +31,8 @@ const FRVR_LOGOUT_WAIT_MS = 3000;
 const LOGIN_WAIT_MS = 20000;
 // the page shows a login itself when the lobby socket answers it, measured ~1 s
 const SOCKET_LOGIN_MS = 3000;
+// a second press while the first switch still logs out would log out the new session
+const QUICK_LOGIN_COOLDOWN_MS = 5000;
 
 /**
  * @param {number} ms
@@ -145,8 +148,12 @@ class AccountManager {
         this.accounts = [];
         /** old exe without the account commands, localStorage fallback */
         this.legacy = false;
+        this.lastQuickLogin = 0;
+        /** pointerup of a drag also clicks the row it lands on */
+        this.suppressClick = false;
 
         kute.settings.toggleAccountManager = (enabled) => this.toggle(enabled);
+        kute.accounts = { loginSlot: (index) => this.loginSlot(index) };
 
         this.toggle(true);
         this.load();
@@ -376,8 +383,21 @@ class AccountManager {
         for (const account of this.accounts){
             const row = document.createElement("div");
             row.className = "accRow";
+            row.dataset.username = account.username;
             row.title = `Log in as ${account.username}`;
-            row.onclick = () => this.login(account);
+            row.onclick = () => {
+                if (!this.suppressClick) this.login(account);
+            };
+
+            const handle = document.createElement("div");
+            handle.className = "accHandle";
+            handle.textContent = "≡";
+            handle.title = "Drag to reorder";
+            handle.onclick = (event) => event.stopPropagation();
+            handle.onpointerdown = (event) => this.startDrag(event, row);
+
+            const index = document.createElement("div");
+            index.className = "accIndex";
 
             const avatar = document.createElement("div");
             avatar.className = "accAvatar";
@@ -396,13 +416,125 @@ class AccountManager {
                 this.removeAccount(account).catch((error) => console.error("[kute] accounts:", error));
             };
 
-            row.append(avatar, name, remove);
+            const key = document.createElement("div");
+            key.className = "accKey";
+
+            row.append(handle, index, avatar, name, key, remove);
             list.append(row);
         }
+        this.renumber(list);
 
         const empty = this.accounts.length === 0;
         getElement("#accEmpty", shadow).hidden = !empty;
         getElement("#accListHint", shadow).hidden = empty;
+    }
+
+    /**
+     * @param {HTMLElement} list
+     */
+    renumber(list){
+        const keys = bindings();
+        [...list.children].forEach((row, position) => {
+            getElement(".accIndex", /** @type {HTMLElement} */ (row)).textContent = String(position + 1);
+            getElement(".accKey", /** @type {HTMLElement} */ (row)).textContent = keys[`account${position + 1}`]?.name ?? "";
+        });
+    }
+
+    /**
+     * @return {boolean}
+     */
+    canReorder(){
+        return this.legacy || Boolean(kute.hostFeatures?.includes("accounts-order"));
+    }
+
+    /**
+     * moves the other rows, never the dragged one: taking it out of the DOM would end the drag
+     *
+     * @param {PointerEvent} event
+     * @param {HTMLElement} row
+     */
+    startDrag(event, row){
+        if (event.button !== 0) return;
+        event.preventDefault();
+        if (!this.canReorder()){
+            kute.showNotification("Reordering accounts needs a newer Kute", false, 3);
+            return;
+        }
+        const list = /** @type {HTMLElement} */ (row.parentElement);
+        const before = [...list.children].map((entry) => /** @type {HTMLElement} */ (entry).dataset.username);
+        row.classList.add("accDragging");
+
+        /**
+         * @param {PointerEvent} move
+         */
+        const onMove = (move) => {
+            const others = /** @type {HTMLElement[]} */ ([...list.children]).filter((entry) => entry !== row);
+            const below = others.find((entry) => {
+                const box = entry.getBoundingClientRect();
+                return move.clientY < box.top + box.height / 2;
+            });
+            const target = below ? others.indexOf(below) : others.length;
+            const current = others.filter((entry) => Boolean(row.compareDocumentPosition(entry) & Node.DOCUMENT_POSITION_PRECEDING)).length;
+            if (target === current) return;
+            for (const entry of others.slice(0, target)) list.insertBefore(entry, row);
+            for (const entry of others.slice(target)) list.append(entry);
+            this.renumber(list);
+        };
+        const onEnd = () => {
+            window.removeEventListener("pointermove", onMove, true);
+            window.removeEventListener("pointerup", onEnd, true);
+            window.removeEventListener("pointercancel", onEnd, true);
+            row.classList.remove("accDragging");
+            this.suppressClick = true;
+            setTimeout(() => {
+                this.suppressClick = false;
+            });
+            const order = [...list.children].map((entry) => /** @type {HTMLElement} */ (entry).dataset.username ?? "");
+            if (order.some((username, position) => username !== before[position])) this.saveOrder(order);
+        };
+        window.addEventListener("pointermove", onMove, true);
+        window.addEventListener("pointerup", onEnd, true);
+        window.addEventListener("pointercancel", onEnd, true);
+    }
+
+    /**
+     * @param {string[]} order usernames
+     */
+    saveOrder(order){
+        /**
+         * @param {string} username
+         * @return {number}
+         */
+        const rank = (username) => {
+            const position = order.indexOf(username);
+            return position === -1 ? order.length : position;
+        };
+        this.accounts.sort((a, b) => rank(a.username) - rank(b.username));
+        if (this.legacy){
+            const list = legacyAccounts().sort((a, b) => rank(legacyDecode(a.username)) - rank(legacyDecode(b.username)));
+            localStorage.setItem(LEGACY_KEY, JSON.stringify(list));
+            return;
+        }
+        this.send("order", order);
+    }
+
+    /**
+     * @param {number} index position in the list, 0 based
+     */
+    loginSlot(index){
+        const account = this.accounts[index];
+        if (!account){
+            kute.showNotification(`No account saved in slot ${index + 1}`, false, 3);
+            return;
+        }
+        if (localStorage.getItem("krunker_token") !== null && localStorage.getItem("krunker_username") === account.username){
+            kute.showNotification(`Already logged in as ${account.username}`, false, 2);
+            return;
+        }
+        if (Date.now() - this.lastQuickLogin < QUICK_LOGIN_COOLDOWN_MS) return;
+        this.lastQuickLogin = Date.now();
+        kute.showNotification(`Logging in as ${account.username}`, false, 2);
+        this.login(account).catch((error) => console.error("[kute] accounts:", error));
     }
 
     updatePreview(){
