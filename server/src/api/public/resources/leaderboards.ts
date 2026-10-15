@@ -65,11 +65,11 @@ export class PublicLeaderboardsApi {
         }));
     }
 
-    /** GET /leaderboards/raids/:mapId/monthly, month is required, data is null for a month without runs */
-    async raidsMonthly(mapId: number, month: number, sort?: RaidSort): Promise<RaidLeaderboardRow[]> {
+    /** GET /leaderboards/raids/:mapId/monthly, month as "YYYY-MM" (the game sends that, a bare number answers a different board), data is null for a month without runs */
+    async raidsMonthly(mapId: number, month: string, sort?: RaidSort): Promise<RaidLeaderboardRow[]> {
         const rows = await unwrap(this.#gapi.get<Envelope<RaidLeaderboardRow[] | null>>(`/leaderboards/raids/${check.int(mapId, "mapId", 0)}/monthly`, {
             route: "public.leaderboards.raidsMonthly",
-            query: { month: check.int(month, "month", 1, 12), sort: raidSort(sort) },
+            query: { month: check.month(month, "month"), sort: raidSort(sort) },
         }));
         return rows ?? [];
     }
