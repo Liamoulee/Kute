@@ -10,11 +10,15 @@ import type { LeaderboardOrder, LeaderboardType } from "./types";
 
 const MAX_NAME = 64;
 
-export function name(value: string, what: string): string {
+/** a non-empty name for a query value, as given */
+export function text(value: string, what: string): string {
     if (typeof value !== "string" || value.trim().length === 0) throw new KrunkerArgumentError(`${what} must be a non-empty string`);
     if (value.length > MAX_NAME) throw new KrunkerArgumentError(`${what} is too long (${value.length} > ${MAX_NAME})`);
-    return encodeURIComponent(value);
+    return value;
 }
+
+/** a non-empty name for a path segment, url encoded */
+export const name = (value: string, what: string): string => encodeURIComponent(text(value, what));
 
 export function int(value: number, what: string, min: number, max = Number.MAX_SAFE_INTEGER): number {
     if (!Number.isInteger(value) || value < min || value > max){

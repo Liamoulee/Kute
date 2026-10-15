@@ -372,6 +372,6 @@ export type Skins = {
 
 /** body of every error reply */
 export type ApiErrorBody = {
-    error: string;
+    error: string | { code?: string; message?: string };
     retry_after?: number;
 };

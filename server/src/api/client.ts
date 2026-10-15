@@ -26,7 +26,8 @@ const RETRY_DELAY_MS = 300;
 const LOW_REMAINING_SHARE = 0.1;
 
 export type ClientOptions = {
-    apiKey: string;
+    /** omitted for the keyless endpoints, empty means not configured */
+    apiKey?: string;
     baseUrl?: string;
     timeoutMs?: number;
     /** extra attempts after a network error or a 5xx, never after a 4xx */
@@ -58,16 +59,19 @@ async function readBody(res: Response): Promise<unknown> {
     }
 }
 
-// a 404 comes as plain "Not Found", the documented {error} json only on the others
+// developer api: {error: "text"}, a 404 as plain "Not Found"; keyless gapi: {error: {code, message}}
 const errorMessage = (body: unknown): string | null => {
     if (typeof body === "string") return body.length <= 120 ? body : null;
-    if (typeof body === "object" && body !== null && typeof (body as ApiErrorBody).error === "string") return (body as ApiErrorBody).error;
+    if (typeof body !== "object" || body === null) return null;
+    const { error } = body as ApiErrorBody;
+    if (typeof error === "string") return error;
+    if (typeof error === "object" && error !== null && typeof (error as { message?: unknown }).message === "string") return (error as { message: string }).message;
     return null;
 };
 
 export class KrunkerClient {
     readonly rateLimit = new RateLimitTracker();
-    readonly #apiKey: string;
+    readonly #apiKey: string | undefined;
     readonly #baseUrl: string;
     readonly #timeoutMs: number;
     readonly #retries: number;
@@ -84,7 +88,7 @@ export class KrunkerClient {
     }
 
     get configured(): boolean {
-        return this.#apiKey.length > 0;
+        return this.#apiKey === undefined || this.#apiKey.length > 0;
     }
 
     url(path: string, query?: Record<string, QueryValue>): string {
@@ -116,10 +120,8 @@ export class KrunkerClient {
     }
 
     async #send<T>(url: string, route: string): Promise<T> {
-        const headers: Record<string, string> = {
-            "X-Developer-API-Key": this.#apiKey,
-            Accept: "application/json",
-        };
+        const headers: Record<string, string> = { Accept: "application/json" };
+        if (this.#apiKey) headers["X-Developer-API-Key"] = this.#apiKey;
         if (this.#userAgent) headers["User-Agent"] = this.#userAgent;
 
         const started = performance.now();
