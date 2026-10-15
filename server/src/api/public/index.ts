@@ -3,10 +3,14 @@ import { KrunkerClient } from "../client";
 import { GAPI_URL, LEGACY_API_URL, MATCHMAKER_URL } from "./client";
 import { PublicClansApi } from "./resources/clans";
 import { PublicGameApi } from "./resources/game";
+import { PublicItemsApi } from "./resources/items";
 import { PublicLeaderboardsApi } from "./resources/leaderboards";
 import { PublicLegacyApi } from "./resources/legacy";
+import { PublicMarketApi } from "./resources/market";
 import { PublicMatchmakerApi } from "./resources/matchmaker";
 import { PublicPlayersApi } from "./resources/players";
+import { PublicShopApi } from "./resources/shop";
+import { PublicSocialApi } from "./resources/social";
 import { PublicTurfApi } from "./resources/turf";
 
 // ========================= //
@@ -17,6 +21,8 @@ import { PublicTurfApi } from "./resources/turf";
 export * from "./types";
 export { TURF_EPOCH_UTC, TURF_MAPS, turfDay, type DayMapQuery } from "./resources/turf";
 export type { RecruitmentQuery } from "./resources/clans";
+export type { CommunityLeaderboardQuery } from "./resources/game";
+export type { BrowserQuery } from "./resources/legacy";
 export { RAID_MAPS, type PlayerLeaderboardQuery } from "./resources/leaderboards";
 
 /**
@@ -29,6 +35,10 @@ export class KrunkerPublicApi {
     readonly turf: PublicTurfApi;
     readonly leaderboards: PublicLeaderboardsApi;
     readonly game: PublicGameApi;
+    readonly shop: PublicShopApi;
+    readonly market: PublicMarketApi;
+    readonly items: PublicItemsApi;
+    readonly social: PublicSocialApi;
     readonly matchmaker: PublicMatchmakerApi;
     readonly legacy: PublicLegacyApi;
 
@@ -39,6 +49,10 @@ export class KrunkerPublicApi {
         this.turf = new PublicTurfApi(gapi);
         this.leaderboards = new PublicLeaderboardsApi(gapi);
         this.game = new PublicGameApi(gapi);
+        this.shop = new PublicShopApi(gapi);
+        this.market = new PublicMarketApi(gapi);
+        this.items = new PublicItemsApi(gapi);
+        this.social = new PublicSocialApi(gapi);
         this.matchmaker = new PublicMatchmakerApi(new KrunkerClient({ ...options, baseUrl: MATCHMAKER_URL }));
         this.legacy = new PublicLegacyApi(new KrunkerClient({ ...options, baseUrl: LEGACY_API_URL }));
     }

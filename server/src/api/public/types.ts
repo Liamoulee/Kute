@@ -580,3 +580,205 @@ export type TopStreams = {
     promo: boolean;
     dropCampaigns: DropCampaign[];
 };
+
+// found by recording the client's network on 2026-10-15 while the owner clicked through every menu; all anonymous
+
+/** one row of GET /market/stats: skin index, in circulation, on sale, and the ask range while something is listed */
+export type MarketStatRow = {
+    ski: number;
+    inC: number;
+    onS: number;
+    high?: number;
+    low?: number;
+};
+
+export type MarketStats = {
+    stats: MarketStatRow[];
+    has_more: boolean;
+    next_cursor: number | null;
+};
+
+/** sort of GET /market/stats; "rarity" is what the market tab sends, an unknown value is answered with the default order */
+export type MarketStatsSort = "rarity" | string;
+
+export type MarketStatsQuery = {
+    cursor?: number;
+    limit?: number;
+    sort?: MarketStatsSort;
+    rarities?: number[];
+    weapons?: number[];
+    types?: number[];
+    season?: number;
+    searchTerm?: string;
+};
+
+/** one day of sales of an item: kr, count, date; GET /items/:id/sales and /market/items/:id/sales-statistics */
+export type ItemSale = PlayerSale;
+
+export type ItemOwner = {
+    /** name */
+    nm: string;
+    /** count owned */
+    ct: number;
+    /** staff */
+    su: number;
+    /** featured (verified) */
+    ft: number;
+    cr: number;
+};
+
+/** GET /items/:id/view, the item page of the social market */
+export type ItemView = {
+    stats: { onS: number; high: number; low: number; inC: number };
+    owners: ItemOwner[];
+    sales: unknown[];
+    listings: unknown[];
+    stackable: boolean;
+    wearable: boolean;
+};
+
+export type FeedTab = "global" | string;
+
+/** GET /social/post/:id */
+export type SocialPost = {
+    post: FeedPost;
+    comments: unknown[];
+};
+
+export type SocialNews = {
+    news: unknown[];
+};
+
+export type CreatorPoll = {
+    id: number;
+    title: string;
+    description: string;
+    /** seconds */
+    ends_in: number;
+};
+
+/** GET /creators/events, the menu's event and survey box */
+export type CreatorEvents = {
+    events: unknown[];
+    polls: CreatorPoll[];
+};
+
+/** GET /maps/by-name/:name, the community map record (the official Burg is a different thing, see OfficialMap) */
+export type CommunityMap = {
+    map_id: number;
+    name: string;
+    description: string;
+    creator_name: string;
+    votes: number;
+    gameplays: number;
+    playtime: number;
+    category: number;
+    created_at: string;
+    updated_at: string;
+    leaderboard_type: string;
+    leaderboard_order: number;
+    featured: boolean;
+};
+
+/** GET /maps/by-name/:name/leaderboard */
+export type CommunityMapLeaderboard = {
+    page: number;
+    per_page: number;
+    map_name: string;
+    leaderboard_type: string;
+    leaderboard_order: number;
+    entries: unknown[];
+};
+
+/** GET /mods/by-name/:name */
+export type ModInfo = {
+    mod_id: number;
+    name: string;
+    description: string;
+    creator_name: string;
+    votes: number;
+    featured: boolean;
+    version: number;
+    created_at: string;
+    updated_at: string;
+};
+
+export type ShopPrice = {
+    id: number;
+    price_ref: string;
+    type: string;
+    real?: { price_usd: number };
+    recurring?: { amount: number; periodicity: string };
+    available: boolean;
+};
+
+export type ShopProduct = {
+    id: number;
+    name: string;
+    description: string;
+    image_url: string;
+    active: boolean;
+    prices: ShopPrice[];
+    contents: { id: number; type: string; ref: string; quantity: number }[];
+    available: boolean;
+    display_ids: number[];
+};
+
+/** GET /shop/displays, a tree of displays with the products they show */
+export type ShopDisplay = {
+    id: number;
+    type: string;
+    order: number;
+    data: Record<string, unknown>;
+    children: { id: number; parent_id: number; order: number; type: string; data: Record<string, unknown>; product_id?: number }[];
+    products: Record<string, ShopProduct>;
+};
+
+export type SpinPool = {
+    id: string;
+    name: string;
+    color: string;
+    weight: number;
+    /** skin indices */
+    items: number[];
+};
+
+/** GET /spins/wheels, the spin shop's wheels with their pools */
+export type SpinWheel = {
+    index: number;
+    name: string;
+    price: number;
+    ticketIndex: number;
+    ticketOnly: boolean;
+    multi: number;
+    poolWeights: number[];
+    pools: SpinPool[];
+} & Record<string, unknown>;
+
+/** GET /lottery/:id (60 KB for id 1, every past draw with its prizes) */
+export type Lottery = {
+    lottery: { id: number; title: string; frequency: number; theme: string };
+    player_entries: number;
+    total_entries: number;
+    previous_draws: ({ id: number; lottery_id: number; starts_at: string; ends_at: string; drawn_at: string; prizes: unknown[] } & Record<string, unknown>)[];
+} & Record<string, unknown>;
+
+/** GET api.krunker.io/webhooks/general/items/prices: index = skin index, null = no price (8069 entries) */
+export type ItemPrices = (number | null)[];
+
+export type LegacyModRow = {
+    mod_id: number;
+    mod_name: string;
+    mod_votes: number;
+    creatorname: string;
+    mod_featured: number;
+    mod_url: string;
+    /** json text */
+    mod_info: string;
+    mod_updatecounter: number;
+};
+
+export type LegacyModList = {
+    index: string;
+    data: LegacyModRow[];
+};
