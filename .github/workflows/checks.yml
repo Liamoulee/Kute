@@ -69,3 +69,30 @@ jobs:
 
       - name: Clippy
         run: cargo clippy --workspace --features editor-ignore,verbose-logs -- -D warnings
+
+  rust-linux:
+    name: Clippy (Linux)
+    # same image as the release's AppImage job
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          lfs: false
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      # cef-dll-sys builds its wrapper with CMake and Ninja
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y ninja-build cmake
+
+      # the dll crates are windows only, so the host package alone. auto-update compiles the AppImage updater
+      - name: Clippy
+        run: cargo clippy -p kute --features editor-ignore,verbose-logs,auto-update -- -D warnings

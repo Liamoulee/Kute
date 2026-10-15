@@ -1,6 +1,7 @@
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::{
     io,
-    os::windows::process::CommandExt,
     path::{Path, PathBuf},
 };
 
@@ -35,6 +36,23 @@ pub fn to_slashes(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
 }
 
+// freedesktop trash through gio, never a plain delete: the player expects to get it back
+#[cfg(target_os = "linux")]
+pub fn recycle(path: &Path) -> io::Result<()> {
+    let status = std::process::Command::new("gio").arg("trash").arg("--").arg(path).status()?;
+    if !status.success() {
+        return Err(io::Error::other(format!("gio trash failed with {status}")));
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+pub fn reveal(path: &Path) {
+    let folder = if path.is_file() { path.parent().unwrap_or(path) } else { path };
+    crate::linux::sys::open(folder);
+}
+
+#[cfg(windows)]
 pub fn recycle(path: &Path) -> io::Result<()> {
     use windows::Win32::UI::Shell::{FO_DELETE, FOF_ALLOWUNDO, FOF_NO_UI, SHFILEOPSTRUCTW, SHFileOperationW};
 
@@ -52,6 +70,7 @@ pub fn recycle(path: &Path) -> io::Result<()> {
     Ok(())
 }
 
+#[cfg(windows)]
 pub fn reveal(path: &Path) {
     let mut command = std::process::Command::new("explorer.exe");
     if path.is_file() {

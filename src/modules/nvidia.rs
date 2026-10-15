@@ -308,8 +308,8 @@ unsafe fn open_telemetry() -> Option<Telemetry> {
     }
 }
 
-/// what the NVIDIA chip does right now, for the auto-detect report: its clock, its temperature and why the driver
-/// holds it back (bit 1 heat, 2 power limit, 4 running on battery, 16 not enough power from the supply). null without one
+// what the NVIDIA chip does right now, for the auto-detect report: clock, temperature and why the driver
+// holds it back (bit 1 heat, 2 power limit, 4 running on battery, 16 not enough power from the supply)
 pub fn telemetry() -> serde_json::Value {
     let Some(telemetry) = TELEMETRY.get_or_init(|| unsafe { open_telemetry() }) else {
         return serde_json::Value::Null;

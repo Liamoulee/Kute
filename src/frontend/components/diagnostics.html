@@ -1,0 +1,176 @@
+<style>
+#dgPanel {
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	width: 860px;
+	max-width: 94vw;
+	height: 86vh;
+	padding: 1.6em 2em 1.3em 2em;
+	background: #1e1e1e;
+	color: #fff;
+	border-radius: 14px;
+	box-shadow: 0 8px 48px #000c;
+	font-family: Consolas, monospace;
+}
+
+#dgPanel h2 {
+	margin: 0 0 0.3em 0;
+	font-size: 1.6em;
+	letter-spacing: 1px;
+	color: #35e0e8;
+	text-align: center;
+}
+
+#dgHint {
+	margin-bottom: 1em;
+	color: #999;
+	text-align: center;
+	line-height: 1.5;
+}
+
+#dgBody {
+	display: flex;
+	flex: 1;
+	gap: 1em;
+	min-height: 0;
+}
+
+#dgEntries {
+	flex: 0 0 15em;
+	overflow-y: auto;
+	scrollbar-width: thin;
+	scrollbar-color: #444 #1e1e1e;
+}
+
+.dgEntry {
+	display: flex;
+	gap: 0.6em;
+	align-items: flex-start;
+	padding: 0.5em 0.6em;
+	border-radius: 8px;
+	cursor: pointer;
+	user-select: none;
+}
+
+.dgEntry:hover {
+	background: #262626;
+}
+
+.dgEntry.dgSelected {
+	background: #2a2a2a;
+	outline: 1px solid #35e0e8;
+}
+
+.dgEntry input {
+	margin: 0.2em 0 0 0;
+	accent-color: #35e0e8;
+	cursor: pointer;
+}
+
+.dgName {
+	display: block;
+	word-break: break-all;
+}
+
+.dgEntry.dgOff .dgName {
+	color: #666;
+	text-decoration: line-through;
+}
+
+.dgSize {
+	display: block;
+	font-size: 0.8em;
+	color: #777;
+}
+
+#dgView {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-width: 0;
+}
+
+#dgNote {
+	margin-bottom: 0.5em;
+	font-size: 0.85em;
+	color: #999;
+	line-height: 1.4;
+}
+
+#dgText {
+	flex: 1;
+	margin: 0;
+	padding: 0.8em 1em;
+	overflow: auto;
+	scrollbar-width: thin;
+	scrollbar-color: #444 #141414;
+	background: #141414;
+	border-radius: 8px;
+	color: #ccc;
+	font-size: 0.8em;
+	line-height: 1.45;
+	white-space: pre;
+	user-select: text;
+}
+
+.tk-s { color: #ce9178; }
+.tk-n { color: #b5cea8; }
+.tk-l { color: #569cd6; }
+.tk-p { color: #9cdcfe; }
+
+#dgFooter {
+	display: flex;
+	gap: 0.7em;
+	align-items: center;
+	margin-top: 1em;
+}
+
+#dgTotal {
+	flex: 1;
+	color: #999;
+	font-size: 0.9em;
+}
+
+.dgButton {
+	padding: 0.7em 1.4em;
+	border-radius: 8px;
+	background: #2a2a2a;
+	color: #fff;
+	cursor: pointer;
+	user-select: none;
+}
+
+.dgButton:hover {
+	background: #333;
+}
+
+#dgSave {
+	background: #1b5e63;
+}
+
+#dgSave:hover {
+	background: #23777d;
+}
+
+#dgSave.dgBusy {
+	opacity: 0.5;
+	pointer-events: none;
+}
+</style>
+<div id="dgPanel">
+	<h2>Diagnostics Report</h2>
+	<div id="dgHint">These are all the files that will be included. You can choose what to exclude, but keeping all of them is recommended.</div>
+	<div id="dgBody">
+		<div id="dgEntries"></div>
+		<div id="dgView">
+			<div id="dgNote"></div>
+			<pre id="dgText">Collecting...</pre>
+		</div>
+	</div>
+	<div id="dgFooter">
+		<div id="dgTotal"></div>
+		<div class="dgButton" id="dgClose">Close</div>
+		<div class="dgButton dgBusy" id="dgSave">Save dump</div>
+	</div>
+</div>

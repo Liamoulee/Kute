@@ -32,6 +32,10 @@ jobs:
   release:
     name: Build installer
     runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      # the bump commit the release is tagged on, empty for build only
+      commit: ${{ steps.commit.outputs.oid }}
 
     steps:
       - name: Checkout
@@ -183,3 +187,69 @@ jobs:
           if ($first -ne "kute-setup-x86_64.msi") {
             throw "The first release asset is $first, older clients would run it as the installer. Rename the other assets so they sort after kute-setup-x86_64.msi."
           }
+
+  appimage:
+    name: Build AppImage
+    needs: release
+    # the image's glibc is the oldest the AppImage runs on, 24.04 meant 2.39 and shut out ubuntu 22.04 and debian 12
+    runs-on: ubuntu-22.04
+
+    steps:
+      # the version the windows job bumped and tagged, so both builds carry the same number
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release.outputs.commit || 'master' }}
+          lfs: true
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      # cef-dll-sys builds its wrapper with CMake and Ninja. apt hung twice for 15+ min on a release run, so only when missing
+      - name: Install build tools
+        timeout-minutes: 5
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          if ! command -v ninja >/dev/null || ! command -v cmake >/dev/null; then
+            sudo apt-get update && sudo apt-get install -y ninja-build cmake
+          fi
+          cmake --version
+          ninja --version
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build AppImage
+        run: bun run package:linux
+
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: kute-x86_64-appimage-${{ needs.release.outputs.version }}-${{ github.sha }}
+          path: target/kute-x86_64.AppImage
+          retention-days: 7
+
+      - name: Add the AppImage to the draft release
+        if: inputs.mode != 'build only'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ needs.release.outputs.version }}" target/kute-x86_64.AppImage --clobber
+
+      # same rule as in the windows job, the AppImage must sort after the installer
+      - name: Check that the installer is still the first asset
+        if: inputs.mode != 'build only'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          first=$(gh release view "${{ needs.release.outputs.version }}" --json assets --jq '.assets | map(.name) | sort | .[0]')
+          if [ "$first" != "kute-setup-x86_64.msi" ]; then
+            echo "The first release asset is $first, older clients would run it as the installer."
+            exit 1
+          fi

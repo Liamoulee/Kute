@@ -83,7 +83,7 @@ fn round(value: f64) -> f64 {
     (value * 10.0).round() / 10.0
 }
 
-/// averages since the previous call, every value null on the first one (rates need two collections). blocks some ms
+// averages since the previous call, every value null on the first one (rates need two collections). blocks some ms
 pub fn sample() -> serde_json::Value {
     let mut counters = COUNTERS.lock().unwrap();
     if counters.is_none() {

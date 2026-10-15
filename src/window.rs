@@ -199,7 +199,15 @@ pub fn bring_to_front(browser: &Browser) {
         if IsIconic(hwnd).as_bool() {
             let _ = ShowWindow(hwnd, SW_RESTORE);
         }
-        let _ = SetForegroundWindow(hwnd);
+        // windows' foreground lock refuses a background app, the taskbar flashes until the player comes back
+        if !SetForegroundWindow(hwnd).as_bool() || GetForegroundWindow() != hwnd {
+            let _ = FlashWindowEx(&FLASHWINFO {
+                cbSize: size_of::<FLASHWINFO>() as u32,
+                hwnd,
+                dwFlags: FLASHW_ALL | FLASHW_TIMERNOFG,
+                ..Default::default()
+            });
+        }
     }
     if let Some(host) = browser.host() {
         host.set_focus(1);
@@ -231,6 +239,10 @@ pub fn is_mod_page(url: &str) -> bool {
         return false;
     };
     query.split('#').next().unwrap_or("").split('&').any(|pair| pair.split('=').next() == Some("mod"))
+}
+
+pub fn main_browser() -> Option<Browser> {
+    MAIN_BROWSER.with_borrow(|b| b.clone())
 }
 
 pub fn has_main_browser() -> bool {
@@ -331,6 +343,15 @@ pub fn detach_browser(browser: &Browser) {
     if BROWSER_COUNT.fetch_sub(1, Ordering::SeqCst) == 1 && WINDOW_COUNT.load(Ordering::SeqCst) == 0 {
         debug_print!("window: last browser closed, quitting");
         quit_message_loop();
+    }
+}
+
+// same path as the title bar's close button, WM_CLOSE asks cef first
+pub fn close_window(browser: &Browser) {
+    if let Some(window) = window_from_browser(browser) {
+        unsafe {
+            PostMessageW(Some(window.hwnd), WM_CLOSE, WPARAM(0), LPARAM(0)).ok();
+        }
     }
 }
 
@@ -650,7 +671,7 @@ pub fn create_window(start_mode: &str, is_subwindow: bool, init_state: Option<Wi
         let hwnd: HWND = CreateWindowExW(
             WINDOW_EX_STYLE::default(),
             class_name,
-            w!("Kute"),
+            PCWSTR(crate::utils::create_utf_string(crate::modules::recovery::window_title()).as_ptr()),
             WS_OVERLAPPEDWINDOW,
             x,
             y,
@@ -731,7 +752,11 @@ unsafe fn wnd_proc_common(window: &mut Window, hwnd: HWND, msg: u32, wparam: WPA
                 return Some(result);
             }
             WM_SIZE => {
-                window.resize_browser(utils::LOWORD(lparam.0 as usize) as i32, utils::HIWORD(lparam.0 as usize) as i32);
+                let (width, height) = (utils::LOWORD(lparam.0 as usize), utils::HIWORD(lparam.0 as usize));
+                if !window.is_subwindow {
+                    crate::app::set_window_size(width as u32, height as u32);
+                }
+                window.resize_browser(width as i32, height as i32);
             }
             WM_DPICHANGED if !window.state.fullscreen => {
                 let suggested = *(lparam.0 as *const RECT);

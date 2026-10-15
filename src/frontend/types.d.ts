@@ -52,6 +52,19 @@ interface KuteSettings {
     [toggleFunction: `toggle${string}`]: (value: any) => void;
 }
 
+interface RecoveryInfo {
+    mode: "safe" | "test" | "result" | "offer";
+    canFind?: boolean;
+    kind?: "startup" | "play";
+    step?: number;
+    suspects?: number;
+    minutes?: number;
+    ranFine?: boolean;
+    verdict?: "culprit" | "notTheSetup";
+    culprits?: { label: string; fixable: boolean }[];
+    tests?: { crashed: number; ranFine: number };
+}
+
 interface Kute {
     settings: KuteSettings;
     version: string;
@@ -72,6 +85,8 @@ interface Kute {
     bindShoot(): void;
     /** absent on older exes */
     hostFeatures?: string[];
+    /** the exe's os, absent on windows exes older than the linux port */
+    platform?: "windows" | "linux";
     /** who holds the fps limit, "viz" = chromium (patch 08), absent or "hook" = the present hook with the busy wait fallback */
     frameLimiter?: "viz" | "hook";
     /** restart-only settings as this process was started with, by setting id. a stored value that differs needs a restart */
@@ -80,12 +95,18 @@ interface Kute {
     dev?: boolean;
     matchmaker: { showFilters(): Promise<void> };
     hotkeys: { edit(): void };
+    chatLogs?: { open(): void; toggle(): void };
+    accounts?: { loginSlot(index: number): void };
     settingsTransfer: { exportFile(): void; importFile(): void };
+    diagnostics: { open(): void };
+    /** safe mode, a crash test or its result, absent otherwise and on older exes */
+    recovery?: RecoveryInfo;
     nukeCounter: { showOptions(): Promise<void> };
     customSky: { showOptions(): Promise<void> };
     hudEditor: { edit(): void; apply(): void };
     kuteIcons: { customize(): void; refresh(): void };
-    userscriptManager: { open(): void };
+    /** masterChanged is set once the manager module loaded */
+    userscriptManager: { open(): void; masterChanged?: (on: boolean) => void };
     swapperManager: { open(): void };
     customCss: { open(): void };
 }
@@ -119,7 +140,7 @@ declare var setSpect: (enabled: boolean) => void;
 declare var showWindow: (...args: any[]) => any;
 declare var closWind: (...args: any[]) => any;
 declare var bundlePopup: (...args: any[]) => any;
-declare var exportSettings: () => any;
+declare var exportSettings: (asString?: boolean) => any;
 declare var importSettings: () => any;
 declare var importSettingsPopup: () => any;
 declare var openRankedMenu: () => void;
@@ -128,6 +149,7 @@ declare var createPrivateRoom: () => void;
 declare var setSetting: (key: string, value: any) => void;
 declare var loginOrRegister: () => void;
 declare var logoutAcc: () => void;
+declare var FRVR: { auth: { isLoggedIn: () => boolean, loginAsAnonymous: () => Promise<unknown>, logout: () => unknown, getCurrentPlatform: () => string } } | undefined;
 declare var playSelect: (volume?: number) => void;
 declare var openServerWindow: (tab: number) => void;
 declare var switchChat: (element: Element | null) => void;

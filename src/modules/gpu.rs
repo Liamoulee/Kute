@@ -133,15 +133,15 @@ pub fn apply_hybrid_defaults() {
     }
     let mut config = CONFIG.lock().unwrap();
     if hybrid && !done {
-        // obs capture and the present counter need the hook, a player who uses them keeps it
-        let needs_hook = config.get::<bool>("obsCapturePlugin") == Some(true) || config.get::<bool>("renderStats") == Some(true);
+        // obs capture needs the hook, a player who uses it keeps it. the present fps counter only loses its second number
+        let needs_hook = config.get::<bool>("obsCapturePlugin") == Some(true);
         if !needs_hook {
             // a tester's hybrid laptop: 707 fps with the hook, 1397 without, on the bench scene
             config.set("hardFlip", false);
         }
         debug_print!(
             "gpu: hybrid graphics, hook {}",
-            if needs_hook { "kept (capture or counter in use)" } else { "off by default" }
+            if needs_hook { "kept (capture in use)" } else { "off by default" }
         );
     }
     config.set(DONE_SETTING, true);

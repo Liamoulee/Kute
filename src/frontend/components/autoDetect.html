@@ -33,6 +33,20 @@
 	line-height: 1.5;
 }
 
+#adNote {
+	display: none;
+	max-width: 540px;
+	margin: 0 auto 1.2em auto;
+	padding: 0.6em 0.9em;
+	border-left: 3px solid #f0b040;
+	border-radius: 0 6px 6px 0;
+	background: #2a2416;
+	color: #f3d08a;
+	text-align: left;
+	font-size: 0.9em;
+	line-height: 1.5;
+}
+
 #adBar {
 	height: 6px;
 	border-radius: 3px;
@@ -281,8 +295,9 @@
 <div id="adPanel">
 	<h2 id="adTitle">Auto-Detect</h2>
 	<div id="adStatus"></div>
+	<div id="adNote"></div>
 	<div id="adBar"><div id="adBarFill"></div></div>
-	<div id="adHint">Escape cancels</div>
+	<div id="adHint">Don't touch mouse or keyboard. Escape cancels</div>
 	<div id="adActions">
 		<div class="adButton" id="adUndo">Undo</div>
 		<div class="adButton" id="adDetailsButton">Details</div>

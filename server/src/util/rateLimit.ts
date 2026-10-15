@@ -4,7 +4,7 @@ import { isDevelopment } from "./env";
 
 // ========================= //
 // = Copyright (c) NullDev = //
-// =     - SPDX: MIT -     = //
+// =  All rights reserved  = //
 // ========================= //
 
 const salt = randomBytes(32);

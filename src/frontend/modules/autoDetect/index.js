@@ -104,6 +104,7 @@ const WORSE = {
  * @property {import("./decide.js").QualityPlan} plan
  * @property {import("./sample.js").InputDiagnostics} [input] whether the host's input script reached the game
  * @property {string|null} rolledBack why the run put the player's settings back, null when it did not
+ * @property {string|null} [pipelineRefused] why the setup from the client test went back in the game while the run went on
  * @property {number} seconds
  */
 
@@ -130,6 +131,9 @@ const WORSE = {
  * @property {number[]} capOrder caps worth trying in the match, best in the client test first
  * @property {number} elapsedMs
  * @property {boolean} [resumed] the run already continued once after its restart, a second time would be a loop
+ * @property {string} [pipelineRefused] why the setup from the client test went back after its restart. the run
+ *     restarts once more on the player's own setup and the limits get their turn there
+ * @property {Reading[]} [recheck] the readings that refused it
  */
 
 /**
@@ -506,7 +510,7 @@ function advancedHtml(report){
     // reading order: the pc and the result, then the client test, then the test match
     const cards = [
         section("This PC", `<p><b>${report.gpu}</b><br><b>${report.cpu}</b>${report.laptop ? " (laptop)" : ""}, ${report.hz} Hz${report.powerOverlay ? `, Windows power mode: ${report.powerOverlay}` : ""}.${graphics}</p>
-            ${capacity}${report.rolledBack ? `<p class="adWarn">${report.rolledBack}</p>` : ""}${inputLine(report.input)}${flood}`),
+            ${capacity}${report.rolledBack ? `<p class="adWarn">${report.rolledBack}</p>` : ""}${report.pipelineRefused ? `<p class="adWarn">${report.pipelineRefused}</p>` : ""}${inputLine(report.input)}${flood}`),
         section("Before and after", `${table(`<th></th>${metricsHead}`, [
             `<tr><td>Before (${capName(report.beforeCap)})</td>${metricCells(report.before)}</tr>`,
             report.after ? `<tr><td>After (${capName(report.afterCap)})</td>${metricCells(report.after)}</tr>` : "",
@@ -533,8 +537,8 @@ function advancedHtml(report){
  * @param {number} [prefer] the limit that takes over when it measures equal (laptops: the target rate)
  * @return {{rows: CapRow[], winner: number, reason: string, order: number[]}} order: limits worth another look, best first
  */
-function rankCaps(readings, incumbentCap, where, prefer){
-    const choice = chooseCap(readings, incumbentCap, { prefer, inputRequired: where === "test match" });
+function rankCaps(readings, incumbentCap, where, prefer, trade = false){
+    const choice = chooseCap(readings, incumbentCap, { prefer, inputRequired: where === "test match", trade });
     /** @type {CapRow[]} */
     const rows = choice.judged.map((entry) => ({ cap: entry.cap, where, summary: entry.summary, frameMs: entry.frameMs, netMs: entry.netMs, outcome: entry.outcome }));
     const won = choice.judged.find((entry) => entry.cap === choice.winner);
@@ -544,6 +548,7 @@ function rankCaps(readings, incumbentCap, where, prefer){
         const parts = [];
         if (task > 0) parts.push(`the game reacts ${shown(task)} ms sooner`);
         if (input !== null && input > 0) parts.push(`the mouse waits ${shown(input)} ms less`);
+        if (input !== null && input < 0) parts.push(`the mouse waits ${shown(-input)} ms longer, which the sooner reaction outweighs on a PC below its target`);
         reason = parts.length > 0 ? parts.join(", ") : "frames come sooner and nothing waits longer";
     }
     const order = choice.judged
@@ -557,6 +562,8 @@ class Panel {
     constructor(){
         document.querySelector("#adPanelHost")?.parentElement?.remove();
         this.overlay = document.createElement("div");
+        /** @type {((event: KeyboardEvent) => void)|undefined} */
+        this.onEscape = undefined;
         // nearly opaque, the game looks weird while measuring
         this.overlay.style.cssText =
             "position:fixed;inset:0;z-index:2147483000;display:flex;justify-content:center;align-items:center;background:rgba(0,0,0,0.93)";
@@ -590,11 +597,29 @@ class Panel {
      *
      * @param {string} title
      * @param {string} line
-     * @param {{label: string, onPick: () => void}[]} choices
+     * @param {{label: string, onPick: () => void, cancel?: boolean}[]} choices
+     * @param {string} [note] yellow warning under the line
      */
-    choose(title, line, choices){
+    choose(title, line, choices, note){
+        this.unbindEscape();
+        const cancel = choices.find((choice) => choice.cancel);
+        // a click outside the panel cancels too
+        this.overlay.onclick = cancel ? (event) => {
+            if (event.target === this.overlay) cancel.onPick();
+        } : null;
+        if (cancel){
+            this.onEscape = (/** @type {KeyboardEvent} */ event) => {
+                if (event.key !== "Escape") return;
+                event.stopPropagation();
+                cancel.onPick();
+            };
+            document.addEventListener("keydown", this.onEscape, true);
+        }
         this.element("adTitle").textContent = title;
         this.element("adStatus").textContent = line;
+        const noteElement = this.element("adNote");
+        noteElement.textContent = note ?? "";
+        noteElement.style.display = note ? "block" : "none";
         this.element("adBar").style.display = "none";
         this.element("adHint").style.display = "none";
         const actions = this.element("adActions");
@@ -616,6 +641,7 @@ class Panel {
     result(summary, actions = {}){
         this.element("adTitle").textContent = summary.title;
         this.element("adStatus").textContent = summary.line;
+        this.element("adNote").style.display = "none";
         this.element("adBar").style.display = "none";
         this.element("adHint").style.display = "none";
         this.element("adActions").style.display = "flex";
@@ -675,9 +701,30 @@ class Panel {
         this.overlay.style.pointerEvents = enabled ? "none" : "";
     }
 
+    unbindEscape(){
+        if (this.onEscape) document.removeEventListener("keydown", this.onEscape, true);
+        this.onEscape = undefined;
+    }
+
     close(){
+        this.unbindEscape();
         this.overlay.remove();
     }
+}
+
+/**
+ * @param {boolean} muted
+ */
+function mute(muted){
+    if (kute.hostFeatures?.includes("mute")) window.chrome.webview.postMessage(`mute, ${muted}`);
+}
+
+/**
+ * @return {string} what the player sees and hears during a run, asked for by players who got no heads up
+ */
+function runNote(){
+    const sound = kute.hostFeatures?.includes("mute") ? " The game is muted meanwhile." : "";
+    return `Takes about two minutes. Don't touch mouse or keyboard meanwhile: a test window opens and closes a few times, then Kute plays a private match by itself, turning the view and firing.${sound}`;
 }
 
 /**
@@ -846,6 +893,11 @@ class AutoDetect {
             kute.showNotification("Auto-detect needs a newer Kute, update the client to use it", false, 6);
             return;
         }
+        // it would measure this session's overrides and keep them as the player's setup
+        if (kute.recovery){
+            kute.showNotification("Auto-detect can't run in safe mode or while Kute looks for the cause of a crash", false, 6);
+            return;
+        }
         if (!loggedIn()){
             kute.showNotification("Log in first: auto-detect measures in a private test match, and hosting one needs an account", false, 6);
             return;
@@ -947,6 +999,8 @@ class AutoDetect {
         }
         finally {
             document.removeEventListener("keydown", onKey, true);
+            // the mute is on the browser, not the page: it would survive the navigation home
+            mute(false);
             window.chrome.webview.postMessage("throttle, menu");
             this.running = false;
         }
@@ -1023,6 +1077,7 @@ class AutoDetect {
         }
 
         panel.progress("Opening a private test match", 0.38);
+        mute(true);
         panel.clickThrough(true);
         const room = await hostLobby();
         let joined = false;
@@ -1234,6 +1289,7 @@ class AutoDetect {
                 ...Object.fromEntries(["gameFpsLimit", "throttle", "inMenuThrottle", "uncapFps", "patchFrameLimiter", "obsCapturePlugin", "renderStats", "performanceMode", "webviewPriority", ...PIPELINE.map((entry) => entry.setting)]
                     .map((key) => [key, baseline.client[key] ?? kute.settings.data[key] ?? null])),
                 gameFrameCap: frameCapBefore,
+                hook: specs.hook ?? null,
                 limiter: kute.frameLimiter ?? null,
                 running: kute.running ?? null,
             },
@@ -1251,6 +1307,8 @@ class AutoDetect {
             plan: decide({ capacity: fpsOf(run.uncapped), hz, headroom: 1, halfResolutionGain: null, settings: [] }),
             input: takeInputDiagnostics(),
             rolledBack: null,
+            pipelineRefused: run.pipelineRefused ?? null,
+            recheck: run.recheck ?? [],
             seconds: (performance.now() - started) / 1000,
             ...fields,
         });
@@ -1267,6 +1325,8 @@ class AutoDetect {
                 report: report({ ...measured, rolledBack: why }),
             };
         };
+        // below the target a limit may trade mouse wait for reaction time, see policy.js accept
+        const trade = fpsOf(run.uncapped) < target;
         /**
          * the one rule every result passes, see policy.js accept
          *
@@ -1276,7 +1336,7 @@ class AutoDetect {
          * @return {string|null} why the result is not kept, null: it is
          */
         const refused = (reference, result, capAfter) => {
-            const { keep, failed } = accept(reference, result, { capBefore: originalCap, capAfter });
+            const { keep, failed } = accept(reference, result, { capBefore: originalCap, capAfter, trade });
             if (keep) return null;
             if (failed === "reference") return "Kute could not measure the game with your own settings well enough to compare (its window has to stay in front), so it put yours back.";
             if (failed === "result") return "Kute could not measure the result (its window has to stay in front), so it put your settings back.";
@@ -1287,7 +1347,7 @@ class AutoDetect {
         /** @type {string[]} */
         const details = [...earlier];
         if (throttleBefore > 1) details.push(`<b>CPU Throttling</b>: ${throttleBefore} → off (it slows the game down on purpose, the result is checked against how the game ran with it)`);
-        if (resumed && run.pipelineChanged){
+        if (resumed && run.pipelineChanged && !run.pipelineRefused){
             panel.progress("Checking the new setup in the game", 0.5);
             // at the limit the player plays with, against the readings from before the restart. without a limit a PC
             // that collapses there would compare two collapses
@@ -1299,7 +1359,26 @@ class AutoDetect {
             // a player whose own setup does not run steadily gives nothing to compare here: the last check judges
             // the new setup together with the limit that makes it steady
             const worse = unsteady(run.asPlayed, originalCap) && unsteady(playedNow, originalCap) ? null : refused(run.asPlayed, playedNow, originalCap);
-            if (worse) return rollBack(worse.replace("The new settings", "The setup that won the client test"), recheck);
+            // a result that could not be measured at all (the window left the front) ends the run, a measured loss
+            // only ends the new setup
+            if (worse && accept(run.asPlayed, playedNow, { capBefore: originalCap, capAfter: originalCap, trade }).failed === "result") return rollBack(worse.replace("The new settings", "The setup that won the client test"), recheck);
+            if (worse){
+                // back to the player's own setup with one more restart, the limits get their turn on it. the run used to
+                // end here, and a laptop whose client test winner lost in the game never got a limit tested
+                for (const entry of PIPELINE){
+                    if (run.pipelineAfter[entry.setting] !== run.pipelineBefore[entry.setting]) applyClient(entry.setting, run.pipelineBefore[entry.setting]);
+                }
+                if (frameCapBefore > 0) game.write(game.GAME_FRAME_CAP, String(frameCapBefore));
+                if (appliedCap !== fpsLimitBefore) applyClient("gameFpsLimit", fpsLimitBefore);
+                state.carry = { ...run, pipelineRefused: worse.replace("The new settings", "The setup that won the client test"), ...recheck, elapsedMs: performance.now() - started, resumed: false };
+                writeState(state);
+                document.exitPointerLock();
+                panel.choose("Kute restarts once more", "The setup from the client test ran worse in the game, so Kute goes back to yours and tests the FPS limits on it.", []);
+                await sleep(3500);
+                if (this.cancelled) return null;
+                window.chrome.webview.postMessage("restart");
+                return "restarting";
+            }
             const winnerRow = run.rows.find((row) => PIPELINE.every((entry) => row.pipeline[entry.setting] === run.pipelineAfter[entry.setting]));
             const reason = winnerRow ? because(run.decidedBy, summarize(run.rows[0].readings), summarize(winnerRow.readings)) : "measured better";
             for (const entry of PIPELINE){
@@ -1333,7 +1412,7 @@ class AutoDetect {
             measuredCaps = await sampleEach(candidates);
             if (this.cancelled) return null;
             pushed = collapses(measuredCaps);
-            const ranked = rankCaps(measuredCaps, originalCap, "test match", prefer);
+            const ranked = rankCaps(measuredCaps, originalCap, "test match", prefer, trade);
             capRows = ranked.rows;
             if (!pushed){
                 bestCap = ranked.winner;
@@ -1341,12 +1420,12 @@ class AutoDetect {
                 capacity = fpsOf(measuredCaps.get(0) ?? []) || roughCapacity;
 
                 // one more look between the best limit and its neighbours
-                const between = refineCaps([...measuredCaps.keys()], bestCap, capacity).filter((cap) => allowed(cap) && cap < capacity);
+                const between = refineCaps([...measuredCaps.keys()], bestCap, capacity, hz).filter((cap) => allowed(cap) && cap < capacity);
                 if (between.length > 0){
                     panel.progress("Fine tuning the FPS limit", 0.64);
                     const finer = await sampleEach(between);
                     if (this.cancelled) return null;
-                    const refined = rankCaps(new Map([[bestCap, measuredCaps.get(bestCap) ?? []], ...finer]), bestCap, "test match");
+                    const refined = rankCaps(new Map([[bestCap, measuredCaps.get(bestCap) ?? []], ...finer]), bestCap, "test match", undefined, trade);
                     capRows.push(...refined.rows.filter((row) => row.cap !== bestCap));
                     for (const [cap, readings] of finer) measuredCaps.set(cap, readings);
                     if (refined.winner !== bestCap){
@@ -1643,7 +1722,7 @@ class AutoDetect {
     // once per client start at most
     offer(){
         // an exe older than the run's host side: no prompt for something it cannot do
-        if (this.running || sessionStorage.getItem(ASKED_KEY) || !kute.hostFeatures?.includes(HOST_FEATURE)) return;
+        if (this.running || sessionStorage.getItem(ASKED_KEY) || !kute.hostFeatures?.includes(HOST_FEATURE) || kute.recovery) return;
         // already in a match, ask once back in the menu
         if (document.pointerLockElement){
             document.addEventListener("pointerlockchange", () => setTimeout(() => this.offer(), 1500), { once: true });
@@ -1653,7 +1732,7 @@ class AutoDetect {
         const panel = new Panel();
         panel.choose(
             "Set Kute up for this PC?",
-            "Kute can set the game up for what this PC can do: it measures in a private test match for about a minute, and everything it changes can be undone. You have to be logged in for that.",
+            "Kute can set the game up for what this PC can do: it measures in a private test match, and everything it changes can be undone. You have to be logged in for that.",
             [
                 {
                     label: "Yes",
@@ -1670,14 +1749,23 @@ class AutoDetect {
                 },
                 {
                     label: "No",
-                    onPick: () => {
-                        panel.close();
-                        this.remember("declined");
-                        kute.showNotification("Got it. You can always start the setup from Settings, Client", false, 5);
-                    },
+                    cancel: true,
+                    onPick: () => this.decline(panel),
                 },
             ],
+            runNote(),
         );
+    }
+
+    /**
+     * a stored setup step would reopen the popup on every start, so a cancel has to clear it
+     *
+     * @param {Panel} panel
+     */
+    decline(panel){
+        panel.close();
+        this.remember("declined");
+        kute.showNotification("Got it. You can always start the setup from Settings, Client", false, 5);
     }
 
     /**
@@ -1737,6 +1825,11 @@ class AutoDetect {
                     this.remember("later");
                 },
             },
+            {
+                label: "Cancel",
+                cancel: true,
+                onPick: () => this.decline(panel),
+            },
         ]);
     }
 
@@ -1787,7 +1880,13 @@ class AutoDetect {
                         this.start();
                     },
                 },
+                {
+                    label: "Cancel",
+                    cancel: true,
+                    onPick: () => this.decline(panel),
+                },
             ],
+            runNote(),
         );
     }
 

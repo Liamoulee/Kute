@@ -9,7 +9,9 @@ const targetDir = path.join(process.cwd(), "target", buildType);
 const targetResourcesDir = path.join(targetDir, "resources");
 const distDir = path.join(targetDir, "dist");
 
-const cefRuntimeFiles = [
+const linux = process.platform === "linux";
+
+const windowsRuntimeFiles = [
     "libcef.dll",
     "chrome_elf.dll",
     "d3dcompiler_47.dll",
@@ -27,7 +29,24 @@ const cefRuntimeFiles = [
     "v8_context_snapshot.bin",
 ];
 
-const vcRuntimeFiles = ["msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll"];
+const linuxRuntimeFiles = [
+    "libcef.so",
+    "libEGL.so",
+    "libGLESv2.so",
+    "libvk_swiftshader.so",
+    "libvulkan.so.1",
+    "vk_swiftshader_icd.json",
+    "icudtl.dat",
+    "resources.pak",
+    "chrome_100_percent.pak",
+    "chrome_200_percent.pak",
+    "v8_context_snapshot.bin",
+];
+
+const cefRuntimeFiles = linux ? linuxRuntimeFiles : windowsRuntimeFiles;
+const vcRuntimeFiles = linux ? [] : ["msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll"];
+// the windows dll crates, not built on linux
+const hostFiles = linux ? [] : ["render.dll"];
 
 /**
  * @param {string} source
@@ -71,7 +90,7 @@ function findCefDistribution(){
     const matches = [];
     for (const entry of fs.readdirSync(buildDir)){
         if (!entry.startsWith("cef-dll-sys-")) continue;
-        const dir = path.join(buildDir, entry, "out", "cef_windows_x86_64");
+        const dir = path.join(buildDir, entry, "out", linux ? "cef_linux_x86_64" : "cef_windows_x86_64");
         const archive = path.join(dir, "archive.json");
         if (!fs.existsSync(archive)) continue;
         if (!String(JSON.parse(fs.readFileSync(archive, "utf8")).name).startsWith(`cef_binary_${cefVersion}+`)) continue;
@@ -102,12 +121,12 @@ try {
     copyIfExists(path.join(process.cwd(), "target", "bundle_version"), path.join(targetResourcesDir, "bundle_version"));
     copyIfExists(path.join(process.cwd(), "target", "bundle.js"), path.join(targetResourcesDir, "bundle.js"));
 
-    if (!copyIfExists(path.join(targetDir, "obs_kute_capture.dll"), path.join(targetResourcesDir, "obs-kute-capture.dll"))){
+    if (!linux && !copyIfExists(path.join(targetDir, "obs_kute_capture.dll"), path.join(targetResourcesDir, "obs-kute-capture.dll"))){
         console.warn("OBS plugin was not built; skipping bundled plugin copy.");
     }
 
     // our patched libcef (aim freeze fixes) over the stock one. same CEF version, so headers and wrapper still match
-    const patchedCefDir = path.join(process.cwd(), "resources", "cef");
+    const patchedCefDir = path.join(process.cwd(), "resources", linux ? "cef-linux" : "cef");
     if (fs.existsSync(patchedCefDir)){
         for (const file of fs.readdirSync(patchedCefDir)){
             const source = path.join(patchedCefDir, file);
@@ -124,7 +143,7 @@ try {
     fs.rmSync(distDir, { recursive: true, force: true });
     fs.mkdirSync(distDir, { recursive: true });
     // missing file = installer that can't start, so fail instead of warn
-    const missing = [...cefRuntimeFiles, ...vcRuntimeFiles, "render.dll"].filter(
+    const missing = [...cefRuntimeFiles, ...vcRuntimeFiles, ...hostFiles].filter(
         (file) => !copyIfExists(path.join(targetDir, file), path.join(distDir, file)),
     );
     if (fs.existsSync(path.join(targetDir, "locales"))) copyDirAll(path.join(targetDir, "locales"), path.join(distDir, "locales"));

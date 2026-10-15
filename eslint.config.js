@@ -193,7 +193,7 @@ const rules = {                             // NullDev-Style ESLint Config: http
 
 export default [{
     ignores: [                              // Ignore build output, dependencies and runtime data
-        "target", "**/node_modules", "server/data", "server/logs",
+        "target", "_docs", "**/node_modules", "server/data", "server/logs",
         "**/*.d.ts",                        // ambient declarations need "declare var"
     ],
 }, {

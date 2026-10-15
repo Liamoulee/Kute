@@ -1,0 +1,85 @@
+diff --git a/components/viz/service/display/display_scheduler.cc b/components/viz/service/display/display_scheduler.cc
+index 0a966d1053..dcc1316a89 100644
+--- a/components/viz/service/display/display_scheduler.cc
++++ b/components/viz/service/display/display_scheduler.cc
+@@ -34,6 +34,17 @@
+ #include "base/environment.h"
+ #include "base/functional/bind.h"
+ #include "base/strings/utf_string_conversions.h"
++#elif BUILDFLAG(IS_LINUX)
++#include <errno.h>
++#include <fcntl.h>
++#include <sys/mman.h>
++#include <time.h>
++#include <unistd.h>
++
++#include <atomic>
++
++#include "base/environment.h"
++#include "base/functional/bind.h"
+ #endif
+ 
+ namespace viz {
+@@ -81,10 +92,36 @@ const std::atomic<uint64_t>* KuteTargetFpsField() {
+   }();
+   return field;
+ }
++#elif BUILDFLAG(IS_LINUX)
++// target_fps of SharedState in Kute's render-dll (shared.rs), third u64.
++constexpr size_t kKuteTargetFpsOffset = 16;
++
++// POSIX shared memory "/<name>", created by the host before the GPU process
++// starts (no sandbox). Missing means no limit. Mapped once, never unmapped.
++const std::atomic<uint64_t>* KuteTargetFpsField() {
++  static const std::atomic<uint64_t>* field = [] {
++    auto env = base::Environment::Create();
++    std::string name = "/" + env->GetVar("KUTE_TIMING_MAPPING")
++                                 .value_or(std::string("KuteFrameTiming"));
++    int fd = ::shm_open(name.c_str(), O_RDONLY, 0);
++    if (fd < 0) {
++      return static_cast<const std::atomic<uint64_t>*>(nullptr);
++    }
++    void* view = ::mmap(nullptr, kKuteTargetFpsOffset + sizeof(uint64_t),
++                        PROT_READ, MAP_SHARED, fd, 0);
++    ::close(fd);
++    if (view == MAP_FAILED) {
++      return static_cast<const std::atomic<uint64_t>*>(nullptr);
++    }
++    return reinterpret_cast<const std::atomic<uint64_t>*>(
++        static_cast<char*>(view) + kKuteTargetFpsOffset);
++  }();
++  return field;
++}
+ #endif
+ 
+ base::TimeDelta KuteLimitInterval() {
+-#if BUILDFLAG(IS_WIN)
++#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)
+   static const bool enabled = base::FeatureList::IsEnabled(kKuteFrameLimiter);
+   if (!enabled) {
+     return base::TimeDelta();
+@@ -913,7 +950,7 @@ void DisplayScheduler::KuteFinishSwapAck() {
+ // so a late wake does not add up; after a pause, on the first frame, or once
+ // the limit is lifted it restarts from now.
+ void DisplayScheduler::KuteArmRelease() {
+-#if BUILDFLAG(IS_WIN)
++#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_LINUX)
+   base::TimeDelta interval = KuteLimitInterval();
+   base::TimeTicks now = base::TimeTicks::Now();
+   base::TimeTicks deadline = kute_next_deadline_ + interval;
+@@ -951,6 +988,15 @@ void DisplayScheduler::KuteReleaseSwapAck(base::TimeTicks deadline) {
+       }
+     }
+   }
++#elif BUILDFLAG(IS_LINUX)
++  // TimeTicks is CLOCK_MONOTONIC on Linux, so the deadline is an absolute time
++  // on that clock; an absolute sleep does not drift when a signal wakes it.
++  if ((deadline - base::TimeTicks::Now()).is_positive()) {
++    struct timespec until = (deadline - base::TimeTicks()).ToTimeSpec();
++    while (::clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &until,
++                             nullptr) == EINTR) {
++    }
++  }
+ #endif
+   kute_next_deadline_ = deadline;
+   if (kute_held_swap_acks_ > 0) {

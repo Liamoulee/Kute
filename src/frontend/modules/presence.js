@@ -19,11 +19,17 @@ function currentGame(){
 }
 
 /**
- * @return {string} display name (what the lists show), not the account name
+ * @return {string} the name the lists show: the alias only while krunker's "Display premium badge" switch is on
  */
 function ownName(){
     const user = window.getGameActivity?.()?.user;
-    return typeof user === "string" ? user : "";
+    if (typeof user !== "string") return "";
+    // getGameActivity().user is always the alias, the lists fall back to the account name with the switch off
+    if (localStorage.getItem("kro_setngss_premiumBadge") === "false"){
+        const account = localStorage.getItem("krunker_username");
+        if (account) return account;
+    }
+    return user;
 }
 
 /**

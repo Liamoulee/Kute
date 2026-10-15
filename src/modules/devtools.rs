@@ -46,6 +46,31 @@ pub fn click(browser: &Browser, x: i32, y: i32) {
     }
 }
 
+// focuses the page's web contents, linux window.rs needs it after showing the page again
+#[cfg(target_os = "linux")]
+pub fn bring_to_front(browser: &Browser) {
+    call(browser, "Page.bringToFront", None);
+}
+
+// one step of the linux input replay. under pointer lock the page sees the position differences as movementX/Y
+#[cfg(target_os = "linux")]
+pub fn mouse_event(browser: &Browser, kind: &str, x: i32, y: i32, held: bool) {
+    let Some(params) = dictionary_value_create() else { return };
+    params.set_string(Some(&CefString::from("type")), Some(&CefString::from(kind)));
+    params.set_int(Some(&CefString::from("x")), x);
+    params.set_int(Some(&CefString::from("y")), y);
+    let pressing = kind != "mouseMoved";
+    params.set_string(
+        Some(&CefString::from("button")),
+        Some(&CefString::from(if pressing || held { "left" } else { "none" })),
+    );
+    params.set_int(Some(&CefString::from("buttons")), i32::from(held));
+    if pressing {
+        params.set_int(Some(&CefString::from("clickCount")), 1);
+    }
+    call(browser, "Input.dispatchMouseEvent", Some(params));
+}
+
 // page can't observe CDP, used to get secrets in without the bridge
 pub fn evaluate(browser: &Browser, expression: &str) {
     let Some(params) = dictionary_value_create() else { return };

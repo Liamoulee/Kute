@@ -8,6 +8,7 @@
      * @property {string} region "na", "eu" or "as"
      * @property {boolean} allRegions
      * @property {string} sound match found sound, base64
+     * @property {Record<string, { url: string, number: number }>} maps label to preview image and map id
      */
 
     const { info } = /** @type {Window & { info: QueueInfo }} */ (/** @type {unknown} */ (window));
@@ -23,15 +24,7 @@
         return /** @type {T} */ (element);
     }
 
-    const MAPS = {
-        sandstorm_v3: { url: "https://assets.krunker.io/img/maps/map_2.png", number: 2 },
-        undergrowth: { url: "https://assets.krunker.io/img/maps/map_4.png", number: 4 },
-        industry: { url: "https://assets.krunker.io/img/maps/map_11.png", number: 11 },
-        site: { url: "https://assets.krunker.io/img/maps/map_14.png", number: 14 },
-        bureau: { url: "https://assets.krunker.io/img/maps/map_17.png", number: 17 },
-        burg_new: { url: "https://assets.krunker.io/img/maps/map_0.png", number: 0 },
-        eterno_sim: { url: "https://assets.krunker.io/img/maps/map_39.png", number: 39 },
-    };
+    const MAPS = info.maps;
     const REGION_NAMES = /** @type {Record<string, string>} */ ({ na: "North America", eu: "Europe", as: "Asia" });
     const ACCEPT_SECONDS = 60;
 

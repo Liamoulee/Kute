@@ -1,3 +1,4 @@
 * text=auto eol=lf
 src/frontend/components/queue/** linguist-vendored
 resources/cef/** filter=lfs diff=lfs merge=lfs -text
+resources/cef-linux/** filter=lfs diff=lfs merge=lfs -text

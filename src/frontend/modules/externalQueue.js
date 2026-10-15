@@ -1,4 +1,5 @@
 import { getElement } from "../utils.js";
+import { mapImageUrl, mapLabel, officialMaps } from "./maps.js";
 
 /** @type {HTMLButtonElement} */
 const externalQueue = document.createElement("button");
@@ -29,7 +30,7 @@ function openExtQueue(){
     const windowHeight = 350;
     const left = (screenWidth - windowWidth) / 2;
     const top = (screenHeight - windowHeight) / 2;
-    /** @type {(Window & { info?: { allRegions: boolean, token: string, region: string, sound: string } })|null} */
+    /** @type {(Window & { info?: { allRegions: boolean, token: string, region: string, sound: string, maps: Record<string, { url: string, number: number }> } })|null} */
     const queueWindow = window.open(
         "about:blank",
         "_blank",
@@ -55,13 +56,16 @@ function openExtQueue(){
     token = token.replace(/"/g, "");
     token = token.replace("/", "");
     const allRegions = localStorage.getItem("s_rankedAllRegions") === "true";
-    // popup is about:blank, so markup, script and sound get handed over. lazy loaded
+    // popup is about:blank, so markup, script, sound and the map list get handed over. lazy loaded
     Promise.all([
         import("../components/queue/index.html"),
         import("popup-script:../components/queue/queue.js"),
         import("../components/queue/match-found.ogg"),
-    ]).then(([html, code, sound]) => {
-        queueWindow.info = { allRegions, token, region, sound: sound.default };
+        officialMaps(),
+    ]).then(([html, code, sound, mapEntries]) => {
+        // the ranked pool changes every season, so every official map is offered and named
+        const maps = Object.fromEntries(mapEntries.map(([id, name]) => [mapLabel(name), { url: mapImageUrl(id), number: id }]));
+        queueWindow.info = { allRegions, token, region, sound: sound.default, maps };
 
         const doc = new DOMParser().parseFromString(html.default, "text/html");
         queueWindow.document.head.append(...Array.from(doc.head.children, (child) => queueWindow.document.importNode(child, true)));

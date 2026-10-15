@@ -4,7 +4,7 @@ import { playerStats } from "../util/playerStats";
 
 // ========================= //
 // = Copyright (c) NullDev = //
-// =     - SPDX: MIT -     = //
+// =  All rights reserved  = //
 // ========================= //
 
 export async function metaRoutes(app: FastifyInstance): Promise<void> {

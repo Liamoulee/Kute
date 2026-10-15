@@ -1,0 +1,307 @@
+diff --git a/components/viz/service/BUILD.gn b/components/viz/service/BUILD.gn
+index 3e9bec8ca0..24afabd7f6 100644
+--- a/components/viz/service/BUILD.gn
++++ b/components/viz/service/BUILD.gn
+@@ -89,6 +89,8 @@ viz_component("service") {
+     "display/display_resource_provider_software.h",
+     "display/display_scheduler.cc",
+     "display/display_scheduler.h",
++    "display/kute_present_stats.cc",
++    "display/kute_present_stats.h",
+     "display/display_scheduler_base.cc",
+     "display/display_scheduler_base.h",
+     "display/display_utils.cc",
+diff --git a/components/viz/service/display/display.cc b/components/viz/service/display/display.cc
+index 2aa82e4143..80acf2863c 100644
+--- a/components/viz/service/display/display.cc
++++ b/components/viz/service/display/display.cc
+@@ -56,6 +56,7 @@
+ #include "components/viz/service/display/display_resource_provider_skia.h"
+ #include "components/viz/service/display/display_resource_provider_software.h"
+ #include "components/viz/service/display/display_scheduler.h"
++#include "components/viz/service/display/kute_present_stats.h"
+ #include "components/viz/service/display/display_utils.h"
+ #include "components/viz/service/display/frame_interval_decider.h"
+ #include "components/viz/service/display/frame_interval_matchers.h"
+@@ -328,6 +329,7 @@ Display::Display(
+ }
+ 
+ Display::~Display() {
++  kute_present_stats::Forget(this);
+ #if DCHECK_IS_ON()
+   allow_schedule_gpu_task_during_destruction_.reset(
+       new gpu::ScopedAllowScheduleGpuTask);
+@@ -1127,7 +1129,11 @@ bool Display::DrawAndSwap(const DrawAndSwapParams& params) {
+ 
+     RecordFrameTypes(has_interactive_frame, has_animated_frame);
+ 
++    // Kute: present statistics, see kute_present_stats.h.
++    kute_present_stats::WillSwap(this, current_surface_size_,
++                                 base::TimeTicks::Now());
+     renderer_->SwapBuffers(std::move(swap_frame_data));
++    kute_present_stats::DidSwap(this);
+   } else {
+     TRACE_EVENT_INSTANT("viz", "Swap skipped.");
+ 
+diff --git a/components/viz/service/display/kute_present_stats.cc b/components/viz/service/display/kute_present_stats.cc
+new file mode 100644
+index 0000000000..917cf860c6
+--- /dev/null
++++ b/components/viz/service/display/kute_present_stats.cc
+@@ -0,0 +1,209 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#include "components/viz/service/display/kute_present_stats.h"
++
++#include <algorithm>
++#include <atomic>
++#include <cstdint>
++#include <limits>
++#include <string>
++#include <vector>
++
++#include "base/compiler_specific.h"
++#include "base/containers/span.h"
++#include "base/environment.h"
++#include "base/no_destructor.h"
++#include "build/build_config.h"
++#include "ui/gfx/geometry/size.h"
++
++#if BUILDFLAG(IS_LINUX)
++#include <fcntl.h>
++#include <sys/mman.h>
++#include <unistd.h>
++#endif
++
++namespace viz {
++
++BASE_FEATURE(kKutePresentStats,
++             "KutePresentStats",
++             base::FEATURE_DISABLED_BY_DEFAULT);
++
++namespace kute_present_stats {
++
++namespace {
++
++// SharedState in Kute's render-dll (shared.rs) = SharedStats in its host
++// (app.rs): 13 little endian u64, every field accessed as an atomic.
++enum Field : size_t {
++  kFrameNs = 0,
++  kFps = 1,
++  kTargetFps = 2,
++  kStatsRequest = 3,
++  kStatsAck = 4,
++  kPresentP50 = 5,
++  kPresentP99 = 6,
++  kPresentMax = 7,
++  kArriveP99 = 8,
++  kSamples = 9,
++  kLimiterMode = 10,
++  kRenderAdapter = 11,
++  kHookState = 12,
++  kFieldCount = 13,
++};
++
++// hook_state's low byte, what the host shows as hook.state "ready".
++constexpr uint64_t kHookReady = 1;
++// The values below are render-dll's, so both platforms report alike.
++constexpr size_t kMaxIntervals = 16384;
++// A gap this long is a pause, the average restarts after it.
++constexpr base::TimeDelta kPause = base::Milliseconds(250);
++// MAIN_SILENT_MS: another window takes over once the owner is quiet this long.
++constexpr base::TimeDelta kOwnerSilence = base::Milliseconds(300);
++// render-dll prepares only swap chains of at least this height.
++constexpr int kMinHeight = 200;
++
++using Block = base::span<std::atomic<uint64_t>, kFieldCount>;
++
++// The host creates the block before the GPU process starts, missing means no
++// statistics. Mapped once, never unmapped, the process owns it for life.
++std::atomic<uint64_t>* MapBlock() {
++#if BUILDFLAG(IS_LINUX)
++  auto env = base::Environment::Create();
++  std::string name = "/" + env->GetVar("KUTE_TIMING_MAPPING")
++                               .value_or(std::string("KuteFrameTiming"));
++  int fd = ::shm_open(name.c_str(), O_RDWR, 0);
++  if (fd < 0) {
++    return nullptr;
++  }
++  void* view = ::mmap(nullptr, kFieldCount * sizeof(uint64_t),
++                      PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
++  ::close(fd);
++  if (view == MAP_FAILED) {
++    return nullptr;
++  }
++  return static_cast<std::atomic<uint64_t>*>(view);
++#else
++  return nullptr;
++#endif
++}
++
++std::atomic<uint64_t>* BlockPointer() {
++  static std::atomic<uint64_t>* const block = MapBlock();
++  return block;
++}
++
++Block GetBlock() {
++  // SAFETY: MapBlock maps exactly kFieldCount fields.
++  return UNSAFE_BUFFERS(Block(BlockPointer(), kFieldCount));
++}
++
++bool Enabled() {
++  static const bool enabled =
++      base::FeatureList::IsEnabled(kKutePresentStats) && BlockPointer();
++  return enabled;
++}
++
++// Every Display lives on the viz compositor thread, so no locking.
++struct State {
++  const void* owner = nullptr;
++  base::TimeTicks last_swap;
++  uint64_t average_ns = 0;
++  std::vector<uint32_t> intervals = std::vector<uint32_t>(kMaxIntervals);
++  size_t next = 0;
++  size_t count = 0;
++  bool ready = false;
++};
++
++State& GetState() {
++  static base::NoDestructor<State> state;
++  return *state;
++}
++
++}  // namespace
++
++void WillSwap(const void* display, const gfx::Size& size, base::TimeTicks now) {
++  if (!Enabled() || size.height() < kMinHeight) {
++    return;
++  }
++  State& state = GetState();
++  if (state.owner != display) {
++    if (state.owner && now - state.last_swap < kOwnerSilence) {
++      return;
++    }
++    state.owner = display;
++    state.last_swap = base::TimeTicks();
++    state.average_ns = 0;
++  }
++  Block block = GetBlock();
++  if (!state.last_swap.is_null()) {
++    base::TimeDelta gap = now - state.last_swap;
++    uint64_t ns = static_cast<uint64_t>(gap.InNanoseconds());
++    state.intervals[state.next] = static_cast<uint32_t>(
++        std::min<uint64_t>(ns, std::numeric_limits<uint32_t>::max()));
++    state.next = (state.next + 1) % kMaxIntervals;
++    state.count = std::min(state.count + 1, kMaxIntervals);
++    if (gap > kPause) {
++      state.average_ns = 0;
++    } else {
++      state.average_ns =
++          state.average_ns == 0 ? ns : (state.average_ns * 31 + ns) / 32;
++      uint64_t fps = state.average_ns ? 1000000000 / state.average_ns : 0;
++      block[kFrameNs].store(state.average_ns, std::memory_order_relaxed);
++      block[kFps].store(fps, std::memory_order_relaxed);
++    }
++  }
++  state.last_swap = now;
++  if (!state.ready) {
++    state.ready = true;
++    block[kHookState].store(kHookReady, std::memory_order_release);
++  }
++}
++
++void DidSwap(const void* display) {
++  if (!Enabled()) {
++    return;
++  }
++  State& state = GetState();
++  if (state.owner != display) {
++    return;
++  }
++  Block block = GetBlock();
++  uint64_t request = block[kStatsRequest].load(std::memory_order_acquire);
++  if (request == block[kStatsAck].load(std::memory_order_relaxed)) {
++    return;
++  }
++  std::vector<uint32_t> sorted(state.intervals.begin(),
++                               state.intervals.begin() + state.count);
++  std::sort(sorted.begin(), sorted.end());
++  auto at = [&sorted](double share) -> uint64_t {
++    if (sorted.empty()) {
++      return 0;
++    }
++    size_t index = std::min(static_cast<size_t>(sorted.size() * share),
++                            sorted.size() - 1);
++    return sorted[index];
++  };
++  block[kPresentP50].store(at(0.5), std::memory_order_relaxed);
++  block[kPresentP99].store(at(0.99), std::memory_order_relaxed);
++  block[kPresentMax].store(sorted.empty() ? 0 : sorted.back(),
++                           std::memory_order_relaxed);
++  // No wait in front of the swap here, so no arrival separate from the present.
++  block[kArriveP99].store(0, std::memory_order_relaxed);
++  block[kSamples].store(sorted.size(), std::memory_order_relaxed);
++  // Ack last, the host reads the payload once it sees it.
++  block[kStatsAck].store(request, std::memory_order_release);
++  state.next = 0;
++  state.count = 0;
++}
++
++void Forget(const void* display) {
++  State& state = GetState();
++  if (state.owner == display) {
++    state.owner = nullptr;
++  }
++}
++
++}  // namespace kute_present_stats
++}  // namespace viz
+diff --git a/components/viz/service/display/kute_present_stats.h b/components/viz/service/display/kute_present_stats.h
+new file mode 100644
+index 0000000000..99920752a3
+--- /dev/null
++++ b/components/viz/service/display/kute_present_stats.h
+@@ -0,0 +1,41 @@
++// Copyright 2026 The Chromium Authors
++// Use of this source code is governed by a BSD-style license that can be
++// found in the LICENSE file.
++
++#ifndef COMPONENTS_VIZ_SERVICE_DISPLAY_KUTE_PRESENT_STATS_H_
++#define COMPONENTS_VIZ_SERVICE_DISPLAY_KUTE_PRESENT_STATS_H_
++
++#include "base/feature_list.h"
++#include "base/time/time.h"
++#include "components/viz/service/viz_service_export.h"
++
++namespace gfx {
++class Size;
++}
++
++namespace viz {
++
++// Kute: present statistics for the host, the numbers Kute's Present1 hook
++// (render.dll) writes on Windows: average frame interval, presents per second
++// and the interval distribution on request, in the host's KuteFrameTiming
++// block. A present is a frame the Display hands to the platform swap, after
++// the KuteFrameLimiter pacing. Linux only for now. Enabled by Kute with
++// --enable-features=KutePresentStats.
++VIZ_SERVICE_EXPORT BASE_DECLARE_FEATURE(kKutePresentStats);
++
++namespace kute_present_stats {
++
++// |display| is about to hand a frame of |size| to the platform swap.
++void WillSwap(const void* display, const gfx::Size& size, base::TimeTicks now);
++
++// After the swap was issued: answers a pending request of the host. The sort
++// happens here, after the frame left, never in front of it.
++void DidSwap(const void* display);
++
++// |display| goes away, another window may take over the statistics.
++void Forget(const void* display);
++
++}  // namespace kute_present_stats
++}  // namespace viz
++
++#endif  // COMPONENTS_VIZ_SERVICE_DISPLAY_KUTE_PRESENT_STATS_H_

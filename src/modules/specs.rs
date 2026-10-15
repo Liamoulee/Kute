@@ -150,6 +150,7 @@ pub fn collect(hwnd: HWND) -> Value {
         // the adapter the game renders on. hybridSource "observed": read from the game's swap chain (hook on),
         // "inferred": windows' preference order, "unknown": hybrid is null and nothing may be decided from it
         "renderAdapter": render,
+        "hook": crate::app::hook_state(),
         "hybrid": topology.hybrid(),
         "hybridSource": topology.source(),
         "powerOverlay": power::overlay_name(),

@@ -25,6 +25,7 @@ const PAUSE_NS: u64 = 250_000_000;
 pub(crate) static mut ORIGINAL_PRESENT: Option<unsafe fn(*mut c_void, u32, DXGI_PRESENT, *const DXGI_PRESENT_PARAMETERS) -> HRESULT> = None;
 
 static GLOBAL_LIMIT_CLOCK: LazyLock<RwLock<Option<std::time::Instant>>> = LazyLock::new(|| RwLock::new(None));
+static NO_WAIT: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
 const HR_TIMER_SPIN: std::time::Duration = std::time::Duration::from_micros(150);
 
@@ -101,7 +102,11 @@ pub(crate) unsafe extern "system" fn present_hk(
     }
     if !INITIALIZED.get() {
         let mut task_index = 0u32;
-        let avrt_handle = unsafe { AvSetMmThreadCharacteristicsW(w!("Games"), &mut task_index) };
+        let avrt_handle = if crate::swapchain::knob("KUTE_HOOK_NOMMCSS", 0) == 1 {
+            HANDLE::default()
+        } else {
+            unsafe { AvSetMmThreadCharacteristicsW(w!("Games"), &mut task_index) }
+        };
         debug_print!(
             "render: present thread initialized id={} avrt_handle={avrt_handle:?} task_index={task_index}",
             unsafe { GetCurrentThreadId() }
@@ -198,7 +203,9 @@ pub(crate) unsafe extern "system" fn present_hk(
         let held = LIMITER_HELD.get() || (limiter_mode & LIMITER_VIZ != 0 && on_the_limit(FRAME_NS_EMA.get(), target_fps));
         let limiter_paces = is_main && target_fps > 0 && held;
         let wait_started = std::time::Instant::now();
-        if let Some(mut chain) = cached_chain.filter(|_| !limiter_paces) {
+        // KUTE_HOOK_NOWAIT=1: bench knob, the chain is made as usual but never waited on
+        let no_wait = *NO_WAIT.get_or_init(|| crate::swapchain::knob("KUTE_HOOK_NOWAIT", 0) == 1);
+        if let Some(mut chain) = cached_chain.filter(|_| !limiter_paces && !no_wait) {
             // hidden windows never signal so pause waiting after a few timeouts
             if let Some(timeout) = chain.wait.timeout_ms(wait_started) {
                 let wait_result = WaitForSingleObjectEx(chain.handle.0, timeout, false);

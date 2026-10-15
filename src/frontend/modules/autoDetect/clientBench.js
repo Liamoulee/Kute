@@ -1,5 +1,8 @@
 import { kute } from "../../client.js";
-import { choose, screen, summarize, TARGET_REFRESH_MULTIPLE } from "./policy.js";
+import { choose, IMPORTANT_SHARE, screen, summarize, TARGET_REFRESH_MULTIPLE } from "./policy.js";
+
+/** @type {import("./policy.js").Metric[]} what a noisy incumbent is noisy in */
+const ALL_SPREADS = ["fps", "taskP99", "p99"];
 
 /**
  * the client's own pipeline, searched in bench processes while the game page is hidden. the orb scene screens,
@@ -21,7 +24,8 @@ export const PIPELINE = [
     { setting: "patchFramePacing", key: "pacing", label: "Frame Pacing" },
     { setting: "patchCanvasBufferCache", key: "canvas", label: "WebGL Buffer Cache" },
     { setting: "patchHighQoS", key: "qos", label: "Game Process at High QoS" },
-];
+// linux measures presents in viz (patch 10, always on) and its libcef has no patch 07: both flips would only measure noise
+].filter((entry) => kute.platform !== "linux" || (entry.setting !== "hardFlip" && entry.setting !== "patchHighQoS"));
 /** copied into every bench so it runs like the client does, never flipped */
 const MIRRORED = [
     { setting: "patchInputPriority", key: "inprio", fallback: true },
@@ -57,9 +61,9 @@ export function currentPipeline(){
  */
 function keptFor(setting, current){
     if (setting !== "hardFlip" || !current.hardFlip) return null;
-    // both live in the hook, faster frames are no reason to break them
+    // the capture lives in the hook, faster frames are no reason to break it. the present fps counter only loses its
+    // second number without the hook, the game's own stays (renderFps.js says so once)
     if (kute.settings.data.obsCapturePlugin === true) return "kept, OBS capture needs it";
-    if (kute.settings.data.renderStats === true) return "kept, the FPS counter needs it";
     return null;
 }
 
@@ -177,6 +181,13 @@ export async function searchPipeline({ hz, progress, cancelled }){
     const read = (/** @type {any} */ result) => readingOf(result?.page?.stats, result?.page?.otherTasks, result?.present);
     const incumbentReadings = [read(first[0]), read(first[first.length - 1])];
     const base = summarize(incumbentReadings);
+    // a PC whose own two readings differ by more than a tenth cannot screen a flip on one reading: on two starved
+    // cores (212 and 255 fps, task delay 22 and 40 ms) one bad reading of 166 fps ruled the hook out, the switch
+    // that mattered most there. every flip gets its second reading then, the run takes 20 s longer on such a PC
+    const noisy = ALL_SPREADS.some((metric) => {
+        const { median, spread } = base[metric];
+        return median !== null && spread !== null && spread > Math.abs(median) * IMPORTANT_SHARE;
+    });
 
     /** @type {PipelineRow[]} */
     const rows = [{ id: "current", label: "As you had it", pipeline: current, readings: incumbentReadings, outcome: "current" }];
@@ -187,7 +198,9 @@ export async function searchPipeline({ hz, progress, cancelled }){
     const contenders = [];
     for (const [index, flip] of flips.entries()){
         const reading = read(first[index + 1]);
-        const verdict = reading.invalid ? "failed" : screen(reading, base);
+        /** @type {keyof typeof SCREENED} */
+        let verdict = reading.invalid ? "failed" : screen(reading, base);
+        if (noisy && !reading.invalid) verdict = "contender";
         const label = `${flip.entry.label} ${flip.pipeline[flip.entry.setting] ? "on" : "off"}`;
         /** @type {PipelineRow} */
         const row = { id: flip.entry.setting, label, pipeline: flip.pipeline, readings: [reading], outcome: SCREENED[verdict] };

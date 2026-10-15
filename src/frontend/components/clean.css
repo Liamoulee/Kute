@@ -1,46 +1,12 @@
-.settingsBtn[style*="width:auto;background-color:#994cd1"],
-.setSugBox2,
-.advancedSwitch,
-.menuSocialB,
-.serverHostOpH,
-.signup-rewards-container,
+/* ads, promos and hints only, never the logo, a button or match info */
 #tlInfHold,
-#gameNameHolder,
+#newsHolder,
 #termsInfo,
-#bubbleContainer,
-#instructions:only-child,
-#mapInfoHld,
-#krDiscountAd,
-#classPreviewCanvas,
-#menuClassSubtext,
-#settingsPreset,
-#menuClassName,
-#menuBtnQuickMatch,
-#menuClassIcn,
-#streamContainerNew,
-#editorBtnM {
+#bubbleContainer {
 	display: none !important;
 }
 
-.verticalSeparator,
-.verticalSeparatorInline {
-	visibility: hidden !important;
-}
-
-#mLevelCont {
-	background-color: transparent !important;
-}
-
-#uiBase.onMenu #spectButton {
-	top: 94% !important;
-}
-
-.headerBarRight {
-	right: -23px !important;
-}
-
-.headerBarLeft,
-.headerBarRight,
-#menuItemContainer {
-	background-color: transparent !important;
+/* krunker's own .popRail.svelte-* rule sets display: block !important */
+body .popRail.popRail {
+	display: none !important;
 }

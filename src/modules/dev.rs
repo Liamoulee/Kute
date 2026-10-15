@@ -2,12 +2,15 @@ use crate::modules::dpapi;
 use crate::utils;
 use serde::{Deserialize, Serialize};
 use std::fs;
+#[cfg(windows)]
 use windows::Win32::Security::Cryptography::{
     BCRYPT_ALG_HANDLE, BCRYPT_ALG_HANDLE_HMAC_FLAG, BCRYPT_HASH_HANDLE, BCRYPT_SHA256_ALGORITHM, BCryptCloseAlgorithmProvider, BCryptCreateHash,
     BCryptDestroyHash, BCryptFinishHash, BCryptHashData, BCryptOpenAlgorithmProvider,
 };
+#[cfg(windows)]
 use windows::Win32::UI::WindowsAndMessaging::{MB_ICONERROR, MB_ICONINFORMATION, MB_OK, MessageBoxW};
-use windows::core::{PCWSTR, w};
+#[cfg(windows)]
+use windows::core::{HSTRING, w};
 
 const ARG: &str = "--set-dev-token=";
 const FILE_VERSION: u32 = 1;
@@ -42,8 +45,26 @@ pub fn has_token() -> bool {
     path().exists()
 }
 
-fn message(text: PCWSTR, style: windows::Win32::UI::WindowsAndMessaging::MESSAGEBOX_STYLE) {
-    unsafe { MessageBoxW(None, text, w!("Kute"), MB_OK | style) };
+#[cfg(windows)]
+fn message(text: &str, error: bool) {
+    let style = if error { MB_ICONERROR } else { MB_ICONINFORMATION };
+    unsafe { MessageBoxW(None, &HSTRING::from(text), w!("Kute"), MB_OK | style) };
+}
+
+// a cli flag, the terminal that ran it reads the answer
+#[cfg(target_os = "linux")]
+fn message(text: &str, _error: bool) {
+    eprintln!("{text}");
+}
+
+#[cfg(windows)]
+fn protect(text: &str) -> Option<String> {
+    dpapi::protect(text, ENTROPY, w!("kute developer"))
+}
+
+#[cfg(target_os = "linux")]
+fn protect(text: &str) -> Option<String> {
+    dpapi::protect(text, ENTROPY, "kute developer")
 }
 
 // "--set-dev-token=<username>:<token>" stores, empty value forgets
@@ -56,11 +77,11 @@ pub fn handle_cli_flags() -> bool {
         let gone = fs::remove_file(path()).is_ok();
         message(
             if gone {
-                w!("Developer token removed.")
+                "Developer token removed."
             } else {
-                w!("There was no developer token to remove.")
+                "There was no developer token to remove."
             },
-            MB_ICONINFORMATION,
+            false,
         );
         return true;
     }
@@ -71,8 +92,8 @@ pub fn handle_cli_flags() -> bool {
         && (|| {
             let store = Store {
                 version: FILE_VERSION,
-                user: dpapi::protect(user, ENTROPY, w!("kute developer"))?,
-                token: dpapi::protect(token, ENTROPY, w!("kute developer"))?,
+                user: protect(user)?,
+                token: protect(token)?,
             };
             let text = serde_json::to_string_pretty(&store).ok()?;
             utils::atomic_write(&path(), &text).ok()
@@ -80,11 +101,11 @@ pub fn handle_cli_flags() -> bool {
         .is_some();
 
     if stored {
-        message(w!("Developer token stored. Restart Kute to use it."), MB_ICONINFORMATION);
+        message("Developer token stored. Restart Kute to use it.", false);
     } else {
         message(
-            w!("Could not store the developer token.\n\nExpected --set-dev-token=<username>:<token>, with a token of at least 32 characters."),
-            MB_ICONERROR,
+            "Could not store the developer token.\n\nExpected --set-dev-token=<username>:<token>, with a token of at least 32 characters.",
+            true,
         );
     }
     true
@@ -96,6 +117,22 @@ pub fn proof(nonce: &str, game: &str, hash: &str) -> Option<(String, String)> {
     Some((user, dpapi::hex(&hmac_sha256(token.as_bytes(), data.as_bytes())?)))
 }
 
+// rfc 2104
+#[cfg(target_os = "linux")]
+fn hmac_sha256(key: &[u8], data: &[u8]) -> Option<[u8; 32]> {
+    use sha2::{Digest, Sha256};
+    let mut block = [0u8; 64];
+    if key.len() > 64 {
+        block[..32].copy_from_slice(&Sha256::digest(key));
+    } else {
+        block[..key.len()].copy_from_slice(key);
+    }
+    let pad = |byte: u8| block.map(|k| k ^ byte);
+    let inner = Sha256::new().chain_update(pad(0x36)).chain_update(data).finalize();
+    Some(Sha256::new().chain_update(pad(0x5c)).chain_update(inner).finalize().into())
+}
+
+#[cfg(windows)]
 fn hmac_sha256(key: &[u8], data: &[u8]) -> Option<[u8; 32]> {
     let mut algorithm = BCRYPT_ALG_HANDLE::default();
     let mut hash = BCRYPT_HASH_HANDLE::default();
@@ -116,4 +153,16 @@ fn hmac_sha256(key: &[u8], data: &[u8]) -> Option<[u8; 32]> {
         result?;
     }
     Some(digest)
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn hmac_matches_rfc_4231() {
+        let digest = super::hmac_sha256(b"Jefe", b"what do ya want for nothing?").unwrap();
+        assert_eq!(super::dpapi::hex(&digest), "5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843");
+        // key longer than the block gets hashed first (test case 6)
+        let digest = super::hmac_sha256(&[0xaa; 131], b"Test Using Larger Than Block-Size Key - Hash Key First").unwrap();
+        assert_eq!(super::dpapi::hex(&digest), "60e431591ee0b67f0d8a26aacbf5b77f8e0bc6213728c5140546040f0ee37f54");
+    }
 }

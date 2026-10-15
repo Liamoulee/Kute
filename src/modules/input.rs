@@ -430,7 +430,9 @@ unsafe extern "system" fn wnd_proc_widget_rampboost(window: HWND, message: u32, 
 unsafe extern "system" fn window_event_proc(_hook: HWINEVENTHOOK, _event: u32, hwnd: HWND, _id_object: i32, _id_child: i32, _thread: u32, _time: u32) {
     unsafe {
         let prop = GetPropW(hwnd, w!("Chrome.WindowTranslucent"));
-        if !prop.is_invalid() {
+        // the pointer lock bubble is click-through, the color picker's eyedropper is translucent too (destroying it crashed on F11)
+        let click_through = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) & WS_EX_TRANSPARENT.0 as isize != 0;
+        if !prop.is_invalid() && click_through {
             debug_print!("input: destroying translucent Chrome window={hwnd:?}");
             PostMessageW(Some(hwnd), WM_DESTROY, WPARAM(0), LPARAM(0)).ok();
         }

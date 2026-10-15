@@ -76,7 +76,7 @@ class RenderFps {
             return;
         }
         kute.showNotification?.(kute.settings?.data?.hardFlip === false
-            ? "Present FPS needs the DXGI Swapchain Hook (Settings, Advanced), which is off. Showing the game's FPS"
+            ? "Present FPS needs the DXGI Swapchain Hook (Settings, Engine), which is off. Showing the game's FPS"
             : "Present FPS is hidden: the swap chain hook does not see the game's frames on this PC, its number would be wrong. Showing the game's FPS", false, 8);
     }
 

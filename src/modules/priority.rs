@@ -11,7 +11,8 @@ fn priority_class(level: &str) -> PROCESS_CREATION_FLAGS {
         "High" => HIGH_PRIORITY_CLASS,
         "Above Normal" => ABOVE_NORMAL_PRIORITY_CLASS,
         "Below Normal" => BELOW_NORMAL_PRIORITY_CLASS,
-        "Idle" => IDLE_PRIORITY_CLASS,
+        // task manager calls idle "Low", the option fell through to normal until 2026-10-04
+        "Low" | "Idle" => IDLE_PRIORITY_CLASS,
         _ => NORMAL_PRIORITY_CLASS,
     }
 }

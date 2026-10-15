@@ -1,0 +1,61 @@
+<style>
+#rcBanner {
+	box-sizing: border-box;
+	display: flex;
+	gap: 1em;
+	align-items: center;
+	width: max-content;
+	max-width: min(900px, 92vw);
+	pointer-events: auto;
+	padding: 0.7em 1em 0.7em 1.2em;
+	background: #1e1e1e;
+	color: #ddd;
+	border: 1px solid #35e0e8;
+	border-radius: 10px;
+	box-shadow: 0 6px 30px #000a;
+	font-family: Consolas, monospace;
+	font-size: 14px;
+	line-height: 1.45;
+}
+
+#rcTitle {
+	color: #35e0e8;
+	font-weight: bold;
+}
+
+#rcText {
+	flex: 1;
+}
+
+#rcActions {
+	display: flex;
+	flex-shrink: 0;
+	gap: 0.5em;
+}
+
+.rcButton {
+	padding: 0.45em 0.9em;
+	border-radius: 7px;
+	background: #2a2a2a;
+	color: #fff;
+	cursor: pointer;
+	user-select: none;
+	white-space: nowrap;
+}
+
+.rcButton:hover {
+	background: #333;
+}
+
+.rcButton.rcMain {
+	background: #1b5e63;
+}
+
+.rcButton.rcMain:hover {
+	background: #23777d;
+}
+</style>
+<div id="rcBanner">
+	<div id="rcText"><span id="rcTitle"></span> <span id="rcBody"></span></div>
+	<div id="rcActions"></div>
+</div>

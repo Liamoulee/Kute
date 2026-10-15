@@ -1,0 +1,159 @@
+<style>
+#clPanel {
+	box-sizing: border-box;
+	display: flex;
+	flex-direction: column;
+	width: 820px;
+	max-width: 92vw;
+	height: 640px;
+	max-height: 88vh;
+	padding: 1.6em 2em 1.2em 2em;
+	background: #1e1e1e;
+	color: #fff;
+	border-radius: 14px;
+	box-shadow: 0 8px 48px #000c;
+	font-family: Consolas, monospace;
+}
+
+#clPanel h2 {
+	margin: 0 0 0.6em 0;
+	font-size: 1.6em;
+	letter-spacing: 1px;
+	color: #35e0e8;
+	text-align: center;
+}
+
+#clBar {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5em;
+	align-items: center;
+	margin-bottom: 0.8em;
+}
+
+.clFilter,
+.clButton {
+	padding: 0.45em 0.8em;
+	border: 1px solid #3a3a3a;
+	border-radius: 8px;
+	background: #2a2a2a;
+	cursor: pointer;
+	user-select: none;
+}
+
+.clFilter:hover,
+.clButton:hover {
+	border-color: #35e0e8;
+	color: #35e0e8;
+}
+
+.clFilter.clOn {
+	border-color: #35e0e8;
+	background: #1f3a3c;
+	color: #35e0e8;
+}
+
+#clFilters {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5em;
+}
+
+#clSearch {
+	flex: 1;
+	min-width: 8em;
+	padding: 0.45em 0.8em;
+	border: 1px solid #3a3a3a;
+	border-radius: 8px;
+	outline: none;
+	background: #141414;
+	color: #fff;
+	font-family: inherit;
+	font-size: 1em;
+}
+
+#clSearch:focus {
+	border-color: #35e0e8;
+}
+
+#clList {
+	flex: 1;
+	min-height: 0;
+	overflow-y: auto;
+	scrollbar-width: thin;
+	scrollbar-color: #444 #1e1e1e;
+	padding: 0.4em 0.6em;
+	border-radius: 8px;
+	background: #141414;
+	line-height: 1.5;
+	user-select: text;
+	cursor: text;
+}
+
+.clRow {
+	padding: 0.1em 0;
+	word-break: break-word;
+}
+
+.clTime {
+	margin-right: 0.7em;
+	color: #666;
+}
+
+.clKill {
+	color: #aaa;
+}
+
+.clEvent {
+	color: #f3d08a;
+}
+
+.clServer {
+	color: #e58cf0;
+}
+
+.clLobby {
+	margin: 0.5em 0;
+	padding-top: 0.3em;
+	border-top: 1px solid #2a2a2a;
+	color: #35e0e8;
+	font-size: 0.85em;
+	letter-spacing: 2px;
+	text-transform: uppercase;
+	user-select: none;
+}
+
+.clEmpty {
+	padding: 2em 0;
+	color: #777;
+	text-align: center;
+	user-select: none;
+}
+
+#clFoot {
+	display: flex;
+	gap: 0.7em;
+	align-items: center;
+	margin-top: 0.9em;
+}
+
+#clHint {
+	flex: 1;
+	color: #777;
+	font-size: 0.85em;
+}
+</style>
+<div id="clPanel">
+	<h2>Chat Logs</h2>
+	<div id="clBar">
+		<div id="clFilters"></div>
+		<input id="clSearch" type="text" placeholder="Search" autocomplete="off" spellcheck="false">
+	</div>
+	<div id="clList"></div>
+	<div id="clFoot">
+		<div id="clHint"></div>
+		<div class="clButton" id="clCopy">Copy</div>
+		<div class="clButton" id="clClear">Clear</div>
+		<div class="clButton" id="clClose">Close</div>
+	</div>
+</div>

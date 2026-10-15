@@ -31,33 +31,89 @@ pub fn post_string(browser: &Browser, text: &str) {
     }
 }
 
+#[cfg(windows)]
+pub fn host_features() -> serde_json::Value {
+    serde_json::json!([
+        "matchmaker",
+        "dev-proof",
+        "kute-icons",
+        "script-manager",
+        "audio-fix",
+        "spotify",
+        "custom-css",
+        "swapper-editor",
+        "x3d-cores",
+        "custom-sky",
+        "performance-mode",
+        "cef-patches",
+        "hybrid-gpu",
+        "autodetect-v2",
+        "load-sample",
+        "hotkeys",
+        "video-skins",
+        "mute",
+        "userscripts-live",
+        "swapper-over-blocklist",
+        "swapper-watch",
+        "accounts-order",
+        "diagnostics",
+        "recovery"
+    ])
+}
+
+// what the linux host really does, the rest are stubs there (src/linux)
+#[cfg(target_os = "linux")]
+pub fn host_features() -> serde_json::Value {
+    serde_json::json!([
+        "matchmaker",
+        "dev-proof",
+        "kute-icons",
+        "script-manager",
+        "audio-fix",
+        "spotify",
+        "custom-css",
+        "swapper-editor",
+        "custom-sky",
+        "performance-mode",
+        "cef-patches",
+        "hotkeys",
+        "appimage-update",
+        "ramp-boost",
+        "hybrid-gpu",
+        "x3d-cores",
+        "load-sample",
+        "autodetect-v2",
+        "video-skins",
+        "prime-offload",
+        "mute",
+        "userscripts-live",
+        "swapper-over-blocklist",
+        "accounts-order",
+        "diagnostics",
+        "recovery"
+    ])
+}
+
 pub fn send_info(frame: &Frame) {
     let version = env!("CARGO_PKG_VERSION");
     let mut info_map = serde_json::Map::new();
-    info_map.insert("settings".to_string(), serde_json::json!(&*crate::CONFIG.lock().unwrap()));
+    let mut settings = serde_json::json!(&*crate::CONFIG.lock().unwrap());
+    // safe mode and crash tests: the page shows and follows this session's values, the stored ones stay
+    if let Some(data) = settings["data"].as_object_mut() {
+        for (key, value) in &crate::modules::recovery::overrides().settings {
+            data.insert(key.clone(), value.clone());
+        }
+    }
+    info_map.insert("settings".to_string(), settings);
+    let recovery = crate::modules::recovery::page_info();
+    if !recovery.is_null() {
+        info_map.insert("recovery".to_string(), recovery);
+    }
     info_map.insert("version".to_string(), serde_json::Value::String(version.to_string()));
     info_map.insert("apiBase".to_string(), serde_json::Value::String(crate::utils::api_url()));
-    info_map.insert(
-        "hostFeatures".to_string(),
-        serde_json::json!([
-            "matchmaker",
-            "dev-proof",
-            "kute-icons",
-            "script-manager",
-            "audio-fix",
-            "spotify",
-            "custom-css",
-            "swapper-editor",
-            "x3d-cores",
-            "custom-sky",
-            "performance-mode",
-            "cef-patches",
-            "hybrid-gpu",
-            "autodetect-v2",
-            "load-sample",
-            "hotkeys"
-        ]),
-    );
+    // an exe without this field is a windows one
+    info_map.insert("platform".to_string(), serde_json::Value::String(std::env::consts::OS.to_string()));
+    info_map.insert("hostFeatures".to_string(), host_features());
 
     // restart-only settings as this process runs them, the page compares them with the stored ones
     let mut running: serde_json::Map<String, serde_json::Value> = crate::app::PATCHES
@@ -103,5 +159,51 @@ wrap_task! {
 // usable from any thread
 pub fn post_json_later(browser_id: i32, json: String) {
     let mut task = PostJsonTask::new(browser_id, json);
+    post_task(ThreadId::UI, Some(&mut task));
+}
+
+wrap_task! {
+    pub struct LoadScriptsTask {
+        browser_id: i32,
+        request: String,
+    }
+
+    impl Task {
+        fn execute(&self) {
+            let Some(frame) = crate::window::browser_by_id(self.browser_id).and_then(|browser| browser.main_frame()) else { return };
+            let Some(mut message) = process_message_create(Some(&CefString::from(constants::MSG_LOAD_SCRIPTS))) else { return };
+            if let Some(args) = message.argument_list() {
+                args.set_string(0, Some(&CefString::from(self.request.as_str())));
+            }
+            frame.send_process_message(ProcessId::RENDERER, Some(&mut message));
+        }
+    }
+}
+
+#[cfg(windows)]
+wrap_task! {
+    pub struct PostMainJsonTask {
+        json: String,
+    }
+
+    impl Task {
+        fn execute(&self) {
+            if let Some(browser) = crate::window::main_browser() {
+                post_json(&browser, &self.json);
+            }
+        }
+    }
+}
+
+// usable from any thread
+#[cfg(windows)]
+pub fn post_json_to_main_later(json: String) {
+    let mut task = PostMainJsonTask::new(json);
+    post_task(ThreadId::UI, Some(&mut task));
+}
+
+// usable from any thread
+pub fn load_scripts_later(browser_id: i32, request: String) {
+    let mut task = LoadScriptsTask::new(browser_id, request);
     post_task(ThreadId::UI, Some(&mut task));
 }

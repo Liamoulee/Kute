@@ -62,6 +62,25 @@ pub(crate) fn is_main_swapchain(swapchain: *mut c_void) -> bool {
 
 pub(crate) static TEARING_SUPPORTED: AtomicBool = AtomicBool::new(false);
 
+// the KUTE_HOOK_* knobs only count in bench processes (bench.rs sets KUTE_BENCH_HOOK), a stale variable from a
+// benchmark shell must not change a player's client
+pub(crate) fn knobs_allowed() -> bool {
+    static ALLOWED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ALLOWED.get_or_init(|| std::env::var_os("KUTE_BENCH_HOOK").is_some())
+}
+
+pub(crate) fn knob(name: &str, default: u32) -> u32 {
+    if !knobs_allowed() {
+        return default;
+    }
+    // what DXGI accepts: 2 to 16 buffers, 1 to 16 frames of latency
+    std::env::var(name)
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .filter(|&value| value > 0 && value <= 16)
+        .unwrap_or(default)
+}
+
 // same check as chromium's DXGISwapChainTearingSupported, cached
 unsafe fn tearing_supported(factory: *mut c_void) -> bool {
     static CHECKED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
@@ -93,6 +112,10 @@ unsafe fn create_swapchain_unmodified(
     unsafe {
         let original_fn = ORIGINAL_CREATE_SWAPCHAIN.unwrap();
         let result = original_fn(this, pdevice, pdesc, prestricttooutput, ppswapchain);
+        if result.is_ok() && !ppswapchain.is_null() {
+            crate::hook_present_of(*ppswapchain);
+            crate::note_chain(false);
+        }
 
         // a new chain can reuse a dead one's address, drop its stale wait handle
         if result.is_ok() && !ppswapchain.is_null() && WAIT_HANDLE.write().unwrap().remove(&(*ppswapchain as usize)).is_some() {
@@ -104,6 +127,22 @@ unsafe fn create_swapchain_unmodified(
     }
 }
 
+// chromium makes a chain per hwnd: the game window, 16x16 internal surfaces, and popups such as a <select> list,
+// which is over 200 px both ways on a scaled display (a region dropdown got prepared and captured as the game once).
+// the host writes the main window's client size, before that only the tiny surfaces are told apart
+fn is_game_sized(width: u32, height: u32) -> bool {
+    let shared = SHARED_MEM_PTR.load(Ordering::Acquire);
+    let size = if shared != 0 {
+        unsafe { shared!(shared, window_size).load(Ordering::Relaxed) }
+    } else {
+        0
+    };
+    if size == 0 {
+        return width >= 200 && height >= 200;
+    }
+    (size >> 32) as u32 == width && size as u32 == height
+}
+
 pub(crate) unsafe extern "system" fn create_swapchain_hk(
     this: *mut c_void,
     pdevice: *mut c_void,
@@ -112,9 +151,12 @@ pub(crate) unsafe extern "system" fn create_swapchain_hk(
     ppswapchain: *mut *mut c_void,
 ) -> HRESULT {
     unsafe {
-        // skip chromium's tiny internal surfaces (16x16)
-        if (*pdesc).Width < 200 || (*pdesc).Height < 200 {
-            debug_print!("render: swap chain {}x{} left alone (under 200 px)", (*pdesc).Width, (*pdesc).Height);
+        if !is_game_sized((*pdesc).Width, (*pdesc).Height) {
+            debug_print!(
+                "render: swap chain {}x{} left alone (not the game window's size)",
+                (*pdesc).Width,
+                (*pdesc).Height
+            );
             return create_swapchain_unmodified(this, pdevice, pdesc, prestricttooutput, ppswapchain);
         }
         debug_print!(
@@ -125,10 +167,18 @@ pub(crate) unsafe extern "system" fn create_swapchain_hk(
             (*pdesc).Format.0,
             (*pdesc).Flags
         );
+        // KUTE_HOOK_STOCKCHAIN=1: bench knob, chromium's own chain untouched (no latency, no wait handle), the
+        // present hook then only detours. KUTE_HOOK_NOMMCSS=1 skips the "Games" thread characteristics
+        // a chain prepared for a hook that will never run is pure cost, chromium's own stays then
+        if knob("KUTE_HOOK_STOCKCHAIN", 0) == 1 || crate::present_hook_failed() {
+            return create_swapchain_unmodified(this, pdevice, pdesc, prestricttooutput, ppswapchain);
+        }
         let mut desc = *pdesc;
         // no SHADER_INPUT, it costs 25-50% of the uncapped present rate and nothing needs it
         desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-        desc.BufferCount = 2;
+        // KUTE_HOOK_BUFFERS and KUTE_HOOK_LATENCY: bench knobs to bisect the hook's cost on a starved cpu, not settings.
+        // flip sequential needs two buffers, latency may be one
+        desc.BufferCount = knob("KUTE_HOOK_BUFFERS", 2).max(2);
         desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL; // discard crashes
         desc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
         // DXGI_SCALING_NONE crashes
@@ -146,6 +196,14 @@ pub(crate) unsafe extern "system" fn create_swapchain_hk(
             create_swapchain_unmodified(this, pdevice, pdesc, prestricttooutput, ppswapchain)
         } else {
             debug_print!("render: swap chain created pointer={:?}", *ppswapchain);
+            if !crate::hook_present_of(*ppswapchain) {
+                // prepared for a hook that does not see it, that chain would cost without paying back
+                debug_print!("render: the hook does not cover this chain, releasing it and creating it unmodified");
+                drop(IDXGISwapChain1::from_raw(*ppswapchain));
+                *ppswapchain = std::ptr::null_mut();
+                return create_swapchain_unmodified(this, pdevice, pdesc, prestricttooutput, ppswapchain);
+            }
+            crate::note_chain(true);
             let swap_chain = IDXGISwapChain1::from_raw(*ppswapchain);
             // capture needs the real device
             let device = match swap_chain.GetDevice::<ID3D11Device>() {
@@ -173,7 +231,7 @@ pub(crate) unsafe extern "system" fn create_swapchain_hk(
             capture::capture_on_swapchain(*ppswapchain, device);
             if let Ok(swap_chain2) = swap_chain.cast::<IDXGISwapChain2>() {
                 swap_chain2
-                    .SetMaximumFrameLatency(1)
+                    .SetMaximumFrameLatency(knob("KUTE_HOOK_LATENCY", 1))
                     .unwrap_or_else(|e| debug_print!("Failed to set latency: {:?}", e));
                 // depth 1 is what the pacing relies on
                 debug_print!("render: frame latency now {:?}", swap_chain2.GetMaximumFrameLatency());

@@ -2,6 +2,11 @@ use crate::{app, bridge, constants, debug_print, modules, utils, utils::config, 
 use cef::{rc::*, *};
 use std::sync::{LazyLock, Mutex, mpsc};
 
+#[cfg(windows)]
+type OsKeyEvent = sys::MSG;
+#[cfg(target_os = "linux")]
+type OsKeyEvent = sys::XEvent;
+
 // args from a second instance while the main window gets recreated
 static PENDING_ARGS: Mutex<Option<String>> = Mutex::new(None);
 
@@ -36,6 +41,21 @@ wrap_task! {
         fn execute(&self) {
             if let Some(browser) = window::browser_by_id(self.browser_id) {
                 bridge::post_string(&browser, "game-updated");
+            }
+        }
+    }
+}
+
+wrap_task! {
+    struct HotkeyTask {
+        browser_id: i32,
+        action: modules::hotkeys::Action,
+    }
+
+    impl Task {
+        fn execute(&self) {
+            if let Some(browser) = window::browser_by_id(self.browser_id) {
+                window::handle_accelerator_key(&browser, self.action);
             }
         }
     }
@@ -76,7 +96,12 @@ wrap_resource_request_handler! {
             }
 
             // kute icons answer the player's kute.lol/kr urls locally, that is no contact with the server
-            if modules::blocklist::is_blocked(&url) && modules::icons::bytes_for(&url).is_none() && !modules::blocklist::wants_empty_model(&url) {
+            // a file the player swapped in beats our blocklist (muzflash.png, ambient sounds, cats)
+            if modules::blocklist::is_blocked(&url)
+                && modules::icons::bytes_for(&url).is_none()
+                && !modules::blocklist::wants_empty_model(&url)
+                && !modules::swapper::has_swap(&url)
+            {
                 debug_print!("handlers: blocked {url}");
                 return ReturnValue::CANCEL;
             }
@@ -136,6 +161,24 @@ wrap_request_handler! {
     struct KuteRequestHandler;
 
     impl RequestHandler {
+        fn on_before_browse(
+            &self,
+            browser: Option<&mut Browser>,
+            frame: Option<&mut Frame>,
+            _request: Option<&mut Request>,
+            _user_gesture: ::std::os::raw::c_int,
+            _is_redirect: ::std::os::raw::c_int,
+        ) -> ::std::os::raw::c_int {
+            // before the page asks for its files, so a swap dropped into the folder applies on a plain reload
+            if let (Some(browser), Some(frame)) = (browser, frame)
+                && browser.is_popup() == 0
+                && frame.is_main() != 0
+            {
+                modules::swapper::rescan();
+            }
+            0
+        }
+
         fn resource_request_handler(
             &self,
             _browser: Option<&mut Browser>,
@@ -148,6 +191,22 @@ wrap_request_handler! {
         ) -> Option<ResourceRequestHandler> {
             Some(KuteResourceRequestHandler::new())
         }
+
+        fn on_render_process_terminated(
+            &self,
+            _browser: Option<&mut Browser>,
+            status: TerminationStatus,
+            error_code: ::std::os::raw::c_int,
+            error_string: Option<&CefString>,
+        ) {
+            let text = format!("renderer ended: {status:?} code {error_code} {}", utils::cef_str(error_string));
+            debug_print!("{text}");
+            modules::eventlog::push("host", &text);
+            // a kill is kute closing it or the player in the task manager, everything else died on its own
+            if status.get_raw() != TerminationStatus::PROCESS_WAS_KILLED.get_raw() {
+                modules::recovery::renderer_crashed();
+            }
+        }
     }
 }
 
@@ -156,6 +215,15 @@ wrap_request_context_handler! {
     pub struct KuteRequestContextHandler;
 
     impl RequestContextHandler {
+        // chrome style never stores a grant from the permission handler, without this enumerateDevices hides
+        // every mic name and krunker's voice chat shows "Unknown device"
+        fn on_request_context_initialized(&self, request_context: Option<&mut RequestContext>) {
+            if let Some(context) = request_context {
+                let url = CefString::from("https://krunker.io/");
+                context.set_content_setting(Some(&url), Some(&url), ContentSettingTypes::MEDIASTREAM_MIC, ContentSettingValues::ALLOW);
+            }
+        }
+
         fn resource_request_handler(
             &self,
             _browser: Option<&mut Browser>,
@@ -180,20 +248,25 @@ wrap_keyboard_handler! {
             &self,
             browser: Option<&mut Browser>,
             event: Option<&KeyEvent>,
-            _os_event: Option<&mut sys::MSG>,
+            _os_event: Option<&mut OsKeyEvent>,
             _is_keyboard_shortcut: Option<&mut ::std::os::raw::c_int>,
         ) -> ::std::os::raw::c_int {
             let (Some(browser), Some(event)) = (browser, event) else { return 0 };
             if event.type_ != KeyEventType::RAWKEYDOWN {
                 return 0;
             }
+            // after the key: a resize closes a focused popup (color picker), chromium then sends the key into the freed widget
             if let Some(action) = crate::modules::hotkeys::action_for(event.windows_key_code, event.modifiers) {
-                window::handle_accelerator_key(browser, action);
+                let mut task = HotkeyTask::new(browser.identifier(), action);
+                post_task(ThreadId::UI, Some(&mut task));
             }
             0
         }
     }
 }
+
+// chrome/app/chrome_command_ids.h
+const IDC_CLOSE_WINDOW: ::std::os::raw::c_int = 34012;
 
 wrap_command_handler! {
     struct KuteCommandHandler;
@@ -201,10 +274,16 @@ wrap_command_handler! {
     impl CommandHandler {
         fn on_chrome_command(
             &self,
-            _browser: Option<&mut Browser>,
-            _command_id: ::std::os::raw::c_int,
+            browser: Option<&mut Browser>,
+            command_id: ::std::os::raw::c_int,
             _disposition: WindowOpenDisposition,
         ) -> ::std::os::raw::c_int {
+            // alt+f4 is a chrome accelerator in a chrome style browser, it never reaches our window as WM_SYSCOMMAND
+            if command_id == IDC_CLOSE_WINDOW
+                && let Some(browser) = browser
+            {
+                window::close_window(browser);
+            }
             1
         }
     }
@@ -314,12 +393,19 @@ wrap_display_handler! {
         fn on_console_message(
             &self,
             _browser: Option<&mut Browser>,
-            _level: LogSeverity,
-            _message: Option<&CefString>,
-            _source: Option<&CefString>,
-            _line: ::std::os::raw::c_int,
+            level: LogSeverity,
+            message: Option<&CefString>,
+            source: Option<&CefString>,
+            line: ::std::os::raw::c_int,
         ) -> ::std::os::raw::c_int {
-            debug_print!("console: {} ({}:{_line})", utils::cef_str(_message), utils::cef_str(_source));
+            debug_print!("console: {} ({}:{line})", utils::cef_str(message), utils::cef_str(source));
+            if level == LogSeverity::WARNING || level == LogSeverity::ERROR || level == LogSeverity::FATAL {
+                let source = utils::cef_str(source);
+                let file = source.split(['?', '#']).next().unwrap_or_default().rsplit('/').next().unwrap_or_default();
+                let kind = if level == LogSeverity::WARNING { "warn" } else { "error" };
+                let at = if file.is_empty() { String::new() } else { format!(" ({file}:{line})") };
+                modules::eventlog::push(kind, &format!("{}{at}", utils::cef_str(message)));
+            }
             0
         }
     }
@@ -456,10 +542,52 @@ wrap_client! {
     }
 }
 
+#[cfg(windows)]
 fn handle_accounts_message(browser: &Browser, message: &str) {
+    if let Some(reply) = accounts_command(message, |script| modules::devtools::evaluate(browser, &script)) {
+        bridge::post_json(browser, &reply);
+    }
+}
+
+// the keyring may ask for its password and wait minutes for it, never on the ui thread
+#[cfg(target_os = "linux")]
+fn handle_accounts_message(browser: &Browser, message: &str) {
+    static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
+    let browser_id = browser.identifier();
+    let message = message.to_string();
+    std::thread::spawn(move || {
+        let _store = ONE_AT_A_TIME.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        let reply = accounts_command(&message, |script| {
+            let mut task = EvaluateTask::new(browser_id, script);
+            post_task(ThreadId::UI, Some(&mut task));
+        });
+        if let Some(reply) = reply {
+            bridge::post_json_later(browser_id, reply);
+        }
+    });
+}
+
+#[cfg(target_os = "linux")]
+wrap_task! {
+    struct EvaluateTask {
+        browser_id: i32,
+        expression: String,
+    }
+
+    impl Task {
+        fn execute(&self) {
+            if let Some(browser) = window::browser_by_id(self.browser_id) {
+                modules::devtools::evaluate(&browser, &self.expression);
+            }
+        }
+    }
+}
+
+// the {accounts} reply, None for a command that gets none. a login hands its form script to run_login
+fn accounts_command(message: &str, run_login: impl FnOnce(String)) -> Option<String> {
     let (command, payload) = message.split_once(' ').unwrap_or((message, ""));
     if payload.len() > 64 * 1024 {
-        return;
+        return None;
     }
     match command {
         "list" => {}
@@ -475,20 +603,23 @@ fn handle_accounts_message(browser: &Browser, message: &str) {
                 }
             }
         }
-        "remove" | "login" => {
-            let Ok(value) = serde_json::from_str::<serde_json::Value>(payload) else {
-                return;
-            };
-            let Some(username) = value["username"].as_str() else { return };
-            if command == "remove" {
-                modules::accounts::remove(username);
-            } else {
-                modules::accounts::login(browser, username);
+        "order" => {
+            if let Ok(order) = serde_json::from_str::<Vec<String>>(payload) {
+                modules::accounts::reorder(&order);
             }
         }
-        _ => return,
+        "remove" | "login" => {
+            let value = serde_json::from_str::<serde_json::Value>(payload).ok()?;
+            let username = value["username"].as_str()?;
+            if command == "remove" {
+                modules::accounts::remove(username);
+            } else if let Some(script) = modules::accounts::login_script(username) {
+                run_login(script);
+            }
+        }
+        _ => return None,
     }
-    bridge::post_json(browser, &serde_json::json!({ "accounts": modules::accounts::list() }).to_string());
+    Some(serde_json::json!({ "accounts": modules::accounts::list() }).to_string())
 }
 
 // manager commands write files, a non krunker page could plant a userscript
@@ -509,6 +640,11 @@ static MANAGER_QUEUE: LazyLock<Option<mpsc::Sender<(i32, String)>>> = LazyLock::
         .spawn(move || {
             for (browser_id, message) in receiver {
                 let reply = match message.split_once('-') {
+                    // after the writes queued before it, the renderer reads the scripts from disk
+                    Some(("scripts", rest)) if rest.starts_with("load ") => {
+                        bridge::load_scripts_later(browser_id, rest["load ".len()..].to_string());
+                        None
+                    }
                     Some(("scripts", rest)) => handle_scripts_message(rest),
                     Some(("swapper", rest)) => handle_swapper_message(rest),
                     Some(("css", rest)) => handle_css_message(rest),
@@ -637,7 +773,10 @@ pub fn open_documents_subpath(target: &str) {
         }
         _ => return,
     };
+    #[cfg(windows)]
     std::process::Command::new("explorer.exe").arg(path_to_open).spawn().ok();
+    #[cfg(target_os = "linux")]
+    crate::linux::sys::open(path_to_open);
 }
 
 pub fn open_in_default_browser(url: &str) {
@@ -647,10 +786,15 @@ pub fn open_in_default_browser(url: &str) {
     if !allowed || url.chars().any(|c| c.is_whitespace() || c == '"') {
         return;
     }
-    use windows::Win32::UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOWNORMAL};
-    let url = windows::core::HSTRING::from(url);
-    unsafe {
-        ShellExecuteW(None, windows::core::w!("open"), &url, None, None, SW_SHOWNORMAL);
+    #[cfg(target_os = "linux")]
+    crate::linux::sys::open(url);
+    #[cfg(windows)]
+    {
+        use windows::Win32::UI::{Shell::ShellExecuteW, WindowsAndMessaging::SW_SHOWNORMAL};
+        let url = windows::core::HSTRING::from(url);
+        unsafe {
+            ShellExecuteW(None, windows::core::w!("open"), &url, None, None, SW_SHOWNORMAL);
+        }
     }
 }
 
@@ -700,6 +844,26 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
     if let Some(rest) = message_string.strip_prefix("css-") {
         if is_krunker_frame(frame) && rest.len() <= 8 * 1024 * 1024 {
             queue_manager_message(browser, message_string);
+        }
+        return;
+    }
+    // json carries ", ", and the page part can be large (auto-detect state)
+    if let Some(rest) = message_string.strip_prefix("diagnostics-collect ") {
+        if is_krunker_frame(frame) {
+            let hwnd = window::root_hwnd(browser).unwrap_or_default();
+            modules::diagnostics::collect(browser.identifier(), modules::specs::collect(hwnd), rest.to_string());
+        }
+        return;
+    }
+    if let Some(rest) = message_string.strip_prefix("diagnostics-save ") {
+        if is_krunker_frame(frame) {
+            modules::diagnostics::save(browser.identifier(), rest);
+        }
+        return;
+    }
+    if let Some(command) = message_string.strip_prefix("recovery-") {
+        if is_krunker_frame(frame) {
+            modules::recovery::command(command);
         }
         return;
     }
@@ -763,6 +927,9 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             if *setting == "disableCats" {
                 modules::blocklist::set_cats_off(*value == "true");
             }
+            if *setting == "disableVideoSkins" {
+                modules::blocklist::set_video_skins_off(*value == "true");
+            }
             if *setting == "laptopPowerBoost" {
                 if *value == "true" {
                     modules::power::boost()
@@ -770,9 +937,13 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
                     modules::power::restore()
                 }
             }
-            // overrides disableCats and swapper, the stored values stay
+            if *setting == "swapper" {
+                queue_manager_message(browser, "swapper-list");
+            }
+            // overrides disableCats, disableVideoSkins and swapper, the stored values stay
             if *setting == "performanceMode" {
                 modules::blocklist::set_cats_off(config("disableCats", true));
+                modules::blocklist::set_video_skins_off(config("disableVideoSkins", false));
                 queue_manager_message(browser, "swapper-list");
             }
             // present hook paces the game loop, gameFpsLimit.js has the fallback
@@ -791,22 +962,49 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             }
         }
         ["get-info"] => {
+            // auto-detect mutes the browser for its test match, a page that died mid run would leave it muted
+            if let Some(host) = browser.host() {
+                host.set_audio_muted(0);
+            }
             bridge::send_info(frame);
+            // the bundle runs on the game page: what the crash tests count as loaded, krunker's own menu may take minutes
+            if is_krunker_frame(frame) {
+                modules::recovery::milestone("loaded");
+            }
+        }
+        ["mute", value] => {
+            if let Some(host) = browser.host() {
+                host.set_audio_muted(value.parse::<bool>().unwrap_or(false).into());
+            }
         }
         // dev badge proof, the token never leaves this process
         ["dev-proof", nonce, game, hash] => {
             let sane = nonce.len() <= 64 && game.len() <= 32 && hash.len() == 32;
-            let proof = if sane { modules::dev::proof(nonce, game, hash) } else { None };
-            let reply = match proof {
-                Some((user, proof)) => serde_json::json!({ "devProof": { "nonce": nonce, "user": user, "proof": proof } }),
-                None => serde_json::json!({ "devProof": { "nonce": nonce } }),
+            let (nonce, game, hash) = (nonce.to_string(), game.to_string(), hash.to_string());
+            let answer = move || {
+                let proof = if sane { modules::dev::proof(&nonce, &game, &hash) } else { None };
+                match proof {
+                    Some((user, proof)) => serde_json::json!({ "devProof": { "nonce": nonce, "user": user, "proof": proof } }),
+                    None => serde_json::json!({ "devProof": { "nonce": nonce } }),
+                }
+                .to_string()
             };
-            bridge::post_json(browser, &reply.to_string());
+            #[cfg(windows)]
+            bridge::post_json(browser, &answer());
+            // the token decrypts through the keyring, which may ask for its password first
+            #[cfg(target_os = "linux")]
+            {
+                let browser_id = browser.identifier();
+                std::thread::spawn(move || bridge::post_json_later(browser_id, answer()));
+            }
         }
         ["drag", value] => {
             // true = menu open, pointer free
             let value = value.parse::<bool>().unwrap_or(false);
             modules::input::set_pointer_locked(!value);
+            if !value {
+                modules::recovery::milestone("match");
+            }
         }
         ["throttle", status] => {
             // "off" is used by auto-detect
@@ -835,7 +1033,11 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         }
         ["get-present-intervals"] => {
             // blocks up to 150 ms, off the UI thread
+            #[cfg(windows)]
             let hook = config("hardFlip", true);
+            // patch 10, always on
+            #[cfg(target_os = "linux")]
+            let hook = true;
             let browser_id = browser.identifier();
             std::thread::spawn(move || {
                 let intervals = if hook { app::take_present_intervals() } else { None };
@@ -865,8 +1067,30 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         ["close"] => {
             window::close_all();
         }
+        // proves the native crash filter writes its files, dev builds only
+        #[cfg(feature = "verbose-logs")]
+        ["crash-test"] => unsafe {
+            std::ptr::write_volatile(std::ptr::without_provenance_mut::<u8>(1), 1);
+        },
         ["restart"] => {
             modules::lifecycle::restart();
+        }
+        // the AppImage updater, linuxUpdate.js
+        #[cfg(target_os = "linux")]
+        ["update-state"] => {
+            modules::updater::send_state(browser);
+        }
+        #[cfg(target_os = "linux")]
+        ["update-install"] => {
+            modules::updater::install();
+        }
+        #[cfg(target_os = "linux")]
+        ["update-restart"] => {
+            modules::updater::restart();
+        }
+        #[cfg(target_os = "linux")]
+        ["update-page"] => {
+            open_in_default_browser(constants::RELEASE_PAGE_URL);
         }
         ["bring-to-front"] => {
             window::bring_to_front(browser);
@@ -901,6 +1125,11 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
                     eprintln!("Failed to set rpc activity: {}", e);
                 }
             }
+        }
+        // linux: the page swallowed a wheel tick while locked (rampBoost.js), windows never sends this
+        #[cfg(target_os = "linux")]
+        ["ramp-wheel", direction] => {
+            modules::input::ramp_wheel(browser, direction.parse::<i32>().unwrap_or(0) > 0);
         }
         ["toggle-rboost", value] => {
             let value = value.parse::<bool>().unwrap_or(false);

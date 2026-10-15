@@ -21,9 +21,17 @@ pub(crate) struct SharedState {
     pub(crate) limiter_mode: u64,
     // luid of the adapter the game's swap chain device runs on, 0 until one was created
     pub(crate) render_adapter: u64,
+    // low byte HOOK_*, bit 4 HOOK_MISMATCH, bits 8 and up: microseconds the Present1 hook took to install
+    pub(crate) hook_state: u64,
+    // main window client size in physical px (width << 32 | height), 0 until the host wrote it
+    pub(crate) window_size: u64,
 }
 pub(crate) const LIMITER_VIZ: u64 = 1;
 pub(crate) const LIMITER_HR_TIMER: u64 = 2;
+pub(crate) const HOOK_WAITING: u64 = 0;
+pub(crate) const HOOK_READY: u64 = 1;
+pub(crate) const HOOK_FAILED: u64 = 2;
+pub(crate) const HOOK_MISMATCH: u64 = 16;
 pub(crate) const SHARED_STATE_SIZE: usize = std::mem::size_of::<SharedState>();
 
 // mirrors `shared!` in the host's app.rs

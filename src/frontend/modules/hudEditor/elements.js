@@ -12,6 +12,7 @@
  * @property {string} [display] Game's display value, used to measure it while hidden
  * @property {[number, number]} [size] Fallback size when it was empty at snapshot time
  * @property {string} [note] Shown next to the name in the panel
+ * @property {(vw: number, vh: number) => [number, number]} [menu] Centre on the menu screen, for a widget the match never shows
  */
 
 /** @type {HudElement[]} */
@@ -55,6 +56,11 @@ export const HUD_ELEMENTS = [
     { key: "nuke", name: "Nuke counter", group: "Kute", selector: "#kuteNukeCounter", clientSetting: "nukeCounter", display: "flex", size: [90, 56] },
     { key: "keystrokes", name: "Keystrokes", group: "Kute", selector: "#kuteKeystrokes", clientSetting: "keystrokes", display: "flex", size: [190, 82] },
     { key: "spotify", name: "Spotify", group: "Kute", selector: "#kuteSpotifyOverlay", clientSetting: "spotifyOverlay", display: "flex", size: [320, 82] },
+    // the centre is menuTimer.css (left 50 %, top 40 % - 105 px), measured live when the editor opens on the menu
+    {
+        key: "menuTimer", name: "Menu timer", group: "Kute", selector: "#uiBase.onMenu .spectateInfo", clientSetting: "menuTimer",
+        size: [150, 60], note: "menu", menu: (vw, vh) => [vw / 2, vh * 0.4 - 105],
+    },
 ];
 
 /**

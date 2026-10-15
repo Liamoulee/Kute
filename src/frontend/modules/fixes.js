@@ -6,11 +6,13 @@ window.chrome.webview.postMessage("throttle, menu");
 // hiding the pointer lock banner also hides the download notice
 const originalExportSettings = window.exportSettings;
 /**
+ * @param {boolean} [asString]
  * @return {any}
  */
-window.exportSettings = () => {
-    kute.showNotification("Settings exported to Downloads!", false, 3);
-    return originalExportSettings();
+window.exportSettings = (asString) => {
+    // uploadSettings calls exportSettings(true) for the json string, no download then
+    if (!asString) kute.showNotification("Settings exported to Downloads!", false, 3);
+    return originalExportSettings(asString);
 };
 
 // no cpu throttle in heavy menus like skins, they take forever to load otherwise

@@ -26,10 +26,30 @@ const MODIFIER_KEYS = new Set(["Shift", "Control", "Alt", "Meta", "AltGraph"]);
  * @property {string} id key in the `hotkeys` setting, host actions must match ACTIONS in hotkeys.rs
  * @property {string} label
  * @property {string} [note]
- * @property {"window"|"toggle"} group
+ * @property {"window"|"toggle"|"account"} group
  * @property {Binding|null} fallback null: no key until the player picks one
  * @property {string} [setting] toggles: the checkbox setting it flips
+ * @property {() => void} [run] toggles without a setting: what the key does
  */
+
+function openChatLogs(){
+    if (kute.settings.data.chatLogs === false || !kute.chatLogs){
+        kute.showNotification("Chat Logs is off in the settings", false, 3);
+        return;
+    }
+    kute.chatLogs.toggle();
+}
+
+/**
+ * @param {number} index
+ */
+function quickLogin(index){
+    if (kute.settings.data.accountManager === false || !kute.accounts){
+        kute.showNotification("Account Manager is off in the settings", false, 3);
+        return;
+    }
+    kute.accounts.loginSlot(index);
+}
 
 /**
  * @param {number} key
@@ -37,6 +57,19 @@ const MODIFIER_KEYS = new Set(["Shift", "Control", "Alt", "Meta", "AltGraph"]);
  * @return {Binding}
  */
 const plain = (key, name) => ({ key, ctrl: false, alt: false, shift: false, name });
+
+/**
+ * @param {number} slot 1 based
+ * @return {HotkeyAction}
+ */
+const accountSlot = (slot) => ({
+    id: `account${slot}`,
+    label: `Account ${slot}`,
+    note: `logs in account ${slot} of the Accounts list`,
+    group: "account",
+    fallback: { key: 48 + slot, ctrl: true, alt: true, shift: false, name: `Ctrl+Alt+${slot}` },
+    run: () => quickLogin(slot - 1),
+});
 
 /** @type {HotkeyAction[]} */
 const ACTIONS = [
@@ -47,6 +80,10 @@ const ACTIONS = [
     { id: "devtools", label: "Developer tools", group: "window", fallback: plain(123, "F12") },
     { id: "toggleSpotify", label: "Spotify overlay", note: "on and off", group: "toggle", fallback: null, setting: "spotifyOverlay" },
     { id: "toggleKeystrokes", label: "Keystrokes", note: "on and off", group: "toggle", fallback: null, setting: "keystrokes" },
+    { id: "chatLogs", label: "Chat logs", note: "open and close", group: "toggle", fallback: plain(112, "F1"), run: openChatLogs },
+    accountSlot(1),
+    accountSlot(2),
+    accountSlot(3),
 ];
 
 /**
@@ -192,7 +229,9 @@ function clashes(action, binding, current){
  * @return {boolean} the player is typing (chat, a search field), keys are text then
  */
 function typing(){
-    const active = document.activeElement;
+    let active = document.activeElement;
+    // kute's popups live in shadow roots, the document only sees their host
+    while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
     return active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || (active instanceof HTMLElement && active.isContentEditable);
 }
 
@@ -310,7 +349,7 @@ class HotkeyMenu {
 
     render(){
         const current = bindings();
-        for (const group of ["window", "toggle"]){
+        for (const group of ["window", "toggle", "account"]){
             const rows = ACTIONS.filter((action) => action.group === group).map((action) => this.row(action, current));
             this.element(`hkGroup-${group}`).replaceChildren(...rows);
         }
@@ -358,8 +397,9 @@ class Hotkeys {
         if (this.capturing || event.repeat || typing() || !hostSupports()) return;
         const current = bindings();
         for (const action of ACTIONS){
-            if (action.group !== "toggle" || !action.setting || !same(event, current[action.id])) continue;
-            this.flip(action.setting, action.label);
+            if (action.group === "window" || !same(event, current[action.id])) continue;
+            if (action.run) action.run();
+            else if (action.setting) this.flip(action.setting, action.label);
         }
     }
 

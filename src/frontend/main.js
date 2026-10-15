@@ -1,6 +1,7 @@
 import styles from "./components/base.css";
 import { kute, ready, globalRef } from "./client.js";
 import { hook, getElement, checkCompMode } from "./utils.js";
+import { setRampBoost } from "./modules/rampBoost.js";
 // imported first so later throws still get reported
 import { postUrls as postIconUrls } from "./modules/kuteIcons/slots.js";
 // static import: the host only hands over the userscript registry during bundle eval
@@ -15,6 +16,18 @@ if (isBenchPage) import("./modules/autoDetect/bench.js");
 // default to advanced settings, otherwise client settings are invisible. unset = never chose
 if (!isBenchPage && localStorage.getItem("krk_advanced") === null) localStorage.setItem("krk_advanced", "1");
 if (!isBenchPage) postIconUrls();
+if (!isBenchPage){
+    ready.then(() => {
+        if (kute.settings?.data?.kuteCss === true) import("./modules/kuteCss.js").catch(() => {});
+    });
+}
+
+// krunker reads its settings once at start, before the account is known. accountEndMessage.js sets the right one
+if (location.hostname === "krunker.io" && location.pathname === "/"){
+    ready.then(() => {
+        if (kute.settings?.data?.accountEndMessage) localStorage.setItem("kro_setngss_endMessage", "");
+    });
+}
 
 let initialLoad = true;
 window.OffCliV = true;
@@ -64,7 +77,9 @@ document.addEventListener(
             window.chrome.webview.postMessage("drag, false");
             window.chrome.webview.postMessage("throttle, game");
 
-            return original.call(this, { ...args[0], unadjustedMovement: kute?.settings?.data?.rawInput });
+            // chromium has no unadjustedMovement on linux, asking for it rejects the lock (krunker's own raw mouse too)
+            const unadjustedMovement = kute.platform !== "linux" && kute?.settings?.data?.rawInput;
+            return original.call(this, { ...args[0], unadjustedMovement });
         });
 
         document.addEventListener("pointerlockchange", () => {
@@ -79,6 +94,13 @@ document.addEventListener(
         });
 
         ready.then(() => {
+            // hide popular now was merged into the cleaner menu (bundle 0.1.70), carry an enabled one over once
+            if (kute.settings.data.hidePopularNow === true){
+                kute.settings.data.hidePopularNow = false;
+                window.chrome.webview.postMessage("set-config, hidePopularNow, false");
+                kute.settings.data.cleanUI = true;
+                window.chrome.webview.postMessage("set-config, cleanUI, true");
+            }
             if (!kute.settings.data.cleanUI) return;
             import("./components/clean.css").then((css) => {
                 const cleanCSS = document.createElement("style");
@@ -95,16 +117,6 @@ document.addEventListener(
                 classicMenuCSS.id = "kute_classicMenuCSS";
                 classicMenuCSS.textContent = css.default;
                 document.head.append(classicMenuCSS);
-            });
-        });
-
-        ready.then(() => {
-            if (!kute.settings.data.hidePopularNow) return;
-            import("./components/hidePopularNow.css").then((css) => {
-                const hidePopularCSS = document.createElement("style");
-                hidePopularCSS.id = "kute_hidePopularNowCSS";
-                hidePopularCSS.textContent = css.default;
-                document.head.append(hidePopularCSS);
             });
         });
     },
@@ -161,6 +173,7 @@ Object.defineProperty(window, "gameLoaded", {
         import("./modules/changelog.js");
         import("./modules/about.js");
         import("./modules/managers/index.js");
+        import("./modules/withdrawn.js");
         import("./modules/autoDetect/index.js");
         if (kute?.settings?.data?.clanColors !== false && kute?.settings?.data?.disableOnlineFeatures !== true) import("./modules/clanColors.js");
         // always: setting only toggles drawing, announce runs regardless
@@ -170,6 +183,8 @@ Object.defineProperty(window, "gameLoaded", {
         if (!performanceMode) import("./modules/bpClaimAll.js");
         import("./modules/args.js");
         import("./modules/fixes.js");
+        import("./modules/inventoryScroll.js");
+        import("./modules/chatDraft.js");
         if (!performanceMode) import("./modules/versionTag.js");
         if (!performanceMode) import("./modules/rankProgress.js");
         import("./modules/importSettings.js");
@@ -179,14 +194,26 @@ Object.defineProperty(window, "gameLoaded", {
         import("./modules/hotkeys.js");
         // always: export and import buttons in About
         import("./modules/settingsTransfer.js");
+        // always: create button in About
+        import("./modules/diagnostics.js");
+        // only from an exe that is in safe mode, testing, or has a result
+        if (kute.recovery) import("./modules/recovery.js");
         // always: customize button needs the module
         import("./modules/nukeCounter.js");
+        // always: turning it on keeps the current message, only its toggle knows that
+        import("./modules/accountEndMessage.js");
         // always: customize button needs it, host needs icon url changes
         import("./modules/kuteIcons/index.js");
+        // always: the hud editor toggles it, and measures the timer on the menu right after, so this comes first
+        import("./modules/menuTimer.js");
         // always: applies saved HUD layout, editor loads lazily
         import("./modules/hudEditor/index.js");
         if (kute?.settings?.data?.hsSound) import("./modules/hsSound.js");
         if (kute?.settings?.data?.betterChat) import("./modules/betterChat.js");
+        if (kute?.settings?.data?.chatLogs) import("./modules/chatLogs.js");
+        import("./modules/modDownload.js");
+        import("./modules/serverPings.js");
+        if (kute?.settings?.data?.rankedAlert) import("./modules/rankedAlert.js");
         if (kute?.settings?.data?.hpEnemyCounter) import("./modules/hpEnemyCounter.js");
         if (kute?.settings?.data?.accountManager) import("./modules/accountManager.js");
         if (kute?.settings?.data?.showPing) import("./modules/showPing.js");
@@ -199,9 +226,10 @@ Object.defineProperty(window, "gameLoaded", {
         if (kute?.settings?.data?.keystrokes) import("./modules/keystrokes.js");
         // always: customize button needs the module
         if (kute.hostFeatures?.includes("custom-sky")) import("./modules/customSky.js");
+        if (kute.hostFeatures?.includes("appimage-update")) import("./modules/linuxUpdate.js").catch(() => {});
 
         if (kute?.settings?.data?.rampBoost && !checkCompMode()){
-            window.chrome.webview.postMessage("toggle-rboost, true");
+            setRampBoost(true);
 
             /**
              * @param {MessageEvent} event
@@ -211,7 +239,7 @@ Object.defineProperty(window, "gameLoaded", {
                     setTimeout(() => {
                         if (checkCompMode()){
                             window.chrome.webview.removeEventListener("message", gameUpdateListener);
-                            window.chrome.webview.postMessage("toggle-rboost, false");
+                            setRampBoost(false);
                         }
                     }, 2000);
                 }
@@ -269,15 +297,6 @@ Object.defineProperty(window, "gameLoaded", {
             textSelectCSS.id = "kute_textSelectCSS";
             textSelectCSS.textContent = "#chatHolder * { user-select: text }";
             document.head.append(textSelectCSS);
-        }
-
-        if (kute?.settings.data?.menuTimer){
-            import("./components/menuTimer.css").then((module) => {
-                const menuTimerCSS = document.createElement("style");
-                menuTimerCSS.id = "kute_menuTimerCSS";
-                menuTimerCSS.textContent = module.default;
-                document.head.append(menuTimerCSS);
-            });
         }
     },
 });

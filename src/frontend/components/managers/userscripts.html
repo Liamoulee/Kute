@@ -95,10 +95,32 @@
 	border: 0;
 	background: none;
 }
+
+#usMaster {
+	display: flex;
+	align-items: center;
+	gap: 0.5em;
+	margin-right: 0.4em;
+	color: var(--muted);
+	font-size: 0.9em;
+	cursor: pointer;
+	user-select: none;
+}
+
+#usMaster.on {
+	color: var(--accent);
+}
+
+.managerPopup.scriptsOff .managerHint,
+.managerPopup.scriptsOff .managerBody {
+	opacity: 0.35;
+	pointer-events: none;
+}
 </style>
 <div class="managerPopup">
 	<div class="managerHeader">
 		<h2 class="managerTitle">Userscripts</h2>
+		<div id="usMaster" title="The same switch as Userscripts in the Kute settings"><span>Userscripts off</span><div class="toggle"></div></div>
 		<div class="btn" id="usFolder"><span class="mi">folder_open</span>Open scripts folder</div>
 		<div class="managerClose" data-close>&times;</div>
 	</div>

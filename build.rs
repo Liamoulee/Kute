@@ -32,6 +32,11 @@ fn main() {
         fs::write(wxs_path, updated_wxs).unwrap();
     }
 
+    // libcef.so ships next to the binary
+    if env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("linux") {
+        println!("cargo:rustc-link-arg-bins=-Wl,-rpath,$ORIGIN");
+    }
+
     println!("cargo:rerun-if-changed=Cargo.toml");
     println!("cargo:rerun-if-changed=resources/kute.exe.manifest");
     println!("cargo:rerun-if-changed=resources/comctl6.manifest");

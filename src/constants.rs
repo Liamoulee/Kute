@@ -1,19 +1,26 @@
 pub const DISCORD_CLIENT_ID: &str = "1549875633276981249";
 pub const UPDATE_URL: &str = "https://api.github.com/repos/NullDev/Kute/releases/latest";
 pub const RELEASE_PAGE_URL: &str = "https://github.com/NullDev/Kute/releases/latest";
+#[cfg(windows)]
 pub const INSTALLER_ASSET: &str = "kute-setup-x86_64.msi";
+// sorts after INSTALLER_ASSET: exes up to 0.1.17 run assets[0] as the installer
+#[cfg(target_os = "linux")]
+pub const APPIMAGE_ASSET: &str = "kute-x86_64.AppImage";
 pub const RELEASE_DOWNLOAD_PREFIX: &str = "https://github.com/NullDev/Kute/releases/download/";
+#[cfg(windows)]
 pub const PORTABLE_MARKER: &str = "portable.flag";
 pub const API_URL: &str = "https://kute.lol/api";
 // any page script can post open-url, keep this short. trailing slash so look-alike domains don't match
 pub const OPEN_URL_ALLOWED: [&str; 3] = ["https://github.com/", "https://kute.lol/", "https://discord.com/invite/"];
 pub const JS_VERSION_URL: &str = "https://raw.githubusercontent.com/NullDev/Kute/master/target/bundle_version";
 pub const JS_BUNDLE_URL: &str = "https://raw.githubusercontent.com/NullDev/Kute/master/target/bundle.js";
+#[cfg(windows)]
 pub const INSTANCE_MUTEX: &str = "Global\\9e29aac4-cd01-442b-bec2-ddd99403ca14";
 pub const KRUNKER_URL: &str = "https://krunker.io";
 
 pub const MSG_TO_PAGE: &str = "kute-message";
 pub const MSG_FROM_PAGE: &str = "kute-post";
+pub const MSG_LOAD_SCRIPTS: &str = "kute-load-scripts";
 
 pub const DEFAULT_BLOCKLIST: &str = r#"[
 	"*://*.pollfish.com/*",
@@ -54,6 +61,9 @@ pub const DEFAULT_BLOCKLIST: &str = r#"[
   "*://coeus.frvr.com/*",
   "*://krunker.io/libs/anzu.js*"
 ]"#;
+
+// video skin textures (Glitch etc.), blocked while "disableVideoSkins" is on. tutorial videos sit in videos/tutorial/, map video textures under user-assets/<id>/
+pub const VIDEO_SKIN_BLOCKLIST: &[&str] = &["*://assets.krunker.io/videos/video_*.mp4*", "*://user-assets.krunker.io/skins/*.mp4*"];
 
 // the cat models, blocked while "disableCats" is on
 pub const CAT_BLOCKLIST: &[&str] = &[

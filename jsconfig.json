@@ -16,6 +16,7 @@
     "include": [
         "esbuild.config.mjs",
         "postbuild.js",
-        "portable.js"
+        "portable.js",
+        "scripts/kutediag.mjs"
     ]
 }

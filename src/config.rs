@@ -3,10 +3,9 @@ use serde_json::Value;
 
 use std::{
     collections::HashMap,
-    env, fs,
+    fs,
     fs::*,
     io::*,
-    path::PathBuf,
     sync::{
         LazyLock, Mutex,
         mpsc::{self, Sender},
@@ -15,6 +14,8 @@ use std::{
 };
 #[derive(Deserialize)]
 struct SettingInfo {
+    #[serde(default)]
+    name: String,
     #[serde(default)]
     #[serde(rename = "defaultValue")]
     default_value: serde_json::Value,
@@ -35,13 +36,20 @@ fn settings_info() -> HashMap<String, SettingInfo> {
     serde_json::from_str(include_str!("./cSettings.json")).unwrap_or_else(|_| HashMap::new())
 }
 
+pub fn defaults() -> serde_json::Map<String, Value> {
+    settings_info().into_iter().map(|(key, info)| (key, info.default_value)).collect()
+}
+
+pub fn setting_name(key: &str) -> Option<String> {
+    settings_info().remove(key).map(|info| info.name).filter(|name| !name.is_empty())
+}
+
 impl Config {
     pub fn load() -> Config {
         fn load_defaults() -> HashMap<String, Value> {
             settings_info().into_iter().map(|(key, info)| (key, info.default_value)).collect()
         }
-        let client_dir: String = env::var("USERPROFILE").unwrap() + "\\Documents\\kute";
-        let settings_path: String = client_dir + "\\settings.json";
+        let settings_path = crate::utils::settings_dir().join("settings.json");
         let defaults = load_defaults();
 
         if let Some(parent) = std::path::Path::new(&settings_path).parent() {
@@ -88,6 +96,9 @@ impl Config {
     }
 
     pub fn get<T: serde::de::DeserializeOwned>(&self, setting: &str) -> Option<T> {
+        if let Some(value) = crate::modules::recovery::setting(setting) {
+            return serde_json::from_value(value).ok();
+        }
         let overridden = self
             .performance
             .get(setting)
@@ -115,7 +126,7 @@ static WRITE_LOCK: Mutex<()> = Mutex::new(());
 // temp file + rename so a crash never leaves half a file
 fn write_settings(text: &str) {
     let _guard = WRITE_LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-    let settings_path = PathBuf::from(env::var("USERPROFILE").unwrap_or_default()).join("Documents\\kute\\settings.json");
+    let settings_path = crate::utils::settings_dir().join("settings.json");
     let temp_path = settings_path.with_extension("json.tmp");
     if fs::write(&temp_path, text).is_ok() {
         fs::rename(&temp_path, &settings_path).ok();

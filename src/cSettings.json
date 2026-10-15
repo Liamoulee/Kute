@@ -22,7 +22,7 @@
     "hotkeys": {
         "name": "Hotkeys",
         "id": "hotkeys",
-        "description": "Change or clear Kute's own keys (new lobby, matchmaker, reload, fullscreen) and add keys for toggles",
+        "description": "Change or clear Kute's own keys (new lobby, matchmaker, reload, fullscreen, chat logs) and add keys for toggles",
         "type": "none",
         "category": "General",
         "button": "Change",
@@ -30,7 +30,7 @@
         "hostFeature": "hotkeys"
     },
     "performanceMode": {
-        "name": "Disable All Non-Performance Features",
+        "name": "Disable & Hide All Non-Performance Settings",
         "id": "performanceMode",
         "description": "Turns off everything cosmetic and hides its settings. Turn this off again and all of them come back as they were",
         "type": "checkbox",
@@ -79,6 +79,7 @@
     "obsCapturePlugin": {
         "name": "OBS Capture Plugin",
         "id": "obsCapturePlugin",
+        "platforms": ["windows"],
         "description": "Adds a Kute Capture source to OBS (close OBS first). For sound, add an Application Audio Capture of 'Kute audio window'",
         "type": "checkbox",
         "category": "General",
@@ -87,6 +88,7 @@
     "rawInput": {
         "name": "Raw Input",
         "id": "rawInput",
+        "platforms": ["windows"],
         "description": "Mouse movement comes straight from the device, without Windows pointer acceleration, and all of it reaches the game, also when you click or scroll mid-flick. Krunker's own Raw Mouse Input follows this setting",
         "type": "checkbox",
         "category": "Game",
@@ -156,6 +158,23 @@
         "button": "Filters",
         "buttonAction": "{{kute}}.matchmaker.showFilters()"
     },
+    "rankedAlert": {
+        "name": "Ranked Match Alert",
+        "id": "rankedAlert",
+        "description": "When Krunker's ranked queue finds a match while you are tabbed out, Kute comes to the front",
+        "type": "checkbox",
+        "category": "Game",
+        "defaultValue": true
+    },
+    "accountEndMessage": {
+        "name": "Match End Message per Account",
+        "id": "accountEndMessage",
+        "description": "Remembers Krunker's Match End Message per account, an account without one sends nothing",
+        "type": "checkbox",
+        "category": "Game",
+        "defaultValue": false,
+        "requiresLogin": true
+    },
     "exitButton": {
         "name": "Exit Button",
         "id": "exitButton",
@@ -192,6 +211,16 @@
         "category": "Interface",
         "defaultValue": true
     },
+    "chatLogs": {
+        "name": "Chat Logs",
+        "id": "chatLogs",
+        "description": "Keeps the last 2000 chat lines, also across lobbies, to search and copy. F1 opens them, change it in Hotkeys",
+        "type": "checkbox",
+        "category": "Interface",
+        "defaultValue": true,
+        "button": "Open",
+        "buttonAction": "{{kute}}.chatLogs?.open()"
+    },
     "textSelect": {
         "name": "Selectable Chat",
         "id": "textSelect",
@@ -204,7 +233,7 @@
     "cleanUI": {
         "name": "Cleaner Menu",
         "id": "cleanUI",
-        "description": "Hides banners, ads and other clutter in the menu",
+        "description": "Hides ads, promos, the Popular Now row and other clutter in the menu",
         "type": "checkbox",
         "category": "Interface",
         "defaultValue": false
@@ -213,15 +242,6 @@
         "name": "Hide Bundle Popups",
         "id": "hideBundles",
         "description": "Stops store bundle popups from showing up outside the store",
-        "type": "checkbox",
-        "category": "Interface",
-        "defaultValue": false
-    },
-    "hidePopularNow": {
-        "name": "Hide Popular Now",
-        "id": "hidePopularNow",
-        "performance": false,
-        "description": "Hides the Popular Now maps row in the menu",
         "type": "checkbox",
         "category": "Interface",
         "defaultValue": false
@@ -306,6 +326,15 @@
         "needsRestart": true,
         "requires": "hardFlip"
     },
+    "kuteCss": {
+        "name": "Kute CSS",
+        "id": "kuteCss",
+        "performance": false,
+        "description": "Kute's own look for menus, settings, HUD and social, with a few cats",
+        "type": "checkbox",
+        "category": "Customization",
+        "defaultValue": false
+    },
     "motionBlur": {
         "name": "Motion Blur",
         "id": "motionBlur",
@@ -349,7 +378,7 @@
         "defaultValue": true,
         "button": "Manage",
         "buttonAction": "{{kute}}.swapperManager.open()",
-        "needsRestart": true
+        "needsRefresh": true
     },
     "customCss": {
         "name": "Custom CSS",
@@ -370,8 +399,7 @@
         "category": "Customization",
         "defaultValue": true,
         "button": "Manage",
-        "buttonAction": "{{kute}}.userscriptManager.open()",
-        "needsRestart": true
+        "buttonAction": "{{kute}}.userscriptManager.open()"
     },
     "blocklist": {
         "name": "URL Blocklist",
@@ -393,6 +421,17 @@
         "category": "Customization",
         "defaultValue": true,
         "needsRefresh": true
+    },
+    "disableVideoSkins": {
+        "name": "Disable Video Skins",
+        "id": "disableVideoSkins",
+        "performance": true,
+        "description": "Video skins like Glitch are not loaded and show black instead, which can save FPS",
+        "type": "checkbox",
+        "category": "Customization",
+        "defaultValue": false,
+        "needsRefresh": true,
+        "hostFeature": "video-skins"
     },
     "uncapFps": {
         "name": "Uncap FPS",
@@ -416,12 +455,24 @@
     "angleBackend": {
         "name": "Graphics Backend (ANGLE)",
         "id": "angleBackend",
+        "platforms": ["windows"],
         "description": "Leave it on Default (D3D11). OpenGL and Vulkan turn off everything the swapchain hook does",
         "type": "select",
         "category": "Advanced",
         "defaultValue": "Default",
         "needsRestart": true,
         "options": ["Default", "D3D11", "D3D11on12", "OpenGL", "Vulkan"]
+    },
+    "displayServer": {
+        "name": "Display Server",
+        "id": "displayServer",
+        "platforms": ["linux"],
+        "description": "Leave it on X11, it runs much faster than Wayland for now. X11 also works inside a Wayland session",
+        "type": "select",
+        "category": "Advanced",
+        "defaultValue": "X11",
+        "needsRestart": true,
+        "options": ["X11", "Wayland"]
     },
     "colorProfile": {
         "name": "Color Profile",
@@ -487,6 +538,7 @@
     "hardFlip": {
         "name": "DXGI Swapchain Hook",
         "id": "hardFlip",
+        "platforms": ["windows"],
         "description": "Present FPS counter and OBS capture. Laptops with two graphics chips may run better without it",
         "type": "checkbox",
         "category": "Engine",
@@ -496,11 +548,22 @@
     "laptopPowerBoost": {
         "name": "Laptop Power Boost",
         "id": "laptopPowerBoost",
-        "description": "Plugged in laptops only: sets Windows' power mode to Best performance while Kute runs and puts yours back after",
+        "description": "Plugged in laptops only: switches the power mode to performance while Kute runs and puts yours back after",
         "type": "checkbox",
         "category": "Engine",
         "defaultValue": true,
         "hostFeature": "hybrid-gpu"
+    },
+    "primeOffload": {
+        "name": "NVIDIA PRIME Offload",
+        "id": "primeOffload",
+        "platforms": ["linux"],
+        "description": "Hybrid laptops with the NVIDIA driver: the game renders on the NVIDIA chip instead of the built in one",
+        "type": "checkbox",
+        "category": "Engine",
+        "defaultValue": true,
+        "needsRestart": true,
+        "hostFeature": "prime-offload"
     },
     "patchInputPriority": {
         "name": "Input at Normal Priority",
@@ -535,6 +598,7 @@
     "patchRawInputMovement": {
         "name": "Raw Input Keeps Movement",
         "id": "patchRawInputMovement",
+        "platforms": ["windows"],
         "description": "Chromium patch: no mouse movement is lost on a click. Off drops a few counts at every shot",
         "type": "checkbox",
         "category": "Engine",
@@ -565,6 +629,7 @@
     "patchHighQoS": {
         "name": "Game Process at High QoS",
         "id": "patchHighQoS",
+        "platforms": ["windows"],
         "description": "Chromium patch: Windows may not throttle the game's process to save power. Off leaves that to Windows",
         "type": "checkbox",
         "category": "Engine",
@@ -617,5 +682,15 @@
         "category": "About",
         "button": "Import",
         "buttonAction": "{{kute}}.settingsTransfer.importFile()"
+    },
+    "diagnosticsReport": {
+        "name": "Diagnostics Report",
+        "id": "diagnosticsReport",
+        "description": "Puts what helps fix a problem into one file you can send. You see all of it first, nothing is uploaded",
+        "type": "none",
+        "category": "About",
+        "button": "Create",
+        "buttonAction": "{{kute}}.diagnostics.open()",
+        "hostFeature": "diagnostics"
     }
 }

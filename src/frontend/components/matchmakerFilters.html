@@ -114,19 +114,19 @@
 	color: #ffd54a;
 }
 
-#mmPreferredBox {
+.mmPreferredBox {
 	margin-top: 0.6em;
 	padding: 0.6em;
 	border-radius: 10px;
 	background: #252525;
 }
 
-#mmPreferredTitle {
+.mmPreferredTitle {
 	margin-bottom: 0.5em;
 	color: #ccc;
 }
 
-#mmPreferredHint {
+.mmPreferredHint {
 	margin-top: 0.5em;
 	color: #888;
 	font-size: 0.9em;
@@ -187,14 +187,19 @@
 	<div id="mmHint">F6 joins the best lobby for these. Nothing picked in a group means all of it</div>
 	<h3>Regions</h3>
 	<div class="mmGrid" id="mmRegions"></div>
-	<h3>Modes</h3>
+	<h3>Modes <span class="mmSub">★ on a mode to prefer it</span></h3>
 	<div class="mmGrid" id="mmModes"></div>
+	<div class="mmPreferredBox" id="mmModeRanks">
+		<div class="mmPreferredTitle">Preferred first, then any other mode. Modes rank above maps</div>
+		<div class="mmGrid"></div>
+		<div class="mmPreferredHint">Drag to reorder, click to move to the top</div>
+	</div>
 	<h3>Maps <span class="mmSub">★ on a map to prefer it</span></h3>
 	<div class="mmGrid" id="mmMaps"></div>
-	<div id="mmPreferredBox">
-		<div id="mmPreferredTitle">Preferred first, then any other map</div>
-		<div class="mmGrid" id="mmPreferred"></div>
-		<div id="mmPreferredHint">Drag to reorder, click to move to the top</div>
+	<div class="mmPreferredBox" id="mmMapRanks">
+		<div class="mmPreferredTitle">Preferred first, then any other map</div>
+		<div class="mmGrid"></div>
+		<div class="mmPreferredHint">Drag to reorder, click to move to the top</div>
 	</div>
 	<h3>Lobby</h3>
 	<label class="mmRow">Min players <input type="number" id="mmMinPlayers" min="0" max="7"></label>

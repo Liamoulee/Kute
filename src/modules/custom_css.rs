@@ -21,13 +21,9 @@ pub fn write(content: &str) -> Result<(), String> {
     utils::atomic_write(&css_path(), &content).map_err(|e| e.to_string())
 }
 
-// renderer only. its CONFIG is a copy from process start, the toggle has to be read from disk
+// renderer only
 pub fn enabled_on_disk() -> bool {
-    fs::read_to_string(utils::settings_dir().join("settings.json"))
-        .ok()
-        .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
-        .and_then(|settings| settings["customCss"].as_bool())
-        .unwrap_or(true)
+    utils::config_on_disk("customCss", true)
 }
 
 pub fn for_page() -> String {

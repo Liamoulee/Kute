@@ -404,9 +404,10 @@ function floorAtLimit(metric){
  *
  * @param {Map<number, Reading[]>} readings per limit, 0 = none
  * @param {number} incumbent the limit in use
- * @param {{prefer?: number, inputRequired?: boolean}} [options] prefer: a limit that takes over when it measures equal
- *     and draws fewer frames (laptops: the target rate instead of everything the PC can do). inputRequired: in the
- *     match a limit that draws fewer frames is not judged without a mouse wait on both sides, its price would be a guess
+ * @param {{prefer?: number, inputRequired?: boolean, trade?: boolean}} [options] prefer: a limit that takes over when it
+ *     measures equal and draws fewer frames (laptops: the target rate instead of everything the PC can do).
+ *     inputRequired: in the match a limit that draws fewer frames is not judged without a mouse wait on both sides, its
+ *     price would be a guess. trade: the PC misses its target, a longer mouse wait may be paid for, see accept
  * @return {CapChoice}
  */
 export function chooseCap(readings, incumbent, options = {}){
@@ -437,13 +438,16 @@ export function chooseCap(readings, incumbent, options = {}){
         }
         const gainIn = (/** @type {Metric} */ metric) => (wins(metric, summary, base) ? (base[metric].median ?? 0) - (summary[metric].median ?? 0) : 0);
         const task = gainIn("taskP99");
+        // the trade, see accept: below the target a limit may make the mouse wait longer when the game reacts sooner by more
+        const inputLoss = options.trade === true && guard("inputP99", summary, base) === "worse" ? (summary.inputP99.median ?? 0) - (base.inputP99.median ?? 0) : 0;
         // no mouse wait on one side (a bench process, a replay that did not arrive): the frame time stands in for it
-        const input = verdicts.inputP99 === "unknown" ? null : gainIn("inputP99");
+        const input = verdicts.inputP99 === "unknown" ? null : gainIn("inputP99") - inputLoss;
         const netMs = task + (input ?? baseFrame - frameMs);
         measured.set(cap, task + (input ?? 0));
+        const traded = inputLoss > 0 && task > inputLoss;
         /** @type {CapJudged["outcome"]} */
         let outcome = "not better";
-        if (CAP_GUARDS.some((metric) => guard(metric, summary, base, floorAtLimit(metric)) === "worse")) outcome = "worse";
+        if (CAP_GUARDS.some((metric) => (metric !== "inputP99" || !traded) && guard(metric, summary, base, floorAtLimit(metric)) === "worse")) outcome = "worse";
         // two frame times of 2.0 ms differ by 0.00000006 in floating point, that is not a gain
         else if (netMs > 2 * CLOCK_MS) outcome = "better";
         return { cap, summary, frameMs, netMs, gains: { task, input }, outcome };
@@ -467,6 +471,7 @@ export function chooseCap(readings, incumbent, options = {}){
  * @property {boolean} keep
  * @property {"reference"|"result"|"unsteady"|"frame"|Metric|null} failed why not: no two usable readings of the
  *     player's own setup or of the result, a result that does not run steadily, or the metric that measures worse
+ * @property {{task: number, input: number}} [traded] kept on the trade: ms the game reacts sooner, ms the mouse waits longer
  */
 
 /**
@@ -476,12 +481,17 @@ export function chooseCap(readings, incumbent, options = {}){
  * beyond the setup's own frame time, stalls, and the frame rate when the limit is the same. what cannot be compared
  * is not kept: an unknown is never a permission
  *
+ * one trade is allowed, and only on a PC that misses its target: the mouse may wait longer at a limit when the game
+ * reacts sooner by more than that. a two core laptop drew 105 fps on its 60 Hz screen with its other work waiting
+ * 37 ms, at a 60 limit 12 ms with the mouse waiting 7 ms longer, and the strict rule put the 105 back. said in the
+ * summary, never silent. above the target nothing a player feels may get worse
+ *
  * @param {Reading[]} reference the game as the player had it
  * @param {Reading[]} result
- * @param {{capBefore: number, capAfter: number}} limits the fps limit each side ran at, 0 = none
+ * @param {{capBefore: number, capAfter: number, trade?: boolean}} limits the fps limit each side ran at, 0 = none
  * @return {Acceptance}
  */
-export function accept(reference, result, { capBefore, capAfter }){
+export function accept(reference, result, { capBefore, capAfter, trade = false }){
     const usable = (/** @type {Reading[]} */ readings) => readings.filter((reading) => !reading.invalid);
     if (usable(reference).length < 2) return { keep: false, failed: "reference" };
     if (usable(result).length < 2) return { keep: false, failed: "result" };
@@ -494,8 +504,18 @@ export function accept(reference, result, { capBefore, capAfter }){
         const improves = unsteady(reference, capBefore) && wins("stallMs", after, before) && !slower;
         if (!improves) return { keep: false, failed: "unsteady" };
     }
+    /** @type {Acceptance["traded"]} */
+    let traded;
     for (const metric of CAP_GUARDS){
         const verdict = guard(metric, after, before, floorAtLimit(metric));
+        if (verdict === "worse" && metric === "inputP99" && trade && wins("taskP99", after, before)){
+            const task = (before.taskP99.median ?? 0) - (after.taskP99.median ?? 0);
+            const input = (after.inputP99.median ?? 0) - (before.inputP99.median ?? 0);
+            if (task > input){
+                traded = { task, input };
+                continue;
+            }
+        }
         if (verdict === "worse") return { keep: false, failed: metric };
         // the mouse wait is the one metric a usable reading can lack (the input replay did not reach the game)
         if (verdict === "unknown" && metric !== "inputP99") return { keep: false, failed: "reference" };
@@ -507,7 +527,7 @@ export function accept(reference, result, { capBefore, capAfter }){
         if (longer > Math.max(2 * CLOCK_MS, frame(result) * IMPORTANT_SHARE)) return { keep: false, failed: "frame" };
     }
     if (capBefore === capAfter && slower) return { keep: false, failed: "fps" };
-    return { keep: true, failed: null };
+    return { keep: true, failed: null, ...(traded ? { traded } : {}) };
 }
 
 /**
@@ -553,14 +573,17 @@ export function capCandidates({ hz, capacity, current }){
 }
 
 /**
- * one more cap between the best and each neighbour that was measured, for the refinement round in the match
+ * one more cap between the best and each neighbour that was measured, for the refinement round in the match. on a
+ * multiple of the refresh rate: every refresh then shows a frame of the same age, anything else judders (87 fps
+ * on a 60 Hz screen was once tried, it cannot look smooth)
  *
  * @param {number[]} measured caps already measured, 0 = uncapped
  * @param {number} best
  * @param {number|null} capacity stands in for "uncapped" as a number
+ * @param {number} hz
  * @return {number[]}
  */
-export function refineCaps(measured, best, capacity){
+export function refineCaps(measured, best, capacity, hz){
     const value = (/** @type {number} */ cap) => (cap === 0 ? capacity ?? Infinity : cap);
     const sorted = [...new Set(measured)].sort((a, b) => value(a) - value(b));
     const index = sorted.indexOf(best);
@@ -569,7 +592,7 @@ export function refineCaps(measured, best, capacity){
     for (const neighbour of [sorted[index - 1], sorted[index + 1]]){
         if (neighbour === undefined) continue;
         const middle = (value(best) + value(neighbour)) / 2;
-        if (Number.isFinite(middle)) between.push(Math.round(middle));
+        if (Number.isFinite(middle)) between.push(Math.round(middle / hz) * hz);
     }
-    return between.filter((cap) => cap > 0 && !measured.includes(cap));
+    return [...new Set(between)].filter((cap) => cap > 0 && cap !== best && !measured.includes(cap));
 }

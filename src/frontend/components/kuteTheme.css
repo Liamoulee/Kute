@@ -1,0 +1,1397 @@
+/* colors that carry information (teams, health, rarities, button categories) stay krunker's */
+
+:root {
+	--kute-cyan: #35e0e8;
+	--kute-cyan-soft: rgba(53, 224, 232, .14);
+	--kute-pink: #f5479b;
+	--kute-pink-soft: rgba(245, 71, 155, .16);
+
+	--kute-bg: #0b1215;
+	--kute-panel: #111b1f;
+	--kute-raised: #182429;
+	--kute-line: rgba(53, 224, 232, .12);
+	--kute-line-strong: rgba(53, 224, 232, .28);
+
+	--kute-text: #eaf7f8;
+	--kute-muted: rgba(234, 247, 248, .62);
+	--kute-faint: rgba(234, 247, 248, .38);
+
+	--kute-radius: 8px;
+	--kute-radius-lg: 14px;
+
+	--kute-paw: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23f5479b'%3E%3Cellipse cx='12' cy='16.2' rx='4.8' ry='4'/%3E%3Ccircle cx='5.6' cy='10.6' r='2.1'/%3E%3Ccircle cx='9.6' cy='6.4' r='2.2'/%3E%3Ccircle cx='14.4' cy='6.4' r='2.2'/%3E%3Ccircle cx='18.4' cy='10.6' r='2.1'/%3E%3C/svg%3E");
+	--kute-paw-cyan: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%230b1215'%3E%3Cellipse cx='12' cy='16.2' rx='4.8' ry='4'/%3E%3Ccircle cx='5.6' cy='10.6' r='2.1'/%3E%3Ccircle cx='9.6' cy='6.4' r='2.2'/%3E%3Ccircle cx='14.4' cy='6.4' r='2.2'/%3E%3Ccircle cx='18.4' cy='10.6' r='2.1'/%3E%3C/svg%3E");
+	--kute-ears: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 46 14'%3E%3Cpath fill='rgba(11,18,21,.78)' d='M1 14 9 1l8 13Zm28 0 8-13 8 13Z'/%3E%3Cpath fill='rgba(245,71,155,.7)' d='M5.5 14 9 7.5l3.5 6.5Zm28 0 3.5-6.5 3.5 6.5Z'/%3E%3C/svg%3E");
+	--kute-paw-solid: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2335e0e8'%3E%3Cellipse cx='12' cy='16.2' rx='4.8' ry='4'/%3E%3Ccircle cx='5.6' cy='10.6' r='2.1'/%3E%3Ccircle cx='9.6' cy='6.4' r='2.2'/%3E%3Ccircle cx='14.4' cy='6.4' r='2.2'/%3E%3Ccircle cx='18.4' cy='10.6' r='2.1'/%3E%3C/svg%3E");
+	--kute-grad: linear-gradient(90deg, var(--kute-cyan), var(--kute-pink));
+
+	/* krunker paints most hud panels and its newer components from these */
+	--div-black: rgba(11, 18, 21, .78);
+	--div-grey: rgba(53, 224, 232, .07);
+	--div-shadow: 0 2px 10px rgba(0, 0, 0, .5);
+
+	--blue: var(--kute-cyan);
+	--highlight-color: var(--kute-cyan);
+	--highlight-hover-color: #5ce9ef;
+	--card-bg-color: rgba(24, 36, 41, .7);
+	--dark-bg-color: rgba(11, 18, 21, .5);
+	--border-subtle: 1px solid var(--kute-line);
+	--border-radius-sm: 6px;
+	--border-radius-md: var(--kute-radius);
+	--border-radius-lg: var(--kute-radius-lg);
+	--box-shadow-lg: 0 18px 44px rgba(0, 0, 0, .6);
+}
+
+::selection {
+	background: var(--kute-pink);
+	color: #fff;
+}
+
+a,
+a:visited {
+	color: var(--kute-cyan);
+}
+
+::-webkit-scrollbar {
+	width: 10px;
+}
+
+::-webkit-scrollbar-track {
+	background-color: transparent;
+	box-shadow: none;
+}
+
+::-webkit-scrollbar-thumb {
+	background: var(--kute-line-strong);
+	border: 3px solid transparent;
+	border-radius: 999px;
+	background-clip: padding-box;
+	box-shadow: none;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background-color: var(--kute-cyan);
+}
+
+/* menu window (settings, servers, profile, ...) */
+
+#windowHolder.popupWin {
+	background-color: rgba(5, 10, 12, .72);
+}
+
+#menuWindow.dark {
+	background-color: var(--kute-bg);
+	border: 1px solid var(--kute-line);
+	border-radius: var(--kute-radius-lg);
+	box-shadow: 0 24px 60px rgba(0, 0, 0, .65), 0 0 0 1px rgba(0, 0, 0, .4);
+}
+
+.settingsHeader {
+	background-color: var(--kute-bg);
+	border-bottom: 1px solid var(--kute-line);
+}
+
+.setSugBox2 {
+	background-color: var(--kute-panel);
+	border: 1px solid var(--kute-line);
+	border-radius: var(--kute-radius-lg);
+	transition: background-color .15s, border-color .15s;
+}
+
+/* krunker's hover sets a 4px border, which grows the card and shifts the row */
+.setSugBox2:hover {
+	border-width: 1px;
+	background-color: var(--kute-raised);
+	border-color: var(--kute-cyan);
+}
+
+.advancedSlider {
+	background-color: #24343a;
+	border-radius: 999px;
+}
+
+.advancedSlider::before {
+	border-radius: 50%;
+	background: #fff var(--kute-paw) center / 20px no-repeat;
+}
+
+input:checked + .advancedSlider {
+	background-color: var(--kute-cyan);
+}
+
+input:checked + .advancedSlider::before {
+	background-image: var(--kute-paw-cyan);
+}
+
+input:checked + .advancedSlider::after {
+	color: var(--kute-bg);
+}
+
+.hostPresetBtn {
+	background-color: var(--kute-cyan);
+	color: var(--kute-bg);
+	border-radius: 6px;
+}
+
+.hostPresetBtn:hover {
+	background-color: var(--kute-pink);
+	color: #fff;
+}
+
+#settingsTabLayout {
+	background-color: var(--kute-panel);
+	border: 1px solid var(--kute-line);
+	border-radius: var(--kute-radius);
+	overflow: hidden;
+}
+
+.settingTab {
+	background-color: transparent;
+	color: var(--kute-muted);
+	border-bottom: 3px solid transparent;
+	transition: color .15s, background-color .15s;
+}
+
+#menuWindow.dark .settingTab {
+	color: var(--kute-muted);
+}
+
+.settingTab:hover {
+	border-bottom: 3px solid var(--kute-line-strong);
+	background-color: var(--kute-cyan-soft);
+}
+
+#menuWindow.dark .settingTab:hover {
+	color: var(--kute-text);
+}
+
+.dark .tabANew,
+.dark .tabANew:hover {
+	border-bottom: 3px solid var(--kute-cyan) !important;
+	background-color: var(--kute-cyan-soft);
+}
+
+#menuWindow.dark .tabANew {
+	color: var(--kute-cyan);
+}
+
+.setHed,
+.setHedS {
+	background-color: var(--kute-raised);
+	border: 1px solid var(--kute-line);
+	border-left: 3px solid var(--kute-cyan);
+	border-radius: var(--kute-radius);
+	transition: background-color .15s, border-color .15s;
+}
+
+.setHed:hover,
+.setHedS:hover {
+	background-color: #1d2c32;
+	border-left-color: var(--kute-pink);
+}
+
+.setHed .plusOrMinus {
+	color: var(--kute-cyan);
+}
+
+.setBodH {
+	background-color: var(--kute-panel);
+	border: 1px solid var(--kute-line);
+	border-radius: var(--kute-radius);
+}
+
+.settName,
+.settNameSmall {
+	border-bottom: 1px solid var(--kute-line);
+	color: var(--kute-muted) !important;
+}
+
+.settNameIn:hover {
+	background-color: var(--kute-cyan-soft) !important;
+	color: var(--kute-text) !important;
+}
+
+.settingsBtn {
+	background-color: var(--kute-cyan);
+	color: var(--kute-bg);
+	border-radius: 6px;
+	transition: background-color .15s, color .15s;
+}
+
+#menuWindow.dark .settingsBtn {
+	color: var(--kute-bg);
+}
+
+.settingsBtn:hover,
+#menuWindow.dark .settingsBtn:hover {
+	background-color: var(--kute-pink);
+	color: #fff;
+}
+
+#settSearch,
+.inputGrey2,
+.sliderVal,
+#loadoutName,
+#loadoutSelect,
+#itemSearch {
+	background: var(--kute-raised);
+	color: var(--kute-text);
+	border: 1px solid var(--kute-line);
+	border-radius: 6px;
+	outline: none;
+	transition: border-color .15s;
+}
+
+#settSearch:focus,
+.inputGrey2:focus,
+.sliderVal:focus,
+#loadoutName:focus,
+#loadoutSelect:focus {
+	border-color: var(--kute-cyan);
+}
+
+/* inline background and border on the element */
+#loadoutName {
+	background: var(--kute-raised) !important;
+	border: 1px solid var(--kute-line) !important;
+}
+
+/* krunker's white value box border survives a plain override */
+.sliderVal {
+	border-color: var(--kute-line-strong) !important;
+}
+
+#settSearch::placeholder,
+#loadoutName::placeholder {
+	color: var(--kute-faint);
+}
+
+.inputGrey2 option,
+#loadoutSelect option {
+	background: var(--kute-panel);
+	color: var(--kute-text);
+}
+
+#loadoutToolbar {
+	background-color: var(--kute-panel);
+	border-bottom: 1px solid var(--kute-line);
+}
+
+.loadoutTab {
+	background-color: transparent;
+	transition: background-color .15s, color .15s;
+}
+
+.loadoutTab:hover {
+	background-color: var(--kute-cyan-soft);
+}
+
+.loadoutTabSel,
+.loadoutTabSel:hover {
+	background-color: var(--kute-cyan-soft);
+	border-bottom-color: var(--kute-cyan);
+	color: var(--kute-cyan) !important;
+}
+
+#charPreviewSlot {
+	background: radial-gradient(circle at 50% 42%, rgba(53, 224, 232, .1), transparent 62%);
+	border-right: 1px solid var(--kute-line);
+}
+
+.custContainer,
+.custSubContainer {
+	background-color: var(--kute-panel);
+	border-color: var(--kute-line);
+	box-shadow: none;
+}
+
+.custContainer {
+	border-radius: var(--kute-radius);
+	transition: border-color .15s, background-color .15s;
+}
+
+.custContainer.contCanSelect:hover {
+	background-color: var(--kute-raised);
+	border-color: var(--kute-cyan);
+}
+
+.custSubContainer {
+	border-radius: 0 var(--kute-radius) 0 var(--kute-radius);
+}
+
+.custClear {
+	border-radius: 6px;
+}
+
+.custBack {
+	background: var(--kute-raised);
+	border-radius: 6px;
+}
+
+.custBack:hover {
+	background: var(--kute-cyan-soft);
+}
+
+.classCard {
+	background-color: var(--kute-raised);
+	border: 1px solid var(--kute-line);
+	border-radius: var(--kute-radius);
+	overflow: hidden;
+	transition: border-color .15s;
+}
+
+.classCard:hover {
+	border-color: var(--kute-cyan);
+}
+
+.classXPBar {
+	background-color: var(--kute-bg);
+}
+
+.clsXPBarC {
+	background-color: var(--kute-cyan);
+}
+
+.loadoutBtn {
+	background-color: var(--kute-cyan);
+	color: var(--kute-bg);
+	border-radius: 6px;
+}
+
+.loadoutBtn:hover {
+	background-color: var(--kute-pink);
+	color: #fff;
+}
+
+/* toggles: pill track, paw knob */
+
+.slider,
+.slider2 {
+	background-color: #24343a;
+	border-radius: 999px;
+}
+
+.slider::before,
+.slider2::before {
+	border-radius: 50%;
+	width: 22px;
+	background-color: #fff;
+	background-image: var(--kute-paw);
+	background-size: 14px;
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
+.slider::before {
+	left: 5px;
+}
+
+input:checked + .slider,
+input:checked + .slider2,
+input:checked + .sliderSml,
+input:checked + .sliderCent {
+	background-color: var(--kute-cyan);
+}
+
+input:checked + .slider::before {
+	transform: translateX(28px);
+	background-image: var(--kute-paw-cyan);
+}
+
+input:checked + .slider2::before {
+	transform: translateX(20px);
+	background-image: var(--kute-paw-cyan);
+}
+
+input:focus + .slider,
+input:focus + .slider2,
+input:focus + .sliderSml {
+	box-shadow: 0 0 0 2px var(--kute-cyan-soft);
+}
+
+.sliderSml,
+.sliderCent {
+	background-color: #24343a;
+}
+
+.sliderM {
+	background-color: #24343a;
+	height: 8px;
+	border-radius: 999px;
+	margin-bottom: 0;
+}
+
+.sliderM::-webkit-slider-thumb {
+	width: 22px;
+	height: 22px;
+	border-radius: 50%;
+	background: #fff var(--kute-paw) center / 14px no-repeat;
+	box-shadow: 0 0 0 3px var(--kute-cyan), 0 2px 6px rgba(0, 0, 0, .5);
+}
+
+/* main menu. no backdrop-filter anywhere: the 3d scene keeps rendering behind the menu */
+
+#playerHeaderEl {
+	background:
+		var(--kute-grad) bottom / 100% 1px no-repeat,
+		linear-gradient(rgba(7, 12, 15, .92), rgba(7, 12, 15, .74));
+}
+
+.ph-item[class*="svelte-"],
+.nav-item[class*="svelte-"] {
+	border-radius: 12px;
+	transition: background-color .15s;
+}
+
+.ph-item[class*="svelte-"]:hover,
+.nav-item[class*="svelte-"]:hover {
+	background-color: var(--kute-cyan-soft);
+}
+
+.nav-item[class*="svelte-"] .material-icons,
+.nav-item[class*="svelte-"] .material-icons-outlined {
+	color: var(--kute-cyan);
+}
+
+#menuItemContainer .menuItem {
+	position: relative;
+	border-radius: 10px;
+	transition: transform .15s, background-color .15s;
+}
+
+#menuItemContainer .menuItem:hover {
+	background: linear-gradient(90deg, var(--kute-cyan-soft), transparent 85%);
+	transform: translateX(6px);
+}
+
+#menuItemContainer .menuItem:hover .menuItemTitle {
+	color: var(--kute-cyan);
+}
+
+/* a paw marks the hovered entry */
+#menuItemContainer .menuItem:not(.bpItem):not(.dsItem)::before {
+	content: "";
+	position: absolute;
+	left: -18px;
+	top: 50%;
+	width: 14px;
+	height: 14px;
+	background: var(--kute-paw-solid) center / contain no-repeat;
+	opacity: 0;
+	transform: translate(-4px, -50%) rotate(-20deg);
+	transition: opacity .15s, transform .15s;
+	pointer-events: none;
+}
+
+#menuItemContainer .menuItem:not(.bpItem):not(.dsItem):hover::before {
+	opacity: 1;
+	transform: translate(0, -50%) rotate(-20deg);
+}
+
+#menuItemContainer .menuItemIcon {
+	color: var(--kute-cyan);
+}
+
+#menuItemContainer .sidebarDivider {
+	background: linear-gradient(90deg, var(--kute-line-strong), transparent);
+	border: 0;
+}
+
+/* lobby buttons in the settings look, each keeps its mode color (--card-rgb) as frame. classicMenu.css sets the property, its buttons stay as they are */
+@container not style(--kute-classic-menu: 1) {
+	#subLogoButtons > .actionCard {
+		background: var(--kute-panel);
+		border-color: rgba(var(--card-rgb), .45);
+		border-radius: var(--kute-radius);
+		box-shadow: none;
+		transition: background-color .15s, border-color .15s;
+	}
+
+	#subLogoButtons > .actionCard:hover {
+		background: var(--kute-raised);
+		border-color: rgb(var(--card-rgb));
+	}
+
+	#subLogoButtons > .actionCard .cardIcon {
+		color: rgb(var(--card-rgb));
+	}
+
+	.popRailCard[class*="svelte-"] {
+		background: var(--kute-panel);
+		border-color: var(--kute-line-strong);
+		border-radius: var(--kute-radius);
+		transition: background-color .15s, border-color .15s;
+	}
+
+	.popRailCard[class*="svelte-"]:hover {
+		background: var(--kute-raised);
+		border-color: var(--kute-cyan);
+	}
+
+	.popRailPlay[class*="svelte-"] {
+		color: var(--kute-cyan);
+	}
+
+	#customizeButton {
+		border-radius: var(--kute-radius);
+	}
+}
+
+/* window headers share the gradient hairline */
+.window-header[class*="svelte-"],
+#loadoutToolbar,
+.profile-detail-header-bar[class*="svelte-"],
+.instructionsHeader,
+.settingsHeader {
+	background-image: var(--kute-grad);
+	background-size: 100% 1px;
+	background-position: bottom;
+	background-repeat: no-repeat;
+}
+
+/* krunker's framed buttons inside windows, the lobby ones stay krunker's */
+:is(#windowHolder, #popupHolder, #app) .button {
+	border-radius: var(--kute-radius);
+	background-color: rgba(11, 18, 21, .6);
+}
+
+/* krunker hovers them white */
+:is(#windowHolder, #popupHolder, #app) .button:hover,
+:is(#windowHolder, #popupHolder, #app) .button:active {
+	border-color: var(--kute-cyan) !important;
+}
+
+:is(#windowHolder, #popupHolder, #app) .button:not([class*="buttonR"]):not([class*="buttonG"]):not([class*="buttonP"]):not([class*="buttonO"]):not([class*="buttonB"]):not(:hover) {
+	border-color: var(--kute-line-strong);
+}
+
+/* lobby */
+
+#chatList {
+	background-color: rgba(11, 18, 21, .55);
+	border-radius: var(--kute-radius) var(--kute-radius) 0 0;
+}
+
+#chatInputHolder {
+	border-radius: 0 0 var(--kute-radius) var(--kute-radius);
+}
+
+#chatInput {
+	background-color: rgba(24, 36, 41, .8);
+	border: 1px solid var(--kute-line);
+	border-radius: 6px;
+}
+
+#chatInput:focus {
+	border-color: var(--kute-cyan);
+	outline: none;
+}
+
+#instructionsUpdate {
+	background: var(--kute-bg);
+	border: 1px solid var(--kute-line);
+	border-radius: var(--kute-radius-lg);
+	box-shadow: 0 24px 60px rgba(0, 0, 0, .65);
+	overflow: hidden;
+}
+
+.instructionsHeader,
+.instructionsTabs {
+	background-color: var(--kute-panel);
+	box-shadow: none;
+}
+
+.instructionsHeader {
+	border-bottom: 1px solid var(--kute-line);
+}
+
+.instructionsTab {
+	border-top: 1px solid var(--kute-line);
+	transition: background-color .15s, color .15s;
+}
+
+.instructionsTab:hover {
+	background-color: var(--kute-cyan-soft);
+	border-color: var(--kute-line);
+	color: var(--kute-cyan);
+}
+
+/* hud, colors only plus one static pseudo element, nothing that costs a layout per frame */
+
+#ammoHolder,
+#bottomLeftPlayer,
+#timerHolder,
+.statIcon,
+#leaderboardHolder,
+#teamScores,
+#chatInputHolder {
+	border-radius: var(--kute-radius);
+}
+
+/* inner panels follow the outer corners, the health fill is a background so it keeps its color */
+#ammoHolder .greyInner,
+.statIcon .greyInner,
+#timerInner,
+#leaderContainer,
+#bottomLeftPlayerLeft,
+#bottomLeftPlayerRight,
+#bottomLeftTeamType,
+#bottomLeftTeamName,
+#bottomLeftHealthBar {
+	border-radius: 6px;
+}
+
+#bottomLeftPlayerLeft {
+	overflow: hidden;
+}
+
+#ammoHolder,
+#bottomLeftPlayer {
+	box-shadow: inset 0 -2px 0 var(--kute-cyan);
+}
+
+/* ammo background-size is krunker's reload bar, never set the background shorthand here */
+#bottomLeftPlayer {
+	position: relative;
+}
+
+#ammoHolder::before,
+#bottomLeftPlayer::before {
+	content: "";
+	position: absolute;
+	top: -12px;
+	width: 46px;
+	height: 14px;
+	background: var(--kute-ears) no-repeat center / contain;
+	pointer-events: none;
+}
+
+#ammoHolder::before {
+	right: 20px;
+}
+
+#bottomLeftPlayer::before {
+	left: 19px;
+}
+
+#reloadMsg {
+	border-radius: 6px;
+}
+
+#ingameFPS,
+#pingText {
+	color: var(--kute-cyan);
+}
+
+.bigMenTabs {
+	background-color: var(--kute-panel);
+	border: 1px solid var(--kute-line);
+	border-radius: var(--kute-radius);
+}
+
+.bigMenTab:hover {
+	border-bottom: 3px solid var(--kute-line-strong);
+}
+
+.bigMenTabA,
+.bigMenTabA:hover {
+	border-bottom: 3px solid var(--kute-cyan);
+	color: var(--kute-cyan);
+}
+
+/* every popup krunker opens shares #353535. a ring instead of a border, so no popup changes size */
+
+#popupContent,
+#bundlePop,
+#premiumPop,
+#policePopC,
+#guidePopup,
+#chargeModalCard,
+#spinHistoryPop,
+.confPremiumPop,
+.vouchPop,
+.rankedPop,
+.promoPop,
+.pfpPop,
+.dropsPop,
+.accountCreatePop,
+.imagePop,
+.badgePop,
+.imageNewPop,
+.importPop,
+.disconnectPop,
+.eventPop,
+.bp-generic-pop,
+.bp-purchase-pop,
+.spinErrorPop,
+.charmErrorPop,
+.spinHistoryStatsPop,
+.loadingPop,
+.autoLoadPop,
+.editMapPop,
+.responsePop,
+.ticketPop,
+.dxp-pop,
+.abTestsPop,
+.registerGiftPop,
+.rankedQueueModal,
+.rankedMenuModal,
+.communityPopup,
+.tutorialPopup,
+.defaultModal,
+.krunkCupJoinModal,
+.krunkCupViewModal,
+.exchangeModal,
+.itemsModal,
+.moreKrunkerPopup,
+.infoPop,
+.contPop,
+.io-popup-container,
+.wallet-root[class*="svelte-"] {
+	background-color: var(--kute-bg);
+	border-radius: var(--kute-radius-lg);
+	box-shadow: 0 0 0 1px var(--kute-line), 0 24px 60px rgba(0, 0, 0, .65);
+}
+
+.twitchPop,
+.nftPop,
+.confPop,
+.clientExitPop,
+#confPurchItemPop,
+.metaPop,
+.polConfPop {
+	border-color: var(--kute-line);
+	border-radius: var(--kute-radius-lg);
+}
+
+.hostHeader,
+#stickyHostH,
+.imageListHeader,
+.imageListFooter,
+.spinHistoryHeader,
+.popHeader,
+.dropsPopHeader,
+.serverHeader,
+#itemSearchH,
+#bindsHeader,
+.tooltip2,
+.crftRcpeCrd,
+.bundleCrd,
+.bundle-card[class*="svelte-"],
+.moreKrunkerOption[class*="svelte-"],
+.items-grid[class*="svelte-"],
+.filter-panel[class*="svelte-"],
+.territory-map-container[class*="svelte-"],
+.data-table[class*="svelte-"] thead {
+	background-color: var(--kute-panel);
+}
+
+#initLoader,
+.clsStatXPBar,
+.elo-progress-bar-bg {
+	background-color: var(--kute-bg);
+}
+
+.featured-section[class*="svelte-"],
+.stream-card[class*="svelte-"],
+.emoji-panel[class*="svelte-"],
+.verification-banner[class*="svelte-"],
+.music-player[class*="svelte-"],
+.market-card[class*="svelte-"],
+.rank-popup-content {
+	background-color: var(--kute-panel);
+}
+
+.hide-button[class*="svelte-"],
+.kuteTopButton {
+	background-color: var(--kute-raised);
+}
+
+.hide-button[class*="svelte-"]:hover,
+.kuteTopButton:hover {
+	background-color: #1d2c32;
+}
+
+.contactsHeader {
+	background-color: var(--kute-raised);
+	border: 1px solid var(--kute-line);
+	border-left: 3px solid var(--kute-cyan);
+	border-radius: var(--kute-radius);
+}
+
+.bpInfoBalloon,
+.bpInfoBalloon::after,
+.io-separator span {
+	background-color: var(--kute-bg);
+}
+
+.bpClaimB,
+.bp-unlock-header,
+.io-button,
+.mapLICat,
+#tradeChatInput,
+.tradeChatItem,
+.main-button[class*="svelte-"] {
+	background-color: var(--kute-raised);
+}
+
+.io-button:hover,
+.mapLICat:hover,
+.main-button[class*="svelte-"]:hover:not(:disabled):not(.main-button-disabled) {
+	background-color: #1d2c32;
+}
+
+.main-button[class*="svelte-"],
+.moreKrunkerOption[class*="svelte-"],
+.territory-map-container[class*="svelte-"],
+.territory-details-panel[class*="svelte-"],
+.inventory-filter[class*="svelte-"],
+.filter-item-wrapper[class*="svelte-"] {
+	border-color: var(--kute-line);
+}
+
+.moreKrunkerOption[class*="svelte-"]:hover {
+	border-color: var(--kute-cyan);
+}
+
+.inventory-filter[class*="svelte-"],
+.filter-header[class*="svelte-"] {
+	background-color: var(--kute-panel);
+}
+
+.currency-card[class*="svelte-"] {
+	background: var(--kute-panel);
+	border-color: var(--kute-line);
+}
+
+.search-input[class*="svelte-"],
+.season-select[class*="svelte-"],
+.sort-select[class*="svelte-"],
+.category-select[class*="svelte-"],
+.filter-tab[class*="svelte-"],
+.filter-item[class*="svelte-"]:hover,
+.reset-btn[class*="svelte-"],
+.expand-btn[class*="svelte-"],
+.toggle-all-btn[class*="svelte-"],
+.only-btn[class*="svelte-"] {
+	background: var(--kute-raised);
+	border-color: var(--kute-line);
+}
+
+.filter-tab[class*="svelte-"]:hover,
+.reset-btn[class*="svelte-"]:hover,
+.expand-btn[class*="svelte-"]:hover,
+.toggle-all-btn[class*="svelte-"]:hover,
+.only-btn[class*="svelte-"]:hover {
+	background: #1d2c32;
+}
+
+.filter-tab.active[class*="svelte-"] {
+	background: var(--kute-cyan);
+	color: var(--kute-bg);
+}
+
+/* thick white frames around cards and sections */
+
+.setSugBox,
+.viewAllUpdates,
+.bSliderBtn,
+.bundleSliderBtn,
+.dropsSliderBtn,
+.challHeadrI,
+.sub-tab-panel[class*="svelte-"] {
+	border-color: var(--kute-line-strong);
+}
+
+/* orange (.chalCardH) marks a finished map */
+.challMapCrd:not(.chalCardH) {
+	border-color: var(--kute-line-strong);
+}
+
+.guideHeader,
+.guideSubH,
+.mailFrom,
+.speedRunItem,
+#hostActionH,
+#custStreakSelH {
+	border-color: var(--kute-line);
+}
+
+/* tab strips of the svelte windows (store, turf wars) */
+
+.store-tabs[class*="svelte-"],
+.tabs-container[class*="svelte-"],
+#menuWindow.eterno .store-tabs[class*="svelte-"] {
+	background-color: var(--kute-panel);
+	border: 1px solid var(--kute-line);
+	border-radius: var(--kute-radius);
+}
+
+.store-tab[class*="svelte-"]:hover,
+.tab[class*="svelte-"]:hover {
+	border-bottom-color: var(--kute-line-strong);
+}
+
+.store-tab-active[class*="svelte-"],
+.store-tab-active[class*="svelte-"]:hover,
+.tab-active[class*="svelte-"],
+.tab-active[class*="svelte-"]:hover,
+.tabHeader.selected {
+	border-bottom-color: var(--kute-cyan);
+	color: var(--kute-cyan);
+}
+
+/* the eterno shop frame glows and animates, it becomes a plain kute window */
+#menuWindow.eterno {
+	background-color: var(--kute-bg);
+	border-color: var(--kute-line);
+	border-radius: var(--kute-radius-lg);
+	box-shadow: 0 24px 60px rgba(0, 0, 0, .65);
+	animation: none;
+}
+
+/* blue action buttons */
+
+.followBut,
+#hostMenuBtn,
+.chargeModalBtn,
+.redVouchBtn,
+.searchBtn,
+.hostToggle,
+.subPassChg,
+.updDisN,
+#partnerProgB,
+#partnrUpBtn,
+#findGameBtn,
+.joinBtn,
+.openCollection,
+#spinMultiToggleBtn,
+.clanSubmitBtn,
+.main-button-accept-secondary[class*="svelte-"] {
+	background-color: var(--kute-cyan);
+	border-color: var(--kute-cyan);
+	color: var(--kute-bg);
+}
+
+input:checked + .optCheck {
+	background-color: var(--kute-cyan);
+}
+
+.quickJoin,
+.followBack,
+.io-input-field:focus {
+	border-color: var(--kute-cyan);
+}
+
+.io-section-header::after {
+	background: var(--kute-cyan);
+}
+
+.counterBadge[class*="svelte-"] {
+	background: var(--kute-pink);
+	color: #fff;
+}
+
+.wallet-catalog-btn[class*="svelte-"] i {
+	color: var(--kute-cyan);
+}
+
+.stack-collapse-fab[class*="svelte-"] {
+	background: var(--kute-cyan);
+}
+
+/* leaderboards and turf wars use green as accent. green that is a value (kills, rewards, earnings) stays */
+
+.card-title[class*="svelte-"],
+.view-title[class*="svelte-"],
+.table-header[class*="svelte-"],
+.no-clan-title[class*="svelte-"],
+.no-participation-title[class*="svelte-"],
+.clan-benefits[class*="svelte-"] h3,
+.clan-benefits[class*="svelte-"] li::before,
+.eligible-maps[class*="svelte-"] h3,
+.day-label[class*="svelte-"],
+.day-arrow[class*="svelte-"],
+.view-all-btn[class*="svelte-"] {
+	color: var(--kute-cyan);
+}
+
+.section-title[class*="svelte-"] {
+	border-left-color: var(--kute-cyan);
+	color: var(--kute-cyan);
+}
+
+.category-card[class*="svelte-"],
+.map-filter-select[class*="svelte-"],
+.day-arrow[class*="svelte-"],
+.day-input[class*="svelte-"],
+.data-table[class*="svelte-"] thead tr {
+	border-color: var(--kute-line-strong);
+}
+
+.category-card[class*="svelte-"]:hover,
+.map-filter-select[class*="svelte-"]:hover,
+.map-filter-select[class*="svelte-"]:focus,
+.day-input[class*="svelte-"]:focus {
+	border-color: var(--kute-cyan);
+}
+
+.table-header.sortable.sort-asc[class*="svelte-"]::after {
+	border-bottom-color: var(--kute-cyan);
+}
+
+.table-header.sortable.sort-desc[class*="svelte-"]::after {
+	border-top-color: var(--kute-cyan);
+}
+
+.table-header.sortable[class*="svelte-"]:hover,
+.data-table[class*="svelte-"] tbody tr.clickable:hover,
+.data-table[class*="svelte-"] tbody tr.highlight-row,
+.day-arrow[class*="svelte-"]:hover:not(:disabled),
+.day-map[class*="svelte-"],
+.eligible-maps[class*="svelte-"] li,
+.view-all-btn[class*="svelte-"],
+.page-btn[class*="svelte-"],
+.view-tab.active[class*="svelte-"] {
+	background: var(--kute-cyan-soft);
+	border-color: var(--kute-line-strong);
+}
+
+/* in-game social window. svelte's class hashes change every build, the ids outrank their stacked classes. #app holds the views opened from it. yellow that means KR or a status stays */
+
+:is(#popupHolder, #app) .socialModal {
+	background-color: var(--kute-bg);
+	border: 1px solid var(--kute-line);
+	border-radius: var(--kute-radius-lg);
+	box-shadow: 0 24px 60px rgba(0, 0, 0, .65);
+}
+
+:is(#popupHolder, #app) .social-content {
+	border-radius: var(--kute-radius-lg);
+}
+
+:is(#popupHolder, #app) .window-header {
+	background: var(--kute-panel);
+	border-bottom: 1px solid var(--kute-line);
+}
+
+:is(#popupHolder, #app) .window-header-icon {
+	color: var(--kute-cyan);
+}
+
+:is(#popupHolder, #app) .sidebar-tab {
+	background: var(--kute-panel);
+	transition: background-color .15s;
+}
+
+:is(#popupHolder, #app) .sidebar-tab:hover {
+	background: var(--kute-raised);
+}
+
+:is(#popupHolder, #app) .sidebar-tab:hover .sidebar-tab-icon,
+:is(#popupHolder, #app) .sidebar-tab:hover .sidebar-tab-label {
+	color: var(--kute-cyan);
+}
+
+:is(#popupHolder, #app) .sidebar-tab.active {
+	background: var(--kute-cyan);
+}
+
+:is(#popupHolder, #app) .sidebar-tab.active .sidebar-tab-icon,
+:is(#popupHolder, #app) .sidebar-tab.active .sidebar-tab-label {
+	color: var(--kute-bg);
+}
+
+:is(#popupHolder, #app) .simple-tabs {
+	border-bottom-color: var(--kute-line);
+}
+
+:is(#popupHolder, #app) .simple-tab-active {
+	border-bottom-color: var(--kute-cyan);
+}
+
+:is(#popupHolder, #app) .simple-tab-active .simple-tab-icon,
+:is(#popupHolder, #app) .simple-tab-active .simple-tab-label {
+	color: var(--kute-cyan);
+}
+
+:is(#popupHolder, #app) .social-search-input,
+:is(#popupHolder, #app) .social-search-btn,
+:is(#popupHolder, #app) .profile-search-form,
+:is(#popupHolder, #app) .conversation-input,
+:is(#popupHolder, #app) .conversation-emoji-button {
+	background: var(--kute-raised);
+	border-color: var(--kute-line);
+	border-radius: 6px;
+}
+
+:is(#popupHolder, #app) .social-search-input:focus,
+:is(#popupHolder, #app) .profile-search-form:focus-within,
+:is(#popupHolder, #app) .conversation-input:focus {
+	border-color: var(--kute-cyan);
+}
+
+:is(#popupHolder, #app) .social-search-btn:hover,
+:is(#popupHolder, #app) .conversation-emoji-button:hover:not(:disabled) {
+	background: #1d2c32;
+	border-color: var(--kute-line-strong);
+	color: var(--kute-cyan);
+}
+
+:is(#popupHolder, #app) .social-compose-btn,
+:is(#popupHolder, #app) .post-follow-btn,
+:is(#popupHolder, #app) .conversation-send-button {
+	background: var(--kute-cyan);
+	border-radius: 6px;
+	transition: background-color .15s;
+}
+
+:is(#popupHolder, #app) .social-compose-btn:hover,
+:is(#popupHolder, #app) .post-follow-btn:hover:not(:disabled),
+:is(#popupHolder, #app) .conversation-send-button:hover:not(:disabled) {
+	background: var(--kute-pink);
+}
+
+:is(#popupHolder, #app) .social-compose-icon,
+:is(#popupHolder, #app) .social-compose-label,
+:is(#popupHolder, #app) .post-follow-btn i,
+:is(#popupHolder, #app) .conversation-send-button {
+	color: var(--kute-bg);
+}
+
+:is(#popupHolder, #app) .conversation-send-button:disabled {
+	background: #24343a;
+	color: var(--kute-faint);
+}
+
+:is(#popupHolder, #app) .post-card {
+	background: var(--kute-panel);
+	border: 1px solid var(--kute-line);
+	border-radius: var(--kute-radius);
+}
+
+:is(#popupHolder, #app) .post-card-clickable:hover {
+	background: var(--kute-raised);
+}
+
+:is(#popupHolder, #app) .post-item-card {
+	background: rgba(24, 36, 41, .6);
+	border-color: var(--kute-line);
+	border-radius: var(--kute-radius);
+}
+
+:is(#popupHolder, #app) .post-item-card:hover {
+	background: var(--kute-raised);
+	border-color: var(--kute-cyan);
+}
+
+:is(#popupHolder, #app) .postGameRes {
+	background-color: var(--kute-bg);
+	border-radius: var(--kute-radius);
+}
+
+:is(#popupHolder, #app) .postResRo,
+:is(#popupHolder, #app) .postResRoD {
+	border-bottom-color: var(--kute-line);
+}
+
+:is(#popupHolder, #app) .post-content-action {
+	color: var(--kute-cyan);
+}
+
+:is(#popupHolder, #app) .vote-btn,
+:is(#popupHolder, #app) .share-btn {
+	background: var(--kute-raised);
+	border-color: var(--kute-line);
+}
+
+:is(#popupHolder, #app) .vote-btn:hover:not(:disabled),
+:is(#popupHolder, #app) .share-btn:hover {
+	background: #1d2c32;
+	border-color: var(--kute-line-strong);
+}
+
+:is(#popupHolder, #app) .comment-btn:hover {
+	background: var(--kute-cyan-soft);
+}
+
+:is(#popupHolder, #app) .vote-btn-done,
+:is(#popupHolder, #app) .vote-btn-done:hover:not(:disabled) {
+	background: var(--kute-cyan);
+	border-color: var(--kute-cyan);
+}
+
+:is(#popupHolder, #app) .vote-btn-done .vote-btn-icon,
+:is(#popupHolder, #app) .vote-btn-done .vote-btn-label,
+:is(#popupHolder, #app) .vote-btn-done .vote-btn-count {
+	color: var(--kute-bg);
+}
+
+:is(#popupHolder, #app) .friends-root,
+:is(#popupHolder, #app) .conversation-root {
+	background: var(--kute-bg);
+}
+
+:is(#popupHolder, #app) .friend-list {
+	background: var(--kute-panel);
+	border-right: 1px solid var(--kute-line);
+}
+
+:is(#popupHolder, #app) .friend-item:hover {
+	background: rgba(53, 224, 232, .06);
+}
+
+:is(#popupHolder, #app) .friend-item.selected {
+	background: var(--kute-cyan-soft);
+	border-left-color: var(--kute-cyan);
+}
+
+:is(#popupHolder, #app) .friend-presence-dot {
+	border-color: var(--kute-panel);
+}
+
+:is(#popupHolder, #app) .friend-unread {
+	background: var(--kute-pink);
+	color: #fff;
+}
+
+:is(#popupHolder, #app) .friend-list-search {
+	background: var(--kute-raised);
+	border-top: 1px solid var(--kute-line);
+}
+
+:is(#popupHolder, #app) .conversation-header,
+:is(#popupHolder, #app) .conversation-compose {
+	background: var(--kute-panel);
+	border-color: var(--kute-line);
+}
+
+:is(#popupHolder, #app) .conversation-presence-dot {
+	border-color: var(--kute-panel);
+}
+
+:is(#popupHolder, #app) .conversation-load-earlier {
+	background: var(--kute-raised);
+	border-color: var(--kute-line);
+}
+
+:is(#popupHolder, #app) .conversation-day-divider::before,
+:is(#popupHolder, #app) .conversation-day-divider::after {
+	background: var(--kute-line);
+}
+
+:is(#popupHolder, #app) .bubble-row.sent .bubble {
+	background: var(--kute-cyan);
+}
+
+:is(#popupHolder, #app) .bubble-row.sent .bubble,
+:is(#popupHolder, #app) .bubble-row.sent .bubble-time,
+:is(#popupHolder, #app) .bubble-row.sent .bubble-status-ok {
+	color: var(--kute-bg);
+}
+
+:is(#popupHolder, #app) .bubble-row.received .bubble {
+	background: var(--kute-raised);
+}
+
+/* profile view, opened from social. KR prices and the premium badge keep krunker's yellow */
+
+#app .profile-detail-root {
+	background: var(--kute-bg);
+	border: 1px solid var(--kute-line);
+	border-radius: var(--kute-radius-lg);
+	box-shadow: 0 24px 60px rgba(0, 0, 0, .65);
+}
+
+#app .profile-detail-header-bar {
+	background: var(--kute-panel);
+	border-bottom-color: var(--kute-line);
+}
+
+#app .profile-detail-header-icon,
+#app .profile-detail-section-header,
+#app .profile-detail-sales-header {
+	color: var(--kute-cyan);
+}
+
+#app .profile-detail-back,
+#app .profile-detail-action,
+#app .profile-detail-range-btn {
+	background: var(--kute-raised);
+	border-color: var(--kute-line);
+}
+
+#app .profile-detail-back:hover,
+#app .profile-detail-action:hover:not(:disabled) {
+	background: #1d2c32;
+}
+
+#app .profile-detail-action.active,
+#app .profile-detail-action.active i {
+	background: var(--kute-cyan-soft);
+	border-color: var(--kute-line-strong);
+	color: var(--kute-cyan);
+}
+
+#app .profile-detail-range-btn.active {
+	background: var(--kute-cyan);
+	border-color: var(--kute-cyan);
+	color: var(--kute-bg);
+}
+
+#app .profile-detail-identity,
+#app .profile-detail-sales-panel,
+#app .profile-detail-badges-panel,
+#app .profile-detail-creations-panel {
+	background: var(--kute-panel);
+	border-color: var(--kute-line);
+	border-radius: var(--kute-radius);
+}
+
+#app .profile-detail-avatar {
+	background: var(--kute-raised);
+	border-color: var(--kute-line-strong);
+}
+
+#app .profile-detail-online-dot {
+	border-color: var(--kute-panel);
+}
+
+#app .profile-detail-follow-box,
+#app .profile-detail-title-item,
+#app .profile-detail-badge-item {
+	background: var(--kute-raised);
+}
+
+#app .profile-detail-follow-box:hover {
+	background: #1d2c32;
+	border-color: var(--kute-line-strong);
+}
+
+#app .profile-detail-stat,
+#app .profile-detail-class,
+#app .profile-detail-raid-row,
+#app .profile-detail-listing-card,
+#app .profile-detail-creation-card {
+	background: var(--kute-panel);
+	border-color: var(--kute-line);
+	border-radius: var(--kute-radius);
+}
+
+#app .profile-detail-listing-card:hover,
+#app .profile-detail-creation-card:hover {
+	background: var(--kute-raised);
+}
+
+#app .profile-detail-level-badge,
+#app .profile-detail-xp-fill {
+	background: var(--kute-cyan);
+}
+
+#app .profile-detail-level-badge {
+	color: var(--kute-bg);
+}
+
+#app .profile-detail-xp-bar {
+	background: var(--kute-raised);
+}

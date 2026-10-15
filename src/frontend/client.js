@@ -1,3 +1,4 @@
+import cSettings from "../cSettings.json";
 import { overridePerformance } from "./performance.js";
 
 /**
@@ -28,6 +29,12 @@ export const ready = new Promise((resolve) => {
         if (event?.data?.settings || event?.data?.version){
             window.chrome.webview.removeEventListener("message", handler);
             Object.assign(kute, event.data);
+            // an exe older than a setting does not send it, Config::load fills the same defaults on the host
+            if (kute.settings?.data){
+                for (const setting of Object.values(/** @type {Record<string, {id: string, defaultValue?: unknown}>} */ (cSettings))){
+                    if (setting.defaultValue !== undefined && !(setting.id in kute.settings.data)) kute.settings.data[setting.id] = setting.defaultValue;
+                }
+            }
             // before anything reads a setting
             if (kute.settings?.data) overridePerformance(kute.settings.data, kute.settings.data.performanceMode === true);
             resolve(kute);

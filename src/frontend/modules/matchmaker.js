@@ -2,6 +2,7 @@ import styles from "../components/matchmaker.css";
 import { kute } from "../client.js";
 import { request } from "../utils.js";
 import { matches } from "./hotkeys.js";
+import { OFFICIAL_MAPS, mapImageUrl } from "./maps.js";
 
 // ---
 // ported from the Krunker Civilian Client (GPL-3.0) <3
@@ -27,20 +28,12 @@ const REGIONS = {
     SIN: "Singapore", DAL: "Dallas", BHN: "Bahrain", BRZ: "Brazil", NY: "New York",
 };
 
-// index = preview image number on assets.krunker.io
-const MAP_ICONS = [
-    "Burg", "Littletown", "Sandstorm", "Subzero", "Undergrowth", "Shipment", "Freight", "Lostworld", "Citadel", "Oasis",
-    "Kanji", "Industry", "Lumber", "Evacuation", "Site", "SkyTemple", "Lagoon", "Bureau", "Tortuga", "Tropicano",
-    "Krunk_Plaza", "Arena", "Habitat", "Atomic", "Old_Burg", "Throwback", "Stockade", "Facility", "Clockwork", "Laboratory",
-    "Shipyard", "Soul Sanctum", "Bazaar", "Erupt", "HQ", "Khepri", "Lush", "Vivo", "Slide Moonlight", "Eterno Simulator",
-];
-
 // official maps. none picked means all of these, keeps community maps out
 const MAP_FILTER = [
     "Burg", "Littletown", "Sandstorm", "Subzero", "Undergrowth", "Freight", "Lostworld", "Citadel", "Oasis", "Kanji",
     "Industry", "Lumber", "Evacuation", "Site", "SkyTemple", "Lagoon", "Tropicano", "Habitat", "Atomic", "Old_Burg",
     "Throwback", "Clockwork", "Bazaar", "Erupt", "HQ", "Lush", "Vivo", "Slide Moonlight", "Eterno Simulator", "Eterno Jump",
-    "Frontier",
+    "Frontier", "Piazza", "Barnyard",
 ];
 
 /** @type {Record<string, string>} */
@@ -54,10 +47,7 @@ const MAP_NAMES = { SkyTemple: "Sky Temple", Krunk_Plaza: "Krunk Plaza", Old_Bur
  */
 const normalizeMap = (name) => name.toLowerCase().replace(/[^a-z0-9]/g, "");
 
-const MAP_ICON_BY_NAME = new Map(MAP_ICONS.map((name, index) => [normalizeMap(name), index]));
-// newer maps, their images come after the list
-MAP_ICON_BY_NAME.set(normalizeMap("Eterno Jump"), 41);
-MAP_ICON_BY_NAME.set(normalizeMap("Frontier"), 42);
+const MAP_ICON_BY_NAME = new Map(OFFICIAL_MAPS.map((name, index) => [normalizeMap(name), index]));
 
 const DEFAULT_MAPS = new Set(MAP_FILTER.map(normalizeMap));
 // parkour maps have no round timer. untimed on any other map = custom game
@@ -79,6 +69,7 @@ const NOT_FOUND_HOLD_MS = 1100;
  * @property {string[]} modes
  * @property {string[]} maps
  * @property {string[]} preferredMaps tried first in this order, before ping and players
+ * @property {string[]} preferredModes like preferredMaps, ranks above them
  * @property {number} minPlayers
  * @property {number} maxPlayers
  * @property {number} minTime seconds left in the round
@@ -93,6 +84,7 @@ const DEFAULT_FILTER = {
     modes: [],
     maps: [],
     preferredMaps: [],
+    preferredModes: [],
     minPlayers: 1,
     maxPlayers: 6,
     minTime: 120,
@@ -126,7 +118,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  */
 function mapIconUrl(map){
     const index = MAP_ICON_BY_NAME.get(normalizeMap(map));
-    return index === undefined ? null : `https://assets.krunker.io/img/maps/map_${index}.png`;
+    return index === undefined ? null : mapImageUrl(index);
 }
 
 /**
@@ -441,8 +433,10 @@ class Matchmaker {
         /** @param {Lobby} lobby */
         const ping = (lobby) => pings[lobby.server] ?? 999;
         const mapRanks = new Map(filter.preferredMaps.map((map, index) => [normalizeMap(map), index]));
+        const modeRanks = new Map(filter.preferredModes.map((mode, index) => [mode, index]));
         /** @param {Lobby} lobby */
-        const rank = (lobby) => mapRanks.get(normalizeMap(lobby.map)) ?? mapRanks.size;
+        const rank = (lobby) =>
+            (modeRanks.get(lobby.mode) ?? modeRanks.size) * (mapRanks.size + 1) + (mapRanks.get(normalizeMap(lobby.map)) ?? mapRanks.size);
         const passing = lobbies.filter((lobby) => lobby.passes);
         passing.sort((a, b) => {
             const byRank = rank(a) - rank(b);
@@ -544,27 +538,50 @@ class Matchmaker {
             }
         };
 
+        /**
+         * @typedef {object} RankedGroup
+         * @property {string} gridId
+         * @property {string} boxId
+         * @property {string} noun
+         * @property {string[]} values
+         * @property {string[]} picked changed in place
+         * @property {string[]} preferred changed in place, in rank order
+         * @property {(value: string) => string} label
+         * @property {(value: string) => string|null} icon
+         */
+
+        /**
+         * @param {string|null} url
+         * @param {HTMLElement} chip
+         * @param {boolean} lazy
+         */
+        const chipIcon = (url, chip, lazy) => {
+            if (!url) return;
+            const img = document.createElement("img");
+            img.src = url;
+            img.alt = "";
+            if (lazy) img.loading = "lazy";
+            else img.draggable = false;
+            img.onerror = () => img.remove();
+            chip.append(img);
+        };
+
         // drag to reorder, click to move to top. pointer events since the host refuses html5 drags
-        const renderPreferred = () => {
-            const list = element("mmPreferred");
-            element("mmPreferredBox").hidden = filter.preferredMaps.length === 0;
+        /** @param {RankedGroup} group */
+        const renderRanked = (group) => {
+            const { preferred } = group;
+            const box = element(group.boxId);
+            box.hidden = preferred.length === 0;
+            const list = /** @type {HTMLElement} */ (box.querySelector(".mmGrid"));
             list.replaceChildren();
             const renumber = () => list.querySelectorAll(".mmNum").forEach((num, index) => (num.textContent = String(index + 1)));
 
-            for (const value of filter.preferredMaps){
+            for (const value of preferred){
                 const chip = document.createElement("div");
                 chip.className = "mmChip on mmRank";
                 chip.append(span("mmNum", ""));
-                const icon = mapIconUrl(value);
-                if (icon){
-                    const img = document.createElement("img");
-                    img.src = icon;
-                    img.alt = "";
-                    img.draggable = false;
-                    img.onerror = () => img.remove();
-                    chip.append(img);
-                }
-                chip.append(MAP_NAMES[value] ?? value);
+                chipIcon(group.icon(value), chip, false);
+                chip.append(group.label(value));
 
                 /** @type {{x: number, y: number, moved: boolean}|null} */
                 let drag = null;
@@ -584,7 +601,7 @@ class Matchmaker {
                     });
                     const from = children.indexOf(chip);
                     if (target === -1 || target === from) return;
-                    filter.preferredMaps.splice(target, 0, ...filter.preferredMaps.splice(from, 1));
+                    preferred.splice(target, 0, ...preferred.splice(from, 1));
                     chip.remove();
                     list.insertBefore(chip, list.children[target] ?? null);
                     renumber();
@@ -592,9 +609,9 @@ class Matchmaker {
                 chip.onpointerup = () => {
                     chip.classList.remove("dragging");
                     if (drag && !drag.moved){
-                        filter.preferredMaps.unshift(...filter.preferredMaps.splice(filter.preferredMaps.indexOf(value), 1));
+                        preferred.unshift(...preferred.splice(preferred.indexOf(value), 1));
                         window.SOUND?.play("tick_0", 0.1);
-                        renderPreferred();
+                        renderRanked(group);
                     }
                     drag = null;
                 };
@@ -604,56 +621,68 @@ class Matchmaker {
             renumber();
         };
 
-        // a preferred map always stays allowed
-        const renderMaps = () => {
-            const grid = element("mmMaps");
+        // a preferred entry always stays allowed
+        /** @param {RankedGroup} group */
+        const renderStarred = (group) => {
+            const { picked, preferred } = group;
+            const grid = element(group.gridId);
             grid.replaceChildren();
-            for (const value of MAP_FILTER){
-                const preferred = filter.preferredMaps.includes(value);
+            for (const value of group.values){
+                const isPreferred = preferred.includes(value);
                 const chip = document.createElement("div");
-                chip.className = `mmChip${filter.maps.includes(value) ? " on" : ""}${preferred ? " preferred" : ""}`;
-                const icon = mapIconUrl(value);
-                if (icon){
-                    const img = document.createElement("img");
-                    img.src = icon;
-                    img.alt = "";
-                    img.loading = "lazy";
-                    img.onerror = () => img.remove();
-                    chip.append(img);
-                }
-                chip.append(MAP_NAMES[value] ?? value);
+                chip.className = `mmChip${picked.includes(value) ? " on" : ""}${isPreferred ? " preferred" : ""}`;
+                chipIcon(group.icon(value), chip, true);
+                chip.append(group.label(value));
                 const star = span("mmStar", "★");
-                star.title = preferred ? "Preferred, click to remove" : "Prefer this map";
+                star.title = isPreferred ? "Preferred, click to remove" : `Prefer this ${group.noun}`;
                 star.onclick = (event) => {
                     event.stopPropagation();
-                    if (preferred) filter.preferredMaps.splice(filter.preferredMaps.indexOf(value), 1);
+                    if (isPreferred) preferred.splice(preferred.indexOf(value), 1);
                     else {
-                        filter.preferredMaps.push(value);
-                        if (filter.maps.length > 0 && !filter.maps.includes(value)) filter.maps.push(value);
+                        preferred.push(value);
+                        if (picked.length > 0 && !picked.includes(value)) picked.push(value);
                     }
-                    renderMaps();
+                    renderStarred(group);
                 };
                 chip.append(star);
                 chip.onclick = () => {
-                    const index = filter.maps.indexOf(value);
+                    const index = picked.indexOf(value);
                     if (index !== -1){
-                        filter.maps.splice(index, 1);
-                        if (preferred) filter.preferredMaps.splice(filter.preferredMaps.indexOf(value), 1);
+                        picked.splice(index, 1);
+                        if (isPreferred) preferred.splice(preferred.indexOf(value), 1);
                     }
-                    // first pick turns "all maps" into a list, keep the preferred ones in it
-                    else if (filter.maps.length === 0) filter.maps.push(...new Set([...filter.preferredMaps, value]));
-                    else filter.maps.push(value);
-                    renderMaps();
+                    // first pick turns "all" into a list, keep the preferred ones in it
+                    else if (picked.length === 0) picked.push(...new Set([...preferred, value]));
+                    else picked.push(value);
+                    renderStarred(group);
                 };
                 grid.append(chip);
             }
-            renderPreferred();
+            renderRanked(group);
         };
 
         const fill = () => {
             chips("mmRegions", Object.entries(REGIONS).map(([value, label]) => ({ value, label })), filter.regions);
-            chips("mmModes", MODE_FILTER.map((value) => ({ value, label: value })), filter.modes);
-            renderMaps();
+            renderStarred({
+                gridId: "mmModes",
+                boxId: "mmModeRanks",
+                noun: "mode",
+                values: MODE_FILTER,
+                picked: filter.modes,
+                preferred: filter.preferredModes,
+                label: (value) => value,
+                icon: () => null,
+            });
+            renderStarred({
+                gridId: "mmMaps",
+                boxId: "mmMapRanks",
+                noun: "map",
+                values: MAP_FILTER,
+                picked: filter.maps,
+                preferred: filter.preferredMaps,
+                label: (value) => MAP_NAMES[value] ?? value,
+                icon: mapIconUrl,
+            });
             element("mmMinPlayers").value = String(filter.minPlayers);
             element("mmMaxPlayers").value = String(filter.maxPlayers);
             element("mmMinTime").value = String(filter.minTime);
@@ -666,6 +695,7 @@ class Matchmaker {
         filter.modes = [...filter.modes];
         filter.maps = [...filter.maps];
         filter.preferredMaps = [...filter.preferredMaps];
+        filter.preferredModes = [...filter.preferredModes];
         fill();
 
         /**
@@ -696,7 +726,7 @@ class Matchmaker {
         };
         element("mmDone").onclick = close;
         element("mmReset").onclick = () => {
-            Object.assign(filter, DEFAULT_FILTER, { regions: [], modes: [], maps: [], preferredMaps: [] });
+            Object.assign(filter, DEFAULT_FILTER, { regions: [], modes: [], maps: [], preferredMaps: [], preferredModes: [] });
             fill();
         };
         overlay.addEventListener("mousedown", (event) => {

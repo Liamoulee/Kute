@@ -51,11 +51,16 @@ export class HudEditor {
         this.style = null;
         /** @type {boolean} */
         this.open = false;
+        /** @type {Record<string, Record<string, [number, number, number, number, number]>>} viewport -> key -> rect, menu widgets as last seen on the menu */
+        this.menuRects = {};
 
         kute.hudEditor = { edit: () => this.edit(), apply: () => this.apply() };
 
         this.migrateNukeCounter();
         this.apply();
+        // the game starts on the menu, so the match snapshot can use a real measurement. once more a little later,
+        // in case the timer's style was not in yet
+        if (Object.keys(this.measureMenuWidgets()).length === 0) setTimeout(() => this.measureMenuWidgets(), 3000);
     }
 
     /**
@@ -136,6 +141,7 @@ export class HudEditor {
         /** @type {{def: import("./elements.js").HudElement, element: HTMLElement, visible: boolean}[]} */
         const found = [];
         for (const def of HUD_ELEMENTS){
+            if (def.menu) continue;
             const element = /** @type {HTMLElement|null} */ (document.querySelector(def.selector));
             if (!element) continue;
             found.push({ def, element, visible: window.getComputedStyle(element).display !== "none" });
@@ -177,6 +183,19 @@ export class HudEditor {
             geometry.rects[def.key] = [rect.x, rect.y, rect.width, rect.height, 0];
         }
 
+        // menu widgets are not on the screen here: the last measurement on the menu, else their css spot stands in
+        const seen = this.menuRects[`${geometry.vw}x${geometry.vh}`] ?? {};
+        for (const def of HUD_ELEMENTS){
+            if (!def.menu) continue;
+            if (seen[def.key]){
+                geometry.rects[def.key] = seen[def.key];
+                continue;
+            }
+            const [cx, cy] = def.menu(geometry.vw, geometry.vh);
+            const [w, h] = def.size ?? [0, 0];
+            geometry.rects[def.key] = [cx - w / 2, cy - h / 2, w, h, 1];
+        }
+
         if (this.style) this.style.textContent = layoutText;
 
         try {
@@ -206,7 +225,37 @@ export class HudEditor {
         }
         if (!stored?.rects) return null;
         if (stored.vw !== window.innerWidth || stored.vh !== window.innerHeight) return null;
-        return stored;
+        return this.withMenuWidgets(stored);
+    }
+
+    /**
+     * Menu widgets as they sit right now, without our offsets. Only on the menu, where they are visible.
+     *
+     * @return {Record<string, [number, number, number, number, number]>}
+     */
+    measureMenuWidgets(){
+        /** @type {Record<string, [number, number, number, number, number]>} */
+        const rects = {};
+        const layoutText = this.style?.textContent ?? "";
+        if (this.style) this.style.textContent = "";
+        for (const def of HUD_ELEMENTS){
+            if (!def.menu) continue;
+            const rect = document.querySelector(def.selector)?.getBoundingClientRect();
+            if (rect && rect.width > 0) rects[def.key] = [rect.x, rect.y, rect.width, rect.height, 1];
+        }
+        if (this.style) this.style.textContent = layoutText;
+        if (Object.keys(rects).length > 0) this.menuRects[`${window.innerWidth}x${window.innerHeight}`] = rects;
+        return rects;
+    }
+
+    /**
+     * On the menu the menu widgets are visible: measure them instead of trusting the stand-in.
+     *
+     * @param {HudGeometry} geometry
+     * @return {HudGeometry}
+     */
+    withMenuWidgets(geometry){
+        return { ...geometry, rects: { ...geometry.rects, ...this.measureMenuWidgets() } };
     }
 
     /**

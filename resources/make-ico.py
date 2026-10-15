@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# builds resources/kute.ico, run from the repo root: python resources/make-ico.py (needs Pillow)
+# builds resources/kute.ico and the linux window icon kute-256.png, run from the repo root: python resources/make-ico.py (needs Pillow)
 # small sizes from lowres.png, big ones from icon.png (the detailed logo is mush below 40 px)
 
 import struct
@@ -9,6 +9,7 @@ from PIL import Image
 LOW_RES = "resources/lowres.png"
 DETAILED = "resources/icon.png"
 OUT = "resources/kute.ico"
+LINUX_PNG = "resources/kute-256.png"
 
 # simplified art up to and including this size
 LOW_RES_MAX = 32
@@ -47,6 +48,8 @@ def main():
     for size in SIZES:
         source = low if size <= LOW_RES_MAX else detailed
         scaled = source.resize((size, size), Image.LANCZOS)
+        if size == 256:
+            scaled.save(LINUX_PNG, "PNG", optimize=True)
         # windows expects PNG for 256, bitmaps for the rest
         images.append((size, png(scaled) if size == 256 else dib(scaled)))
 

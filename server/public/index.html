@@ -4,11 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#020707" />
-    <meta name="description" content="Kute is a Krunker client for Windows: bundled and patched Chromium, uncapped FPS with an exact limiter, raw input, Auto-Detect, matchmaker, OBS capture and more." />
+    <meta name="description" content="Kute is a Krunker client for Windows and Linux: bundled and patched Chromium, uncapped FPS with an exact limiter, raw input, Auto-Detect, matchmaker, OBS capture and more." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://kute.lol/" />
     <meta property="og:title" content="Kute - Krunker client" />
-    <meta property="og:description" content="Krunker client for Windows. Uncapped FPS, raw input, Auto-Detect, matchmaker, OBS capture and more." />
+    <meta property="og:description" content="Krunker client for Windows and Linux. Uncapped FPS, raw input, Auto-Detect, matchmaker, OBS capture and more." />
     <meta property="og:image" content="https://kute.lol/assets/kute-icon-512.png" />
     <meta name="twitter:card" content="summary" />
     <title>Kute - Krunker client</title>
@@ -89,11 +89,11 @@
               <b>Download <em>(Windows)</em></b>
               <span class="launch-icon" aria-hidden="true">↓</span>
             </a>
-            <span class="launch-action launch-disabled" aria-disabled="true">
+            <a class="launch-action" href="https://github.com/NullDev/Kute/releases/latest/download/kute-x86_64.AppImage" target="_blank" rel="noreferrer">
               <span class="launch-index">02 / LINUX</span>
               <b>Download <em>(Linux)</em></b>
-              <span class="launch-soon">SOON™</span>
-            </span>
+              <span class="launch-icon" aria-hidden="true">↓</span>
+            </a>
             <a class="launch-action" href="https://discord.com/invite/MUJbP3fXrS" target="_blank" rel="noreferrer">
               <span class="launch-index">03 / COMMUNITY</span>
               <b>Discord</b>
@@ -253,6 +253,10 @@
             <p>Yes, the <a href="https://github.com/NullDev/Kute/releases/latest/download/kute-x86_64-portable.zip" target="_blank" rel="noreferrer">portable zip</a>. Unpack it anywhere and start <b>kute.exe</b>, nothing gets installed. Settings and scripts still live in <b>Documents\kute</b>, shared with an installed Kute. Small updates apply by themselves. When a new client version is out, Kute asks and opens the download page, then replace the folder with the new zip.</p>
           </details>
           <details class="faq-item reveal">
+            <summary>Does it run on Linux?</summary>
+            <p>Yes, as an <a href="https://github.com/NullDev/Kute/releases/latest/download/kute-x86_64.AppImage" target="_blank" rel="noreferrer">AppImage</a> for 64-bit Linux (glibc 2.35 or newer: Ubuntu 22.04, Debian 12, Fedora 36 and later, Arch). Make it executable and start it, it updates itself and keeps its settings in <b>~/.config/kute</b>. It runs through X11 (XWayland in a Wayland session) by default, which is much faster than native Wayland for now. Linux applies your desktop's mouse acceleration to the game: for raw input set your mouse to the <b>Flat</b> profile at speed <b>0</b>. Not on Linux: the OBS plugin (OBS's PipeWire capture records the game), the swapchain hook, the NVIDIA profile and the graphics backend choice.</p>
+          </details>
+          <details class="faq-item reveal">
             <summary>My FPS is lower, but the client is smoother</summary>
             <p>Uncapped, other clients count every frame the game computes, including frames that never reach your screen: they pile up behind the GPU and get replaced before they are shown. A big number, but those frames are only extra load and extra input lag. Kute's swap chain hook and patched Chromium let the game run just one frame ahead, so it only computes frames that actually get shown, and the <b>Present FPS Counter</b> shows the frames that reach your screen. A lower number that is real, instead of a higher one that is not.</p>
           </details>
@@ -327,12 +331,12 @@
             <div><span></span><b>Patched Chromium</b><p>No aim freeze with uncapped FPS, no stutter when the GPU is the limit, and more. Every patch is a switch in the Engine settings.</p></div>
             <div><span></span><b>Uncapped FPS</b><p>Removes the refresh rate cap.</p></div>
             <div><span></span><b>Fix Audio Stutters</b><p>Optional: keeps the game's 3D sound from eating the audio thread at high FPS.</p></div>
-            <div><span></span><b>Laptop setup</b><p>Two graphics chips are recognized: Kute picks the fast one and skips the swap chain hook there. Plugged in, it runs on Best performance and puts your power mode back after.</p></div>
+            <div><span></span><b>Laptop setup</b><p>Two graphics chips are recognized: Kute picks the fast one and skips the swap chain hook there. Plugged in, it runs on Best performance and puts your power mode back after. On Linux, NVIDIA PRIME offload renders on the NVIDIA chip.</p></div>
             <div><span></span><b>NVIDIA profile</b><p>A driver profile for Kute alone lifts a global Max Frame Rate or forced V-Sync. Yours to change.</p></div>
             <div><span></span><b>Exact FPS limit</b><p>Held inside Chromium's compositor by our own patch, so the CPU idles between frames. Works with or without the swap chain hook.</p></div>
             <div><span></span><b>Present FPS counter</b><p>A second counter for the frames that reach your screen.</p></div>
             <div><span></span><b>Auto-Detect</b><p>Tests the client's own setup and the FPS limit on your PC, then the game in a private match, and keeps only what measurably runs better. Checked against how you started, can be undone.</p></div>
-            <div><span></span><b>Disable non-performance features</b><p>One switch turns off every cosmetic feature and hides its settings. Switch it back and everything is as you left it.</p></div>
+            <div><span></span><b>Disable &amp; hide non-performance settings</b><p>One switch turns off every cosmetic feature and hides its settings. Switch it back and everything is as you left it.</p></div>
             <div><span></span><b>Graphics backend</b><p>D3D11, D3D11on12, OpenGL or Vulkan, plus a color profile setting.</p></div>
             <div><span></span><b>Chromium flags</b><p>A tested default set. Add your own in <code>user_flags.json</code>.</p></div>
             <div><span></span><b>URL blocklist</b><p>About 50 entries against ads and trackers. Add your own.</p></div>
@@ -345,6 +349,8 @@
             <div><span></span><b>Ramp boosting</b><p>Scrolling jumps. Off in competitive.</p></div>
             <div><span></span><b>Real Ping</b><p>Pings the lobby server and shows your actual latency.</p></div>
             <div><span></span><b>Player list ping</b><p>Everyone's ping as a number.</p></div>
+            <div><span></span><b>Find Game pings</b><p>Every server in Find Game shows your real ping to its region. The old browser layout lists regions fastest first.</p></div>
+            <div><span></span><b>Ranked match alert</b><p>Tabbed out while you queue ranked? When a match is found, Kute comes to the front or flashes in your taskbar.</p></div>
             <div><span></span><b>Hardpoint enemy counter</b><p>How many enemies are on the point in competitive.</p></div>
             <div><span></span><b>Headshot sound</b><p>The headshot sound on every kill.</p></div>
             <div><span></span><b>Auto spectate</b><p>Joins public matches as a spectator.</p></div>
@@ -352,19 +358,19 @@
 
           <div class="feature-group" id="f-lobbies">
             <h3>Lobbies and ranked</h3>
-            <div><span></span><b>Matchmaker</b><p>F6 joins the lowest ping lobby that fits your filters: region, mode, map, players, time left.</p></div>
+            <div><span></span><b>Matchmaker</b><p>F6 joins the lowest ping lobby that fits your filters: region, mode, map, players, time left. Star modes and maps to try them first, in your order.</p></div>
             <div><span></span><b>Ranked queue</b><p>Queue for ranked from a small window without the game open.</p></div>
             <div><span></span><b>Rank progress</b><p>Elo progress to the next rank and the rank distribution.</p></div>
-            <div><span></span><b>Hotkeys</b><p>F4 new lobby, F6 matchmaker, F5 reload, F11 fullscreen, F12 devtools. Rebind or clear any of them, add keys to toggle Spotify and Keystrokes.</p></div>
+            <div><span></span><b>Hotkeys</b><p>F4 new lobby, F6 matchmaker, F5 reload, F11 fullscreen, F12 devtools. Rebind or clear any of them, add keys to toggle Spotify and Keystrokes or log in a saved account.</p></div>
           </div>
 
           <div class="feature-group" id="f-interface">
             <h3>Interface</h3>
             <div><span></span><b>Better chat</b><p>Team and all chat in one view, Tab switches where you send. Chat text can be selected.</p></div>
+            <div><span></span><b>Chat logs</b><p>The last 2000 chat lines, kept when you switch lobbies. F1 opens them to filter by players, kills, events and server, search and copy. The key is yours to change.</p></div>
             <div><span></span><b>Menu timer</b><p>The match timer in the menu.</p></div>
             <div><span></span><b>Classic menu</b><p>The Season 9 menu layout, new buttons included.</p></div>
-            <div><span></span><b>Cleaner menu</b><p>Hides menu clutter and store popups, adds an exit button.</p></div>
-            <div><span></span><b>Hide Popular Now</b><p>Removes the Popular Now maps row from the menu.</p></div>
+            <div><span></span><b>Cleaner menu</b><p>Hides the store ad, live streams, featured maps, the Popular Now row and other promos. The logo and every button stay.</p></div>
             <div><span></span><b>Clan colors</b><p>Colored clan tags in the player lists.</p></div>
             <div><span></span><b>HUD editor</b><p>Drag, resize and hide every HUD element, snapping to the edges and to each other.</p></div>
             <div><span></span><b>Nuke counter</b><p>Your career nuke total in game, with an optional goal. Place it where you want it.</p></div>
@@ -377,19 +383,25 @@
 
           <div class="feature-group" id="f-custom">
             <h3>Customization</h3>
-            <div><span></span><b>Resource swapper</b><p>Replaces game files with your own. The manager shows what the game loads, drop a file onto the one it replaces and it lands in the right place. CSS and other text files can be written and edited right there.</p></div>
+            <div><span></span><b>Resource swapper</b><p>Replaces game files with your own. The manager shows what the game loads, drop a file onto the one it replaces and it lands in the right place. CSS and other text files can be written and edited right there, and CSS swaps apply instantly.</p></div>
             <div><span></span><b>Custom CSS</b><p>Write your own CSS in the client with syntax highlighting and a live preview. It always loads after Krunker's styles, so your rules win.</p></div>
+            <div><span></span><b>Kute CSS</b><p>One switch gives the whole client Kute's look: menus, settings, every window and popup, the social window and the HUD, with a few cats. Colors that mean something, like KR, rarities and health, stay as they are, and your own Custom CSS still wins.</p></div>
             <div><span></span><b>Motion blur</b><p>A slight blur while you turn the camera, with adjustable strength. The HUD stays sharp, and nothing runs while you stand still.</p></div>
             <div><span></span><b>Custom sky</b><p>Your own sky on every map: starfield, aurora, synthwave and more built in, a color gradient, or any image you drop into the skies folder.</p></div>
-            <div><span></span><b>Userscripts</b><p>Crankshaft and idkr scripts work as they are. Manage them in the client: turn them on and off live, change their settings, edit them in the built-in editor or drop new ones in.</p></div>
+            <div><span></span><b>Disable video skins</b><p>Animated video skins like Glitch are not loaded at all, for players whose FPS drops when they show up. Every other video in the game stays.</p></div>
+            <div><span></span><b>Userscripts</b><p>Crankshaft and idkr scripts work as they are. Manage them in the client: turn them on and off live, change their settings, edit them in the built-in editor or drop new ones in, without refreshing the page. Example scripts come along, off by default: Class Roulette draws a random class on every respawn, Quick Sell by Rarity clears one rarity from your inventory after a preview and a confirmation.</p></div>
             <div><span></span><b>Mods</b><p>Krunker mods load right in the game window. Mod, lobby and invite links never open a second game that would end your match.</p></div>
+            <div><span></span><b>Mod download</b><p>A download button on every mod in Krunker's Mods window. One click saves the mod's zip to your Downloads folder.</p></div>
             <div><span></span><b>Krunker settings import</b><p>Pick which parts to import: keybinds, sensitivity, sound.</p></div>
           </div>
 
           <div class="feature-group" id="f-client">
             <h3>Client</h3>
-            <div><span></span><b>Account manager</b><p>Saved accounts, encrypted by Windows. Passwords never reach the page.</p></div>
+            <div><span></span><b>Account manager</b><p>Saved accounts, encrypted by Windows. Passwords never reach the page. Drag them into your order, Ctrl+Alt+1, 2 and 3 log in the first three.</p></div>
+            <div><span></span><b>End message per account</b><p>Krunker's match end message is kept per account, so your alt never sends your main's message.</p></div>
             <div><span></span><b>Settings transfer</b><p>Export Kute's settings, HUD positions, matchmaker filters and hotkeys to one file, import it on another PC.</p></div>
+            <div><span></span><b>Diagnostics report</b><p>Hardware, drivers, settings, recent errors and crash logs in one file for a bug report. You see all of it first, nothing is uploaded.</p></div>
+            <div><span></span><b>Safe mode &amp; crash finder</b><p>Crashed twice in a row? Start without your scripts, swaps and tweaks, or let Kute find which one causes it. Hold Shift at start for safe mode.</p></div>
             <div><span></span><b>OBS capture</b><p>An OBS source that takes the frames straight from the game, plus a separate audio window.</p></div>
             <div><span></span><b>Medal.tv</b><p>Officially supported by Medal.tv, so clipping your plays just works.</p></div>
             <div><span></span><b>Auto-updater</b><p>Updates the client, and script fixes arrive without a reinstall. Shows a changelog.</p></div>
@@ -417,6 +429,7 @@
             <li><a href="https://github.com/idkr-client/idkr" target="_blank" rel="noreferrer">idkr-client/idkr</a><span>tweaks</span></li>
             <li><a href="https://github.com/bigjakk/Electron-Websocket-Fix" target="_blank" rel="noreferrer">bigjakk/Electron-Websocket-Fix</a><span>aim freeze fix</span></li>
             <li><a href="https://github.com/Alx8g/wok-client" target="_blank" rel="noreferrer">Alx8g/wok-client</a><span>motion blur idea</span></li>
+            <li class="wide"><div><a href="https://github.com/PC7-Client/PC7-Client" target="_blank" rel="noreferrer">PC7 Client</a> and <a href="https://github.com/ghostypostie/Water" target="_blank" rel="noreferrer">Water Client</a></div><span>ideas</span></li>
             <li class="wide"><a href="https://github.com/bigjakk/Krunker-Civilian-Client" target="_blank" rel="noreferrer">bigjakk/Krunker-Civilian-Client</a><span>matchmaker, nuke counter, custom sky and keystrokes ideas</span></li>
           </ul>
 
@@ -435,7 +448,8 @@
           Download Kute <span aria-hidden="true">↓</span>
         </a>
         <a class="cta-alt" href="https://github.com/NullDev/Kute/releases/latest/download/kute-x86_64-portable.zip" target="_blank" rel="noreferrer">or get the portable zip ↓</a>
-        <div class="cta-meta"><span>WINDOWS 10 / 11</span><span>64-BIT</span><span>UPDATES ITSELF</span></div>
+        <a class="cta-alt" href="https://github.com/NullDev/Kute/releases/latest/download/kute-x86_64.AppImage" target="_blank" rel="noreferrer">or the Linux AppImage ↓</a>
+        <div class="cta-meta"><span>WINDOWS 10 / 11</span><span>LINUX</span><span>64-BIT</span><span>UPDATES ITSELF</span></div>
       </section>
     </main>
 

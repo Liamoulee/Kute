@@ -234,6 +234,31 @@ describe("wins", () => {
     });
 });
 
+describe("the trade below the target", () => {
+    // a two core laptop on 60 Hz (report 2026-10-03): 105 fps with the game's other work waiting 37 ms, at a 60 limit 12 ms
+    const uncapped = twice(clean(105, { taskP99: 37, inputP99: 14.7, p99: 15.5, maxMs: 21, stallMs: 0 }));
+    const capped = twice(clean(60, { taskP99: 12.5, inputP99: 22, p99: 21.6, maxMs: 23, stallMs: 0 }));
+
+    test("a limit that makes the game react much sooner may make the mouse wait a little longer", () => {
+        expect(accept(uncapped, capped, { capBefore: 0, capAfter: 60 }).failed).toBe("inputP99");
+        const traded = accept(uncapped, capped, { capBefore: 0, capAfter: 60, trade: true });
+        expect(traded.keep).toBe(true);
+        expect(traded.traded?.task).toBeCloseTo(24.5);
+        expect(traded.traded?.input).toBeCloseTo(7.3);
+        const choice = chooseCap(new Map([[0, uncapped], [60, capped]]), 0, { inputRequired: true, trade: true });
+        expect(choice.winner).toBe(60);
+        expect(choice.judged.find((entry) => entry.cap === 60)?.gains?.input).toBeCloseTo(-7.3);
+    });
+
+    test("the trade needs a sooner reaction that outweighs the wait, and never buys stutter", () => {
+        const little = twice(clean(60, { taskP99: 32, inputP99: 22 }));
+        expect(accept(uncapped, little, { capBefore: 0, capAfter: 60, trade: true }).failed).toBe("inputP99");
+        expect(chooseCap(new Map([[0, uncapped], [60, little]]), 0, { trade: true }).changed).toBe(false);
+        const stalls = capped.map((entry) => ({ ...entry, stallMs: 150 }));
+        expect(accept(uncapped, stalls, { capBefore: 0, capAfter: 60, trade: true }).keep).toBe(false);
+    });
+});
+
 describe("accept", () => {
     const limits = { capBefore: 500, capAfter: 500 };
 
@@ -430,7 +455,10 @@ describe("caps", () => {
     });
 
     test("refinement looks between the best cap and its neighbours", () => {
-        expect(refineCaps([0, 495, 330, 165], 330, 829)).toEqual([248, 413]);
-        expect(refineCaps([0, 495, 330, 165], 0, 829)).toEqual([662]);
+        expect(refineCaps([0, 495, 330, 165], 330, 829, 165)).toEqual([]);
+        expect(refineCaps([0, 495, 330, 165], 0, 829, 165)).toEqual([660]);
+        // 87 between 60 and 105 on a 60 Hz screen was tried once, it cannot look smooth
+        expect(refineCaps([0, 60], 60, 105, 60)).toEqual([]);
+        expect(refineCaps([0, 120], 120, 300, 60)).toEqual([240]);
     });
 });

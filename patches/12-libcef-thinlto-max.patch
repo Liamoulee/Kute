@@ -1,0 +1,15 @@
+diff --git a/cef/BUILD.gn b/cef/BUILD.gn
+index 3e7b547f5..bd12c5e4d 100644
+--- a/cef/BUILD.gn
++++ b/cef/BUILD.gn
+@@ -1949,6 +1949,10 @@ if (is_mac) {
+       ":libcef_includes_config",
+     ]
+ 
++    # kute: link-time optimization like chrome.dll, the default config links with lldlto=0
++    configs -= [ "//build/config/compiler:thinlto_optimize_default" ]
++    configs += [ "//build/config/compiler:thinlto_optimize_max" ]
++
+     if (is_win) {
+       sources += includes_win + [
+         "libcef_dll/libcef_dll.rc",
