@@ -8,6 +8,7 @@ import {
     KrunkerNotFoundError,
     KrunkerRateLimitError,
     KrunkerServerError,
+    KrunkerUnauthorizedError,
 } from "./errors";
 import { GLOBAL_LIMIT, RateLimitTracker } from "./rateLimit";
 import type { ApiErrorBody } from "./types";
@@ -22,6 +23,8 @@ export const DEFAULT_BASE_URL = "https://gapi.svc.krunker.io";
 const DEFAULT_TIMEOUT_MS = 20 * 1000;
 const DEFAULT_RETRIES = 1;
 const RETRY_DELAY_MS = 300;
+/** a known empty window this short is waited out instead of refused */
+const SHORT_WAIT_S = 2;
 /** below this share of the window left, every reply logs a warning */
 const LOW_REMAINING_SHARE = 0.1;
 
@@ -42,6 +45,8 @@ export type RequestOptions = {
     /** stable name of the endpoint, the key for its own rate limit window */
     route: string;
     query?: Record<string, QueryValue>;
+    /** per call headers, the token wrapper's Authorization; never logged */
+    headers?: Record<string, string>;
 };
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
@@ -104,11 +109,13 @@ export class KrunkerClient {
 
         const url = this.url(path, options.query);
         const blocked = this.rateLimit.blockedFor(options.route);
-        if (blocked > 0) throw new KrunkerRateLimitError(url, blocked, null, true);
+        // gapi's per second windows are over before a caller could do anything else with the refusal
+        if (blocked > 0 && blocked <= SHORT_WAIT_S) await sleep(blocked * 1000);
+        else if (blocked > 0) throw new KrunkerRateLimitError(url, blocked, null, true);
 
         for (let attempt = 0; ; attempt++){
             try {
-                return await this.#send<T>(url, options.route);
+                return await this.#send<T>(url, options.route, options.headers);
             }
             catch (err){
                 const retry = attempt < this.#retries && (err instanceof KrunkerNetworkError || err instanceof KrunkerServerError);
@@ -119,8 +126,8 @@ export class KrunkerClient {
         }
     }
 
-    async #send<T>(url: string, route: string): Promise<T> {
-        const headers: Record<string, string> = { Accept: "application/json" };
+    async #send<T>(url: string, route: string, extra?: Record<string, string>): Promise<T> {
+        const headers: Record<string, string> = { Accept: "application/json", ...extra };
         if (this.#apiKey) headers["X-Developer-API-Key"] = this.#apiKey;
         if (this.#userAgent) headers["User-Agent"] = this.#userAgent;
 
@@ -150,6 +157,7 @@ export class KrunkerClient {
         const text = message ? `Krunker API ${res.status} for ${url}: ${message}` : undefined;
         switch (res.status){
             case 400: return new KrunkerBadRequestError(res.status, url, body, text);
+            case 401: return new KrunkerUnauthorizedError(res.status, url, body, text);
             case 403: return new KrunkerForbiddenError(res.status, url, body, text);
             case 404: return new KrunkerNotFoundError(res.status, url, body, text);
             case 429: {

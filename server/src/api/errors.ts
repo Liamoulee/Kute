@@ -16,6 +16,9 @@ export class KrunkerArgumentError extends KrunkerError {}
 /** no api key configured */
 export class KrunkerConfigError extends KrunkerError {}
 
+/** a player token that is malformed or already expired, nothing was sent */
+export class KrunkerTokenError extends KrunkerError {}
+
 /** the request never got an http reply */
 export class KrunkerNetworkError extends KrunkerError {
     readonly timeout: boolean;
@@ -42,7 +45,10 @@ export class KrunkerHttpError extends KrunkerError {
 
 export class KrunkerBadRequestError extends KrunkerHttpError {}
 
-/** the api key is invalid or revoked */
+/** a token endpoint without a valid token: missing, expired or rejected */
+export class KrunkerUnauthorizedError extends KrunkerHttpError {}
+
+/** the api key is invalid or revoked; on a token endpoint the player lacks the role (moderator, kpd reviewer) */
 export class KrunkerForbiddenError extends KrunkerHttpError {}
 
 export class KrunkerNotFoundError extends KrunkerHttpError {}

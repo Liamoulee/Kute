@@ -6,6 +6,9 @@
 /** the per key limit every endpoint shares; a reply showing a smaller limit is an endpoint's own window */
 export const GLOBAL_LIMIT = 240;
 
+/** a reset value under this is a duration in seconds, above it a unix timestamp (2001 and later) */
+const RELATIVE_RESET_BELOW = 1_000_000_000;
+
 export type RateLimitWindow = {
     limit: number;
     remaining: number;
@@ -37,7 +40,9 @@ export class RateLimitTracker {
         const reset = headerInt(headers, "X-RateLimit-Reset");
         if (limit === null || remaining === null || reset === null) return null;
 
-        const window = { limit, remaining, resetAt: reset * 1000 };
+        // the developer api sends a unix timestamp, gapi (5 per second per route, seen 2026-10-15) seconds until the window ends
+        const resetAt = reset < RELATIVE_RESET_BELOW ? Date.now() + reset * 1000 : reset * 1000;
+        const window = { limit, remaining, resetAt };
         if (limit >= GLOBAL_LIMIT) this.#global = window;
         else this.#routes.set(route, window);
         return window;
