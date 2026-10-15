@@ -90,7 +90,27 @@ export const POLICIES = {
     "public.matchmaker.pingList": { fresh: 1 * HOUR, stale: 1 * DAY, missing: 1 * HOUR },
     "public.matchmaker.gameInfo": { fresh: 15 * SECOND, stale: 2 * MINUTE, missing: 1 * MINUTE },
     "public.legacy.mapsList": { fresh: 1 * HOUR, stale: 1 * DAY, missing: 1 * HOUR },
+    "public.legacy.modsList": { fresh: 1 * HOUR, stale: 1 * DAY, missing: 1 * HOUR },
+    "public.legacy.itemPrices": { fresh: 1 * HOUR, stale: 1 * DAY, missing: 1 * HOUR },
     "public.legacy.topStreams": { fresh: 5 * MINUTE, stale: 1 * HOUR, missing: 10 * MINUTE },
+    "public.game.mapByName": { fresh: 1 * HOUR, stale: 1 * DAY, missing: 1 * HOUR },
+    "public.game.mapLeaderboard": { fresh: 5 * MINUTE, stale: 1 * HOUR, missing: 1 * HOUR },
+    "public.game.modByName": { fresh: 6 * HOUR, stale: 2 * DAY, missing: 1 * HOUR },
+    "public.game.creatorEvents": { fresh: 15 * MINUTE, stale: 1 * DAY, missing: 1 * HOUR },
+    "public.shop.display": { fresh: 1 * HOUR, stale: 1 * DAY, missing: 1 * HOUR },
+    "public.shop.displayByTag": { fresh: 1 * HOUR, stale: 1 * DAY, missing: 1 * HOUR },
+    "public.shop.spinWheels": { fresh: 1 * DAY, stale: 7 * DAY, missing: 1 * DAY },
+    "public.shop.lottery": { fresh: 15 * MINUTE, stale: 1 * DAY, missing: 1 * HOUR },
+    // the market moves by the minute, a listing count is only ever a snapshot anyway
+    "public.market.stats": { fresh: 5 * MINUTE, stale: 1 * HOUR, missing: 10 * MINUTE },
+    "public.market.itemSales": { fresh: 10 * MINUTE, stale: 2 * HOUR, missing: 10 * MINUTE },
+    "public.market.itemSalesStatistics": { fresh: 10 * MINUTE, stale: 2 * HOUR, missing: 10 * MINUTE },
+    "public.items.view": { fresh: 5 * MINUTE, stale: 1 * HOUR, missing: 10 * MINUTE },
+    "public.items.sales": { fresh: 10 * MINUTE, stale: 2 * HOUR, missing: 10 * MINUTE },
+    "public.items.instances": { fresh: 10 * MINUTE, stale: 2 * HOUR, missing: 10 * MINUTE },
+    "public.social.feed": { fresh: 2 * MINUTE, stale: 30 * MINUTE, missing: 10 * MINUTE },
+    "public.social.post": { fresh: 5 * MINUTE, stale: 1 * HOUR, missing: 10 * MINUTE },
+    "public.social.news": { fresh: 15 * MINUTE, stale: 1 * DAY, missing: 1 * HOUR },
 } as const satisfies Record<string, Policy>;
 
 export type Route = keyof typeof POLICIES;

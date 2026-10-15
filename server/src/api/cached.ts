@@ -10,7 +10,9 @@ import type { Page, RegionId } from "./types";
 import type { RecruitmentQuery } from "./public/resources/clans";
 import type { DayMapQuery } from "./public/resources/turf";
 import type { PlayerLeaderboardQuery } from "./public/resources/leaderboards";
-import type { ClanLeaderboardSort, PlayerLeaderboardType, RaidSort } from "./public/types";
+import type { CommunityLeaderboardQuery } from "./public/resources/game";
+import type { BrowserQuery } from "./public/resources/legacy";
+import type { ClanLeaderboardSort, FeedTab, MarketStatsQuery, PlayerLeaderboardType, RaidSort } from "./public/types";
 
 // ========================= //
 // = Copyright (c) NullDev = //
@@ -22,6 +24,8 @@ import type { ClanLeaderboardSort, PlayerLeaderboardType, RaidSort } from "./pub
 //   cached.player.profile("name")   cache first, krunker only when the policy says so
 //   refresh.player.profile("name")  always krunker, the reply replaces the cached entry
 //   cached.public.players.get("name")  the keyless endpoints, same two modes
+// the token wrapper (./token) is not in here: a token names a player, so what a kute endpoint may cache
+// and under which key (the jwt's sub, never the token) is decided there, per endpoint
 
 /** names are matched case-insensitively by the api, so one entry serves every spelling */
 const lower = (name: string): string => name.trim().toLowerCase();
@@ -104,7 +108,7 @@ const defs = {
             players: def("public.leaderboards.players", (type: PlayerLeaderboardType, q: PlayerLeaderboardQuery = {}) => [type, q.sort ?? "", q.season ?? 0], (type, q) => krunkerPublic.leaderboards.players(type, q)),
             clans: def("public.leaderboards.clans", (sort: ClanLeaderboardSort = "score") => [sort], (sort) => krunkerPublic.leaderboards.clans(sort)),
             raids: def("public.leaderboards.raids", (mapId: number, sort?: RaidSort) => [mapId, sort ?? ""], (mapId, sort) => krunkerPublic.leaderboards.raids(mapId, sort)),
-            raidsMonthly: def("public.leaderboards.raidsMonthly", (mapId: number, month: number, sort?: RaidSort) => [mapId, month, sort ?? ""], (mapId, month, sort) => krunkerPublic.leaderboards.raidsMonthly(mapId, month, sort)),
+            raidsMonthly: def("public.leaderboards.raidsMonthly", (mapId: number, month: string, sort?: RaidSort) => [mapId, month, sort ?? ""], (mapId, month, sort) => krunkerPublic.leaderboards.raidsMonthly(mapId, month, sort)),
             krunkCupTeams: def("public.leaderboards.krunkCupTeams", () => [], () => krunkerPublic.leaderboards.krunkCupTeams()),
             krunkCupContributors: def("public.leaderboards.krunkCupContributors", (teamId: number) => [teamId], (teamId) => krunkerPublic.leaderboards.krunkCupContributors(teamId)),
             krunkCupPlayers: def("public.leaderboards.krunkCupPlayers", (limit?: number) => [limit ?? 0], (limit) => krunkerPublic.leaderboards.krunkCupPlayers(limit)),
@@ -112,7 +116,32 @@ const defs = {
         game: {
             maps: def("public.game.maps", () => [], () => krunkerPublic.game.maps()),
             mapConfig: def("public.game.mapConfig", (mapId: number) => [mapId], (mapId) => krunkerPublic.game.mapConfig(mapId)),
+            mapByName: def("public.game.mapByName", (name: string) => [lower(name)], (name) => krunkerPublic.game.mapByName(name)),
+            mapLeaderboard: def("public.game.mapLeaderboard", (name: string, q: CommunityLeaderboardQuery = {}) => [lower(name), page(q), q.type ?? "", q.order ?? -1], (name, q) => krunkerPublic.game.mapLeaderboard(name, q)),
+            modByName: def("public.game.modByName", (name: string) => [name.trim()], (name) => krunkerPublic.game.modByName(name)),
             titles: def("public.game.titles", () => [], () => krunkerPublic.game.titles()),
+            creatorEvents: def("public.game.creatorEvents", () => [], () => krunkerPublic.game.creatorEvents()),
+        },
+        shop: {
+            display: def("public.shop.display", (id: number) => [id], (id) => krunkerPublic.shop.display(id)),
+            displayByTag: def("public.shop.displayByTag", (tag: string) => [lower(tag)], (tag) => krunkerPublic.shop.displayByTag(tag)),
+            spinWheels: def("public.shop.spinWheels", () => [], () => krunkerPublic.shop.spinWheels()),
+            lottery: def("public.shop.lottery", (id: number) => [id], (id) => krunkerPublic.shop.lottery(id)),
+        },
+        market: {
+            stats: def("public.market.stats", (q: MarketStatsQuery = {}) => [q.cursor ?? 0, q.limit ?? 0, q.sort ?? "", q.rarities ?? [], q.weapons ?? [], q.types ?? [], q.season ?? 0, lower(q.searchTerm ?? "")], (q) => krunkerPublic.market.stats(q)),
+            itemSales: def("public.market.itemSales", (skinIndex: number) => [skinIndex], (skinIndex) => krunkerPublic.market.itemSales(skinIndex)),
+            itemSalesStatistics: def("public.market.itemSalesStatistics", (skinIndex: number, daysBack = 30) => [skinIndex, daysBack], (skinIndex, daysBack) => krunkerPublic.market.itemSalesStatistics(skinIndex, daysBack)),
+        },
+        items: {
+            view: def("public.items.view", (skinIndex: number) => [skinIndex], (skinIndex) => krunkerPublic.items.view(skinIndex)),
+            sales: def("public.items.sales", (skinIndex: number, range = 6) => [skinIndex, range], (skinIndex, range) => krunkerPublic.items.sales(skinIndex, range)),
+            instances: def("public.items.instances", (skinIndex: number, sort = "mint") => [skinIndex, sort], (skinIndex, sort) => krunkerPublic.items.instances(skinIndex, sort)),
+        },
+        social: {
+            feed: def("public.social.feed", (tab: FeedTab = "global", limit?: number) => [tab, limit ?? 0], (tab, limit) => krunkerPublic.social.feed(tab, limit)),
+            post: def("public.social.post", (postId: number) => [postId], (postId) => krunkerPublic.social.post(postId)),
+            news: def("public.social.news", () => [], () => krunkerPublic.social.news()),
         },
         matchmaker: {
             gameList: def("public.matchmaker.gameList", () => [], () => krunkerPublic.matchmaker.gameList()),
@@ -120,7 +149,9 @@ const defs = {
             gameInfo: def("public.matchmaker.gameInfo", (gameId: string) => [gameId], (gameId) => krunkerPublic.matchmaker.gameInfo(gameId)),
         },
         legacy: {
-            mapsList: def("public.legacy.mapsList", (q: { index?: number; pos?: number } = {}) => [q.index ?? 0, q.pos ?? 0], (q) => krunkerPublic.legacy.mapsList(q)),
+            mapsList: def("public.legacy.mapsList", (q: BrowserQuery = {}) => [q.index ?? 0, q.pos ?? 0], (q) => krunkerPublic.legacy.mapsList(q)),
+            modsList: def("public.legacy.modsList", (q: BrowserQuery = {}) => [q.index ?? 0, q.pos ?? 0], (q) => krunkerPublic.legacy.modsList(q)),
+            itemPrices: def("public.legacy.itemPrices", () => [], () => krunkerPublic.legacy.itemPrices()),
             topStreams: def("public.legacy.topStreams", () => [], () => krunkerPublic.legacy.topStreams()),
         },
     },
