@@ -47,6 +47,50 @@ export const POLICIES = {
     "leaderboard.ranked": { fresh: 2 * MINUTE, stale: 1 * HOUR, missing: 10 * MINUTE },
     // the slow endpoint (seconds), and the one a market view will hit per skin
     "market.skin": { fresh: 1 * MINUTE, stale: 1 * HOUR, missing: 1 * HOUR },
+
+    // keyless endpoints: no documented limit, the game itself calls them, so the same care applies
+    "public.players.get": { fresh: 2 * MINUTE, stale: 1 * HOUR, missing: 2 * MINUTE },
+    "public.players.search": { fresh: 10 * MINUTE, stale: 1 * HOUR, missing: 10 * MINUTE },
+    "public.players.sales": { fresh: 10 * MINUTE, stale: 2 * HOUR, missing: 10 * MINUTE },
+    "public.players.listings": { fresh: 1 * MINUTE, stale: 30 * MINUTE, missing: 2 * MINUTE },
+    "public.players.followers": { fresh: 10 * MINUTE, stale: 2 * HOUR, missing: 10 * MINUTE },
+    "public.players.following": { fresh: 10 * MINUTE, stale: 2 * HOUR, missing: 10 * MINUTE },
+    "public.players.feed": { fresh: 5 * MINUTE, stale: 2 * HOUR, missing: 10 * MINUTE },
+    "public.clans.byName": { fresh: 10 * MINUTE, stale: 2 * HOUR, missing: 10 * MINUTE },
+    "public.clans.profile": { fresh: 10 * MINUTE, stale: 2 * HOUR, missing: 10 * MINUTE },
+    "public.clans.lootConfig": { fresh: 1 * HOUR, stale: 1 * DAY, missing: 1 * HOUR },
+    "public.clans.motd": { fresh: 10 * MINUTE, stale: 1 * DAY, missing: 1 * HOUR },
+    "public.clans.recruitment": { fresh: 1 * HOUR, stale: 1 * DAY, missing: 1 * HOUR },
+    "public.clans.recruitmentBoard": { fresh: 10 * MINUTE, stale: 2 * HOUR, missing: 1 * HOUR },
+    // turf numbers move all day, the day boundary (utc midnight) matters more than minutes
+    "public.turf.status": { fresh: 2 * MINUTE, stale: 1 * HOUR, missing: 10 * MINUTE },
+    "public.turf.clan": { fresh: 5 * MINUTE, stale: 1 * HOUR, missing: 10 * MINUTE },
+    "public.turf.clanPlayers": { fresh: 5 * MINUTE, stale: 1 * HOUR, missing: 10 * MINUTE },
+    "public.turf.clanEarnings": { fresh: 1 * HOUR, stale: 1 * DAY, missing: 10 * MINUTE },
+    "public.turf.clanPayouts": { fresh: 1 * HOUR, stale: 1 * DAY, missing: 10 * MINUTE },
+    "public.turf.topClans": { fresh: 5 * MINUTE, stale: 1 * HOUR, missing: 10 * MINUTE },
+    "public.turf.topGrossing": { fresh: 1 * HOUR, stale: 1 * DAY, missing: 10 * MINUTE },
+    "public.turf.topPlayers": { fresh: 15 * MINUTE, stale: 1 * DAY, missing: 10 * MINUTE },
+    "public.turf.player": { fresh: 10 * MINUTE, stale: 1 * DAY, missing: 10 * MINUTE },
+    "public.turf.playerContributions": { fresh: 10 * MINUTE, stale: 1 * DAY, missing: 10 * MINUTE },
+    "public.turf.playerEarnings": { fresh: 1 * HOUR, stale: 1 * DAY, missing: 10 * MINUTE },
+    "public.leaderboards.players": { fresh: 15 * MINUTE, stale: 1 * DAY, missing: 1 * HOUR },
+    "public.leaderboards.clans": { fresh: 15 * MINUTE, stale: 1 * DAY, missing: 1 * HOUR },
+    "public.leaderboards.raids": { fresh: 15 * MINUTE, stale: 1 * DAY, missing: 1 * DAY },
+    "public.leaderboards.raidsMonthly": { fresh: 15 * MINUTE, stale: 1 * DAY, missing: 1 * DAY },
+    "public.leaderboards.krunkCupTeams": { fresh: 15 * MINUTE, stale: 1 * DAY, missing: 1 * HOUR },
+    "public.leaderboards.krunkCupContributors": { fresh: 15 * MINUTE, stale: 1 * DAY, missing: 1 * HOUR },
+    "public.leaderboards.krunkCupPlayers": { fresh: 15 * MINUTE, stale: 1 * DAY, missing: 1 * HOUR },
+    // game data changes with a game update
+    "public.game.maps": { fresh: 1 * DAY, stale: 7 * DAY, missing: 1 * DAY },
+    "public.game.mapConfig": { fresh: 1 * DAY, stale: 7 * DAY, missing: 1 * DAY },
+    "public.game.titles": { fresh: 1 * DAY, stale: 7 * DAY, missing: 1 * DAY },
+    // the lobby list is live data, the game polls it every 60 s
+    "public.matchmaker.gameList": { fresh: 30 * SECOND, stale: 5 * MINUTE, missing: 1 * MINUTE },
+    "public.matchmaker.pingList": { fresh: 1 * HOUR, stale: 1 * DAY, missing: 1 * HOUR },
+    "public.matchmaker.gameInfo": { fresh: 15 * SECOND, stale: 2 * MINUTE, missing: 1 * MINUTE },
+    "public.legacy.mapsList": { fresh: 1 * HOUR, stale: 1 * DAY, missing: 1 * HOUR },
+    "public.legacy.topStreams": { fresh: 5 * MINUTE, stale: 1 * HOUR, missing: 10 * MINUTE },
 } as const satisfies Record<string, Policy>;
 
 export type Route = keyof typeof POLICIES;
