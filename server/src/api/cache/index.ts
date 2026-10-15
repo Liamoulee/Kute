@@ -70,6 +70,11 @@ export class ApiCache {
         }
     }
 
+    /** skips the read, not the write: the reply replaces the entry so every later reader gets it */
+    refresh<T>(key: string, policy: Policy, fetcher: () => Promise<T>): Promise<T> {
+        return this.#fetch(key, policy, fetcher);
+    }
+
     invalidate(key: string): void {
         this.#store.delete(key);
     }
