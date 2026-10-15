@@ -17,7 +17,7 @@ import { PublicTurfApi } from "./resources/turf";
 export * from "./types";
 export { TURF_EPOCH_UTC, TURF_MAPS, turfDay, type DayMapQuery } from "./resources/turf";
 export type { RecruitmentQuery } from "./resources/clans";
-export type { PlayerLeaderboardQuery } from "./resources/leaderboards";
+export { RAID_MAPS, type PlayerLeaderboardQuery } from "./resources/leaderboards";
 
 /**
  * the endpoints the game itself calls without a token: no key, no documented limits, shapes from live replies.

@@ -19,6 +19,9 @@ import type {
 // =  All rights reserved  = //
 // ========================= //
 
+/** map ids with a raid board (owner, 2026-10-15); not enforced, a new raid map must keep working */
+export const RAID_MAPS = [18, 29, 31, 35, 43] as const;
+
 const PLAYER_TYPES: ReadonlySet<string> = new Set([
     "player_score", "player_kills", "player_wins", "player_timeplayed", "player_funds", "player_followed",
     "player_nukes", "player_skinvalue", "player_eventcount", "player_ranked_matches",
