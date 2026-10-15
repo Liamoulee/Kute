@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import LogHandler from "./logHandler";
 import { cleanupRateLimits } from "./rateLimit";
+import { apiCache } from "../api/cache/index";
 import Log from "./log";
 
 // ========================= //
@@ -17,6 +18,11 @@ const sheduleCrons = async function(): Promise<void> {
 
     cron.schedule("*/15 * * * *", () => {
         cleanupRateLimits();
+    });
+
+    cron.schedule("17 * * * *", () => {
+        const removed = apiCache.prune();
+        if (removed > 0) Log.debug(`api cache: pruned ${removed} expired entries`);
     });
 
     const cronCount = cron.getTasks().size;
