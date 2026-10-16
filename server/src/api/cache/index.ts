@@ -1,5 +1,5 @@
 import Log from "../../util/log";
-import { isTransient, KrunkerNotFoundError } from "../errors";
+import { isTransient, KrunkerNotFoundError } from "krapio";
 import { GRACE, type Policy } from "./policy";
 import { CacheStore } from "./store";
 
