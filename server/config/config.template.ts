@@ -5,6 +5,10 @@ export default {
     clan_tag_colors: {},
     developers: {} as Record<string, { token: string, clan: string }>,
     krunker_api_token: "",
+    // proxy for every request to krunker, for a host whose address krunker's edge refuses (hetzner: cloudflare 403 on
+    // everything). bun's fetch takes http:// and https:// proxies only, so cloudflare warp in proxy mode is used over
+    // its http side: "http://127.0.0.1:40000". empty = direct
+    krunker_api_proxy: "",
     market: {
         // the sweeps that fill data/market.db; off in development unless collector_in_dev is set
         collector: true,
