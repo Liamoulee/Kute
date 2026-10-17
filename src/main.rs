@@ -20,6 +20,7 @@ mod window;
 use linux::window;
 pub mod modules {
     pub mod accounts;
+    pub mod attest;
     pub mod bench;
     pub mod bisect;
     pub mod blocklist;
