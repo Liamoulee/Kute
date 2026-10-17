@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { existsSync } from "node:fs";
 import path from "node:path";
 import { exec } from "node:child_process";
 
@@ -28,6 +29,14 @@ try {
     console.log("[pull-and-restart] Pulling latest changes from git...");
     await run("git pull");
     console.log("[pull-and-restart] Done.");
+
+    // the market engine is a private checkout inside src/market, see src/marketEngine.ts
+    if (existsSync(path.resolve(serverDir, "src/market/.git"))){
+        console.log("[pull-and-restart] Pulling the market engine...");
+        await run("git -C src/market pull");
+        console.log("[pull-and-restart] Done.");
+    }
+    else console.log("[pull-and-restart] No market engine checkout in src/market, skipping.");
 
     console.log("[pull-and-restart] Installing dependencies...");
     await run("bun install --frozen-lockfile --production");
