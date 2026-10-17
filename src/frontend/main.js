@@ -2,6 +2,7 @@ import styles from "./components/base.css";
 import { kute, ready, globalRef } from "./client.js";
 import { hook, getElement, checkCompMode } from "./utils.js";
 import { setRampBoost } from "./modules/rampBoost.js";
+import { prepareShootBind, syncLeftClick } from "./modules/leftClick.js";
 // imported first so later throws still get reported
 import { postUrls as postIconUrls } from "./modules/kuteIcons/slots.js";
 // static import: the host only hands over the userscript registry during bundle eval
@@ -38,7 +39,7 @@ document.addEventListener(
     () => {
         if (isBenchPage) return;
 
-        window.localStorage.setItem("cont_shoot1Key_alt", "131");
+        prepareShootBind();
         import("./modules/gameFpsLimit.js");
         import("./modules/logoBadge.js");
 
@@ -74,6 +75,7 @@ document.addEventListener(
         }, { capture: true, passive: false });
 
         hook(HTMLCanvasElement, "requestPointerLock", function(args, original){
+            syncLeftClick();
             window.chrome.webview.postMessage("drag, false");
             window.chrome.webview.postMessage("throttle, game");
 
