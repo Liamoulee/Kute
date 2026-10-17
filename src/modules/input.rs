@@ -78,6 +78,8 @@ static mut PREV_WNDPROC_1: WNDPROC = None;
 static mut PREV_WNDPROC_2: WNDPROC = None;
 
 static POINTER_LOCKED: AtomicBool = AtomicBool::new(false);
+// off when the player bound shoot elsewhere (leftClick.js), the click is a mouse button then
+static LEFT_CLICK_F20: AtomicBool = AtomicBool::new(true);
 static F20_DOWN: AtomicBool = AtomicBool::new(false);
 static RAMPBOOST: AtomicBool = AtomicBool::new(false);
 static WINDOW_HANDLE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
@@ -152,6 +154,15 @@ pub fn set_pointer_locked(locked: bool) {
 
 pub fn pointer_locked() -> bool {
     POINTER_LOCKED.load(sync::atomic::Ordering::Relaxed)
+}
+
+pub fn set_left_click_f20(enabled: bool) {
+    LEFT_CLICK_F20.store(enabled, sync::atomic::Ordering::Relaxed);
+    debug_print!("input: left click as f20={enabled}");
+}
+
+fn click_as_f20() -> bool {
+    POINTER_LOCKED.load(sync::atomic::Ordering::Relaxed) && LEFT_CLICK_F20.load(sync::atomic::Ordering::Relaxed)
 }
 
 // remembered so widgets hooked after a page load get the same one
@@ -319,7 +330,7 @@ unsafe extern "system" fn wnd_proc_1(window: HWND, message: u32, wparam: WPARAM,
     unsafe {
         match message {
             WM_LBUTTONDOWN | WM_LBUTTONDBLCLK => {
-                if POINTER_LOCKED.load(sync::atomic::Ordering::Relaxed) {
+                if click_as_f20() {
                     F20_DOWN.store(true, sync::atomic::Ordering::Relaxed);
                     return CallWindowProcW(PREV_WNDPROC_1, window, WM_KEYDOWN, WPARAM(VK_F20.0 as usize), f20_lparam(false));
                 }
@@ -345,7 +356,7 @@ unsafe extern "system" fn wnd_proc_1(window: HWND, message: u32, wparam: WPARAM,
                 CallWindowProcW(PREV_WNDPROC_1, window, message, wparam, lparam)
             }
             WM_MOUSEMOVE => {
-                if POINTER_LOCKED.load(sync::atomic::Ordering::Relaxed) {
+                if click_as_f20() {
                     return CallWindowProcW(PREV_WNDPROC_1, window, message, WPARAM(wparam.0 & !MK_LBUTTON.0 as usize), lparam);
                 }
                 CallWindowProcW(PREV_WNDPROC_1, window, message, wparam, lparam)

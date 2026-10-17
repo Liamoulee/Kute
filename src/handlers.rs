@@ -1002,6 +1002,10 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
                 modules::recovery::milestone("match");
             }
         }
+        ["left-click-f20", value] => {
+            // false: shoot is bound to the player's own key, a locked left click stays a mouse button
+            modules::input::set_left_click_f20(value.parse::<bool>().unwrap_or(true));
+        }
         ["throttle", status] => {
             // "off" is used by auto-detect
             let rate = match *status {

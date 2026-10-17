@@ -56,7 +56,8 @@ pub fn host_features() -> serde_json::Value {
         "swapper-watch",
         "accounts-order",
         "diagnostics",
-        "recovery"
+        "recovery",
+        "left-click-f20"
     ])
 }
 
@@ -88,7 +89,8 @@ pub fn host_features() -> serde_json::Value {
         "swapper-over-blocklist",
         "accounts-order",
         "diagnostics",
-        "recovery"
+        "recovery",
+        "left-click-f20"
     ])
 }
 
