@@ -20,6 +20,11 @@ export default {
         timezone: "Europe/Berlin",
         // the share of the key's 240 a minute the sweeps may use, the rest stays for live views
         key_budget_per_minute: 120,
+        // the secret the release workflow derives every exe's market key from (hmac of the version); empty means
+        // no sessions in production and unsigned sessions in development
+        attest_master: "",
+        // exes below this version get no session, raised when a release's key leaked
+        attest_min_version: "0.0.0",
     },
     log_webhook: "",
 };

@@ -17,10 +17,6 @@ export function sourceKey(ip: string): string {
     return createHash("sha256").update(salt).update(ip).digest("base64url");
 }
 
-function keyFor(name: string, ip: string): string {
-    return name + ":" + sourceKey(ip);
-}
-
 export function cleanupRateLimits(): number {
     const now = Date.now();
     let removed = 0;
@@ -33,31 +29,34 @@ export function cleanupRateLimits(): number {
     return removed;
 }
 
-export function createRateLimit(name: string, max: number, windowMs: number, message: string) {
+export type Hit = { allowed: boolean; limit: number; remaining: number; resetAt: number };
+
+/** counts one hit on a window keyed by anything (an address hash, a session), development is 100 times looser */
+export function hit(name: string, key: string, max: number, windowMs: number, now = Date.now()): Hit {
     const allowed = isDevelopment ? max * 100 : max;
+    const id = name + ":" + key;
+    let entry = windows.get(id);
+    if (!entry || now > entry.resetAt){
+        entry = { hits: 0, resetAt: now + windowMs };
+        windows.set(id, entry);
+    }
+    entry.hits++;
+    return { allowed: entry.hits <= allowed, limit: allowed, remaining: Math.max(0, allowed - entry.hits), resetAt: entry.resetAt };
+}
 
+/** writes the usual headers and, when the hit was one too many, the 429; returns whether the request may go on */
+export function applyHit(reply: FastifyReply, result: Hit, message: string, now = Date.now()): boolean {
+    reply.header("X-RateLimit-Limit", result.limit);
+    reply.header("X-RateLimit-Remaining", result.remaining);
+    reply.header("X-RateLimit-Reset", Math.ceil(result.resetAt / 1000));
+    if (result.allowed) return true;
+    reply.header("Retry-After", Math.ceil((result.resetAt - now) / 1000));
+    reply.code(429).send({ statusCode: 429, error: "Too Many Requests", message });
+    return false;
+}
+
+export function createRateLimit(name: string, max: number, windowMs: number, message: string) {
     return async(req: FastifyRequest, reply: FastifyReply): Promise<void> => {
-        const key = keyFor(name, req.ip);
-        const now = Date.now();
-
-        let entry = windows.get(key);
-        if (!entry || now > entry.resetAt){
-            entry = { hits: 0, resetAt: now + windowMs };
-            windows.set(key, entry);
-        }
-        entry.hits++;
-
-        reply.header("X-RateLimit-Limit", allowed);
-        reply.header("X-RateLimit-Remaining", Math.max(0, allowed - entry.hits));
-        reply.header("X-RateLimit-Reset", Math.ceil(entry.resetAt / 1000));
-
-        if (entry.hits > allowed){
-            reply.header("Retry-After", Math.ceil((entry.resetAt - now) / 1000));
-            reply.code(429).send({
-                statusCode: 429,
-                error: "Too Many Requests",
-                message,
-            });
-        }
+        applyHit(reply, hit(name, sourceKey(req.ip), max, windowMs), message);
     };
 }
