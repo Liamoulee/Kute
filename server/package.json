@@ -39,7 +39,7 @@
         "@fastify/static": "^10.1.4",
         "@fastify/websocket": "^11.3.0",
         "fastify": "^5.12.5",
-        "krapio": "^0.1.1",
+        "krapio": "^0.1.2",
         "node-cron": "^4.6.0"
     }
 }
