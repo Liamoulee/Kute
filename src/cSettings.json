@@ -79,7 +79,7 @@
     "market": {
         "name": "Kute Market",
         "id": "market",
-        "description": "Enables Market and Trade features. The K value, liquidity and trade verdicts, market analyzer, etc. In return, you agree that Kute can see item stats",
+        "description": "Market estimates, activity grades, trade comparisons and analysis. Your sales and trade history stay on your PC.",
         "type": "checkbox",
         "category": "General",
         "defaultValue": true,

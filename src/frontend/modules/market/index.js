@@ -2,13 +2,10 @@ import { kute } from "../../client.js";
 import api from "../api.js";
 import marketApi from "./api.js";
 import cards from "./cards.js";
-import contrib from "./contrib.js";
 import trade from "./trade.js";
 import alerts from "./alerts.js";
 
-// the kute market: fair values on market cards, verdicts in both trade windows, contributions of what
-// the player sees, and the terminal behind a header button. nothing here runs per frame; the views poll
-// the menu at a slow rate and stop while the pointer is locked
+// market observers pause during gameplay
 
 class Market {
     constructor(){
@@ -53,7 +50,6 @@ class Market {
             if (header) this.headerObserver.observe(header, { childList: true, subtree: true });
             cards.start();
             trade.start();
-            contrib.start();
             alerts.start();
         }
         else {
@@ -62,7 +58,6 @@ class Market {
             this.headerSeparator.remove();
             cards.stop();
             trade.stop();
-            contrib.stop();
             alerts.stop();
             this.terminal?.close();
         }
