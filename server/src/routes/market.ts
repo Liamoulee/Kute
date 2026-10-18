@@ -140,9 +140,16 @@ export async function marketRoutes(app: FastifyInstance, options: { engine: Mark
         return serve(reply, MINUTE, `listings:${id}`, () => engine!.query.listings(id));
     });
 
+    // ids are skin indices; thumbs are preview image paths (the part after textures/previews/), which is all a market card shows
     app.get("/market/value", (req, reply) => {
         if (!gate(req, reply, "read", 60)) return reply;
-        const raw = ((req.query as Query).ids ?? "").split(",").filter(Boolean);
+        const q = req.query as Query;
+        if (q.thumbs !== undefined){
+            const paths = [...new Set(q.thumbs.split(",").filter((p) => /^[a-z0-9_/.-]{1,80}$/i.test(p)))].sort();
+            if (!paths.length || paths.length > MAX_VALUE_IDS) return reply.code(400).send({ error: `thumbs: 1 to ${MAX_VALUE_IDS} preview paths` });
+            return serve(reply, 5 * MINUTE, "thumbs:" + paths.join(","), () => engine!.query.valueByThumbnails(paths));
+        }
+        const raw = (q.ids ?? "").split(",").filter(Boolean);
         const ids = [...new Set(raw.map((v) => int(v, 0, 100_000_000)).filter((v): v is number => v !== undefined))].sort((a, b) => a - b);
         if (!ids.length || ids.length > MAX_VALUE_IDS) return reply.code(400).send({ error: `ids: 1 to ${MAX_VALUE_IDS} skin indices` });
         return serve(reply, 5 * MINUTE, "value:" + ids.join(","), () => engine!.query.value(ids));

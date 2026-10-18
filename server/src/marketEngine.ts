@@ -182,6 +182,8 @@ export type MarketQuery = {
     history(skin: number, range: HistoryRange): HistoryReply | null;
     listings(skin: number): ListingsReply | null;
     value(skins: number[]): ValueReply;
+    /** the same by the preview image path the game draws a card with (unique per skin), keyed by that path */
+    valueByThumbnails(paths: string[]): ValueReply;
     movers(window: MoversWindow): MoversReply;
     deals(query: DealsQuery): DealsReply;
     indices(): IndicesReply;
