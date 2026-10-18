@@ -251,7 +251,6 @@ export async function marketRoutes(app: FastifyInstance, options: { engine: Mark
         if (!session) return reply;
         const body = req.body as ObserveBody | null;
         if (!body || typeof body !== "object") return reply.code(400).send({ error: "a json body" });
-        const rejected = [body.listings, body.sales, body.trades].reduce((n, rows) => n + (Array.isArray(rows) ? rows.length : 0), 0);
-        return { accepted: 0, rejected };
+        return engine!.query.observe(session, body);
     });
 }

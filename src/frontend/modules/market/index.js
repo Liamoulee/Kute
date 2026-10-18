@@ -4,6 +4,7 @@ import marketApi from "./api.js";
 import cards from "./cards.js";
 import trade from "./trade.js";
 import alerts from "./alerts.js";
+import contrib from "./contrib.js";
 
 // market observers pause during gameplay
 
@@ -51,6 +52,7 @@ class Market {
             cards.start();
             trade.start();
             alerts.start();
+            contrib.start();
         }
         else {
             this.headerObserver.disconnect();
@@ -59,6 +61,7 @@ class Market {
             cards.stop();
             trade.stop();
             alerts.stop();
+            contrib.stop();
             this.terminal?.close();
         }
     }

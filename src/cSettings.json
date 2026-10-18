@@ -79,7 +79,7 @@
     "market": {
         "name": "Kute Market",
         "id": "market",
-        "description": "Market estimates, activity grades, trade comparisons and analysis. Your sales and trade history stay on your PC.",
+        "description": "Market estimates and trade analysis. Contributes completed sales and private trade facts without player names or login tokens.",
         "type": "checkbox",
         "category": "General",
         "defaultValue": true,

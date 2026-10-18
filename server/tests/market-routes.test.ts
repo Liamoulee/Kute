@@ -5,13 +5,13 @@ import { marketRoutes } from "../src/routes/market";
 import { confirmSession, issueChallenge, keyForVersion } from "../src/util/marketSessions";
 import type { MarketEngine } from "../src/marketEngine";
 
-test("an item desk consumes one read, reuses component caches and legacy contributions are discarded", async() => {
+test("an item desk consumes one read, reuses caches and contributions reach the validator", async() => {
     const calls = { item: 0, history: 0, listings: 0, observe: 0 };
     const engine = { query: {
         item: async() => { calls.item++; return { asOf: 123, skin: { skin: 987654 } }; },
         history: () => { calls.history++; return { points: [] }; },
         listings: () => { calls.listings++; return { listings: [] }; },
-        observe: () => { calls.observe++; throw new Error("must not collect"); },
+        observe: () => { calls.observe++; return { accepted: 2, rejected: 1 }; },
     } } as unknown as MarketEngine;
     const app = Fastify();
     await app.register(marketRoutes, { engine });
@@ -33,9 +33,9 @@ test("an item desk consumes one read, reuses component caches and legacy contrib
         await app.inject({ url: "/market/item/987654/desk?range=1M", headers, remoteAddress: ip });
         await app.inject({ url: "/market/item/987654", headers, remoteAddress: ip });
         expect(calls).toEqual({ item: 1, history: 1, listings: 1, observe: 0 });
-        const retired = await app.inject({ method: "POST", url: "/market/observe", headers, remoteAddress: ip, payload: { sales: [{ marketid: 1 }], trades: [{ trid: 1 }], listings: [{ uid: 1 }] } });
-        expect(retired.json()).toEqual({ accepted: 0, rejected: 3 });
-        expect(calls.observe).toBe(0);
+        const observed = await app.inject({ method: "POST", url: "/market/observe", headers, remoteAddress: ip, payload: { sales: [{ marketid: 1 }], trades: [{ trid: 1 }], listings: [{ uid: 1 }] } });
+        expect(observed.json()).toEqual({ accepted: 2, rejected: 1 });
+        expect(calls.observe).toBe(1);
     }
     finally { await app.close(); }
 });

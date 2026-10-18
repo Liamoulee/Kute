@@ -280,6 +280,11 @@ class MarketApi {
     analyzeStatus(trade){
         return this.requestStatus("/market/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(trade) });
     }
+
+    /** @param {object} body @param {AbortSignal} [signal] */
+    observe(body, signal){
+        return this.request("/market/observe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal });
+    }
 }
 
 const marketApi = new MarketApi();

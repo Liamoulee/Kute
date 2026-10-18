@@ -90,6 +90,7 @@ export type ItemAnalytics = {
 };
 
 export type ItemPage = {
+    contributions?: ContributionEvidence;
     skin: SkinSummary & { tradable: boolean; stackable: boolean | null; wearable: boolean | null; limType: string | null; noSpin: boolean; floor: number };
     liquidity: { grade: Grade; velocity: number; sales7d: number; sales30d: number; onSaleRatio: number | null; avgTimeToSellMs: number | null; spread: number | null; gradedAt: number };
     depth: Depth | null;
@@ -189,6 +190,13 @@ export type TradeVerdict = {
     asOf: number;
 };
 
+export type ContributionSample = { samples: number; median: number; low: number; high: number };
+export type ContributionEvidence = {
+    trades30d: number; sales30d: number; matchedSales30d: number; lastTradeDay: string | null;
+    cash: ContributionSample | null; swaps: (ContributionSample & { skin: number; name: string })[];
+    sales: ContributionSample | null; asOf: number;
+};
+
 export type PortfolioItem = { skin: number; name: string; rarity: number; type: number; thumbnail: string | null; count: number; fair: number; value: number; grade: Grade; confidence: number; trend7d: number | null; trend30d: number | null };
 export type PortfolioReply = {
     name: string;
@@ -215,8 +223,9 @@ export type PortfolioReply = {
 
 export type ObservedListing = { uid: number; marketid: number; skinindex: number; skinid: number; funds: number; seller_id: number; seller_name: string; listed_time: number; m?: string };
 export type ObservedSale = { marketid: number; type: "sell" | "buy"; skinindex: number; amount: number; date: string };
-export type ObservedTradeItem = { skin: number; count: number; serial?: number; wear?: number; style?: number };
-export type ObservedTrade = { trid?: number; at: number; context: "history" | "plaza" | "window"; give: ObservedTradeItem[]; get: ObservedTradeItem[]; giveKr: number; getKr: number };
+export type ObservedTradeItem = { skin: number; count: number; serial?: number; wear?: number; style?: number; paint?: number; instance?: number };
+export type ObservedCurrency = { id: number; amount: number };
+export type ObservedTrade = { trid?: number; at: number; context: "history" | "plaza" | "window"; give: ObservedTradeItem[]; get: ObservedTradeItem[]; giveKr: number; getKr: number; giveCurrencies?: ObservedCurrency[]; getCurrencies?: ObservedCurrency[] };
 export type ObserveBody = { listings?: ObservedListing[]; sales?: ObservedSale[]; trades?: ObservedTrade[] };
 export type ObserveResult = { accepted: number; rejected: number };
 
@@ -235,7 +244,7 @@ export type MarketQuery = {
     intelligence?(skin?: number, kind?: string): IntelligenceReply;
     analyze(trade: TradeInput): TradeVerdict;
     portfolio(name: string): Promise<PortfolioReply | null>;
-    /** compatibility only; contributions are rejected without retention */
+    /** session is an opaque contribution source, never a player identity */
     observe(session: string, body: ObserveBody): ObserveResult;
 };
 
