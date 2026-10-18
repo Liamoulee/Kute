@@ -8,6 +8,20 @@
     button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--pink);outline-offset:3px}
     button{border:0;background:none}
     .kmSidebar{display:flex;flex-direction:column;background:#111218;border-right:1px solid var(--line);padding:26px 14px 16px;min-width:0}
+    .intelligenceHero{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:28px;padding:25px;border:1px solid #443443;background:linear-gradient(120deg,#29202c,#1b1d26);border-radius:12px;margin-bottom:24px}
+    .intelligenceHero h2{font-size:22px;line-height:1.35;max-width:440px}.intelligenceHero .sub{max-width:590px}
+    .intelligenceProof{display:flex;flex-direction:column;align-items:flex-start;gap:7px;border-left:1px solid #463746;padding-left:24px;font-size:11px;color:var(--muted)}
+    .intelligenceProof strong{font-size:34px;line-height:1.2;font-weight:600}.intelligenceProof small{line-height:1.5}
+    .intelligenceFilters{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:20px}
+    .dealEvidence{display:block;margin-top:8px;max-width:280px;font-size:10px;white-space:normal;font-weight:400}
+    .intelligenceGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+    .signalCard{display:flex;flex-direction:column;min-width:0;background:#1b1c24;border:1px solid var(--line);border-radius:10px;padding:20px}
+    .signalCard .panelHead{margin-bottom:20px}.signalCard .panelHead>button{min-width:0;text-align:left;padding:0}.signalCard h2{font-size:17px}.signalCard .sub{font-size:12px}
+    .signalBottom{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:20px;margin-top:auto;font-size:13px}.signalBottom small{display:block;font-size:10px;color:var(--muted)}
+    .signalCaution{font-size:11px;color:#e8b69a;margin-top:12px}.signalReason{padding:12px 0;border-bottom:1px solid var(--line);font-size:13px}.signalReason p{color:var(--muted);font-size:12px;margin-top:4px}
+    .intelligenceItem{margin-bottom:20px}.outlook{padding-top:20px}.intelligenceDetails{margin-top:24px}.intelligenceDetails summary{cursor:pointer;font-weight:600}.intelligenceDetails .tableWrap{margin-top:18px}
+    .coverageRow{display:flex;flex-wrap:wrap;gap:12px 24px;margin-top:18px;font-size:11px;color:var(--muted)}.coverageRow b{color:var(--text)}
+    @media(max-width:800px){.intelligenceHero{grid-template-columns:1fr;gap:18px;padding:20px}.intelligenceProof{border-left:0;border-top:1px solid #463746;padding:15px 0 0}.intelligenceGrid{grid-template-columns:1fr}.signalBottom{flex-wrap:wrap}}
     .brand{display:flex;align-items:center;gap:10px;padding:0 10px 35px;font-weight:700;font-size:16px;letter-spacing:-.4px}
     .brandMark{width:32px;height:32px;border-radius:10px;background:#f580b4;color:#25151f;display:grid;place-items:center;font-size:21px;font-weight:900}
     .brand small{display:block;color:#858593;font-size:10px;letter-spacing:2px;font-weight:600;line-height:1.1;margin-top:4px}
@@ -237,6 +251,7 @@
         <div class="navCaption">YOUR MARKET</div>
         <nav class="kmNav" aria-label="Market navigation">
             <button data-nav="overview" title="Market" aria-label="Market"><span class="navIcon">&#9672;</span><span class="navLabel">Market</span></button>
+            <button data-nav="intelligence" title="Intelligence" aria-label="Intelligence"><span class="navIcon">&#10023;</span><span class="navLabel">Intelligence</span></button>
             <button data-nav="search" title="Discover" aria-label="Discover"><span class="navIcon">&#9906;</span><span class="navLabel">Discover</span></button>
             <button data-nav="watchlist" title="Watchlist" aria-label="Watchlist"><span class="navIcon">&#9734;</span><span class="navLabel">Watchlist</span><span class="navCount" id="kmWatchCount">0</span></button>
             <button data-nav="portfolio" title="Inventory" aria-label="Inventory"><span class="navIcon">&#9636;</span><span class="navLabel">Inventory</span></button>

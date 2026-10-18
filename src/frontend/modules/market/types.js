@@ -76,6 +76,7 @@
  * @property {{serial: InstanceBracket[], wear: InstanceBracket[], registered: number}|null} instances
  * @property {{days:number,sales:number,lastSaleDay:string|null,dailyRange:{low:number,high:number}|null,bookAt:number|null,updatedAt:number|null,reasons:string[]}} [evidence]
  * @property {ItemAnalytics} [analytics]
+ * @property {import("./intelligence.js").ItemIntelligence} [intelligence]
  * @property {number} asOf
  *
  * @typedef {{t: number, lowest: number|null, median: number|null, sales: number, salesObserved?:boolean, volume: number, avg: number|null, fair: number|null, krunker: number|null, onS: number|null,ask?:{open:number,high:number,low:number,close:number,samples:number}|null}} HistoryPoint
@@ -83,7 +84,7 @@
  * @typedef {{uid: number, price: number, listedAt: number|null, ageMs: number|null, seller: string|null, sellerListings: number, wear: number|null, serial: number|null}} ListingRow
  * @typedef {{skin: number, total: number, listings: ListingRow[], asOf: number,observedAt?:number|null,observedTotal?:number}} ListingsReply
  * @typedef {{window: string, gainers: (SkinSummary & {change: number})[], losers: (SkinSummary & {change: number})[], asOf: number}} MoversReply
- * @typedef {{uid: number, skin: number, name: string, rarity: number, thumbnail: string|null, price: number, fair: number, discount: number, grade: Grade, confidence: number, seller: string|null, ageMs: number|null,sales7d?:number}} Deal
+ * @typedef {{uid: number, skin: number, name: string, rarity: number, thumbnail: string|null, price: number, fair: number, discount: number, grade: Grade, confidence: number, seller: string|null, ageMs: number|null,sales7d?:number,assessment?:{score:number,reasons:string[],risks:string[],historicalLow:number|null}}} Deal
  * @typedef {{deals: Deal[], asOf: number}} DealsReply
  * @typedef {{name: string, value: number, change1d: number|null, change7d: number|null, change30d: number|null, members: number, series: {day: string, value: number}[]}} IndexReply
  * @typedef {{indices: IndexReply[], asOf: number}} IndicesReply

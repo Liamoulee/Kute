@@ -4,12 +4,13 @@ import { TYPE_NAMES, TRADE_VERDICTS, esc, money, change, evidenceLabel, activity
 import { readWatchlist, saveWatchlist, toggleWatch } from "./watchlist.js";
 import MarketChart from "./chart.js";
 import { itemDesk, marketDesk } from "./analytics.js";
+import { intelligenceView, itemIntelligence, dealEvidence } from "./intelligence.js";
 import ItemSearch, { itemSearch } from "./itemSearch.js";
 
 const MINUTE = 60_000;
 const PREF_KEY = "kute_market_advanced";
 const RANGES = ["1D", "7D", "1M", "3M", "1Y", "ALL"];
-const TITLES = { overview: "Market", search: "Discover", active: "Discover", movers: "Discover", deals: "Discover", indices: "Market", watchlist: "Watchlist", portfolio: "Inventory", analyze: "Trade", help: "How it works", item: "Item overview" };
+const TITLES = { overview: "Market", intelligence: "Intelligence", search: "Discover", active: "Discover", movers: "Discover", deals: "Discover", indices: "Market", watchlist: "Watchlist", portfolio: "Inventory", analyze: "Trade", help: "How it works", item: "Item overview" };
 const DISCOVERY_TABS = ["search", "active", "deals", "movers"];
 
 /**
@@ -230,6 +231,7 @@ class Terminal {
     async render(tab){
         switch (tab){
             case "overview": return this.overview();
+            case "intelligence": return this.intelligence();
             case "search": return this.search();
             case "active": return this.search();
             case "item": return this.item();
@@ -241,6 +243,15 @@ class Terminal {
             case "analyze": return this.analyze();
             default: return this.help();
         }
+    }
+
+    /** @return {Promise<View>} */
+    async intelligence(){
+        const kind = typeof this.arg === "string" ? this.arg : "";
+        /** @type {import("./intelligence.js").IntelligenceReply|null} */
+        const reply = await marketApi.cached(`/market/intelligence?kind=${encodeURIComponent(kind)}`, MINUTE);
+        if (!reply) return this.unavailable();
+        return { asOf: reply.asOf, asOfLabel: "Analyzed", html: intelligenceView(reply, kind, this.advanced, readWatchlist().map((w) => w.skin)) };
     }
 
     /** @return {View} */
@@ -341,6 +352,7 @@ class Terminal {
             html: `<button class="textButton" data-action="back">&#8592; Back to ${esc(TITLES[/** @type {keyof typeof TITLES} */ (this.previous)] ?? "Discover")}</button><div class="itemHero"><div class="itemArt">${s.thumbnail ? `<img src="${esc(s.thumbnail)}" alt="${esc(s.name)}">` : "K"}</div><div><div class="eyebrow">${esc(RARITIES[s.rarity]?.name)} &middot; ${esc(TYPE_NAMES[s.type])}${s.season ? ` &middot; Season ${s.season}` : ""}</div><h1>${esc(s.name)}</h1><p class="sub">${esc(activityLabel(s))} <span class="muted">&middot;</span> ${esc(evidenceLabel(s))}</p></div><div class="itemActions"><button class="button ${watched ? "" : "primary"}" data-action="watch">${watched ? "Watching" : "+ Watch item"}</button></div></div>`
                 + `<div class="metrics">${stat("Kute estimate", `${money(s.fair)} <span class="unit">KR</span>`, esc(recent))}${stat("Lowest observed ask", s.lowest === null ? "None listed" : `${money(s.lowest)} <span class="unit">KR</span>`, s.spread !== null ? change(s.spread) + ` vs estimate${stale ? " &middot; quote needs updating" : ""}` : "No available quote")}${stat("Sales in the last 7 days", String(s.sales7d), `${s.onS} currently listed &middot; ${money(s.inC)} in circulation`)}</div>`
                 + `<section class="panel" style="margin-bottom:20px"><div class="panelHead"><h3>Price history</h3><div class="segmented">${RANGES.map((r) => `<button data-range="${r}" class="${state.range === r ? "on" : ""}">${r}</button>`).join("")}</div></div><div class="row" style="margin-bottom:16px"><div class="segmented"><button data-chart-mode="line" class="${!state.candles ? "on" : ""}">Line</button><button data-chart-mode="candles" class="${state.candles ? "on" : ""}">Ask candles</button></div><label class="field"><span class="srOnly">Chart comparison</span><select id="kmOverlay">${[["none", "No comparison"], ["fair", "Kute estimate"], ["lowest", "Lowest ask"], ["krunker", "Krunker estimate"]].map(([v, n]) => `<option value="${v}" ${state.overlay === v ? "selected" : ""}>${n}</option>`).join("")}</select></label><span class="spacer"></span><button class="button small" data-zoom="${Math.min(8, state.zoom * 2)}" ${state.zoom >= 8 ? "disabled" : ""}>Zoom in</button><button class="button small" data-pan="${Math.min(Math.max(0, points.length - visiblePoints), state.offset + panStep)}" ${state.offset + visiblePoints >= points.length ? "disabled" : ""}>Older</button><button class="button small" data-pan="${Math.max(0, state.offset - panStep)}" ${!state.offset ? "disabled" : ""}>Newer</button><button class="button small" data-zoom="1">Reset</button></div><div class="chartLegend">${state.candles ? '<span><i style="background:#77d9b0"></i>Observed ask OHLC</span>' + series.slice(1).map((line) => `<span><i style="background:${line.color}"></i>${esc(line.label)}</span>`).join("") : series.map((line) => `<span><i style="background:${line.color}"></i>${esc(line.label)}</span>`).join("")}${history?.resolution === "day" ? "<span>Bars: reported sales</span>" : ""}</div><div class="chart">${history ? "" : empty("History unavailable", "Price history could not be loaded. Try again in a moment.", '<button class="button small" data-action="retry">Try again</button>')}</div><p class="chartNote">${history ? chartNote : ""} Dates and times are UTC.</p></section>`
+                + itemIntelligence(page.intelligence)
                 + (this.advanced ? itemDesk(page) : "")
                 + `<div class="equal"><section class="panel"><div class="eyebrow">THE CONTEXT</div><h2>What the data says</h2><ul class="insightList">${reasons.map((r) => `<li>${esc(r)}</li>`).join("")}</ul></section><section class="panel"><div class="eyebrow">RECENT PRICE RANGE</div><h2>${range ? `${money(range.low)} to ${money(range.high)} KR` : "More trading history needed"}</h2><p class="sub">${range ? "Central range of observed daily average prices over 30 days. This is historical context, not a forecast." : "A useful range needs several completed trading days."}</p>${range ? `<div class="rangeTrack"><i style="left:${Math.max(0, Math.min(100, (s.fair - range.low) / Math.max(1, range.high - range.low) * 100))}%"></i></div><div class="breadthLabels"><span class="muted">${money(range.low)}</span><span class="accent">Current estimate</span><span class="muted">${money(range.high)}</span></div>` : ""}<p class="sub" style="margin-top:18px">Krunker estimate: ${money(s.krunker)} KR${s.floor > 0 ? ` &middot; Game quick-sell value: ${money(s.floor)} KR` : " &middot; Not eligible for quick sell"}</p></section></div>`
                 + `<section class="panel" style="margin-bottom:20px"><div class="panelHead"><div><h3>Plan an asking price</h3><p class="sub">Compare your price with the listings already competing for buyers.</p></div><span class="tag quiet">Price comparison</span></div><div class="row"><label class="field">Asking price / KR<input id="kmSellPrice" type="number" min="1" value="${s.lowest ?? s.fair}"></label><label class="field">Quantity<input id="kmSellQuantity" type="number" min="1" max="10000" value="1"></label><div id="kmPlannerResult" style="flex:1;min-width:220px;padding:6px 10px;font-size:12px;color:#b2b4c2"></div></div><p class="chartNote">This comparison does not predict when a listing will sell. Gross proceeds exclude listing fees and assume every unit sells at your ask.</p></section>`
@@ -386,7 +398,7 @@ class Terminal {
         /** @type {import("./types.js").DealsReply|null} */
         const result = await marketApi.cached(`/market/deals?min_grade=C&limit=100&budget=${encodeURIComponent(budget)}`, MINUTE);
         if (!result)return this.unavailable();
-        return { asOf: result.asOf, asOfLabel: "Quotes observed", html: this.intro("Worth a closer look.", "Observed asks below a sales-based estimate. Inspect the evidence before deciding.") + filters + (result.deals.length ? `<div class="tableWrap"><table><thead><tr><th>Item</th><th class="num">Ask / KR</th><th class="num">Estimate / KR</th><th class="num">Below estimate</th><th>Sales / 7D</th></tr></thead><tbody>${result.deals.map((d) => `<tr class="clickable" tabindex="0" data-skin="${d.skin}"><td>${identity(d)}</td><td class="num">${money(d.price)}</td><td class="num">${money(d.fair)}</td><td class="num positive">${Math.round(d.discount * 100)}%</td><td><span class="tag quiet">${d.sales7d ?? "Unknown"}</span></td></tr>`).join("")}</tbody></table></div><p class="chartNote">A discount is not a predicted profit. Ranked by discount and recent sales support, using heuristic thresholds. Quotes older than three hours are excluded; availability can still change.</p>` : '<section class="panel">' + empty("No supported candidates right now", "The scanner only includes sales-based estimates with sufficient activity and a meaningful discount. Your watchlist can track specific items in the meantime.", '<button class="button" data-nav="watchlist">Open watchlist</button>') + "</section>") };
+        return { asOf: result.asOf, asOfLabel: "Quotes observed", html: this.intro("Worth a closer look.", "Observed asks below a sales-based estimate. Inspect the evidence before deciding.") + filters + (result.deals.length ? `<div class="tableWrap"><table><thead><tr><th>Item</th><th class="num">Ask / KR</th><th class="num">Estimate / KR</th><th class="num">Below estimate</th><th>Sales / 7D</th></tr></thead><tbody>${result.deals.map((d) => `<tr class="clickable" tabindex="0" data-skin="${d.skin}"><td>${identity(d)}${dealEvidence(d)}</td><td class="num">${money(d.price)}</td><td class="num">${money(d.fair)}</td><td class="num positive">${Math.round(d.discount * 100)}%</td><td><span class="tag quiet">${d.sales7d ?? "Unknown"}</span></td></tr>`).join("")}</tbody></table></div><p class="chartNote">A discount is not a predicted profit. Ranked by discount, sales support and observed risks. The scanner checks recent lower prices, unstable prices, supply changes and concentrated listings. Quotes older than three hours are excluded; availability can still change.</p>` : '<section class="panel">' + empty("No supported candidates right now", "The scanner only includes sales-based estimates with sufficient activity and a meaningful discount. Your watchlist can track specific items in the meantime.", '<button class="button" data-nav="watchlist">Open watchlist</button>') + "</section>") };
     }
 
     /** @return {Promise<View>} */
@@ -547,6 +559,7 @@ class Terminal {
         const el = event.target instanceof Element ? /** @type {HTMLElement|null} */ (event.target.closest("button,tr[data-skin],tr[data-index-name],tr[data-category]")) : null;
         if (!el || el.hasAttribute("disabled")) return;
         const d = el.dataset;
+        if (d.intelKind !== undefined){ this.show("intelligence", d.intelKind); return; }
         if (el.id === "kmClose"){ this.close(); return; }
         if (d.discover){
             if (d.discover === this.tab) return;
