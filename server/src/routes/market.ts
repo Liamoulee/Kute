@@ -101,6 +101,16 @@ export async function marketRoutes(app: FastifyInstance, options: { engine: Mark
         return { asOf, ...(value as object) };
     };
 
+    app.get("/market/intelligence", (req, reply) => {
+        if (!gate(req, reply, "read", 60)) return reply;
+        if (!engine!.query.intelligence) return reply.code(503).send({ error: "market intelligence unavailable" });
+        const q = req.query as Query;
+        const skin = int(q.skin, 0, 100_000_000);
+        if (q.skin !== undefined && skin === undefined) return reply.code(400).send({ error: "bad skin" });
+        const kind = oneOf(q.kind, ["activity", "supply", "relative", "risk", "availability"]);
+        return serve(reply, MINUTE, `intelligence:${skin ?? "all"}:${kind ?? "all"}`, () => engine!.query.intelligence!(skin, kind));
+    });
+
     app.get("/market/search", (req, reply) => {
         if (!gate(req, reply, "read", 60)) return reply;
         const q = req.query as Query;

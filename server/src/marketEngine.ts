@@ -101,6 +101,7 @@ export type ItemPage = {
     instances: { serial: InstanceBracket[]; wear: InstanceBracket[]; registered: number } | null;
     evidence?: { days: number; sales: number; lastSaleDay: string | null; dailyRange: { low: number; high: number } | null; bookAt: number | null; updatedAt: number | null; reasons: string[] };
     analytics?: ItemAnalytics;
+    intelligence?: ItemIntelligence;
     asOf: number;
 };
 
@@ -130,9 +131,23 @@ export type MoversWindow = "1D" | "7D" | "30D";
 export type Mover = SkinSummary & { change: number };
 export type MoversReply = { window: MoversWindow; gainers: Mover[]; losers: Mover[]; asOf: number };
 
-export type Deal = { uid: number; skin: number; name: string; rarity: number; thumbnail: string | null; price: number; fair: number; discount: number; grade: Grade; confidence: number; seller: string | null; ageMs: number | null; sales7d?: number };
+export type Deal = { uid: number; skin: number; name: string; rarity: number; thumbnail: string | null; price: number; fair: number; discount: number; grade: Grade; confidence: number; seller: string | null; ageMs: number | null; sales7d?: number; assessment?: { score: number; reasons: string[]; risks: string[]; historicalLow: number | null } };
 export type DealsQuery = { budget?: number; minGrade?: Grade; rarity?: number; type?: number; limit?: number };
 export type DealsReply = { deals: Deal[]; asOf: number };
+
+export type MarketSignal = { kind: "activity" | "supply" | "relative" | "risk" | "availability"; tone: "positive" | "negative" | "neutral"; title: string; detail: string; strength: number };
+export type Outlook = { state: "learning" | "published" | "unavailable"; issuedAt: number | null; start: string | null; end: string | null; point: number | null; low: number | null; high: number | null };
+export type ItemIntelligence = { signals: MarketSignal[]; score: number; outlook: Outlook; asOf: number };
+export type ForecastMetrics = { samples: number; items: number; weeks: number; modelError: number | null; lastError: number | null; baselineError: number | null; skill: number | null; coverage: number | null; bands: number; width: number | null };
+export type IntelligenceModel = { version: string; trainedAt: number; trainingSamples: number; historical: ForecastMetrics; forward: ForecastMetrics; state: "learning" | "published"; reason: string };
+export type IntelligenceReply = {
+    items: (SkinSummary & { intelligence: ItemIntelligence })[];
+    model: IntelligenceModel | null;
+    coverage: { items: number; dailyRows: number; firstDay: string | null; lastDay: string | null; supplySince: number | null; contributedSales: number };
+    sources: { source: string; observedAt: number; records: number }[];
+    news: { title: string; url: string | null; observedAt: number }[];
+    asOf: number;
+};
 
 export type IndexReply = { name: string; value: number; change1d: number | null; change7d: number | null; change30d: number | null; members: number; series: { day: string; value: number }[] };
 export type IndicesReply = { indices: IndexReply[]; asOf: number };
@@ -215,6 +230,7 @@ export type MarketQuery = {
     deals(query: DealsQuery): DealsReply;
     indices(): IndicesReply;
     overview(): OverviewReply;
+    intelligence?(skin?: number, kind?: string): IntelligenceReply;
     analyze(trade: TradeInput): TradeVerdict;
     portfolio(name: string): Promise<PortfolioReply | null>;
     /** `session` is an opaque key for the contribution trust, never a player */
