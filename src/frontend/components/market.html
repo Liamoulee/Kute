@@ -157,6 +157,23 @@
     .prose h2{color:var(--text);margin:24px 0 7px}
     .prose p{margin:10px 0}
     .watchTarget{width:110px;background:#22232d;border:1px solid #353742;border-radius:5px;color:#e4e5ed;padding:6px 9px;font-size:12px}
+    .analyticsDesk{margin:24px 0 28px}
+    .analyticsDesk>.panelHead{align-items:flex-start}
+    .analyticsStrip{display:flex;gap:22px;flex-wrap:wrap;padding:12px 16px;background:#20202a;border:1px solid var(--line);border-radius:8px;margin-bottom:12px;font-size:11px;color:var(--muted)}
+    .analyticsStrip b{margin-left:8px;color:var(--text);font-variant-numeric:tabular-nums}
+    .analyticsGrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--line);margin-bottom:18px}
+    .analyticsGrid .metric{padding:16px;background:#1b1c25;border:0}
+    .analyticsGrid .metric strong{font-size:20px;letter-spacing:-.4px;line-height:1.5;overflow-wrap:anywhere}
+    .analyticsGrid .metric small{line-height:1.5}
+    .analyticsRow{display:flex;align-items:center;gap:14px;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line);font-size:12px}
+    .analyticsRow:last-child{border:0}
+    .analyticsRow small{display:block;font-size:11px;color:var(--muted);margin-top:4px;line-height:1.5}
+    .analyticsRow strong{text-align:right;white-space:nowrap;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+    .depthTable td{padding:9px 8px}
+    .depthAmount{position:relative;min-width:65px;padding:3px 5px;isolation:isolate}
+    .depthAmount i{position:absolute;z-index:-1;inset:0 auto 0 0;background:#f580b422;border-right:2px solid #cf7ba2}
+    @media(max-width:1100px){.analyticsGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media(max-width:560px){.analyticsGrid{grid-template-columns:1fr}.analyticsRow{align-items:flex-start;flex-wrap:wrap}.analyticsDesk>.panelHead{flex-wrap:wrap}}
     .srOnly{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
     @media(max-width:1050px){.km{grid-template-columns:68px minmax(0,1fr)}.kmSidebar{padding:24px 8px 12px}.brand{padding:0 9px 30px}.brandText,.navLabel,.navCaption,.navCount,.sidebarNote{display:none}.kmNav button,.helpNav{justify-content:center;padding:13px 8px}.kmHead{padding:16px 20px}.kmBody{padding:20px}.split{grid-template-columns:minmax(0,1.4fr) minmax(220px,1fr)}.categoryGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.kmFoot{padding:8px 20px}.metric{padding:15px}.metric strong{font-size:22px}}
     @media(max-width:760px){.split,.equal{grid-template-columns:1fr}.kmHeadTitle{display:none}.kmHead{gap:9px}.globalSearch{max-width:none}.mode{font-size:10px}.metrics{grid-template-columns:1fr}.metric+.metric{border-left:0;border-top:1px solid var(--line)}.metric{padding:12px 16px}.itemHero{flex-wrap:wrap}.itemHero h1{font-size:23px}.itemHero .itemActions{margin-left:0}.pageIntro{flex-wrap:wrap}.kmFoot>span:first-child{display:none}.kmFoot{justify-content:flex-end}.categoryGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -175,7 +192,7 @@
         <div class="sidebarBottom"><button class="helpNav" data-nav="help" title="How it works" aria-label="How it works"><span class="navIcon">?</span><span class="navLabel">How it works</span></button><div class="sidebarNote">A little more insight.<br>A better-informed trade.</div></div>
     </aside>
     <main class="kmMain">
-        <header class="kmHead"><div class="kmHeadTitle" id="kmTitle">Market</div><form class="globalSearch" id="kmSearchForm"><span aria-hidden="true">&#9906;</span><input id="kmGlobalSearch" aria-label="Search items" placeholder="Find an item..." autocomplete="off"></form><label class="mode"><input id="kmAdvanced" type="checkbox" role="switch">Advanced</label><button class="kmClose" id="kmClose" aria-label="Close market">&times;</button></header>
+        <header class="kmHead"><div class="kmHeadTitle" id="kmTitle">Market</div><form class="globalSearch" id="kmSearchForm"><span aria-hidden="true">&#9906;</span><input id="kmGlobalSearch" aria-label="Search items" placeholder="Find an item..." autocomplete="off"></form><label class="mode" title="Show technical metrics, market diagnostics, and detailed listings. Full chart controls are available in both modes."><input id="kmAdvanced" type="checkbox" role="switch">Advanced</label><button class="kmClose" id="kmClose" aria-label="Close market">&times;</button></header>
         <div class="kmBody" id="kmBody" aria-live="polite"></div>
         <footer class="kmFoot"><span><i class="statusDot"></i>Market insights by Kute</span><span id="kmFootRight">Estimates from observed market data</span></footer>
     </main>

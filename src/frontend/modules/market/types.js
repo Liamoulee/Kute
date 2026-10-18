@@ -33,6 +33,38 @@
  * @typedef {{low: number|null, high: number|null, position: number|null}} PriceRange
  * @typedef {{label: string, count: number, share: number, premium: number|null, sales: number}} InstanceBracket
  *
+ * @typedef {object} ItemAnalytics
+ * @property {string} throughDay
+ * @property {string|null} lastTradeDay
+ * @property {number} observedDays30
+ * @property {number} observedDays90
+ * @property {number} consecutiveDays
+ * @property {number} returnPairs30
+ * @property {number|null} latest
+ * @property {number|null} change7d
+ * @property {number|null} change30d
+ * @property {number|null} sma7
+ * @property {number|null} sma30
+ * @property {number|null} rsi14
+ * @property {number|null} dailyVolatility30
+ * @property {number|null} maxDrawdown90
+ * @property {PriceRange} range90
+ * @property {number|null} weightedPrice30
+ * @property {number|null} estimateVsWeighted
+ * @property {number} sales7d
+ * @property {number} priorSales7d
+ * @property {number} reportedDays7
+ * @property {number} priorReportedDays7
+ * @property {number|null} activityRatio
+ * @property {number|null} turnover30d
+ * @property {number} reportedListed
+ * @property {number} circulation
+ * @property {number|null} statsAt
+ * @property {number|null} listedShare
+ * @property {number|null} turnoverShare
+ * @property {number|null} daysListedAtRecentPace
+ * @property {{observedAt:number|null,sampled:number,knownSellerListings:number,sellers:number,largestSellerShare:number|null,belowEstimate:number,ladder:{premium:number,price:number,count:number,kr:number}[]}} book
+ *
  * @typedef {object} ItemPage
  * @property {SkinSummary & {tradable: boolean, stackable: boolean|null, wearable: boolean|null, limType: string|null, noSpin: boolean, floor: number}} skin
  * @property {{grade: Grade, velocity: number, sales7d: number, sales30d: number, onSaleRatio: number|null, avgTimeToSellMs: number|null, spread: number|null}} liquidity
@@ -43,6 +75,7 @@
  * @property {number[]} weekdays
  * @property {{serial: InstanceBracket[], wear: InstanceBracket[], registered: number}|null} instances
  * @property {{days:number,sales:number,lastSaleDay:string|null,dailyRange:{low:number,high:number}|null,bookAt:number|null,updatedAt:number|null,reasons:string[]}} [evidence]
+ * @property {ItemAnalytics} [analytics]
  * @property {number} asOf
  *
  * @typedef {{t: number, lowest: number|null, median: number|null, sales: number, salesObserved?:boolean, volume: number, avg: number|null, fair: number|null, krunker: number|null, onS: number|null,ask?:{open:number,high:number,low:number,close:number,samples:number}|null}} HistoryPoint
@@ -54,7 +87,7 @@
  * @typedef {{deals: Deal[], asOf: number}} DealsReply
  * @typedef {{name: string, value: number, change1d: number|null, change7d: number|null, change30d: number|null, members: number, series: {day: string, value: number}[]}} IndexReply
  * @typedef {{indices: IndexReply[], asOf: number}} IndicesReply
- * @typedef {{days: {day: string, sales: number, volume: number}[], listingsLive: number, skinsListed: number, krOnBook: number, hours: number[], weekdays: number[], asOf: number,breadth?:{rising:number,falling:number,flat:number,eligible:number,total:number,window:string},categories?:{type:number,items:number,volume:number,change:number|null}[],active?:SkinSummary[],completedDay?:string|null,valuationAt?:number}} OverviewReply
+ * @typedef {{days: {day: string, sales: number, volume: number}[], listingsLive: number, skinsListed: number, krOnBook: number, hours: number[], weekdays: number[], asOf: number,breadth?:{rising:number,falling:number,flat:number,eligible:number,total:number,window:string},categories?:{type:number,items:number,volume:number,change:number|null,rising?:number,falling?:number}[],diagnostics?:{medianChange:number|null,lowerQuartile:number|null,upperQuartile:number|null,advanceDeclineRatio:number|null,top10VolumeShare:number|null,eligibleVolume:number},active?:SkinSummary[],completedDay?:string|null,valuationAt?:number}} OverviewReply
  *
  * @typedef {{skin: number, count: number, serial?: number, wear?: number, style?: number}} TradeItem
  * @typedef {TradeItem & {name: string, fair: number, confidence: number, grade: Grade, unknown: boolean, lineValue: number, liquidValue: number, premium: number|null}} TradeLine
