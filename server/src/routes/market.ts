@@ -98,7 +98,7 @@ export async function marketRoutes(app: FastifyInstance, options: { engine: Mark
         const { value, asOf } = cache.get(key, ttlMs, make);
         reply.header("Cache-Control", `private, max-age=${Math.floor(ttlMs / 1000)}`);
         if (value === null) return reply.code(404).send({ error: "not found" });
-        return { ...(value as object), asOf };
+        return { asOf, ...(value as object) };
     };
 
     app.get("/market/search", (req, reply) => {
@@ -111,6 +111,8 @@ export async function marketRoutes(app: FastifyInstance, options: { engine: Mark
             season: int(q.season, 1, 50),
             sort: oneOf(q.sort, SORTS),
             page: int(q.page, 1, 200) ?? 1,
+            budget: int(q.budget, 1, 1_000_000_000),
+            minSales: int(q.min_sales, 0, 100_000),
         };
         return serve(reply, MINUTE, "search:" + JSON.stringify(query), () => engine!.query.search(query));
     });
@@ -119,10 +121,10 @@ export async function marketRoutes(app: FastifyInstance, options: { engine: Mark
         if (!gate(req, reply, "read", 60)) return reply;
         const id = int((req.params as { id: string }).id, 0, 100_000_000);
         if (id === undefined) return reply.code(400).send({ error: "bad skin" });
-        const { value, asOf } = await cache.getAsync(`item:${id}`, 5 * MINUTE, () => engine!.query.item(id));
+        const { value } = await cache.getAsync(`item:${id}`, 5 * MINUTE, () => engine!.query.item(id));
         if (!value) return reply.code(404).send({ error: "not found" });
         reply.header("Cache-Control", "private, max-age=300");
-        return { ...value, asOf };
+        return value;
     });
 
     app.get("/market/item/:id/history", (req, reply) => {
@@ -164,7 +166,7 @@ export async function marketRoutes(app: FastifyInstance, options: { engine: Mark
     app.get("/market/deals", (req, reply) => {
         if (!gate(req, reply, "read", 60)) return reply;
         const q = req.query as Query;
-        const query: DealsQuery = { minGrade: oneOf(q.min_grade, GRADES), rarity: int(q.rarity, 0, 7), type: int(q.type, 0, 30), limit: int(q.limit, 1, 200) ?? 50 };
+        const query: DealsQuery = { budget: int(q.budget, 1, 1_000_000_000), minGrade: oneOf(q.min_grade, GRADES), rarity: int(q.rarity, 0, 7), type: int(q.type, 0, 30), limit: int(q.limit, 1, 200) ?? 50 };
         return serve(reply, MINUTE, "deals:" + JSON.stringify(query), () => engine!.query.deals(query));
     });
 
@@ -215,10 +217,10 @@ export async function marketRoutes(app: FastifyInstance, options: { engine: Mark
         if (!gate(req, reply, "portfolio", 6)) return reply;
         const player = name((req.query as Query).name);
         if (!player) return reply.code(400).send({ error: "name: a krunker username" });
-        const { value, asOf } = await cache.getAsync("portfolio:" + player.toLowerCase(), 5 * MINUTE, () => engine!.query.portfolio(player));
+        const { value } = await cache.getAsync("portfolio:" + player.toLowerCase(), 5 * MINUTE, () => engine!.query.portfolio(player));
         if (!value) return reply.code(404).send({ error: "player not found" });
         reply.header("Cache-Control", "private, max-age=300");
-        return { ...value, asOf };
+        return value;
     });
 
     app.post("/market/observe", { bodyLimit: 256 * 1024 }, (req, reply) => {

@@ -53,6 +53,8 @@ export type SkinValue = {
     velocity: number;
     /** krunker's own flat estimate */
     krunker: number | null;
+    valuedAt?: number;
+    bookAt?: number | null;
 };
 
 export type SkinSummary = SkinValue & {
@@ -68,7 +70,7 @@ export type SkinSummary = SkinValue & {
 };
 
 export type SearchSort = "volume" | "value" | "trend1d" | "trend7d" | "trend30d" | "liquidity" | "onsale" | "name";
-export type SearchQuery = { q?: string; rarity?: number; type?: number; season?: number; sort?: SearchSort; page?: number };
+export type SearchQuery = { q?: string; rarity?: number; type?: number; season?: number; sort?: SearchSort; page?: number; budget?: number; minSales?: number };
 export type SearchReply = { total: number; page: number; perPage: number; items: SkinSummary[]; asOf: number };
 
 export type Depth = { total: number; lowest: number | null; p25: number | null; median: number | null; p75: number | null; depthKr: number; sellers: number; maxByOne: number };
@@ -87,11 +89,13 @@ export type ItemPage = {
     /** share of 90 day sales per weekday, sunday first */
     weekdays: number[];
     instances: { serial: InstanceBracket[]; wear: InstanceBracket[]; registered: number } | null;
+    evidence?: { days: number; sales: number; lastSaleDay: string | null; dailyRange: { low: number; high: number } | null; bookAt: number | null; updatedAt: number | null; reasons: string[] };
     asOf: number;
 };
 
 export type HistoryRange = "1D" | "7D" | "1M" | "3M" | "1Y" | "ALL";
 export type HistoryPoint = {
+    salesObserved?: boolean;
     /** start of the bucket, unix ms */
     t: number;
     lowest: number | null;
@@ -102,11 +106,12 @@ export type HistoryPoint = {
     fair: number | null;
     krunker: number | null;
     onS: number | null;
+    ask?: { open: number; high: number; low: number; close: number; samples: number } | null;
 };
-export type HistoryReply = { skin: number; range: HistoryRange; resolution: "hour" | "day"; points: HistoryPoint[]; asOf: number };
+export type HistoryReply = { skin: number; range: HistoryRange; resolution: "hour" | "day"; points: HistoryPoint[]; asOf: number; salesSource?: "daily-aggregate" | "unavailable"; askSource?: "sampled-quotes" };
 
 export type ListingRow = { uid: number; price: number; listedAt: number | null; ageMs: number | null; seller: string | null; sellerListings: number; wear: number | null; serial: number | null };
-export type ListingsReply = { skin: number; total: number; listings: ListingRow[]; asOf: number };
+export type ListingsReply = { skin: number; total: number; listings: ListingRow[]; asOf: number; observedAt?: number | null; observedTotal?: number };
 
 export type ValueReply = { values: Record<string, SkinValue>; asOf: number };
 
@@ -114,8 +119,8 @@ export type MoversWindow = "1D" | "7D" | "30D";
 export type Mover = SkinSummary & { change: number };
 export type MoversReply = { window: MoversWindow; gainers: Mover[]; losers: Mover[]; asOf: number };
 
-export type Deal = { uid: number; skin: number; name: string; rarity: number; thumbnail: string | null; price: number; fair: number; discount: number; grade: Grade; confidence: number; seller: string | null; ageMs: number | null };
-export type DealsQuery = { minGrade?: Grade; rarity?: number; type?: number; limit?: number };
+export type Deal = { uid: number; skin: number; name: string; rarity: number; thumbnail: string | null; price: number; fair: number; discount: number; grade: Grade; confidence: number; seller: string | null; ageMs: number | null; sales7d?: number };
+export type DealsQuery = { budget?: number; minGrade?: Grade; rarity?: number; type?: number; limit?: number };
 export type DealsReply = { deals: Deal[]; asOf: number };
 
 export type IndexReply = { name: string; value: number; change1d: number | null; change7d: number | null; change30d: number | null; members: number; series: { day: string; value: number }[] };
@@ -130,6 +135,11 @@ export type OverviewReply = {
     hours: number[];
     /** share of sales per weekday, sunday first */
     weekdays: number[];
+    breadth?: { rising: number; falling: number; flat: number; eligible: number; total: number; window: "7D" };
+    categories?: { type: number; items: number; volume: number; change: number | null }[];
+    active?: SkinSummary[];
+    completedDay?: string | null;
+    valuationAt?: number;
     asOf: number;
 };
 
@@ -167,6 +177,11 @@ export type PortfolioReply = {
     /** value of the current holdings over the last 90 days */
     series: { day: string; value: number }[];
     asOf: number;
+    unvaluedItems?: number;
+    historyCoverage?: { day: string; priced: number; total: number }[];
+    historyBasket?: { items: number; total: number; valueShare: number; series: { day: string; value: number }[] };
+    limitedEvidenceItems?: number;
+    limitedEvidenceValue?: number;
 };
 
 export type ObservedListing = { uid: number; marketid: number; skinindex: number; skinid: number; funds: number; seller_id: number; seller_name: string; listed_time: number; m?: string };
