@@ -64,7 +64,7 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] OBS capture plugin (shared texture game capture plus a dedicated audio window)
 - [x] Officially supported by Medal.tv
 - [x] Encrypted Account Manager: drag accounts into your order, Ctrl+Alt+1, 2 and 3 log in the first three (rebindable)
-- [x] Kute Market (optional, on by default): Kute's own fair value, confidence and liquidity grade on every market card, a verdict under both trade windows, and a terminal behind the header button with search, item pages (price history, depth, ownership, instance premiums), movers, deals, indices, your portfolio and a trade analyzer. Built from Krunker's public market data that Kute records around the clock. Analytics only, nothing is bought, sold or traded for you. With the setting on, the sales and trades you see are shared with Kute, without names
+- [x] Kute Market (optional, on by default): a clear market overview, budget and activity filters, a local watchlist with price targets, inventory coverage, and trade comparisons. Simple price charts by default; advanced mode adds sampled asking-price candles, comparisons, zoom, and listing filters. Estimates show their evidence and quote freshness. Market cards and trade windows link into the same tools. Analytics only: Kute never buys, lists, or trades for you. With the setting on, your completed sales and trades contribute market statistics without player names.
 - [x] Match end message per account (optional): Krunker's end message is remembered for each account, so an alt never sends your main's message. An account without one sends nothing
 - [x] Queue ranked without the game open
 - [x] Better ranked with ELO system
@@ -89,7 +89,6 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] Matchmaker
 - [x] Spotify overlay - by [@Liamoulee](https://github.com/Liamoulee)
 - [ ] BetterKDR™️ (coming soon)
-- [ ] Bloomberg-style trading terminal & market analysis (coming soon)
 - [x] and more...
 
 <hr>
