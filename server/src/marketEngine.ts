@@ -125,6 +125,8 @@ export type HistoryReply = { skin: number; range: HistoryRange; resolution: "hou
 export type ListingRow = { uid: number; price: number; listedAt: number | null; ageMs: number | null; seller: string | null; sellerListings: number; wear: number | null; serial: number | null };
 export type ListingsReply = { skin: number; total: number; listings: ListingRow[]; asOf: number; observedAt?: number | null; observedTotal?: number };
 
+export type ItemDeskReply = { item: ItemPage; history: HistoryReply | null; listings: ListingsReply | null };
+
 export type ValueReply = { values: Record<string, SkinValue>; asOf: number };
 
 export type MoversWindow = "1D" | "7D" | "30D";
@@ -233,7 +235,7 @@ export type MarketQuery = {
     intelligence?(skin?: number, kind?: string): IntelligenceReply;
     analyze(trade: TradeInput): TradeVerdict;
     portfolio(name: string): Promise<PortfolioReply | null>;
-    /** `session` is an opaque key for the contribution trust, never a player */
+    /** compatibility only; contributions are rejected without retention */
     observe(session: string, body: ObserveBody): ObserveResult;
 };
 

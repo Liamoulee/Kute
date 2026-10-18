@@ -27,6 +27,7 @@ class MarketApi {
         this.cache = new Map();
         /** why the last session attempt failed, shown in the terminal */
         this.lastError = "";
+        this.retryAt = 0;
     }
 
     /** @return {boolean} the game has a login, the only state a session is issued for */
@@ -126,6 +127,7 @@ class MarketApi {
         const challenge = await api.requestStatus("/market/session", { method: "POST" });
         if (!challenge.data?.challenge){
             this.lastError = challenge.status === 503 ? "the market is not available right now" : "could not reach the market";
+            if (challenge.status === 429) this.limited(challenge.retryAt);
             return null;
         }
         const signed = await this.attest(challenge.data.challenge);
@@ -140,6 +142,7 @@ class MarketApi {
         });
         if (!confirm.data?.session){
             this.lastError = typeof confirm.error?.error === "string" ? confirm.error.error : "the market refused the sign in";
+            if (confirm.status === 429) this.limited(confirm.retryAt);
             return null;
         }
         this.memorySession = { session: confirm.data.session, expiresAt: confirm.data.expiresAt };
@@ -161,28 +164,45 @@ class MarketApi {
      * @return {Promise<any>} the body, null when anything failed
      */
     async request(path, init = {}, retried = false){
+        return (await this.requestStatus(path, init, retried)).data;
+    }
+
+    /** @param {string} path @param {RequestInit} [init] @param {boolean} [retried] @return {Promise<{status:number,data:any,retryAt?:number}>} */
+    async requestStatus(path, init = {}, retried = false){
+        if (Date.now() < this.retryAt) return { status: 429, data: null, retryAt: this.retryAt };
         const session = await this.session();
-        if (!session) return null;
+        if (!session) return { status: 0, data: null };
         const headers = { ...(init.headers ?? {}), [SESSION_HEADER]: session };
         // the module and server own the TTL; a second browser cache can outlive either one
         const result = await api.requestStatus(path, { ...init, headers, cache: "no-store" });
         if (result.status === 401 && !retried){
             this.forget();
-            return this.request(path, init, true);
+            return this.requestStatus(path, init, true);
         }
-        return result.data;
+        if (result.status === 429){
+            this.limited(result.retryAt);
+        }
+        else this.lastError = result.data === null ? "The market is temporarily unavailable. Please try again shortly." : "";
+        return result;
+    }
+
+    /** @param {number} [retryAt] */
+    limited(retryAt){
+        this.retryAt = retryAt ?? Date.now() + 60_000;
+        this.lastError = `Market request limit reached. Try again after ${new Date(this.retryAt).toLocaleTimeString()}.`;
     }
 
     /**
      * @param {string} path
      * @param {number} ttlMs
+     * @param {() => Promise<any>} [read]
      * @return {Promise<any>}
      */
-    cached(path, ttlMs){
+    cached(path, ttlMs, read = () => this.request(path)){
         const now = Date.now();
         const hit = this.cache.get(path);
         if (hit && now - hit.at < hit.ttl) return hit.value;
-        const value = this.request(path).then((data) => {
+        const value = read().then((data) => {
             // a failed answer is not kept, the next caller tries again
             if (data === null) this.cache.delete(path);
             return data;
@@ -196,8 +216,26 @@ class MarketApi {
     }
 
     retry(){
+        if (Date.now() < this.retryAt) return Promise.resolve(false);
         this.cache.clear();
         return api.retry();
+    }
+
+    /** @param {number} skin @param {string} range */
+    async itemDesk(skin, range){
+        const path = `/market/item/${skin}/desk?range=${range}`;
+        return this.cached(path, 60_000, async() => {
+            const result = await this.requestStatus(path);
+            if (result.status !== 404) return result.data;
+            // older servers expose the three original endpoints
+            const item = await this.cached(`/market/item/${skin}`, 300_000);
+            if (!item) return null;
+            const [history, listings] = await Promise.all([
+                this.cached(`/market/item/${skin}/history?range=${range}`, 300_000),
+                this.cached(`/market/item/${skin}/listings`, 60_000),
+            ]);
+            return { item, history, listings };
+        });
     }
 
     /**
@@ -238,12 +276,9 @@ class MarketApi {
         return this.request("/market/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(trade) });
     }
 
-    /**
-     * @param {object} body contributions
-     * @return {Promise<{accepted: number, rejected: number}|null>}
-     */
-    observe(body){
-        return this.request("/market/observe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    /** @param {import("./types.js").TradeInput} trade */
+    analyzeStatus(trade){
+        return this.requestStatus("/market/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(trade) });
     }
 }
 

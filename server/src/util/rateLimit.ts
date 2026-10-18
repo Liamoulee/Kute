@@ -51,7 +51,7 @@ export function applyHit(reply: FastifyReply, result: Hit, message: string, now 
     reply.header("X-RateLimit-Reset", Math.ceil(result.resetAt / 1000));
     if (result.allowed) return true;
     reply.header("Retry-After", Math.ceil((result.resetAt - now) / 1000));
-    reply.code(429).send({ statusCode: 429, error: "Too Many Requests", message });
+    reply.code(429).send({ statusCode: 429, error: "Too Many Requests", message, resetAt: result.resetAt });
     return false;
 }
 

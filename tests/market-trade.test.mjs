@@ -9,6 +9,8 @@ const source = fs.readFileSync(new URL("../src/frontend/modules/market/trade.js"
     .replace("export default trade;", "globalThis.trade = trade;");
 
 function fixture(){
+    let time = 1_000_000;
+    class Clock extends Date { static now(){ return time; } }
     const requests = []; const lookups = [];
     const panel = { innerHTML: "", querySelector: () => null };
     const box = { style: {}, isConnected: false, nextElementSibling: null, shadowRoot: { querySelector: () => panel }, attachShadow(){ return this.shadowRoot; }, remove(){ this.isConnected = false; } };
@@ -16,8 +18,8 @@ function fixture(){
     const offers = [[], []];
     const sides = offers.map((items) => ({ parentElement: anchor, getClientRects: () => [{}], querySelectorAll: (selector) => selector === ".trade-offer-scroll .trade-inv-item" ? items : [] }));
     const document = { body: {}, hidden: false, pointerLockElement: null, querySelectorAll: () => sides, getElementById: () => null, createElement: () => box };
-    const context = vm.createContext({ document, window: { setInterval: () => 1, addEventListener(){}, removeEventListener(){} }, clearInterval(){}, HTMLInputElement: class {}, esc, TRADE_VERDICTS, GRADE_COLORS, formatKr, formatPercent, template: "",
-        marketApi: { analyze: (input) => new Promise((resolve) => requests.push({ input, resolve })), valuesByThumbnails: async(paths) => { lookups.push(paths); return {}; } },
+    const context = vm.createContext({ Date: Clock, document, window: { setInterval: () => 1, addEventListener(){}, removeEventListener(){} }, clearInterval(){}, HTMLInputElement: class {}, esc, TRADE_VERDICTS, GRADE_COLORS, formatKr, formatPercent, template: "",
+        marketApi: { analyzeStatus: (input) => new Promise((resolve) => requests.push({ input, resolve: (data) => resolve({ status: data ? 200 : 503, data }), respond: resolve })), valuesByThumbnails: async(paths) => { lookups.push(paths); return {}; } },
     });
     vm.runInContext(source, context);
     context.trade.start();
@@ -27,7 +29,7 @@ function fixture(){
         offers[side].push(item);
         return item;
     };
-    return { trade: context.trade, context, document, requests, lookups, box, panel, anchor, sides, offers, add };
+    return { trade: context.trade, context, document, requests, lookups, box, panel, anchor, sides, offers, add, advance: (ms) => { time += ms; }, now: () => time };
 }
 
 const side = (items = []) => ({ items, value: 100, kr: 0, confidence: 20 });
@@ -55,7 +57,7 @@ describe("native trade analysis", () => {
         const original = item.querySelector;
         item.querySelector = (selector) => selector === "img" ? { getAttribute: () => "https://assets.krunker.io/textures/previews/weapons/test.png?v=1" } : original(selector);
         f.context.marketApi.valuesByThumbnails = async() => ({ "weapons/test.png": { skin: 123 } });
-        f.context.marketApi.analyze = async(input) => { f.requests.push({ input }); return verdict(); };
+        f.context.marketApi.analyzeStatus = async(input) => { f.requests.push({ input }); return { status: 200, data: verdict() }; };
         await f.trade.tick();
         expect(f.requests[0].input.give).toEqual([{ skin: 123, count: 4 }]);
     });
@@ -111,10 +113,35 @@ describe("native trade analysis", () => {
         expect(f.panel.innerHTML).toContain("could not be identified");
     });
 
-    test("failed estimates retry without changing the offer", async() => {
+    test("failed estimates back off exponentially even while the offer changes", async() => {
         const f = fixture(); f.add(0, 7018);
         const first = f.trade.tick(); f.requests[0].resolve(null); await first;
         expect(f.panel.innerHTML).toContain("Estimates unavailable");
+        for (let i = 0; i < 4; i++){ f.advance(1200); await f.trade.tick(); }
+        expect(f.requests).toHaveLength(1);
+        f.add(1, 42); await f.trade.tick();
+        expect(f.requests).toHaveLength(1);
+        f.advance(200);
+        const retry = f.trade.tick();
+        expect(f.requests).toHaveLength(2);
+        f.requests[1].resolve(null); await retry;
+        f.advance(9999); await f.trade.tick();
+        expect(f.requests).toHaveLength(2);
+        f.advance(1);
+        const recovered = f.trade.tick(); f.requests[2].resolve(verdict()); await recovered;
+        f.advance(60_000); await f.trade.tick();
+        expect(f.requests).toHaveLength(3);
+    });
+
+    test("rate limits suppress all offers until resetAt, including after closing and reopening", async() => {
+        const f = fixture(); f.add(0, 7018);
+        const first = f.trade.tick();
+        f.requests[0].respond({ status: 429, data: null, retryAt: f.now() + 60_000 }); await first;
+        expect(f.panel.innerHTML).toContain("Request limit reached");
+        f.trade.stop(); f.trade.start(); f.add(1, 42);
+        for (let i = 0; i < 49; i++){ f.advance(1200); await f.trade.tick(); }
+        expect(f.requests).toHaveLength(1);
+        f.advance(1200);
         const retry = f.trade.tick();
         expect(f.requests).toHaveLength(2);
         f.requests[1].resolve(verdict()); await retry;

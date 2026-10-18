@@ -137,6 +137,19 @@ export async function marketRoutes(app: FastifyInstance, options: { engine: Mark
         return value;
     });
 
+    app.get("/market/item/:id/desk", async(req, reply) => {
+        if (!gate(req, reply, "read", 60)) return reply;
+        const id = int((req.params as { id: string }).id, 0, 100_000_000);
+        const range = oneOf((req.query as Query).range, RANGES) ?? "1M";
+        if (id === undefined) return reply.code(400).send({ error: "bad skin" });
+        const { value: item } = await cache.getAsync(`item:${id}`, 5 * MINUTE, () => engine!.query.item(id));
+        if (!item) return reply.code(404).send({ error: "not found" });
+        const { value: history } = cache.get(`history:${id}:${range}`, 5 * MINUTE, () => engine!.query.history(id, range));
+        const { value: listings } = cache.get(`listings:${id}`, MINUTE, () => engine!.query.listings(id));
+        reply.header("Cache-Control", "private, max-age=60");
+        return { item, history, listings };
+    });
+
     app.get("/market/item/:id/history", (req, reply) => {
         if (!gate(req, reply, "read", 60)) return reply;
         const id = int((req.params as { id: string }).id, 0, 100_000_000);
@@ -238,6 +251,7 @@ export async function marketRoutes(app: FastifyInstance, options: { engine: Mark
         if (!session) return reply;
         const body = req.body as ObserveBody | null;
         if (!body || typeof body !== "object") return reply.code(400).send({ error: "a json body" });
-        return engine!.query.observe(session, body);
+        const rejected = [body.listings, body.sales, body.trades].reduce((n, rows) => n + (Array.isArray(rows) ? rows.length : 0), 0);
+        return { accepted: 0, rejected };
     });
 }

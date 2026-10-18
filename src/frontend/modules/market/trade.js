@@ -15,6 +15,8 @@ class TradeWindows {
         /** @type {number|undefined} */
         this.timer = undefined;
         this.lastKey = "";
+        this.retryAt = 0;
+        this.failures = 0;
         this.generation = 0;
         this.busy = false;
         this.expanded = false;
@@ -131,7 +133,9 @@ class TradeWindows {
         try {
             const snapshot = this.snapshot();
             if (!snapshot){ this.clear(); return; }
+            if (Date.now() < this.retryAt) return;
             if (snapshot.key === this.lastKey && this.box?.isConnected && this.box.nextElementSibling === snapshot.anchor) return;
+            this.lastKey = snapshot.key;
             const empty = !snapshot.give.length && !snapshot.get.length && !snapshot.giveKr && !snapshot.getKr;
             this.render(snapshot, null, empty ? "Add items on both sides to compare estimated values." : "Updating estimates...");
             if (empty){ this.lastKey = snapshot.key; return; }
@@ -146,10 +150,22 @@ class TradeWindows {
                 this.render(snapshot, null, "An item could not be identified. A complete comparison is unavailable.");
                 return;
             }
-            const verdict = await marketApi.analyze({ give, get, giveKr: snapshot.giveKr, getKr: snapshot.getKr });
+            const result = await marketApi.analyzeStatus({ give, get, giveKr: snapshot.giveKr, getKr: snapshot.getKr });
+            const verdict = result.data;
+            if (verdict){
+                this.failures = 0;
+                this.retryAt = 0;
+            }
+            else {
+                this.failures++;
+                this.retryAt = result.status === 429 ? result.retryAt ?? Date.now() + 60_000 : Date.now() + Math.min(60_000, 5000 * 2 ** (this.failures - 1));
+                this.lastKey = "";
+            }
             if (!this.current(snapshot, generation)) return;
-            this.render(snapshot, verdict, "Estimates unavailable. Kute will retry automatically.");
-            if (verdict) this.lastKey = snapshot.key;
+            const fallback = result.status === 429
+                ? `Request limit reached. Estimates resume after ${new Date(this.retryAt).toLocaleTimeString()}.`
+                : "Estimates unavailable. Retrying with a longer delay.";
+            this.render(snapshot, verdict, fallback);
         }
         finally {
             this.busy = false;
