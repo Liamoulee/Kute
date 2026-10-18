@@ -218,6 +218,7 @@ Object.defineProperty(window, "gameLoaded", {
         if (kute?.settings?.data?.rankedAlert) import("./modules/rankedAlert.js");
         if (kute?.settings?.data?.hpEnemyCounter) import("./modules/hpEnemyCounter.js");
         if (kute?.settings?.data?.accountManager) import("./modules/accountManager.js");
+        if (kute?.settings?.data?.market !== false && kute?.settings?.data?.disableOnlineFeatures !== true) import("./modules/market/index.js").catch(() => {});
         if (kute?.settings?.data?.showPing) import("./modules/showPing.js");
         if (kute?.settings?.data?.realPing) import("./modules/realPing.js");
         if (kute?.settings?.data?.exitButton) getElement("#clientExit").style.display = "flex";

@@ -69,17 +69,30 @@ class Api {
      * @return {Promise<any>} parsed json, null when down or failed
      */
     async request(path, init = {}){
-        if (!await this.available() || this.down || this.offline()) return null;
+        const { data } = await this.requestStatus(path, init);
+        return data;
+    }
+
+    /**
+     * the same request with the status, for callers that act on a 401 or a 429
+     *
+     * @param {string} path
+     * @param {RequestInit} [init]
+     * @return {Promise<{status: number, data: any, error?: any}>} status 0 when down, offline or failed, error the body of a non 2xx
+     */
+    async requestStatus(path, init = {}){
+        if (!await this.available() || this.down || this.offline()) return { status: 0, data: null };
         try {
             const response = await fetch(this.base + path, { ...init, signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) });
             // any answer means it's alive, only silence counts
             this.failures = 0;
-            return response.ok ? await response.json() : null;
+            const data = await response.json().catch(() => null);
+            return { status: response.status, data: response.ok ? data : null, error: response.ok ? null : data };
         }
         catch {
             this.failures++;
             if (this.failures >= MAX_FAILURES) this.down = true;
-            return null;
+            return { status: 0, data: null };
         }
     }
 }
