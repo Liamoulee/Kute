@@ -25,7 +25,8 @@
     .kmHeadTitle{font-size:15px;font-weight:600;min-width:80px}
     .globalSearch{margin-left:auto;position:relative;max-width:290px;flex:1}
     .globalSearch input{width:100%;padding:8px 12px 8px 31px;background:#1c1d25;border:1px solid #2c2d38;border-radius:7px;font-size:12px}
-    .globalSearch span{position:absolute;left:11px;top:7px;color:#777987}
+    .globalSearch>.searchIcon{position:absolute;left:11px;top:7px;color:#777987}
+    .kmHead{position:relative;z-index:10}
     .mode{display:flex;align-items:center;gap:8px;font-size:11px;white-space:nowrap;color:#a5a5b2;cursor:pointer}
     .mode input{appearance:none;width:28px;height:16px;border-radius:20px;background:#383943;position:relative;cursor:pointer;margin:0}
     .mode input:before{content:"";position:absolute;width:10px;height:10px;left:3px;top:3px;border-radius:50%;background:#a7a8b3}
@@ -139,17 +140,61 @@
     .empty h2{font-size:17px;margin-bottom:9px}
     .empty p{font-size:13px;color:var(--muted);max-width:350px;margin:0 auto 18px;line-height:1.7}
     .notice{border:1px solid #66523d;border-radius:7px;color:#d2ba99;font-size:11px;padding:10px 13px;background:#b98d5310;margin:15px 0;line-height:1.6}
-    .tradeSide{padding:20px;border:1px solid var(--line);border-radius:10px;background:#191a22}
-    .tradeItems{min-height:110px;margin:15px 0}
-    .tradeItem{display:flex;gap:8px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);font-size:12px}
-    .tradeItem input{width:58px;background:#252630;border:1px solid #393b45;border-radius:5px;padding:5px}
+    .tradeBoard{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-bottom:18px}
+    .tradeSide{display:flex;flex-direction:column;min-width:0;padding:20px;border:1px solid var(--line);border-radius:10px;background:#191a22}
+    .tradeSideHead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+    .tradeSideHead>span{font-size:11px;color:var(--muted);white-space:nowrap}
+    .tradeTotal{margin:14px 0 18px}
+    .tradeTotal strong,.tradeDifference strong{display:block;font-size:27px;font-weight:600;letter-spacing:-.6px;font-variant-numeric:tabular-nums}
+    .tradeTotal strong small,.tradeDifference strong small{font-size:12px;color:var(--muted);font-weight:400;letter-spacing:0}
+    .tradeTotal>span{display:block;color:var(--muted);font-size:11px;min-height:33px}
+    .tradeItems{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-content:start;flex:1;min-height:200px;margin:16px 0}
+    .tradeItem{position:relative;min-width:0;padding:14px 10px 10px;border:1px solid #333440;border-radius:8px;background:#20212b;text-align:center}
+    .tradeItem .itemIdentity{display:flex;flex-direction:column;gap:7px}
+    .tradeItem .itemIdentity>span{width:100%;min-width:0}
+    .tradeItem .itemIdentity img,.tradeItem .itemPlaceholder{width:72px;height:66px;background:transparent}
+    .tradeItem .itemIdentity b{max-width:100%;white-space:nowrap;font-size:12px}
+    .tradeItem .itemIdentity small{font-size:10px}
+    .tradeItemValue{font-size:13px;font-weight:600;margin:12px 0 10px;font-variant-numeric:tabular-nums}
+    .tradeItemValue small{display:block;color:var(--muted);font-size:10px;font-weight:400;margin-top:2px}
+    .tradeQuantity{display:flex;align-items:center;justify-content:space-between;gap:6px;border-top:1px solid #333440;padding-top:8px;color:var(--muted);font-size:11px}
+    .tradeQuantity input{width:64px;max-width:70%;background:#191a22;border:1px solid #393b45;border-radius:5px;padding:4px 6px;font-size:12px}
+    .tradeItem .remove{position:absolute;right:5px;top:4px}
+    .tradeEmpty{grid-column:1/-1;min-height:200px;border:1px dashed #363844;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-direction:column;color:#a7a8b6;font-size:12px;text-align:center;padding:12px}
+    .tradeEmpty>span{font-size:25px;color:#796879;margin-bottom:6px}
+    .tradeEmpty small{color:#757785;font-size:11px;margin-top:5px}
+    .tradeKr{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:16px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+    .tradeKr input{width:130px;min-width:0;max-width:55%;border:1px solid #383a46;border-radius:6px;background:#13141b;padding:8px 10px;font-size:13px}
+    .tradeComparison{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px;border:1px solid var(--line);border-radius:10px;background:#1c1b25;font-size:12px}
+    .tradeComparison .verdict{font-size:18px;margin-bottom:4px;line-height:1.4}
+    .tradeComparison .eyebrow{margin-bottom:4px}
+    .tradeDifference{text-align:right;flex-shrink:0}
+    .tradeAdjusted{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin-top:16px}
+    .tradeAdjusted span{display:block;color:var(--muted);font-size:11px}
+    .tradeAdjusted strong{font-size:17px;font-weight:500}
     .remove{color:#8c8e9d;font-size:16px;padding:0 5px}
     .remove:hover{color:#f390a0}
-    .picker{position:relative;margin-top:15px}
-    .picker input{width:100%;padding:9px 11px;border:1px solid #363845;background:#20212a;border-radius:6px}
-    .pickList{position:absolute;z-index:3;background:#262731;border:1px solid #41434e;top:100%;left:0;right:0;border-radius:7px;max-height:230px;overflow:auto;box-shadow:0 8px 20px #0006}
-    .pickList button{display:block;width:100%;padding:10px;text-align:left;font-size:12px}
-    .pickList button:hover{background:#38313e}
+    .itemSearch{position:relative;min-width:0}
+    .itemSearch input{width:100%;padding:9px 11px;border:1px solid #363845;background:#20212a;border-radius:6px;font-size:12px}
+    .filterBar .itemSearch{flex:1 1 200px;max-width:300px}
+    .filterBar .itemSearch input{max-width:none}
+    .suggestions{position:absolute;z-index:8;top:calc(100% + 6px);left:0;width:max(100%,300px);max-width:min(390px,75vw);max-height:350px;overflow:auto;background:#23242f;border:1px solid #484450;border-radius:9px;box-shadow:0 14px 32px #0008;scrollbar-width:thin;scrollbar-color:#484450 transparent}
+    .globalSearch .suggestions{left:auto;right:0;width:360px}
+    .tradeSide:last-child .suggestions{left:auto;right:0}
+    .suggestionHeading{display:flex;justify-content:space-between;gap:8px;padding:10px 12px;color:#a9a4b3;font-size:10px;border-bottom:1px solid #343541}
+    .suggestionHeading>span{color:#828391}
+    .suggestions [role=option]{display:flex;align-items:center;gap:12px;width:100%;padding:10px 12px;text-align:left}
+    .suggestions [role=option]:hover,.suggestions [aria-selected=true]{background:#39313f}
+    .suggestions .itemIdentity{flex:1;min-width:0}
+    .suggestions .itemIdentity>span{min-width:0}
+    .suggestions .itemIdentity b{max-width:none;white-space:nowrap;font-size:12px}
+    .suggestions .itemIdentity small{font-size:10px}
+    .suggestionValue{font-size:12px;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+    .suggestionValue small{display:block;color:var(--muted);font-size:10px}
+    .suggestionStatus{padding:16px 12px;font-size:12px;color:var(--muted)}
+    .suggestions .searchAll{display:block;width:100%;padding:10px 12px;text-align:left;color:var(--pink);border-top:1px solid #343541;font-size:11px}
+    .suggestions .searchAll:hover{background:#39313f}
+    @media(max-width:900px){.tradeItems{grid-template-columns:minmax(0,1fr)}.tradeSide{padding:14px}.tradeTotal strong{font-size:23px}.tradeBoard{gap:10px}.tradeSideHead{flex-wrap:wrap}.tradeComparison{flex-wrap:wrap}.tradeDifference{text-align:left}}
     .verdict{font-size:23px;font-weight:600;margin-bottom:10px}
     .allocation{display:flex;gap:4px;height:8px;border-radius:10px;overflow:hidden;margin:15px 0}
     .allocation i{display:block;height:100%}
@@ -192,7 +237,7 @@
         <div class="sidebarBottom"><button class="helpNav" data-nav="help" title="How it works" aria-label="How it works"><span class="navIcon">?</span><span class="navLabel">How it works</span></button><div class="sidebarNote">A little more insight.<br>A better-informed trade.</div></div>
     </aside>
     <main class="kmMain">
-        <header class="kmHead"><div class="kmHeadTitle" id="kmTitle">Market</div><form class="globalSearch" id="kmSearchForm"><span aria-hidden="true">&#9906;</span><input id="kmGlobalSearch" aria-label="Search items" placeholder="Find an item..." autocomplete="off"></form><label class="mode" title="Show technical metrics, market diagnostics, and detailed listings. Full chart controls are available in both modes."><input id="kmAdvanced" type="checkbox" role="switch">Advanced</label><button class="kmClose" id="kmClose" aria-label="Close market">&times;</button></header>
+        <header class="kmHead"><div class="kmHeadTitle" id="kmTitle">Market</div><form class="globalSearch" id="kmSearchForm"><span class="searchIcon" aria-hidden="true">&#9906;</span><input id="kmGlobalSearch" data-item-search="global" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="kmGlobalSearchOptions" aria-label="Search items" placeholder="Find an item..." autocomplete="off"><div class="suggestions" id="kmGlobalSearchList" hidden></div></form><label class="mode" title="Show technical metrics, market diagnostics, and detailed listings. Full chart controls are available in both modes."><input id="kmAdvanced" type="checkbox" role="switch">Advanced</label><button class="kmClose" id="kmClose" aria-label="Close market">&times;</button></header>
         <div class="kmBody" id="kmBody" aria-live="polite"></div>
         <footer class="kmFoot"><span><i class="statusDot"></i>Market insights by Kute</span><span id="kmFootRight">Estimates from observed market data</span></footer>
     </main>
