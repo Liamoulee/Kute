@@ -79,6 +79,16 @@ export type Ownership = { inC: number; topOwners: OwnerInfo[]; top1Share: number
 export type PriceRange = { low: number | null; high: number | null; /** 0 at the low, 1 at the high */ position: number | null };
 export type InstanceBracket = { label: string; count: number; share: number; premium: number | null; sales: number };
 
+export type ItemAnalytics = {
+    throughDay: string; lastTradeDay: string | null; observedDays30: number; observedDays90: number; consecutiveDays: number; returnPairs30: number;
+    latest: number | null; change7d: number | null; change30d: number | null; sma7: number | null; sma30: number | null; rsi14: number | null;
+    dailyVolatility30: number | null; maxDrawdown90: number | null; range90: PriceRange; weightedPrice30: number | null; estimateVsWeighted: number | null;
+    sales7d: number; priorSales7d: number; reportedDays7: number; priorReportedDays7: number; activityRatio: number | null; turnover30d: number | null;
+    reportedListed: number; circulation: number; statsAt: number | null; listedShare: number | null; turnoverShare: number | null; daysListedAtRecentPace: number | null;
+    book: { observedAt: number | null; sampled: number; knownSellerListings: number; sellers: number; largestSellerShare: number | null; belowEstimate: number;
+        ladder: { premium: number; price: number; count: number; kr: number }[] };
+};
+
 export type ItemPage = {
     skin: SkinSummary & { tradable: boolean; stackable: boolean | null; wearable: boolean | null; limType: string | null; noSpin: boolean; floor: number };
     liquidity: { grade: Grade; velocity: number; sales7d: number; sales30d: number; onSaleRatio: number | null; avgTimeToSellMs: number | null; spread: number | null; gradedAt: number };
@@ -90,6 +100,7 @@ export type ItemPage = {
     weekdays: number[];
     instances: { serial: InstanceBracket[]; wear: InstanceBracket[]; registered: number } | null;
     evidence?: { days: number; sales: number; lastSaleDay: string | null; dailyRange: { low: number; high: number } | null; bookAt: number | null; updatedAt: number | null; reasons: string[] };
+    analytics?: ItemAnalytics;
     asOf: number;
 };
 
@@ -136,7 +147,8 @@ export type OverviewReply = {
     /** share of sales per weekday, sunday first */
     weekdays: number[];
     breadth?: { rising: number; falling: number; flat: number; eligible: number; total: number; window: "7D" };
-    categories?: { type: number; items: number; volume: number; change: number | null }[];
+    categories?: { type: number; items: number; volume: number; change: number | null; rising?: number; falling?: number }[];
+    diagnostics?: { medianChange: number | null; lowerQuartile: number | null; upperQuartile: number | null; advanceDeclineRatio: number | null; top10VolumeShare: number | null; eligibleVolume: number };
     active?: SkinSummary[];
     completedDay?: string | null;
     valuationAt?: number;
