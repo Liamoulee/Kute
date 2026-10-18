@@ -1,0 +1,31 @@
+<style>
+    :host{display:block;contain:style;color-scheme:dark}
+    *{box-sizing:border-box}
+    .panel{position:relative;padding:12px 16px;border:1px solid #33444c;border-radius:10px;background:#101b21;color:#e7eff2;font:400 13px/1.45 "Segoe UI",Arial,sans-serif;text-align:left}
+    .panel.filled{min-height:155px}
+    header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px}
+    .brand{color:#73d8d9;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+    .status{color:#a9bbc4;font-size:12px;text-align:right}
+    .good{color:#8ce3b1}.bad{color:#ffaca9}.fair{color:#a4d6ba}.uncertain{color:#ebcd91}
+    .comparison{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.8fr) minmax(0,1fr);gap:12px}
+    .side:last-child{text-align:right}
+    .difference{text-align:center;border-left:1px solid #2a3a42;border-right:1px solid #2a3a42}
+    .label{display:block;color:#a3b4bf;font-size:11px}
+    strong{display:block;margin:1px 0;font-size:22px;font-weight:650;font-variant-numeric:tabular-nums;letter-spacing:-.02em;overflow-wrap:anywhere}
+    .unit{font-size:11px;font-weight:500;color:#9eb0ba;letter-spacing:0}
+    .meta{display:block;color:#8fa4b0;font-size:11px}
+    .empty{margin:0;color:#a3b4bf}
+    details{margin-top:9px;border-top:1px solid #2a3a42;padding-top:7px}
+    summary{width:fit-content;color:#9fb8c6;cursor:pointer;font-size:11px;padding:2px 0}
+    summary:hover{color:#e7eff2}summary:focus-visible{outline:2px solid #73d8d9;outline-offset:3px}
+    .detailBody{position:absolute;z-index:3;top:calc(100% - 5px);left:-1px;right:-1px;max-height:min(320px,45vh);overflow-y:auto;padding:4px 16px 14px;border:1px solid #33444c;border-top:0;border-radius:0 0 10px 10px;background:#101b21;box-shadow:0 12px 24px #0008}
+    details .hide,details[open] .show{display:none}details[open] .hide{display:inline}
+    .breakdown{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;margin-top:10px}
+    h3{margin:0 0 6px;color:#b6c7cf;font-size:12px;font-weight:600}
+    .line{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px solid #22323a;font-size:12px}
+    .name{overflow-wrap:anywhere}.amount{white-space:nowrap;font-variant-numeric:tabular-nums}
+    .grade{display:inline-block;min-width:17px;padding:0 3px;margin-left:4px;border-radius:3px;color:#101820;text-align:center;font-size:10px;font-weight:700}
+    .notes{margin:10px 0 0;padding-left:16px;color:#9eb1bc;font-size:11px}.notes li{margin:4px 0}
+    @media(max-width:700px){.panel{padding:10px 12px}header{align-items:flex-start}.status{max-width:65%}strong{font-size:18px}.comparison{gap:6px}.breakdown{gap:12px}}
+</style>
+<section class="panel" aria-label="Kute trade analysis"></section>

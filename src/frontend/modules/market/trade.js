@@ -1,25 +1,14 @@
 import marketApi from "./api.js";
 import { GRADE_COLORS, formatKr, formatPercent } from "./types.js";
-
-// the verdict under both trade windows. the legacy window (windows[36]) names skins in its element ids,
-// the svelte one only shows preview images, whose paths name the skin. the window is read, never
-// touched; polling at a slow rate replaces an observer, and nothing runs while the pointer is locked
+import { esc } from "./presentation.js";
+import template from "../../components/marketTrade.html";
 
 const POLL_MS = 1200;
-const BOX_CLASS = "kuteTradeBox";
-const STYLE_ID = "kuteMarketTradeStyle";
-const CSS = `
-.${BOX_CLASS}{margin:6px 0 0;padding:8px 10px;border-radius:6px;background:rgba(0,0,0,.55);color:#fff;font-size:14px;line-height:1.35;font-weight:700;text-align:left}
-.${BOX_CLASS} .kuteVerdict{font-size:16px;margin-bottom:2px}
-.${BOX_CLASS} .kuteSides{display:flex;justify-content:space-between;gap:12px;opacity:.9;font-size:13px}
-.${BOX_CLASS} .kuteDrivers{margin-top:4px;font-weight:500;font-size:12px;opacity:.85}
-.${BOX_CLASS}.good .kuteVerdict{color:#5ce05a}.${BOX_CLASS}.bad .kuteVerdict{color:#f44336}.${BOX_CLASS}.fair .kuteVerdict{color:#9ccc65}.${BOX_CLASS}.uncertain .kuteVerdict{color:#fbc02d}
-.${BOX_CLASS} .kuteGrade{display:inline-block;min-width:14px;text-align:center;border-radius:3px;padding:0 3px;color:#111;font-size:11px;margin-left:3px}
-`;
-const VERDICT_TEXT = { good: "More estimated value coming in", bad: "More estimated value going out", fair: "Similar estimated value", uncertain: "Too little data to judge" };
+const VERDICT_TEXT = { good: "More estimated value coming in", bad: "More estimated value going out", fair: "Similar estimated value", uncertain: "Limited evidence" };
 
 /**
- * @typedef {{give: import("./types.js").TradeItem[], get: import("./types.js").TradeItem[], giveKr: number, getKr: number, anchor: Element, key: string}} Snapshot
+ * @typedef {import("./types.js").TradeItem & {path?:string}} Entry
+ * @typedef {{give:Entry[],get:Entry[],giveKr:number,getKr:number,anchor:Element,key:string}} Snapshot
  */
 
 class TradeWindows {
@@ -27,155 +16,181 @@ class TradeWindows {
         /** @type {number|undefined} */
         this.timer = undefined;
         this.lastKey = "";
+        this.generation = 0;
         this.busy = false;
+        this.expanded = false;
+        this.dismiss = (/** @type {Event} */ event) => {
+            const details = this.box?.shadowRoot?.querySelector("details");
+            if (!details?.open) return;
+            if (event instanceof KeyboardEvent){
+                if (event.key !== "Escape") return;
+                event.preventDefault();
+                event.stopPropagation();
+                details.querySelector("summary")?.focus();
+            }
+            else if (event.target instanceof Node && this.box?.contains(event.target)) return;
+            details.open = false;
+            this.expanded = false;
+        };
         /** @type {HTMLDivElement|null} */
         this.box = null;
     }
 
     start(){
         if (this.timer !== undefined) return;
-        if (!document.getElementById(STYLE_ID)){
-            const style = document.createElement("style");
-            style.id = STYLE_ID;
-            style.textContent = CSS;
-            document.head.append(style);
-        }
         this.timer = window.setInterval(() => this.tick(), POLL_MS);
+        window.addEventListener("pointerdown", this.dismiss, true);
+        window.addEventListener("keydown", this.dismiss, true);
     }
 
     stop(){
         clearInterval(this.timer);
         this.timer = undefined;
+        this.generation++;
+        window.removeEventListener("pointerdown", this.dismiss, true);
+        window.removeEventListener("keydown", this.dismiss, true);
+        this.clear();
+    }
+
+    clear(){
         this.box?.remove();
         this.box = null;
         this.lastKey = "";
+        this.expanded = false;
     }
 
-    /**
-     * @param {string} text "12,345 KR" or "~ 12345"
-     * @return {number}
-     */
+    /** @param {string} text */
     static kr(text){
         const match = /([\d,.]+)/.exec(text.replace(/[~\s]/g, ""));
         return match ? Number(match[1].replace(/,/g, "")) || 0 : 0;
     }
 
-    /**
-     * the legacy window: offer lists with ids trd_<side>_<skin>[_<instance>] and the kr inputs offerVal0/1
-     *
-     * @return {Snapshot|null}
-     */
-    legacy(){
+    /** @param {Element} first @param {Element} second */
+    static row(first, second){
+        let parent = first.parentElement;
+        while (parent && !parent.contains(second)) parent = parent.parentElement;
+        return parent && parent !== document.body ? parent : null;
+    }
+
+    /** @return {Snapshot|null} */
+    snapshot(){
+        const sides = [...document.querySelectorAll(".trade-window .trade-side")].filter((side) => side.getClientRects().length);
+        if (sides.length >= 2){
+            const anchor = TradeWindows.row(sides[0], sides[1]);
+            if (!anchor) return null;
+            /** @param {Element} side */
+            const items = (side) => [...side.querySelectorAll(".trade-offer-scroll .trade-inv-item")].map((node) => {
+                const raw = node.getAttribute("data-index");
+                const skin = raw !== null && /^\d+$/.test(raw) ? Number(raw) : -1;
+                const src = node.querySelector("img")?.getAttribute("src") ?? "";
+                /** @type {Entry} */
+                const entry = { skin, count: TradeWindows.kr(node.querySelector(".trade-item-count")?.textContent ?? "1") || 1 };
+                if (skin < 0) entry.path = /\/textures\/previews\/([^?#]+)/.exec(src)?.[1] ?? "";
+                for (const [key, attr] of /** @type {const} */ ([["serial", "data-serial"], ["wear", "data-wear-float"], ["style", "data-style"]])){
+                    const value = node.getAttribute(attr);
+                    if (value !== null && value !== "" && Number.isFinite(Number(value))) entry[key] = Number(value);
+                }
+                return entry;
+            });
+            const give = items(sides[0]);
+            const get = items(sides[1]);
+            // .trade-est is the game's estimate, never currency added to the offer
+            return { give, get, giveKr: 0, getKr: 0, anchor, key: JSON.stringify([give, get]) };
+        }
         const lists = [document.getElementById("tradeList0"), document.getElementById("tradeList1")];
-        if (!lists[0] || !lists[1]) return null;
-        const holder = lists[0].closest("#tradeHolder, .tradeHolder, [id^='trade']") ?? lists[0].parentElement;
-        if (!holder || holder.getClientRects().length === 0) return null;
+        if (!lists[0]?.getClientRects().length || !lists[1]?.getClientRects().length) return null;
+        const anchor = TradeWindows.row(lists[0], lists[1]);
+        if (!anchor) return null;
         /** @param {Element} list */
-        const items = (list) => {
-            /** @type {Map<number, import("./types.js").TradeItem>} */
-            const out = new Map();
-            for (const node of list.querySelectorAll("[id^='trd_']")){
-                const match = /^trd_(?:inv_)?\d+_(\d+)(?:_(\d+))?$/.exec(node.id);
-                if (!match || node.id.startsWith("trd_inv_")) continue;
-                const skin = Number(match[1]);
-                const count = TradeWindows.kr(node.querySelector(".tItemCnt")?.textContent?.replace("x", "") ?? "1") || 1;
-                const existing = out.get(skin);
-                if (existing) existing.count += count;
-                else out.set(skin, { skin, count });
-            }
-            return [...out.values()];
-        };
-        const kr = (/** @type {string} */ id) => {
+        const items = (list) => [...list.querySelectorAll("[id^='trd_']")].flatMap((node) => {
+            const match = /^trd_\d+_(\d+)(?:_\d+)?$/.exec(node.id);
+            return match ? [{ skin: Number(match[1]), count: TradeWindows.kr(node.querySelector(".tItemCnt")?.textContent ?? "1") || 1 }] : [];
+        });
+        /** @param {string} id */
+        const kr = (id) => {
             const el = document.getElementById(id);
-            return el instanceof HTMLInputElement ? Number(el.value) || 0 : TradeWindows.kr(el?.textContent ?? "0");
+            return Math.max(0, el instanceof HTMLInputElement ? Number(el.value) || 0 : TradeWindows.kr(el?.textContent ?? "0"));
         };
         const give = items(lists[0]);
         const get = items(lists[1]);
-        const anchor = document.getElementById("tradeTotal0")?.parentElement ?? lists[1].parentElement ?? lists[1];
-        return { give, get, giveKr: kr("offerVal0"), getKr: kr("offerVal1"), anchor, key: JSON.stringify([give, get, kr("offerVal0"), kr("offerVal1")]) };
+        const giveKr = kr("offerVal0");
+        const getKr = kr("offerVal1");
+        return { give, get, giveKr, getKr, anchor, key: JSON.stringify([give, get, giveKr, getKr]) };
     }
 
-    /**
-     * the svelte window: two .trade-side blocks, items as preview images in .trade-offer-scroll, kr in .trade-est
-     *
-     * @return {Promise<Snapshot|null>}
-     */
-    async svelte(){
-        const sides = [...document.querySelectorAll(".trade-window .trade-side, .trade-side")];
-        if (sides.length < 2 || sides[0].getClientRects().length === 0) return null;
-        /** @type {string[][]} */
-        const paths = sides.slice(0, 2).map((side) => [...side.querySelectorAll(".trade-offer-scroll img")].map((img) => {
-            const match = /\/textures\/previews\/([^?#]+)/.exec(img instanceof HTMLImageElement ? img.currentSrc || img.src : "");
-            return match ? match[1] : "";
-        }).filter(Boolean));
-        const key = JSON.stringify(paths);
-        if (!paths[0].length && !paths[1].length) return { give: [], get: [], giveKr: 0, getKr: 0, anchor: sides[1], key };
-        const values = await marketApi.valuesByThumbnails([...paths[0], ...paths[1]]);
-        /** @param {string[]} list */
-        const items = (list) => {
-            /** @type {Map<number, import("./types.js").TradeItem>} */
-            const out = new Map();
-            for (const path of list){
-                const skin = values[path]?.skin;
-                if (skin === undefined) continue;
-                const existing = out.get(skin);
-                if (existing) existing.count++;
-                else out.set(skin, { skin, count: 1 });
-            }
-            return [...out.values()];
-        };
-        return { give: items(paths[0]), get: items(paths[1]), giveKr: 0, getKr: 0, anchor: sides[1], key };
+    /** @param {Snapshot} snapshot @param {number} generation */
+    current(snapshot, generation){
+        if (this.timer === undefined || generation !== this.generation || document.pointerLockElement || document.hidden) return false;
+        const now = this.snapshot();
+        return now?.anchor === snapshot.anchor && now.key === snapshot.key;
     }
 
     async tick(){
-        if (this.busy || document.pointerLockElement) return;
+        if (this.busy || this.timer === undefined || document.pointerLockElement || document.hidden) return;
         this.busy = true;
+        const {generation} = this;
         try {
-            const snapshot = this.legacy() ?? await this.svelte();
-            if (!snapshot){
-                if (this.box){
-                    this.box.remove();
-                    this.box = null;
-                    this.lastKey = "";
-                }
+            const snapshot = this.snapshot();
+            if (!snapshot){ this.clear(); return; }
+            if (snapshot.key === this.lastKey && this.box?.isConnected && this.box.nextElementSibling === snapshot.anchor) return;
+            const empty = !snapshot.give.length && !snapshot.get.length && !snapshot.giveKr && !snapshot.getKr;
+            this.render(snapshot, null, empty ? "Add items on both sides to compare estimated values." : "Updating estimates...");
+            if (empty){ this.lastKey = snapshot.key; return; }
+            const paths = [...snapshot.give, ...snapshot.get].filter((item) => item.skin < 0 && item.path).map((item) => /** @type {string} */ (item.path));
+            const values = paths.length ? await marketApi.valuesByThumbnails(paths) : {};
+            if (!this.current(snapshot, generation)) return;
+            /** @param {Entry[]} items */
+            const resolve = (items) => items.map(({ path, ...item }) => ({ ...item, skin: item.skin < 0 ? values[path ?? ""]?.skin ?? -1 : item.skin }));
+            const give = resolve(snapshot.give);
+            const get = resolve(snapshot.get);
+            if ([...give, ...get].some((item) => item.skin < 0)){
+                this.render(snapshot, null, "An item could not be identified. A complete comparison is unavailable.");
                 return;
             }
-            if (snapshot.key === this.lastKey && this.box?.isConnected) return;
-            this.lastKey = snapshot.key;
-            if (!snapshot.give.length && !snapshot.get.length && !snapshot.giveKr && !snapshot.getKr){
-                this.render(snapshot.anchor, null, "Add items to see Kute's verdict");
-                return;
-            }
-            const verdict = await marketApi.analyze({ give: snapshot.give, get: snapshot.get, giveKr: snapshot.giveKr, getKr: snapshot.getKr });
-            this.render(snapshot.anchor, verdict, verdict ? "" : "Kute Market is not reachable");
+            const verdict = await marketApi.analyze({ give, get, giveKr: snapshot.giveKr, getKr: snapshot.getKr });
+            if (!this.current(snapshot, generation)) return;
+            this.render(snapshot, verdict, "Estimates unavailable. Kute will retry automatically.");
+            if (verdict) this.lastKey = snapshot.key;
         }
         finally {
             this.busy = false;
         }
     }
 
-    /**
-     * @param {Element} anchor
-     * @param {import("./types.js").TradeVerdict|null} verdict
-     * @param {string} fallback
-     */
-    render(anchor, verdict, fallback){
+    /** @param {Snapshot} snapshot @param {import("./types.js").TradeVerdict|null} verdict @param {string} fallback */
+    render(snapshot, verdict, fallback){
         if (!this.box){
             this.box = document.createElement("div");
+            this.box.className = "kuteTradeBox";
+            this.box.style.cssText = "all:initial;display:block;box-sizing:border-box;width:100%;min-width:0;margin:0 0 10px;";
+            this.box.attachShadow({ mode: "open" }).innerHTML = template;
         }
-        this.box.className = BOX_CLASS + (verdict ? ` ${verdict.verdict}` : "");
-        if (!verdict){
-            this.box.innerHTML = `<div class="kuteVerdict">Kute Market</div><div class="kuteDrivers">${fallback}</div>`;
-        }
+        const panel = this.box.shadowRoot?.querySelector(".panel");
+        if (!panel) return;
+        panel.className = `panel${snapshot.give.length || snapshot.get.length || snapshot.giveKr || snapshot.getKr ? " filled" : ""}`;
+        this.expanded = panel.querySelector("details")?.open ?? this.expanded;
+        let html = '<header><span class="brand">Kute trade insight</span>';
+        if (!verdict) html += `</header><p class="empty" role="status">${esc(fallback)}</p>`;
         else {
+            const oneSided = (!snapshot.give.length && !snapshot.giveKr) || (!snapshot.get.length && !snapshot.getKr);
+            const partial = [...verdict.give.items, ...verdict.get.items].some((item) => item.unknown);
+            const status = oneSided ? "Add items on both sides to compare" : VERDICT_TEXT[verdict.verdict];
+            html += `<span class="status ${oneSided ? "" : verdict.verdict}" role="status">${status}</span></header>`;
             /** @param {import("./types.js").TradeSide} side @param {string} label */
-            const sideText = (side, label) => `<span>${label}: ${formatKr(side.value)} kr${side.items.filter((l) => !l.unknown).map((l) => `<span class="kuteGrade" style="background:${GRADE_COLORS[l.grade]}">${l.grade}</span>`).join("")}</span>`;
-            const diff = verdict.difference === 0 ? "" : ` (${verdict.difference > 0 ? "+" : "-"}${formatKr(Math.abs(verdict.difference))} kr, ${formatPercent(verdict.differenceShare)})`;
-            this.box.innerHTML = `<div class="kuteVerdict">${VERDICT_TEXT[verdict.verdict]}${diff}</div>`
-                + `<div class="kuteSides">${sideText(verdict.give, "You give")}${sideText(verdict.get, "You get")}</div>`
-                + (verdict.drivers.length ? `<div class="kuteDrivers">${verdict.drivers.map((d) => `• ${d}`).join("<br>")}</div>` : "");
+            const total = (side, label) => {
+                const count = side.items.reduce((sum, item) => sum + item.count, 0);
+                const incomplete = side.items.some((item) => item.unknown);
+                return `<div class="side"><span class="label">${label}</span><strong>${formatKr(side.value)}${incomplete ? "+" : ""} <span class="unit">KR</span></strong><span class="meta">${count} ${count === 1 ? "item" : "items"}${side.kr ? ` + ${formatKr(side.kr)} KR` : ""} &middot; ${incomplete ? "Partial estimate" : "Estimated value"}</span></div>`;
+            };
+            const difference = oneSided || partial ? '<strong>&ndash;</strong><span class="meta">Incomplete comparison</span>' : `<strong>${verdict.difference > 0 ? "+" : ""}${formatKr(verdict.difference)} <span class="unit">KR</span></strong><span class="meta">${esc(formatPercent(verdict.differenceShare))} of the larger side</span>`;
+            html += `<div class="comparison">${total(verdict.give, "You give")}<div class="difference ${oneSided || partial ? "" : verdict.verdict}"><span class="label">Value difference</span>${difference}</div>${total(verdict.get, "You receive")}</div>`;
+            /** @param {import("./types.js").TradeSide} side @param {string} label */
+            const breakdown = (side, label) => `<div><h3>${label}</h3>${side.items.map((item) => `<div class="line"><span class="name">${item.count > 1 ? `${item.count} &times; ` : ""}${esc(item.name)}${item.serial !== undefined ? ` #${item.serial}` : ""}${item.wear !== undefined ? ` &middot; wear ${item.wear.toFixed(4)}` : ""}${item.unknown ? "" : `<span class="grade" title="Activity grade ${item.grade}" style="background:${GRADE_COLORS[item.grade]}">${item.grade}</span>`}</span><span class="amount">${item.unknown ? "Unvalued" : `${formatKr(item.lineValue)} KR`}</span></div>`).join("")}${side.kr ? `<div class="line"><span>Added KR</span><span>${formatKr(side.kr)} KR</span></div>` : ""}${!side.items.length && !side.kr ? '<span class="meta">No items added</span>' : ""}</div>`;
+            html += `<details${this.expanded ? " open" : ""}><summary><span class="show">Item breakdown &amp; evidence</span><span class="hide">Hide item breakdown &amp; evidence</span></summary><div class="detailBody"><div class="breakdown">${breakdown(verdict.give, "You give")}${breakdown(verdict.get, "You receive")}</div><ul class="notes"><li>Estimates describe market data, not guaranteed sale prices. Activity grades do not guarantee a selling time.</li>${verdict.drivers.filter((driver) => !driver.startsWith("Liquidity adjustments")).map((driver) => `<li>${esc(driver)}</li>`).join("")}</ul></div></details>`;
         }
-        if (this.box.parentElement !== anchor.parentElement || this.box.previousElementSibling !== anchor) anchor.after(this.box);
+        panel.innerHTML = html;
+        // the game lays out the inventories as a flex row; our panel must be its sibling
+        if (this.box.nextElementSibling !== snapshot.anchor) snapshot.anchor.before(this.box);
     }
 }
 
