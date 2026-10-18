@@ -1,6 +1,15 @@
 import { expect, test } from "bun:test";
 import { itemIntelligence, dealEvidence, intelligenceView } from "../src/frontend/modules/market/intelligence.js";
 import { element, markup } from "../src/frontend/modules/market/element.js";
+import { contributionEvidence } from "../src/frontend/modules/market/contributionEvidence.js";
+
+test("private exchange comparisons remain labeled and escape contributed display values", () => {
+    const html = contributionEvidence({ trades30d: 8, sales30d: 6, matchedSales30d: 5, cash: { samples: 5, median: 100, low: 90, high: 110 }, sales: null, swaps: [{ skin: 2, name: '<img onerror="bad()">', samples: 5, median: 2, low: 1, high: 3 }] });
+    expect(html).toContain("not a complete trade history");
+    expect(html).toContain("median 100 KR");
+    expect(html).not.toContain("<img");
+    expect(contributionEvidence(undefined)).toBe("");
+});
 
 test("research prices stay hidden and signal content is escaped", () => {
     const html = itemIntelligence({ signals: [{ kind: "risk", tone: "negative", title: "<script>bad</script>", detail: "<img src=x>", strength: 80 }], score: 80, asOf: 1, outlook: { state: "learning", point: 987654, low: 987653, high: 987655, start: "2026-10-19", end: "2026-10-25", issuedAt: 1 } });

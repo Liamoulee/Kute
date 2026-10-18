@@ -2,6 +2,8 @@
 
 /**
  * @typedef {"A"|"B"|"C"|"D"|"F"} Grade
+ * @typedef {{samples:number,median:number,low:number,high:number}} ContributionSample
+ * @typedef {{trades30d:number,sales30d:number,matchedSales30d:number,lastTradeDay:string|null,cash:ContributionSample|null,sales:ContributionSample|null,swaps:(ContributionSample & {skin:number,name:string})[],asOf:number}} ContributionEvidence
  *
  * @typedef {object} SkinValue
  * @property {number} skin
@@ -66,6 +68,7 @@
  * @property {{observedAt:number|null,sampled:number,knownSellerListings:number,sellers:number,largestSellerShare:number|null,belowEstimate:number,ladder:{premium:number,price:number,count:number,kr:number}[]}} book
  *
  * @typedef {object} ItemPage
+ * @property {ContributionEvidence} [contributions]
  * @property {SkinSummary & {tradable: boolean, stackable: boolean|null, wearable: boolean|null, limType: string|null, noSpin: boolean, floor: number}} skin
  * @property {{grade: Grade, velocity: number, sales7d: number, sales30d: number, onSaleRatio: number|null, avgTimeToSellMs: number|null, spread: number|null}} liquidity
  * @property {Depth|null} depth

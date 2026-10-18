@@ -5,6 +5,7 @@ import { TYPE_NAMES, esc, money, change, evidenceLabel, activityLabel, empty, st
 import { readWatchlist } from "../watchlist.js";
 import { itemDesk } from "../analytics.js";
 import { itemIntelligence } from "../intelligence.js";
+import { contributionEvidence } from "../contributionEvidence.js";
 const RANGES = ["1D", "7D", "1M", "3M", "1Y", "ALL"];
 
 /** @param {import("../terminal.js").Terminal} desk  @return {Promise<import("../terminal.js").View>} */
@@ -168,7 +169,7 @@ export async function itemView(desk){
     class="chart">${history ? "" : empty("History unavailable", "Price history could not be loaded. Try again in a moment.", '<button class="button small" data-action="retry">Try again</button>')}</div>
 <p
     class="chartNote">${history ? chartNote : ""} Dates and times are UTC.</p>
-</section>` + itemIntelligence(page.intelligence) + (desk.advanced ? itemDesk(page) : "") + `<div
+</section>` + itemIntelligence(page.intelligence) + (desk.advanced ? itemDesk(page) + contributionEvidence(page.contributions) : "") + `<div
     class="equal">
 <section
     class="panel">
