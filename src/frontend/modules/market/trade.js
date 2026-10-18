@@ -16,7 +16,7 @@ const CSS = `
 .${BOX_CLASS}.good .kuteVerdict{color:#5ce05a}.${BOX_CLASS}.bad .kuteVerdict{color:#f44336}.${BOX_CLASS}.fair .kuteVerdict{color:#9ccc65}.${BOX_CLASS}.uncertain .kuteVerdict{color:#fbc02d}
 .${BOX_CLASS} .kuteGrade{display:inline-block;min-width:14px;text-align:center;border-radius:3px;padding:0 3px;color:#111;font-size:11px;margin-left:3px}
 `;
-const VERDICT_TEXT = { good: "Good for you", bad: "Bad for you", fair: "Fair trade", uncertain: "Too little data to judge" };
+const VERDICT_TEXT = { good: "More estimated value coming in", bad: "More estimated value going out", fair: "Similar estimated value", uncertain: "Too little data to judge" };
 
 /**
  * @typedef {{give: import("./types.js").TradeItem[], get: import("./types.js").TradeItem[], giveKr: number, getKr: number, anchor: Element, key: string}} Snapshot

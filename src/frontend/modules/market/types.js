@@ -16,6 +16,8 @@
  * @property {number|null} trend30d
  * @property {number} velocity
  * @property {number|null} krunker
+ * @property {number} [valuedAt]
+ * @property {number|null} [bookAt]
  *
  * @typedef {SkinValue & {name: string, rarity: number, type: number, season: number|null, thumbnail: string|null, onS: number, inC: number, sales7d: number, volume30d: number}} SkinSummary
  *
@@ -40,18 +42,19 @@
  * @property {PriceRange} range90
  * @property {number[]} weekdays
  * @property {{serial: InstanceBracket[], wear: InstanceBracket[], registered: number}|null} instances
+ * @property {{days:number,sales:number,lastSaleDay:string|null,dailyRange:{low:number,high:number}|null,bookAt:number|null,updatedAt:number|null,reasons:string[]}} [evidence]
  * @property {number} asOf
  *
- * @typedef {{t: number, lowest: number|null, median: number|null, sales: number, volume: number, avg: number|null, fair: number|null, krunker: number|null, onS: number|null}} HistoryPoint
- * @typedef {{skin: number, range: string, resolution: "hour"|"day", points: HistoryPoint[], asOf: number}} HistoryReply
+ * @typedef {{t: number, lowest: number|null, median: number|null, sales: number, salesObserved?:boolean, volume: number, avg: number|null, fair: number|null, krunker: number|null, onS: number|null,ask?:{open:number,high:number,low:number,close:number,samples:number}|null}} HistoryPoint
+ * @typedef {{skin: number, range: string, resolution: "hour"|"day", points: HistoryPoint[], asOf: number,salesSource?:string,askSource?:string}} HistoryReply
  * @typedef {{uid: number, price: number, listedAt: number|null, ageMs: number|null, seller: string|null, sellerListings: number, wear: number|null, serial: number|null}} ListingRow
- * @typedef {{skin: number, total: number, listings: ListingRow[], asOf: number}} ListingsReply
+ * @typedef {{skin: number, total: number, listings: ListingRow[], asOf: number,observedAt?:number|null,observedTotal?:number}} ListingsReply
  * @typedef {{window: string, gainers: (SkinSummary & {change: number})[], losers: (SkinSummary & {change: number})[], asOf: number}} MoversReply
- * @typedef {{uid: number, skin: number, name: string, rarity: number, thumbnail: string|null, price: number, fair: number, discount: number, grade: Grade, confidence: number, seller: string|null, ageMs: number|null}} Deal
+ * @typedef {{uid: number, skin: number, name: string, rarity: number, thumbnail: string|null, price: number, fair: number, discount: number, grade: Grade, confidence: number, seller: string|null, ageMs: number|null,sales7d?:number}} Deal
  * @typedef {{deals: Deal[], asOf: number}} DealsReply
  * @typedef {{name: string, value: number, change1d: number|null, change7d: number|null, change30d: number|null, members: number, series: {day: string, value: number}[]}} IndexReply
  * @typedef {{indices: IndexReply[], asOf: number}} IndicesReply
- * @typedef {{days: {day: string, sales: number, volume: number}[], listingsLive: number, skinsListed: number, krOnBook: number, hours: number[], weekdays: number[], asOf: number}} OverviewReply
+ * @typedef {{days: {day: string, sales: number, volume: number}[], listingsLive: number, skinsListed: number, krOnBook: number, hours: number[], weekdays: number[], asOf: number,breadth?:{rising:number,falling:number,flat:number,eligible:number,total:number,window:string},categories?:{type:number,items:number,volume:number,change:number|null}[],active?:SkinSummary[],completedDay?:string|null,valuationAt?:number}} OverviewReply
  *
  * @typedef {{skin: number, count: number, serial?: number, wear?: number, style?: number}} TradeItem
  * @typedef {TradeItem & {name: string, fair: number, confidence: number, grade: Grade, unknown: boolean, lineValue: number, liquidValue: number, premium: number|null}} TradeLine
@@ -60,7 +63,7 @@
  * @typedef {{verdict: "fair"|"good"|"bad"|"uncertain", difference: number, differenceShare: number, give: TradeSide, get: TradeSide, drivers: string[], asOf: number}} TradeVerdict
  *
  * @typedef {{skin: number, name: string, rarity: number, type: number, thumbnail: string|null, count: number, fair: number, value: number, grade: Grade, confidence: number, trend7d: number|null, trend30d: number|null}} PortfolioItem
- * @typedef {{name: string, totalValue: number, liquidValue: number, items: PortfolioItem[], byRarity: Record<string, number>, byType: Record<string, number>, best7d: PortfolioItem|null, worst7d: PortfolioItem|null, concentration: number, liquidShare: number, series: {day: string, value: number}[], asOf: number}} PortfolioReply
+ * @typedef {{name: string, totalValue: number, liquidValue: number, items: PortfolioItem[], byRarity: Record<string, number>, byType: Record<string, number>, best7d: PortfolioItem|null, worst7d: PortfolioItem|null, concentration: number, liquidShare: number, series: {day: string, value: number}[], asOf: number,unvaluedItems?:number,limitedEvidenceItems?:number,limitedEvidenceValue?:number,historyBasket?:{items:number,total:number,valueShare:number,series:{day:string,value:number}[]},historyCoverage?:{day:string,priced:number,total:number}[]}} PortfolioReply
  */
 
 /** the game's rarity names and colors, from its rarity table */

@@ -179,7 +179,7 @@ class Cards {
             delta = `<span class="kuteDelta ${cls}">${share < 0 ? "−" : "+"}${percent}%</span>`;
         }
         line.innerHTML = `<span class="kuteMark">K</span> ${formatKr(value.fair)}<span class="kuteGrade" style="background:${GRADE_COLORS[value.grade]}">${value.grade}</span>${delta}`;
-        line.title = `Kute fair value ${formatKr(value.fair)} kr, ${value.confidence} % confidence, liquidity ${value.grade}` + (ask !== null ? `, this ask ${formatPercent(ask / value.fair - 1)} against it` : "") + ". Click for the item in Kute Market";
+        line.title = `Kute fair value ${formatKr(value.fair)} kr, evidence score ${value.confidence}/100, activity grade ${value.grade}` + (ask !== null ? `, this ask ${formatPercent(ask / value.fair - 1)} against it` : "") + ". Click for the item in Kute Market";
         line.addEventListener("click", (event) => {
             // the card itself opens krunker's detail view on click
             event.stopPropagation();

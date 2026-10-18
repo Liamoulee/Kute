@@ -43,6 +43,14 @@ class Api {
         return this.health;
     }
 
+    /** a deliberate retry from a view can check a server that was previously unavailable */
+    retry(){
+        this.health = null;
+        this.down = false;
+        this.failures = 0;
+        return this.available();
+    }
+
     /**
      * @return {Promise<boolean>}
      */

@@ -1,109 +1,21 @@
-import { getElement } from "../../utils.js";
 import marketApi from "./api.js";
-import { GRADE_COLORS, RARITIES, formatAge, formatKr, formatPercent } from "./types.js";
-
-// the terminal: every market view in one overlay behind a shadow root (krunker's css cannot reach it).
-// each tab renders from one or two server replies, nothing here polls; a reply is cached by api.js
+import { RARITIES, formatAge, formatPercent } from "./types.js";
+import { TYPE_NAMES, esc, money, change, evidenceLabel, activityLabel, identity, empty, stat } from "./presentation.js";
+import { readWatchlist, saveWatchlist, toggleWatch } from "./watchlist.js";
+import MarketChart from "./chart.js";
 
 const MINUTE = 60_000;
-const TYPE_NAMES = ["Weapons", "Hats", "Bodies", "Melee", "Sprays", "Dyes", "Waists", "Faces", "Charms", "Emotes", "Stickers", "Skydomes", "Poses", "Spin Tickets", "Capes", "Heads", "Paints", "Backs", "Consumables"];
+const PREF_KEY = "kute_market_advanced";
 const RANGES = ["1D", "7D", "1M", "3M", "1Y", "ALL"];
+const TITLES = { overview: "Market", search: "Discover", movers: "Discover", deals: "Discover", indices: "Market", watchlist: "Watchlist", portfolio: "Inventory", analyze: "Trade", help: "How it works", item: "Item overview" };
 
 /**
- * @param {string} text
- * @return {string}
+ * @typedef {{q:string,rarity:string,type:string,sort:string,page:number,budget:string,minSales:string}} SearchState
+ * @typedef {{skin:number,range:string,candles:boolean,overlay:string,zoom:number,offset:number,price?:string,quantity?:string,listingMax?:string,serialMax?:string,wearMax?:string,ageMax?:string,sellerMax?:string}} ItemState
+ * @typedef {{html:string,asOf?:number,asOfLabel?:string,points?:import("./chart.js").ChartPoint[],series?:import("./chart.js").Series[],chartOptions?:{candles?:boolean,volume?:boolean,zoom?:number,stepMs?:number,offset?:number},item?:import("./types.js").ItemPage,listings?:import("./types.js").ListingsReply|null}} View
  */
-const esc = (text) => String(text).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" })[c] ?? c);
 
-/** @param {import("./types.js").Grade} g */
-const grade = (g) => `<span class="kmGrade" style="background:${GRADE_COLORS[g]}">${g}</span>`;
-
-/** @param {number|null|undefined} share */
-const trend = (share) => {
-    if (share === null || share === undefined) return "<span class=\"flat\">–</span>";
-    let cls = "flat";
-    if (share > 0.005) cls = "up";
-    else if (share < -0.005) cls = "down";
-    return `<span class="${cls}">${formatPercent(share)}</span>`;
-};
-
-/** @param {number} rarity */
-const rarityName = (rarity) => `<span style="color:${RARITIES[rarity]?.color ?? "#fff"}">${RARITIES[rarity]?.name ?? "?"}</span>`;
-
-/** @param {import("./types.js").SkinSummary|import("./types.js").Deal|import("./types.js").PortfolioItem} s */
-const thumb = (s) => (s.thumbnail ? `<img class="kmThumb" loading="lazy" src="${esc(s.thumbnail)}" alt="">` : "");
-
-/**
- * a line chart with up to three series on one canvas, scaled to the device
- *
- * @param {HTMLCanvasElement} canvas
- * @param {{values: (number|null)[], color: string, label: string}[]} series
- * @param {string[]} labels x labels, one per point
- */
-function drawChart(canvas, series, labels){
-    const width = canvas.clientWidth || 600;
-    const height = canvas.clientHeight || 220;
-    const scale = window.devicePixelRatio || 1;
-    canvas.width = width * scale;
-    canvas.height = height * scale;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.scale(scale, scale);
-    const pad = { l: 56, r: 12, t: 12, b: 24 };
-    const all = /** @type {number[]} */ (series.flatMap((s) => s.values).filter((v) => v !== null && Number.isFinite(v)));
-    if (!all.length){
-        ctx.fillStyle = "#889";
-        ctx.font = "13px sans-serif";
-        ctx.fillText("no data yet", pad.l, height / 2);
-        return;
-    }
-    const min = Math.min(...all);
-    const max = Math.max(...all);
-    const span = max - min || Math.max(1, max * 0.1);
-    const lo = min - span * 0.08;
-    const hi = max + span * 0.08;
-    const n = Math.max(2, labels.length);
-    const x = (/** @type {number} */ i) => pad.l + (width - pad.l - pad.r) * (i / (n - 1));
-    const y = (/** @type {number} */ v) => pad.t + (height - pad.t - pad.b) * (1 - (v - lo) / (hi - lo));
-    ctx.strokeStyle = "#2b2d36";
-    ctx.fillStyle = "#889";
-    ctx.font = "11px sans-serif";
-    ctx.lineWidth = 1;
-    for (let g = 0; g <= 4; g++){
-        const v = lo + (hi - lo) * (g / 4);
-        const yy = y(v);
-        ctx.beginPath();
-        ctx.moveTo(pad.l, yy);
-        ctx.lineTo(width - pad.r, yy);
-        ctx.stroke();
-        ctx.fillText(formatKr(v), 4, yy + 4);
-    }
-    const step = Math.max(1, Math.ceil(labels.length / 6));
-    for (let i = 0; i < labels.length; i += step) ctx.fillText(labels[i], x(i) - 14, height - 6);
-    for (const s of series){
-        ctx.strokeStyle = s.color;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        let started = false;
-        s.values.forEach((v, i) => {
-            if (v === null || !Number.isFinite(v)) return;
-            if (!started){
-                ctx.moveTo(x(i), y(v));
-                started = true;
-            }
-            else ctx.lineTo(x(i), y(v));
-        });
-        ctx.stroke();
-    }
-    let lx = pad.l + 6;
-    for (const s of series){
-        ctx.fillStyle = s.color;
-        ctx.fillRect(lx, pad.t, 10, 3);
-        ctx.fillStyle = "#aab";
-        ctx.fillText(s.label, lx + 14, pad.t + 5);
-        lx += 24 + s.label.length * 6;
-    }
-}
+const defaultSearch = () => ({ q: "", rarity: "", type: "", sort: "volume", page: 1, budget: "", minSales: "" });
 
 class Terminal {
     constructor(){
@@ -111,466 +23,580 @@ class Terminal {
         this.overlay = null;
         /** @type {ShadowRoot|null} */
         this.shadow = null;
+        /** @type {AbortController|null} */
+        this.controller = null;
+        /** @type {MarketChart|null} */
+        this.chart = null;
+        /** @type {HTMLElement|null} */
+        this.returnFocus = null;
         this.tab = "overview";
         /** @type {unknown} */
         this.arg = undefined;
-        /** @type {AbortController|null} */
-        this.controller = null;
-        /** every render bumps it, a slow reply for an older view is dropped */
         this.generation = 0;
-        /** the tab the item view returns to */
+        this.advanced = false;
+        /** @type {View|null} */
+        this.view = null;
+        /** @type {Map<string,{arg:unknown,scroll:number}>} */
+        this.saved = new Map();
         this.previous = "search";
-        /** the analyzer's state survives tab switches */
-        this.analyzer = { give: /** @type {{skin: number, count: number, name: string}[]} */ ([]), get: /** @type {{skin: number, count: number, name: string}[]} */ ([]), giveKr: 0, getKr: 0 };
+        this.portfolioFilter = "";
+        /** @type {number|undefined} */
+        this.debounce = undefined;
+        this.analyzer = { give: /** @type {{skin:number,count:number,name:string}[]} */ ([]), get: /** @type {{skin:number,count:number,name:string}[]} */ ([]), giveKr: 0, getKr: 0 };
+        try {
+            this.advanced = localStorage.getItem(PREF_KEY) === "1";
+        }
+        catch {
+            this.advanced = false;
+        }
     }
 
-    /**
-     * @param {string} [tab]
-     * @param {unknown} [arg]
-     */
+    /** @param {string} [tab] @param {unknown} [arg] */
     async open(tab, arg){
+        if (document.pointerLockElement) return;
         if (!this.overlay){
-            const html = await import("../../components/market.html");
+            const html = await import("../../components/market.html").catch(() => null);
+            if (!html || document.pointerLockElement) return;
+            if (this.overlay){ await this.show(tab ?? this.tab, arg); return; }
+            this.returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
             const overlay = document.createElement("div");
-            overlay.style.cssText = "position:fixed;inset:0;z-index:2147483000;display:flex;justify-content:center;align-items:center;background:rgba(0,0,0,.75)";
+            overlay.style.cssText = "position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;background:rgba(7,8,13,.78)";
             const host = document.createElement("div");
             overlay.append(host);
-            const shadow = host.attachShadow({ mode: "open" });
-            shadow.innerHTML = html.default;
+            this.shadow = host.attachShadow({ mode: "open" });
+            this.shadow.innerHTML = html.default;
             this.overlay = overlay;
-            this.shadow = shadow;
             this.controller = new AbortController();
             const { signal } = this.controller;
-            getElement("#kmClose", shadow).addEventListener("click", () => this.close(), { signal });
-            overlay.addEventListener("click", (event) => {
-                if (event.target === overlay) this.close();
-            }, { signal });
-            document.addEventListener("keydown", (event) => {
-                if (event.key === "Escape"){
-                    event.stopPropagation();
-                    this.close();
-                }
-            }, { signal, capture: true });
-            for (const button of shadow.querySelectorAll(".kmTab")){
-                button.addEventListener("click", () => this.show(/** @type {HTMLElement} */ (button).dataset.tab ?? "overview"), { signal });
-            }
             document.body.append(overlay);
+            this.shadow.addEventListener("click", (event) => this.click(event), { signal });
+            this.shadow.addEventListener("change", (event) => this.changed(event), { signal });
+            this.shadow.addEventListener("input", (event) => this.input(event), { signal });
+            this.shadow.querySelector("#kmSearchForm")?.addEventListener("submit", (event) => {
+                event.preventDefault();
+                this.show("search", { ...defaultSearch(), q: this.value("#kmGlobalSearch") });
+            }, { signal });
+            overlay.addEventListener("click", (event) => { if (event.target === overlay) this.close(); }, { signal });
+            document.addEventListener("pointerlockchange", () => { if (document.pointerLockElement) this.close(); }, { signal });
+            document.addEventListener("keydown", (event) => this.key(event), { signal, capture: true });
+            const mode = /** @type {HTMLInputElement} */ (this.shadow.querySelector("#kmAdvanced"));
+            mode.checked = this.advanced;
+            /** @type {HTMLInputElement|null} */ (this.shadow.querySelector("#kmGlobalSearch"))?.focus();
         }
         await this.show(tab ?? this.tab, arg);
     }
 
     close(){
+        this.remember();
         this.controller?.abort();
         this.controller = null;
+        clearTimeout(this.debounce);
+        this.chart?.destroy();
+        this.chart = null;
         this.overlay?.remove();
         this.overlay = null;
         this.shadow = null;
         this.generation++;
+        this.returnFocus?.focus({ preventScroll: true });
     }
 
-    /**
-     * @param {string} tab
-     * @param {unknown} [arg]
-     */
-    async show(tab, arg){
+    remember(){
+        const body = this.shadow?.querySelector("#kmBody");
+        if (this.tab === "item") this.arg = this.itemState();
+        if (this.tab === "search" && this.shadow?.querySelector("#kmQ")) this.arg = this.readFilters(this.searchState().page);
+        if (body) this.saved.set(this.tab, { arg: this.arg, scroll: body.scrollTop });
+    }
+
+    /** @param {string} selector */
+    value(selector){
+        return /** @type {HTMLInputElement|HTMLSelectElement|null} */ (this.shadow?.querySelector(selector))?.value ?? "";
+    }
+
+    /** @return {SearchState} */
+    searchState(){
+        return { ...defaultSearch(), ...(typeof this.arg === "object" && this.arg ? this.arg : {}) };
+    }
+
+    /** @return {ItemState} */
+    itemState(){
+        const state = { skin: typeof this.arg === "number" ? this.arg : 0, range: "1M", candles: false, overlay: "none", zoom: 1, offset: 0, ...(typeof this.arg === "object" && this.arg ? this.arg : {}) };
+        if (this.view?.item?.skin.skin === state.skin){
+            for (const [key, id] of Object.entries({ price: "kmSellPrice", quantity: "kmSellQuantity", listingMax: "kmListingMax", serialMax: "kmSerialMax", wearMax: "kmWearMax", ageMax: "kmAgeMax", sellerMax: "kmSellerMax" })){
+                if (this.shadow?.querySelector("#" + id)) Object.assign(state, { [key]: this.value("#" + id) });
+            }
+        }
+        return state;
+    }
+
+    /** @param {string} tab @param {unknown} [arg] @param {boolean} [keepScroll] */
+    async show(tab, arg, keepScroll = false){
         if (!this.shadow) return;
+        this.remember();
+        if (tab === "item" && this.tab !== "item") this.previous = this.tab;
+        const previousScroll = this.saved.get(this.tab)?.scroll ?? 0;
+        const stored = this.saved.get(tab);
         this.tab = tab;
-        this.arg = arg;
+        this.arg = arg === undefined ? stored?.arg : arg;
         const generation = ++this.generation;
-        for (const button of this.shadow.querySelectorAll(".kmTab")) button.classList.toggle("on", /** @type {HTMLElement} */ (button).dataset.tab === tab);
-        const body = getElement("#kmBody", this.shadow);
-        body.innerHTML = "<div class=\"kmEmpty\">Loading…</div>";
-        const renderers = { overview: () => this.overview(), search: () => this.search(), movers: () => this.movers(), deals: () => this.deals(), indices: () => this.indices(), portfolio: () => this.portfolio(), analyze: () => this.analyze(), help: () => this.help(), item: () => this.item(Number(arg)) };
-        const render = renderers[/** @type {keyof typeof renderers} */ (tab)] ?? renderers.overview;
+        clearTimeout(this.debounce);
+        this.chart?.destroy();
+        this.chart = null;
+        const body = /** @type {HTMLElement} */ (this.shadow.querySelector("#kmBody"));
+        body.innerHTML = empty("Loading market data", "Fetching the latest available observations.");
+        const title = this.shadow.querySelector("#kmTitle");
+        if (title) title.textContent = TITLES[/** @type {keyof typeof TITLES} */ (tab)] ?? "Market";
+        let nav = tab === "item" ? this.previous : tab;
+        if (nav === "deals" || nav === "movers") nav = "search";
+        if (nav === "indices") nav = "overview";
+        for (const el of this.shadow.querySelectorAll("[data-nav]")){
+            const active = /** @type {HTMLElement} */ (el).dataset.nav === nav;
+            el.classList.toggle("on", active);
+            if (active) el.setAttribute("aria-current", "page");
+            else el.removeAttribute("aria-current");
+        }
+        this.updateWatchCount();
         try {
-            const html = await render();
+            const view = await this.render(tab);
             if (generation !== this.generation || !this.shadow) return;
-            body.innerHTML = html;
-            this.afterRender(tab);
+            this.view = view;
+            body.innerHTML = view.html;
+            body.scrollTop = arg === undefined ? stored?.scroll ?? 0 : 0;
+            if (keepScroll) body.scrollTop = previousScroll;
+            const foot = this.shadow.querySelector("#kmFootRight");
+            if (foot) foot.textContent = view.asOf ? `${view.asOfLabel ?? "Estimates calculated"} ${formatAge(Math.max(0, Date.now() - view.asOf))} ago` : "Estimates from observed market data";
+            const host = /** @type {HTMLElement|null} */ (body.querySelector(".chart"));
+            if (host && view.points && view.series) this.chart = new MarketChart(host, view.points, view.series, view.chartOptions);
+            if (tab === "portfolio") this.filterHoldings();
+            if (tab === "item"){
+                const state = /** @type {ItemState} */ (this.arg);
+                for (const [key, id] of Object.entries({ price: "kmSellPrice", quantity: "kmSellQuantity", listingMax: "kmListingMax", serialMax: "kmSerialMax", wearMax: "kmWearMax", ageMax: "kmAgeMax", sellerMax: "kmSellerMax" })){
+                    const input = /** @type {HTMLInputElement|null} */ (body.querySelector("#" + id));
+                    const value = state?.[/** @type {keyof ItemState} */ (key)];
+                    if (input && typeof value === "string") input.value = value;
+                }
+                this.updatePlanner();
+                this.filterListings();
+            }
         }
-        catch (error){
-            if (generation !== this.generation || !this.shadow) return;
-            body.innerHTML = `<div class="kmEmpty">Something went wrong: ${esc(error instanceof Error ? error.message : String(error))}</div>`;
+        catch {
+            if (generation !== this.generation) return;
+            body.innerHTML = empty("Market data is unavailable", "Try again in a moment. Your saved watchlist stays on this device.", '<button class="button" data-action="retry">Try again</button>');
         }
     }
 
-    /**
-     * @param {number} asOf
-     */
-    foot(asOf){
-        if (!this.shadow) return;
-        const age = Date.now() - asOf;
-        getElement("#kmFootRight", this.shadow).textContent = asOf ? `data as of ${age < MINUTE ? "just now" : formatAge(age) + " ago"}` : "";
+    updateWatchCount(){
+        const counter = this.shadow?.querySelector("#kmWatchCount");
+        if (counter) counter.textContent = String(readWatchlist().length);
     }
 
-    /**
-     * @return {Promise<string>}
-     */
-    async fail(){
-        return `<div class="kmEmpty">${esc(marketApi.lastError || "Kute Market is not reachable right now")}</div>`;
+    /** @param {string} tab @return {Promise<View>} */
+    async render(tab){
+        switch (tab){
+            case "overview": return this.overview();
+            case "search": return this.search();
+            case "item": return this.item();
+            case "watchlist": return this.watchlist();
+            case "movers": return this.movers();
+            case "deals": return this.deals();
+            case "indices": return this.indices();
+            case "portfolio": return this.portfolio();
+            case "analyze": return this.analyze();
+            default: return this.help();
+        }
     }
 
-    /**
-     * @param {import("./types.js").SkinSummary[]} items
-     * @param {boolean} [withChange]
-     * @return {string}
-     */
-    table(items, withChange = false){
-        if (!items.length) return "<div class=\"kmEmpty\">Nothing here</div>";
-        const rows = items.map((s) => `<tr class="kmClick" data-skin="${s.skin}">
-            <td>${thumb(s)}${esc(s.name)}</td><td>${rarityName(s.rarity)}</td>
-            <td class="num">${formatKr(s.fair)}</td><td class="num kmMuted">${s.confidence} %</td><td>${grade(s.grade)}</td>
-            <td class="num">${s.lowest === null ? "–" : formatKr(s.lowest)}</td><td class="num">${s.onS}</td>
-            <td class="num">${trend(withChange ? /** @type {any} */ (s).change : s.trend7d)}</td><td class="num">${s.sales7d}</td></tr>`).join("");
-        return `<table><thead><tr><th>Item</th><th>Rarity</th><th class="num">Fair value</th><th class="num">Conf.</th><th>Liq.</th><th class="num">Lowest ask</th><th class="num">On sale</th><th class="num">${withChange ? "Change" : "7D"}</th><th class="num">Sales 7D</th></tr></thead><tbody>${rows}</tbody></table>`;
+    /** @return {View} */
+    unavailable(){
+        return { html: empty("Market data is unavailable", marketApi.lastError || "The market server could not be reached. Try again in a moment.", '<button class="button" data-action="retry">Try again</button>') };
     }
 
+    /** @param {string} title @param {string} subtitle @param {string} [actions] */
+    intro(title, subtitle, actions = ""){
+        return `<div class="pageIntro"><div><h1>${esc(title)}</h1><p class="sub">${esc(subtitle)}</p></div>${actions}</div>`;
+    }
+
+    /** @param {import("./types.js").SkinSummary[]} items */
+    table(items){
+        if (!items.length) return empty("No matching items", "Try a wider budget or fewer filters.");
+        return `<div class="tableWrap"><table><thead><tr><th>Item</th><th class="num">Kute estimate</th><th class="num">Lowest ask</th><th class="num">7D change</th><th>Activity</th>${this.advanced ? '<th class="num">Listed</th><th>Evidence</th>' : ""}</tr></thead><tbody>${items.map((s) => `<tr class="clickable" data-skin="${s.skin}" tabindex="0"><td>${identity(s)}</td><td class="num">${money(s.fair)}<small>KR</small></td><td class="num">${s.lowest === null ? "No listings" : money(s.lowest)}<small>${s.lowest !== null && s.fair > 0 ? formatPercent(s.lowest / s.fair - 1) + " vs estimate" : ""}</small></td><td class="num">${change(s.trend7d)}</td><td><span class="tag quiet">${s.sales7d} sold / 7D</span></td>${this.advanced ? `<td class="num">${s.onS}</td><td>${esc(evidenceLabel(s))}</td>` : ""}</tr>`).join("")}</tbody></table></div>`;
+    }
+
+    /** @param {import("./types.js").SkinSummary[]} items */
+    compactList(items){
+        return `<div class="list">${items.map((s) => `<button class="listRow" data-skin="${s.skin}">${identity(s)}<span class="listValue">${money(s.fair)} <span class="muted">KR</span><small>${s.sales7d} sold this week</small></span></button>`).join("")}</div>`;
+    }
+
+    /** @return {Promise<View>} */
     async overview(){
-        /** @type {import("./types.js").OverviewReply|null} */
-        const o = await marketApi.cached("/market/overview", 60 * MINUTE);
-        if (!o) return this.fail();
-        this.foot(o.asOf);
-        const today = o.days.at(-1);
-        const bars = (/** @type {number[]} */ shares, /** @type {(i: number) => string} */ label) => `<div class="kmBars">${shares.map((s, i) => `<i style="height:${Math.round(s / Math.max(...shares, 0.0001) * 100)}%" title="${label(i)}: ${(s * 100).toFixed(1)} %"></i>`).join("")}</div>`;
-        const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-        const intro = "<p class=\"kmMuted\" style=\"margin:0 0 12px\">Kute records Krunker's whole market around the clock and turns it into one number per item, the <b style=\"color:#f5479b\">K</b> value: what the item actually sells for right now, from real sales, not from asks. Next to it a liquidity grade, A (sells within the hour) to F (barely trades), and how an ask compares with the value. <span class=\"kmLink\" data-tab=\"help\">How it works</span></p>";
-        return intro + `<div class="kmCards">
-            <div class="kmCard"><div class="k">Sales today</div><div class="v">${today ? today.sales.toLocaleString("en-US") : "–"}</div><div class="s">${today ? formatKr(today.volume) + " kr" : ""}</div></div>
-            <div class="kmCard"><div class="k">Live listings</div><div class="v">${o.listingsLive.toLocaleString("en-US")}</div><div class="s">${o.skinsListed.toLocaleString("en-US")} skins on the book</div></div>
-            <div class="kmCard"><div class="k">KR on the book</div><div class="v">${formatKr(o.krOnBook)}</div><div class="s">sum of every ask</div></div>
-        </div>
-        <h3>Volume per day, last 30 days</h3><canvas id="kmChart"></canvas>
-        <div class="kmGrid2"><div><h3>Sales by hour (UTC)</h3>${bars(o.hours, (i) => `${i}:00`)}</div><div><h3>Sales by weekday</h3>${bars(o.weekdays, (i) => days[i])}<div class="kmMuted" style="font-size:12px">${days.join(" · ")}</div></div></div>`;
+        /** @type {[import("./types.js").OverviewReply|null,import("./types.js").IndicesReply|null]} */
+        const [o, indices] = await Promise.all([marketApi.cached("/market/overview", 5 * MINUTE), marketApi.cached("/market/indices", 60 * MINUTE)]);
+        if (!o)return this.unavailable();
+        const today = new Date().toISOString().slice(0, 10);
+        const completed = o.days.filter((d) => d.day < today);
+        const last = completed.at(-1);
+        const {breadth} = o;
+        const main = indices?.indices.find((i) => i.name === "kute-100");
+        const watch = readWatchlist().slice(0, 4);
+        const values = watch.length ? await marketApi.values(watch.map((w) => w.skin)) : {};
+        const watched = watch.length ? `<div class="list">${watch.map((w) => {
+            const v = values[w.skin];
+            return `<button class="listRow" data-skin="${w.skin}">${identity(w)}<span class="listValue">${money(v?.lowest)}<small>${w.target && v?.lowest !== null && v?.lowest !== undefined && v.lowest <= w.target ? '<span class="positive">Target reached</span>' : "lowest observed ask"}</small></span></button>`;
+        }).join("")}</div>` : empty("Make this market yours", "Watch items to follow their price and set a target.", '<button class="button small" data-nav="search">Find your first item</button>');
+        const categories = (o.categories ?? []).slice(0, 6);
+        const breadthHtml = breadth?.eligible ? `<div class="breadth"><i style="width:${breadth.rising / breadth.eligible * 100}%;background:#77d9b0"></i><i style="width:${breadth.flat / breadth.eligible * 100}%;background:#686b7d"></i><i style="width:${breadth.falling / breadth.eligible * 100}%;background:#f390a0"></i></div><div class="breadthLabels"><span class="positive">&#8593; ${breadth.rising} rising</span><span class="muted">${breadth.flat} steady</span><span class="negative">&#8595; ${breadth.falling} falling</span></div><p class="sub">${breadth.eligible} of ${money(breadth.total)} tradable items have enough recent sales and a measured 7-day trend.</p>` : '<p class="sub">Market breadth appears when enough recent sales and trend history are available.</p>';
+        return {
+            asOf: o.asOf, asOfLabel: "Sales history updated",
+            html: this.intro("A feel for the market.", "Follow what is trading, find your next item, and keep an eye on your favourites.", '<button class="button" data-nav="indices">Explore indices &#8594;</button>')
+                + `<div class="metrics">${stat("Sales / latest completed day", last ? last.sales.toLocaleString() : "Collecting", last ? esc(last.day) + " UTC" : "Awaiting sales history")}${stat("KR traded / same day", last ? money(last.volume) : "Collecting", "Official daily sales aggregates")}${stat("KUTE 100", main ? main.value.toFixed(2) : "Building history", main?.change7d !== null && main?.change7d !== undefined ? change(main.change7d) + " over 7 days" : "Equal-weighted index / base 100")}</div>`
+                + `<div class="split"><section class="panel"><div class="panelHead"><h3>Trading activity</h3><small>Completed days / 30D</small></div><div class="chartLegend"><span><i style="background:#f580b4"></i>KR traded</span></div><div class="chart"></div><p class="chartNote">Today's partial data is excluded. Volume describes activity, not price direction.</p></section><section class="panel"><div class="panelHead"><h3>Market direction</h3><small>7-day breadth</small></div>${breadthHtml}<div style="margin-top:28px"><div class="eyebrow">OBSERVED ON THE MARKET</div><h2>${money(o.listingsLive)} sampled listings</h2><p class="sub">Across ${money(o.skinsListed)} items. An asking price is an offer to sell.</p></div><button class="textButton" style="margin-top:22px" data-nav="movers">See what is moving &#8594;</button></section></div>`
+                + `<div class="split"><section class="panel"><div class="panelHead"><h3>Across the categories</h3><small>Median 7D change</small></div>${categories.length ? `<div class="categoryGrid">${categories.map((c) => `<button class="category" data-category="${c.type}"><b>${esc(TYPE_NAMES[c.type] ?? "Other")}</b><strong>${change(c.change)}</strong><small>${c.items} active items &middot; ${money(c.volume)} KR / 30D</small></button>`).join("")}</div><p class="chartNote">Categories need at least three eligible items for a change estimate.</p>` : '<p class="sub">Category comparisons are building as sales history arrives.</p>'}</section><section class="panel"><div class="panelHead"><h3>Your watchlist</h3><button class="textButton" data-nav="watchlist">View all &#8594;</button></div>${watched}</section></div>`
+                + `<section class="panel"><div class="panelHead"><h3>Actively traded</h3><button class="textButton" data-nav="search">Discover more &#8594;</button></div>${this.compactList(o.active ?? [])}</section>`,
+            points: completed.map((d) => ({ t: Date.parse(d.day + "T00:00:00Z"), values: [d.volume] })),
+            series: [{ label: "KR traded", color: "#f580b4" }],
+        };
     }
 
+    /** @return {Promise<View>} */
     async search(){
-        const state = /** @type {{q: string, rarity: string, type: string, sort: string, page: number}} */ (typeof this.arg === "object" && this.arg ? this.arg : { q: "", rarity: "", type: "", sort: "volume", page: 1 });
-        const params = new URLSearchParams();
-        if (state.q) params.set("q", state.q);
-        if (state.rarity !== "") params.set("rarity", state.rarity);
-        if (state.type !== "") params.set("type", state.type);
-        params.set("sort", state.sort);
-        params.set("page", String(state.page));
+        const state = this.searchState();
+        const params = new URLSearchParams({ sort: state.sort, page: String(state.page) });
+        for (const [key, value] of Object.entries({ q: state.q, rarity: state.rarity, type: state.type, budget: state.budget, min_sales: state.minSales })) if (value !== "") params.set(key, value);
         /** @type {import("./types.js").SearchReply|null} */
-        const reply = await marketApi.cached(`/market/search?${params}`, MINUTE);
-        if (!reply) return this.fail();
-        this.foot(reply.asOf);
-        const options = (/** @type {string[]} */ names, /** @type {string} */ current) => names.map((n, i) => `<option value="${i}" ${String(i) === current ? "selected" : ""}>${n}</option>`).join("");
-        const pages = Math.max(1, Math.ceil(reply.total / reply.perPage));
-        return `<div class="kmRow">
-            <input id="kmQ" placeholder="Search items" value="${esc(state.q)}" style="width:220px">
-            <select id="kmRarity"><option value="">Any rarity</option>${options(RARITIES.map((r) => r.name), state.rarity)}</select>
-            <select id="kmType"><option value="">Any type</option>${options(TYPE_NAMES, state.type)}</select>
-            <select id="kmSort">${["volume", "value", "trend7d", "trend1d", "trend30d", "liquidity", "onsale", "name"].map((s) => `<option value="${s}" ${s === state.sort ? "selected" : ""}>${{ volume: "Most traded", value: "Highest value", trend7d: "7D change", trend1d: "1D change", trend30d: "30D change", liquidity: "Most liquid", onsale: "Most on sale", name: "Name" }[s]}</option>`).join("")}</select>
-            <span class="kmMuted">${reply.total.toLocaleString("en-US")} items</span>
-            <span style="flex:1"></span>
-            <button class="kmBtn" id="kmPrev" ${state.page <= 1 ? "disabled" : ""}>‹</button><span class="kmMuted">${state.page} / ${pages}</span><button class="kmBtn" id="kmNext" ${state.page >= pages ? "disabled" : ""}>›</button>
-        </div>${this.table(reply.items)}`;
+        const result = await marketApi.cached(`/market/search?${params}`, MINUTE);
+        if (!result)return this.unavailable();
+        const options = (/** @type {string[]} */ names, /** @type {string} */ selected) => names.map((n, i) => `<option value="${i}" ${String(i) === selected ? "selected" : ""}>${esc(n)}</option>`).join("");
+        const pages = Math.max(1, Math.ceil(result.total / result.perPage));
+        return { asOf: result.asOf, html: this.intro("Find your next item.", "Browse by budget, recent activity, or the items you already have in mind.")
+            + `<div class="chips"><button class="chip on" data-nav="search">All items</button><button class="chip" data-preset="active">Actively traded</button><button class="chip" data-nav="deals">Potential deals</button><button class="chip" data-nav="movers">Market movers</button></div><form id="kmFilters" class="filterBar"><input id="kmQ" aria-label="Item name" placeholder="Search items" value="${esc(state.q)}"><input id="kmBudget" type="number" min="1" aria-label="Maximum asking price in KR" placeholder="Budget in KR" value="${esc(state.budget)}"><select id="kmType" aria-label="Item type"><option value="">All types</option>${options(TYPE_NAMES, state.type)}</select>${this.advanced ? `<select id="kmRarity" aria-label="Rarity"><option value="">All rarities</option>${options(RARITIES.map((r) => r.name), state.rarity)}</select>` : `<input type="hidden" id="kmRarity" value="${esc(state.rarity)}">`}<select id="kmSales" aria-label="Minimum sales"><option value="">Any activity</option>${[1, 5, 20].map((n) => `<option value="${n}" ${String(n) === state.minSales ? "selected" : ""}>${n}+ sales / 7D</option>`).join("")}</select><select id="kmSort" aria-label="Sort items">${[["volume", "Most traded"], ["value", "Highest value"], ["trend7d", "7D gainers"], ["liquidity", "Most active"], ["name", "Name"]].map(([v, n]) => `<option value="${v}" ${v === state.sort ? "selected" : ""}>${n}</option>`).join("")}</select><button type="button" class="button small" data-action="filters">Apply</button></form>`
+            + this.table(result.items) + `<div class="pagination"><span>${money(result.total)} matching items</span><div class="row"><button class="button small" data-page="${state.page - 1}" ${state.page <= 1 ? "disabled" : ""}>Previous</button><span>${state.page} / ${pages}</span><button class="button small" data-page="${state.page + 1}" ${state.page >= pages ? "disabled" : ""}>Next</button></div></div>` };
     }
 
+    /** @return {Promise<View>} */
+    async item(){
+        const state = this.itemState();
+        const historyRange = !this.advanced && state.range === "7D" ? "1M" : state.range;
+        /** @type {[import("./types.js").ItemPage|null,import("./types.js").HistoryReply|null,import("./types.js").ListingsReply|null]} */
+        const [page, history, listings] = await Promise.all([marketApi.cached(`/market/item/${state.skin}`, 5 * MINUTE), marketApi.cached(`/market/item/${state.skin}/history?range=${historyRange}`, 5 * MINUTE), marketApi.cached(`/market/item/${state.skin}/listings`, MINUTE)]);
+        if (!page)return this.unavailable();
+        const s = page.skin;
+        const e = page.evidence;
+        const watched = readWatchlist().some((w) => w.skin === s.skin);
+        const range = e?.dailyRange;
+        const recent = e ? `${e.sales} sales across ${e.days} trading days in 30D` : `${page.liquidity.sales30d} sales in 30 days`;
+        const reasons = e?.reasons ?? [recent, `The estimate is based on ${s.method.startsWith("sales") ? "historical sales aggregates" : "limited market evidence"}.`];
+        const series = [{ label: history?.resolution === "hour" ? "Lowest observed ask" : "Daily average sale", color: "#f580b4" }];
+        if (this.advanced && state.overlay !== "none") series.push({ label: ({ fair: "Kute estimate", lowest: "Lowest observed ask", krunker: "Krunker estimate" })[state.overlay] ?? "Comparison", color: "#87b8f7" });
+        const points = (history?.points ?? []).filter((p) => historyRange === state.range || p.t >= Date.now() - 7 * 86_400_000).map((p) => ({ t: p.t, values: [history?.resolution === "hour" ? p.lowest : p.avg, ...(series.length > 1 ? [({ fair: p.fair, lowest: p.lowest, krunker: p.krunker })[state.overlay] ?? null] : [])], volume: history?.resolution === "day" && p.salesObserved !== false ? p.sales : null, ask: p.ask }));
+        let chartNote = "Daily average completed-sale prices. Today's point, when present, is incomplete. Gaps mean no sale-price observation.";
+        if (history?.resolution === "hour") chartNote = "Intraday history shows sampled asks. Official sales data is daily; individual transaction timing is unavailable.";
+        if (state.candles && this.advanced) chartNote = "Candles describe sampled asking prices, including historical quote changes. They are not transaction candles. Unsampled periods remain empty.";
+        const visiblePoints = Math.max(8, Math.ceil(points.length / state.zoom));
+        const panStep = Math.max(1, Math.floor(visiblePoints / 2));
+        const listingRows = (listings?.listings ?? []).slice(0, this.advanced ? 250 : 5);
+        const bookAt = listings?.observedAt ?? e?.bookAt;
+        const stale = !bookAt || Date.now() - bookAt > 3 * 3_600_000;
+        const premiumTable = (/** @type {import("./types.js").InstanceBracket[]} */ brackets) => `<div class="tableWrap"><table><thead><tr><th>Attribute</th><th class="num">Observed instances</th><th>Premium</th></tr></thead><tbody>${brackets.map((b) => `<tr><td>${esc(b.label)}</td><td class="num">${b.count}</td><td>${b.premium === null ? "Not established" : change(b.premium)}</td></tr>`).join("")}</tbody></table></div>`;
+        return {
+            item: page, listings, asOf: s.valuedAt ?? page.asOf, points: history ? points : undefined, series,
+            chartOptions: { candles: this.advanced && state.candles, volume: this.advanced && history?.resolution === "day", zoom: this.advanced ? state.zoom : 1, stepMs: history?.resolution === "hour" ? 3_600_000 : 86_400_000, offset: this.advanced ? state.offset : 0 },
+            html: `<button class="textButton" data-action="back">&#8592; Back to ${esc(TITLES[/** @type {keyof typeof TITLES} */ (this.previous)] ?? "Discover")}</button><div class="itemHero"><div class="itemArt">${s.thumbnail ? `<img src="${esc(s.thumbnail)}" alt="${esc(s.name)}">` : "K"}</div><div><div class="eyebrow">${esc(RARITIES[s.rarity]?.name)} &middot; ${esc(TYPE_NAMES[s.type])}${s.season ? ` &middot; Season ${s.season}` : ""}</div><h1>${esc(s.name)}</h1><p class="sub">${esc(activityLabel(s))} <span class="muted">&middot;</span> ${esc(evidenceLabel(s))}</p></div><div class="itemActions"><button class="button ${watched ? "" : "primary"}" data-action="watch">${watched ? "Watching" : "+ Watch item"}</button></div></div>`
+                + `<div class="metrics">${stat("Kute estimate", `${money(s.fair)} <span class="unit">KR</span>`, esc(recent))}${stat("Lowest observed ask", s.lowest === null ? "None listed" : `${money(s.lowest)} <span class="unit">KR</span>`, s.spread !== null ? change(s.spread) + ` vs estimate${stale ? " &middot; quote needs updating" : ""}` : "No available quote")}${stat("Sales in the last 7 days", String(s.sales7d), `${s.onS} currently listed &middot; ${money(s.inC)} in circulation`)}</div>`
+                + `<section class="panel" style="margin-bottom:20px"><div class="panelHead"><h3>Price history</h3><div class="segmented">${RANGES.map((r) => `<button data-range="${r}" class="${state.range === r ? "on" : ""}">${r}</button>`).join("")}</div></div>${this.advanced ? `<div class="row" style="margin-bottom:16px"><div class="segmented"><button data-chart-mode="line" class="${!state.candles ? "on" : ""}">Line</button><button data-chart-mode="candles" class="${state.candles ? "on" : ""}">Ask candles</button></div><label class="field"><span class="srOnly">Chart comparison</span><select id="kmOverlay">${[["none", "No comparison"], ["fair", "Kute estimate"], ["lowest", "Lowest ask"], ["krunker", "Krunker estimate"]].map(([v, n]) => `<option value="${v}" ${state.overlay === v ? "selected" : ""}>${n}</option>`).join("")}</select></label><span class="spacer"></span><button class="button small" data-zoom="${Math.min(8, state.zoom * 2)}" ${state.zoom >= 8 ? "disabled" : ""}>Zoom in</button><button class="button small" data-pan="${Math.min(Math.max(0, points.length - visiblePoints), state.offset + panStep)}" ${state.offset + visiblePoints >= points.length ? "disabled" : ""}>Older</button><button class="button small" data-pan="${Math.max(0, state.offset - panStep)}" ${!state.offset ? "disabled" : ""}>Newer</button><button class="button small" data-zoom="1">Reset</button></div>` : ""}<div class="chartLegend">${state.candles && this.advanced ? '<span><i style="background:#77d9b0"></i>Observed ask OHLC</span>' + series.slice(1).map((line) => `<span><i style="background:${line.color}"></i>${esc(line.label)}</span>`).join("") : series.map((line) => `<span><i style="background:${line.color}"></i>${esc(line.label)}</span>`).join("")}${this.advanced && history?.resolution === "day" ? "<span>Bars: reported sales</span>" : ""}</div><div class="chart">${history ? "" : empty("History unavailable", "Price history could not be loaded. Try again in a moment.", '<button class="button small" data-action="retry">Try again</button>')}</div><p class="chartNote">${history ? chartNote : ""} Dates and times are UTC.</p></section>`
+                + `<div class="equal"><section class="panel"><div class="eyebrow">THE CONTEXT</div><h2>What the data says</h2><ul class="insightList">${reasons.map((r) => `<li>${esc(r)}</li>`).join("")}</ul></section><section class="panel"><div class="eyebrow">RECENT PRICE RANGE</div><h2>${range ? `${money(range.low)} to ${money(range.high)} KR` : "More trading history needed"}</h2><p class="sub">${range ? "Central range of observed daily average prices over 30 days. This is historical context, not a forecast." : "A useful range needs several completed trading days."}</p>${range ? `<div class="rangeTrack"><i style="left:${Math.max(0, Math.min(100, (s.fair - range.low) / Math.max(1, range.high - range.low) * 100))}%"></i></div><div class="breadthLabels"><span class="muted">${money(range.low)}</span><span class="accent">Current estimate</span><span class="muted">${money(range.high)}</span></div>` : ""}<p class="sub" style="margin-top:18px">Krunker estimate: ${money(s.krunker)} KR${s.floor > 0 ? ` &middot; Game quick-sell value: ${money(s.floor)} KR` : " &middot; Not eligible for quick sell"}</p></section></div>`
+                + `<section class="panel" style="margin-bottom:20px"><div class="panelHead"><div><h3>Plan an asking price</h3><p class="sub">Compare your price with the listings already competing for buyers.</p></div><span class="tag quiet">Price comparison</span></div><div class="row"><label class="field">Asking price / KR<input id="kmSellPrice" type="number" min="1" value="${s.lowest ?? s.fair}"></label><label class="field">Quantity<input id="kmSellQuantity" type="number" min="1" max="10000" value="1"></label><div id="kmPlannerResult" style="flex:1;min-width:220px;padding:6px 10px;font-size:12px;color:#b2b4c2"></div></div><p class="chartNote">This comparison does not predict when a listing will sell. Gross proceeds exclude listing fees and assume every unit sells at your ask.</p></section>`
+                + `<div class="panelHead"><h3>Available listings</h3><small>${listings ? listings.total : "Unknown total"} reported listed${bookAt ? ` &middot; observed ${formatAge(Date.now() - bookAt)} ago` : " &middot; freshness unknown"}</small></div>${stale ? '<div class="notice">These quotes need a fresh market observation. A listing may have changed or sold since it was last seen.</div>' : ""}${this.advanced ? '<div class="filterBar"><input id="kmListingMax" type="number" min="1" placeholder="Max ask / KR" aria-label="Maximum listing price"><input id="kmSerialMax" type="number" min="1" placeholder="Max serial" aria-label="Maximum serial number"><input id="kmWearMax" type="number" min="0" max="1" step="0.01" placeholder="Max wear" aria-label="Maximum wear"><input id="kmAgeMax" type="number" min="0" step="0.5" placeholder="Max age in days" aria-label="Maximum listing age in days"><input id="kmSellerMax" type="number" min="1" placeholder="Max seller supply" aria-label="Maximum sampled listings from one seller"></div>' : ""}`
+                + (listingRows.length ? `<div class="tableWrap"><table><thead><tr><th class="num">Ask / KR</th><th class="num">vs estimate</th><th>Seller</th>${this.advanced ? "<th>Listed for</th><th>Instance</th><th class=\"num\">Seller supply</th>" : ""}</tr></thead><tbody id="kmListingRows">${listingRows.map((l) => `<tr data-price="${l.price}" data-serial="${l.serial ?? ""}" data-wear="${l.wear ?? ""}" data-age="${l.ageMs === null ? "" : Math.max(0, l.ageMs) / 86_400_000}" data-seller-count="${l.sellerListings > 0 ? l.sellerListings : ""}"><td class="num">${money(l.price)}</td><td class="num">${change(l.price / s.fair - 1)}</td><td>${esc(l.seller ?? "Unavailable")}</td>${this.advanced ? `<td class="muted">${l.ageMs === null ? "Unknown" : formatAge(l.ageMs)}</td><td class="muted">${l.serial !== null ? `#${l.serial}` : ""}${l.wear !== null ? ` &middot; wear ${l.wear.toFixed(3)}` : ""}</td><td class="num muted">${l.sellerListings > 0 ? l.sellerListings : "Unknown"}</td>` : ""}</tr>`).join("")}</tbody></table></div><p class="chartNote"><span id="kmListingCount">Showing ${listingRows.length} sampled listings of ${listings?.total ?? "unknown"} reported.</span> Seller supply counts all sampled listings from that seller. ${listings && listings.total > (listings.observedTotal ?? listings.listings.length) ? "The upstream listing sample does not cover the full market." : ""}</p>` : empty("No observed listings", "No quotes are available in the current sample. Watch this item and check back."))
+                + (this.advanced && page.depth ? `<details><summary>Order-book sample</summary><div class="metrics" style="margin:16px 0">${stat("Sampled listings", String(page.depth.total), "Observed quotes, not the whole market")}${stat("Median sampled ask", `${money(page.depth.median)} <span class="unit">KR</span>`, "An offer to sell, not a sale price")}${stat("Sampled sellers", String(page.depth.sellers), `${page.depth.maxByOne} listings from the largest sampled seller`)}</div><p>The middle half of sampled asks runs from ${money(page.depth.p25)} to ${money(page.depth.p75)} KR. ${money(page.depth.depthKr)} KR is offered across the sample; this does not measure buyer demand.</p></details>` : "")
+                + `<details><summary>Supply and ownership</summary><p>${money(s.inC)} units in circulation. ${s.onS} listed for sale.${page.ownership?.top1Share !== null && page.ownership?.top1Share !== undefined ? ` The top holder owns ${(page.ownership.top1Share * 100).toFixed(1)}% of supply.` : " Top-holder concentration is unknown."}${page.ownership?.top10Share !== null && page.ownership?.top10Share !== undefined ? ` The top ten hold ${(page.ownership.top10Share * 100).toFixed(1)}%.` : ""}${s.noSpin ? " This item is not available from spins; other supply sources may still apply." : ""}</p>${this.advanced && page.ownership?.topOwners.length ? `<div class="tableWrap" style="margin-top:15px"><table><thead><tr><th>Observed top holders</th><th class="num">Units</th></tr></thead><tbody>${page.ownership.topOwners.slice(0, 10).map((owner) => `<tr><td>${esc(owner.name)}</td><td class="num">${money(owner.count)}</td></tr>`).join("")}</tbody></table></div><p>Up to ten holders from the latest cached owner sample. This is not a complete ownership census.</p>` : ""}</details>`
+                + (page.instances && this.advanced ? `<details><summary>Instance attributes / ${page.instances.registered} observed</summary><p>The registry may favour low serials and extreme wear. These counts describe observed instances. Sale-based premiums need validated evidence.</p><div class="equal" style="margin-top:15px">${premiumTable(page.instances.serial)}${premiumTable(page.instances.wear)}</div></details>` : ""),
+        };
+    }
+
+    /** @return {Promise<View>} */
+    async watchlist(){
+        const watch = readWatchlist();
+        const head = this.intro("Your eye on the market.", "Watch prices and set targets. Your list is saved only on this device.", '<button class="button" data-nav="search">+ Find an item</button>');
+        if (!watch.length) return { html: head + '<section class="panel">' + empty("Start with something you like", "Open an item and choose Watch item. It will appear here with its latest estimate and asking price.", '<button class="button primary" data-nav="search">Explore items</button>') + "</section>" };
+        const values = await marketApi.values(watch.map((w) => w.skin));
+        const asOf = Math.min(...Object.values(values).flatMap((v) => v.valuedAt ? [v.valuedAt] : []));
+        return { asOf: Number.isFinite(asOf) ? asOf : undefined, html: head + `<div class="tableWrap"><table><thead><tr><th>Item</th><th class="num">Estimate / KR</th><th class="num">Lowest ask</th><th>Target / KR</th><th>Status</th><th></th></tr></thead><tbody>${watch.map((w) => {
+            const v = values[w.skin];
+            let status = '<span class="tag quiet">Watching</span>';
+            if (v && (!v.bookAt || Date.now() - v.bookAt > 3 * 3_600_000)) status = '<span class="tag warn">Quote needs updating</span>';
+            if (!v) status = '<span class="tag warn">Data unavailable</span>';
+            if (w.target !== null && v?.lowest !== null && v?.lowest !== undefined && v.lowest <= w.target && v.bookAt && Date.now() - v.bookAt <= 3 * 3_600_000) status = '<span class="tag good">At your target</span>';
+            return `<tr><td><button data-skin="${w.skin}">${identity(w)}</button></td><td class="num">${money(v?.fair)}</td><td class="num">${money(v?.lowest)}</td><td><input class="watchTarget" type="number" min="1" data-target="${w.skin}" value="${w.target ?? ""}" aria-label="Target price for ${esc(w.name)}" placeholder="Set target"></td><td>${status}</td><td><button class="remove" data-unwatch="${w.skin}" aria-label="Remove ${esc(w.name)} from watchlist">&times;</button></td></tr>`;
+        }).join("")}</tbody></table></div><p class="chartNote">Targets compare against the latest observed ask. Check the item page for listing freshness. Target alerts are checked in the menu, never during gameplay.</p>` };
+    }
+
+    /** @return {Promise<View>} */
     async movers(){
         const window = typeof this.arg === "string" ? this.arg : "7D";
         /** @type {import("./types.js").MoversReply|null} */
         const m = await marketApi.cached(`/market/movers?window=${window}`, 5 * MINUTE);
-        if (!m) return this.fail();
-        this.foot(m.asOf);
-        return `<div class="kmRow">${["1D", "7D", "30D"].map((w) => `<button class="kmBtn kmWindow ${w === window ? "on" : ""}" data-window="${w}">${w}</button>`).join("")}<span class="kmMuted">Only items liquid enough that one sale cannot move them</span></div>
-            <div class="kmGrid2"><div><h3>Gainers</h3>${this.table(m.gainers, true)}</div><div><h3>Losers</h3>${this.table(m.losers, true)}</div></div>`;
+        if (!m)return this.unavailable();
+        const list = (/** @type {typeof m.gainers} */ rows) => `<div class="list">${rows.slice(0, 10).map((s) => `<button class="listRow" data-skin="${s.skin}">${identity(s)}<span class="listValue">${change(s.change)}<small>${money(s.fair)} KR &middot; ${s.sales7d} sales / 7D</small></span></button>`).join("") || '<p class="sub">No eligible items in this period.</p>'}</div>`;
+        return { asOf: m.asOf, html: this.intro("What is moving?", "Changes among items with enough recent sales to support a comparison.", '<button class="button" data-nav="search">All items</button>') + `<div class="row" style="margin-bottom:20px"><div class="segmented">${["1D", "7D", "30D"].map((w) => `<button data-window="${w}" class="${window === w ? "on" : ""}">${w}</button>`).join("")}</div></div><div class="equal"><section class="panel"><div class="panelHead"><h3 class="positive">&#8593; Rising</h3></div>${list(m.gainers)}</section><section class="panel"><div class="panelHead"><h3 class="negative">&#8595; Falling</h3></div>${list(m.losers)}</section></div>` };
     }
 
+    /** @return {Promise<View>} */
     async deals(){
-        const minGrade = typeof this.arg === "string" ? this.arg : "C";
+        const budget = /** @type {{budget?:string}|null} */ (this.arg)?.budget ?? "";
+        const filters = `<div class="filterBar"><input id="kmDealBudget" type="number" min="1" value="${esc(budget)}" placeholder="Budget in KR" aria-label="Maximum deal price"><button class="button small" data-action="deal-budget">Apply budget</button></div>`;
         /** @type {import("./types.js").DealsReply|null} */
-        const d = await marketApi.cached(`/market/deals?min_grade=${minGrade}&limit=100`, MINUTE);
-        if (!d) return this.fail();
-        this.foot(d.asOf);
-        const rows = d.deals.map((x) => `<tr class="kmClick" data-skin="${x.skin}"><td>${thumb(x)}${esc(x.name)}</td><td>${rarityName(x.rarity)}</td><td class="num">${formatKr(x.price)}</td><td class="num">${formatKr(x.fair)}</td><td class="num up">-${(x.discount * 100).toFixed(0)} %</td><td>${grade(x.grade)}</td><td class="num kmMuted">${x.confidence} %</td><td>${esc(x.seller ?? "")}</td><td class="num kmMuted">${x.ageMs === null ? "–" : formatAge(x.ageMs)}</td></tr>`).join("");
-        return `<div class="kmRow"><label>Liquidity at least</label>${["A", "B", "C", "D"].map((g) => `<button class="kmBtn kmGradeBtn ${g === minGrade ? "on" : ""}" data-grade="${g}">${g}</button>`).join("")}<span class="kmMuted">Listings under Kute's fair value by more than the uncertainty allows. Analytics only.</span></div>
-            ${d.deals.length ? `<table><thead><tr><th>Item</th><th>Rarity</th><th class="num">Ask</th><th class="num">Fair value</th><th class="num">Discount</th><th>Liq.</th><th class="num">Conf.</th><th>Seller</th><th class="num">Listed</th></tr></thead><tbody>${rows}</tbody></table>` : "<div class=\"kmEmpty\">No deals right now</div>"}`;
+        const result = await marketApi.cached(`/market/deals?min_grade=C&limit=100&budget=${encodeURIComponent(budget)}`, MINUTE);
+        if (!result)return this.unavailable();
+        return { asOf: result.asOf, asOfLabel: "Quotes observed", html: this.intro("Worth a closer look.", "Observed asks below a sales-based estimate. Inspect the evidence before deciding.", '<button class="button" data-nav="search">All items</button>') + filters + (result.deals.length ? `<div class="tableWrap"><table><thead><tr><th>Item</th><th class="num">Ask / KR</th><th class="num">Estimate / KR</th><th class="num">Below estimate</th><th>Sales / 7D</th></tr></thead><tbody>${result.deals.map((d) => `<tr class="clickable" tabindex="0" data-skin="${d.skin}"><td>${identity(d)}</td><td class="num">${money(d.price)}</td><td class="num">${money(d.fair)}</td><td class="num positive">${Math.round(d.discount * 100)}%</td><td><span class="tag quiet">${d.sales7d ?? "Unknown"}</span></td></tr>`).join("")}</tbody></table></div><p class="chartNote">A discount is not a predicted profit. Ranked by discount and recent sales support, using heuristic thresholds. Quotes older than three hours are excluded; availability can still change.</p>` : '<section class="panel">' + empty("No supported candidates right now", "The scanner only includes sales-based estimates with sufficient activity and a meaningful discount. Your watchlist can track specific items in the meantime.", '<button class="button" data-nav="watchlist">Open watchlist</button>') + "</section>") };
     }
 
+    /** @return {Promise<View>} */
     async indices(){
         /** @type {import("./types.js").IndicesReply|null} */
-        const r = await marketApi.cached("/market/indices", 60 * MINUTE);
-        if (!r) return this.fail();
-        this.foot(r.asOf);
-        const rows = r.indices.map((i) => `<tr><td>${esc(i.name)}</td><td class="num">${i.value.toFixed(2)}</td><td class="num">${trend(i.change1d)}</td><td class="num">${trend(i.change7d)}</td><td class="num">${trend(i.change30d)}</td><td class="num">${i.members}</td></tr>`).join("");
-        return `<p class="kmMuted">Equal weighted on fair value, base 100 at launch, rebalanced monthly. KUTE 100 holds the 100 most traded skins by 30 day volume.</p>
-            <canvas id="kmChart"></canvas>
-            <table><thead><tr><th>Index</th><th class="num">Value</th><th class="num">1D</th><th class="num">7D</th><th class="num">30D</th><th class="num">Members</th></tr></thead><tbody>${rows}</tbody></table>`;
+        const result = await marketApi.cached("/market/indices", 60 * MINUTE);
+        if (!result)return this.unavailable();
+        const selected = result.indices.find((i) => i.name === this.arg) ?? result.indices.find((i) => i.name === "kute-100") ?? result.indices[0];
+        return { asOf: result.asOf, html: this.intro("The wider picture.", "Equal-weighted indices of eligible items. Base 100 at launch, rebalanced monthly.", '<button class="button" data-nav="overview">Market overview</button>') + `<section class="panel" style="margin-bottom:20px"><div class="panelHead"><h3>${esc(selected?.name ?? "Index history")}</h3><small>${selected?.members ?? 0} items</small></div><div class="chart"></div><p class="chartNote">A new index starts with one observation. Longer comparisons appear as its history grows.</p></section><div class="tableWrap"><table><thead><tr><th>Index</th><th class="num">Level</th><th class="num">7D</th><th class="num">30D</th><th class="num">Items</th></tr></thead><tbody>${result.indices.map((i) => `<tr class="clickable" tabindex="0" data-index-name="${esc(i.name)}"><td>${esc(i.name)}</td><td class="num">${i.value.toFixed(2)}</td><td class="num">${change(i.change7d)}</td><td class="num">${change(i.change30d)}</td><td class="num">${i.members}</td></tr>`).join("")}</tbody></table></div>`, points: (selected?.series ?? []).map((p) => ({ t: Date.parse(p.day + "T00:00:00Z"), values: [p.value] })), series: [{ label: selected?.name ?? "Index", color: "#f580b4" }] };
     }
 
+    /** @return {Promise<View>} */
     async portfolio(){
-        const name = typeof this.arg === "string" && this.arg ? this.arg : localStorage.getItem("krunker_username") ?? "";
-        if (!name) return "<div class=\"kmRow\"><input id=\"kmName\" placeholder=\"Krunker username\"><button class=\"kmBtn\" id=\"kmNameGo\">Show</button></div><div class=\"kmEmpty\">Enter a name</div>";
+        let name = typeof this.arg === "string" ? this.arg : "";
+        if (!name){
+            try { name = localStorage.getItem("krunker_username") ?? ""; }
+            catch { name = ""; }
+        }
+        const heading = this.intro("Know what you hold.", "A view of today's holdings, their estimated value, and where it is concentrated.");
+        const form = `<div class="filterBar"><input id="kmName" aria-label="Inventory username" placeholder="Krunker username" value="${esc(name)}"><button class="button" data-action="inventory">View inventory</button></div>`;
+        if (!name) return { html: heading + form + empty("Choose an inventory", "Enter a username to value its public inventory.") };
         /** @type {import("./types.js").PortfolioReply|null} */
         const p = await marketApi.cached(`/market/portfolio?name=${encodeURIComponent(name)}`, 5 * MINUTE);
-        const head = `<div class="kmRow"><input id="kmName" placeholder="Krunker username" value="${esc(name)}"><button class="kmBtn" id="kmNameGo">Show</button></div>`;
-        if (!p) return head + `<div class="kmEmpty">${esc(marketApi.lastError || "No inventory found for this name")}</div>`;
-        this.foot(p.asOf);
-        const rows = p.items.slice(0, 200).map((i) => `<tr class="kmClick" data-skin="${i.skin}"><td>${thumb(i)}${esc(i.name)}</td><td>${rarityName(i.rarity)}</td><td class="num">${i.count}</td><td class="num">${formatKr(i.fair)}</td><td class="num">${formatKr(i.value)}</td><td>${grade(i.grade)}</td><td class="num">${trend(i.trend7d)}</td><td class="num">${trend(i.trend30d)}</td></tr>`).join("");
-        return `${head}<div class="kmCards">
-            <div class="kmCard"><div class="k">Total value</div><div class="v">${formatKr(p.totalValue)}</div><div class="s">${p.items.length} items</div></div>
-            <div class="kmCard"><div class="k">Sells quickly</div><div class="v">${formatKr(p.liquidValue)}</div><div class="s">${(p.liquidShare * 100).toFixed(0)} % in grade A to C</div></div>
-            <div class="kmCard"><div class="k">Top two items</div><div class="v">${(p.concentration * 100).toFixed(0)} %</div><div class="s">of the value</div></div>
-            <div class="kmCard"><div class="k">Best 7D</div><div class="v">${p.best7d ? trend(p.best7d.trend7d) : "–"}</div><div class="s">${esc(p.best7d?.name ?? "")}</div></div>
-            <div class="kmCard"><div class="k">Worst 7D</div><div class="v">${p.worst7d ? trend(p.worst7d.trend7d) : "–"}</div><div class="s">${esc(p.worst7d?.name ?? "")}</div></div>
-        </div><h3>Value of today's holdings, 90 days</h3><canvas id="kmChart"></canvas>
-        <table><thead><tr><th>Item</th><th>Rarity</th><th class="num">Count</th><th class="num">Each</th><th class="num">Value</th><th>Liq.</th><th class="num">7D</th><th class="num">30D</th></tr></thead><tbody>${rows}</tbody></table>`;
+        if (!p) return { html: heading + form + empty("Inventory is unavailable", "The player may not exist, or their inventory could not be loaded.", '<button class="button" data-action="retry">Try again</button>') };
+        const coverage = new Map(p.historyCoverage?.map((r) => [r.day, r]) ?? []);
+        const basket = p.historyBasket;
+        const historySeries = basket?.series ?? p.series;
+        const chartTitle = basket && basket.items < basket.total ? "Price history of covered holdings" : "Today's holdings through time";
+        const chartDescription = basket ? `${basket.items} of ${basket.total} item types have continuous price coverage, representing ${Math.round(basket.valueShare * 100)}% of today's estimated value. The chart keeps the same items throughout.` : "Incomplete valuation periods are omitted.";
+        const historyPanel = historySeries.length ? `<div class="chart"></div><p class="chartNote">${esc(chartDescription)} Historical prices applied to what you own today; this is not personal profit. Marks expire after 30 days without a new sale.</p>` : '<p class="sub">There is not enough continuous price coverage to chart these holdings yet. Your current estimates are listed below.</p>';
+
+        return { asOf: p.asOf, html: heading + form + `<div class="metrics">${stat("Estimated inventory value", `${money(p.totalValue)} <span class="unit">KR</span>`, `${p.items.length} valued item types`)}${stat("In more active items", `${Math.round(p.liquidShare * 100)}<span class="unit">%</span>`, "Share in activity grades A to C")}${stat("Largest two positions", `${Math.round(p.concentration * 100)}<span class="unit">%</span>`, "Of estimated inventory value")}</div>${p.limitedEvidenceItems ? `<div class="notice">${p.limitedEvidenceItems} item types (${money(p.limitedEvidenceValue)} KR of the total) have limited sales evidence or use fallback estimates.</div>` : ""}${p.unvaluedItems ? `<div class="notice">${p.unvaluedItems} item types have no usable valuation and are excluded from the total.</div>` : ""}<section class="panel" style="margin-bottom:20px"><div class="panelHead"><h3>${chartTitle}</h3><small>90 days</small></div>${historyPanel}</section><div class="filterBar"><input id="kmHoldingFilter" type="search" value="${esc(this.portfolioFilter)}" placeholder="Filter your holdings" aria-label="Filter inventory items"><span class="muted">Largest positions first</span></div><div class="tableWrap"><table><thead><tr><th>Item</th><th class="num">Quantity</th><th class="num">Estimate / KR</th><th class="num">Position / KR</th><th class="num">7D change</th>${this.advanced ? "<th>Activity grade</th>" : ""}</tr></thead><tbody>${p.items.map((i) => `<tr class="clickable" data-skin="${i.skin}" tabindex="0"><td>${identity(i)}</td><td class="num">${i.count}</td><td class="num">${money(i.fair)}</td><td class="num">${money(i.value)}</td><td class="num">${change(i.trend7d)}</td>${this.advanced ? `<td>${i.grade}</td>` : ""}</tr>`).join("")}</tbody></table></div>`, points: historySeries.map((s) => ({ t: Date.parse(s.day + "T00:00:00Z"), values: [!basket && coverage.has(s.day) && coverage.get(s.day)?.priced !== coverage.get(s.day)?.total ? null : s.value] })), series: [{ label: "Covered holdings at historical prices", color: "#f580b4" }] };
     }
 
-    /**
-     * @param {number} skin
-     * @return {Promise<string>}
-     */
-    async item(skin){
-        const range = typeof this.arg === "object" && this.arg && "range" in this.arg ? String(/** @type {any} */ (this.arg).range) : "1M";
-        const id = typeof this.arg === "object" && this.arg && "skin" in this.arg ? Number(/** @type {any} */ (this.arg).skin) : skin;
-        /** @type {[import("./types.js").ItemPage|null, import("./types.js").HistoryReply|null, import("./types.js").ListingsReply|null]} */
-        const [page, history, listings] = await Promise.all([
-            marketApi.cached(`/market/item/${id}`, 5 * MINUTE),
-            marketApi.cached(`/market/item/${id}/history?range=${range}`, 5 * MINUTE),
-            marketApi.cached(`/market/item/${id}/listings`, MINUTE),
-        ]);
-        if (!page) return `<button class="kmBtn kmBack" id="kmBack">‹ Back</button>${await this.fail()}`;
-        this.foot(page.asOf);
-        const s = page.skin;
-        const l = page.liquidity;
-        const rangeBar = (/** @type {import("./types.js").PriceRange} */ r, /** @type {string} */ label) => r.low === null || r.high === null ? "" : `<div class="kmMuted" style="font-size:12px">${label}: ${formatKr(r.low)} to ${formatKr(r.high)} kr</div><div class="kmBar"><i style="width:${Math.round((r.position ?? 0) * 100)}%"></i></div>`;
-        const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-        const weekdayBars = `<div class="kmBars">${page.weekdays.map((w, i) => `<i style="height:${Math.round(w / Math.max(...page.weekdays, 0.0001) * 100)}%" title="${days[i]}: ${(w * 100).toFixed(0)} %"></i>`).join("")}</div>`;
-        const listingRows = (listings?.listings ?? []).slice(0, 15).map((x) => `<tr><td class="num">${formatKr(x.price)}</td><td class="num">${s.fair ? trend(x.price / s.fair - 1) : ""}</td><td>${esc(x.seller ?? "")}${x.sellerListings > 1 ? ` <span class="kmMuted">(${x.sellerListings} up)</span>` : ""}</td><td class="num kmMuted">${x.ageMs === null ? "–" : formatAge(x.ageMs)}</td><td class="kmMuted">${x.serial !== null ? `#${x.serial}` : ""}${x.wear !== null ? ` wear ${x.wear.toFixed(3)}` : ""}</td></tr>`).join("");
-        const owners = page.ownership;
-        const brackets = (/** @type {import("./types.js").InstanceBracket[]} */ list) => list.map((b) => `<tr><td>${esc(b.label)}</td><td class="num">${b.count}</td><td class="num">${(b.share * 100).toFixed(0)} %</td><td class="num">${b.premium === null ? `<span class="kmMuted">unknown (${b.sales} sales)</span>` : trend(b.premium)}</td></tr>`).join("");
-        const method = { sales7d: "sales of the last 7 days", sales30d: "sales of the last 30 days", sales90d: "sales of the last 90 days", ask: "the lowest asks, no recent sale", krunker: "Krunker's estimate, no sales or asks", floor: "the quick sell value, nothing else known" }[s.method] ?? s.method;
-        return `<button class="kmBtn kmBack" id="kmBack">‹ Back</button>
-        <div class="kmRow" style="align-items:flex-start"><div>${s.thumbnail ? `<img src="${esc(s.thumbnail)}" alt="" style="width:96px;height:96px;object-fit:contain;background:#0f1013;border-radius:8px">` : ""}</div>
-            <div style="flex:1"><div style="font-size:22px;font-weight:800">${esc(s.name)} <span style="font-size:13px">${rarityName(s.rarity)} · ${TYPE_NAMES[s.type] ?? "?"}${s.season ? ` · Season ${s.season}` : ""}${s.limType ? ` · ${esc(s.limType)}` : ""}</span></div>
-            <div class="kmMuted">Fair value from ${method}. ${s.noSpin ? "Not in spins, fixed supply." : ""} Quick sell floor ${formatKr(s.floor)} kr.</div></div></div>
-        <div class="kmCards">
-            <div class="kmCard"><div class="k">Fair value</div><div class="v">${formatKr(s.fair)} kr</div><div class="s">${s.confidence} % confidence · Krunker says ${s.krunker === null ? "–" : formatKr(s.krunker)}</div></div>
-            <div class="kmCard"><div class="k">Lowest ask</div><div class="v">${s.lowest === null ? "–" : formatKr(s.lowest)}</div><div class="s">${s.spread === null ? "no listings" : trend(s.spread) + " against fair value"}</div></div>
-            <div class="kmCard"><div class="k">Liquidity</div><div class="v">${grade(l.grade)} ${l.velocity.toFixed(1)}/day</div><div class="s">${l.sales7d} sales in 7D, ${l.sales30d} in 30D${l.avgTimeToSellMs !== null ? `, sells in ${formatAge(l.avgTimeToSellMs)}` : ""}</div></div>
-            <div class="kmCard"><div class="k">Supply</div><div class="v">${s.inC.toLocaleString("en-US")}</div><div class="s">${s.onS} on sale${l.onSaleRatio !== null ? ` (${(l.onSaleRatio * 100).toFixed(2)} %)` : ""}</div></div>
-            <div class="kmCard"><div class="k">Trend</div><div class="v">${trend(s.trend7d)}</div><div class="s">7D · 1D ${trend(s.trend1d)} · 30D ${trend(s.trend30d)}</div></div>
-        </div>
-        <div class="kmRow">${RANGES.map((r) => `<button class="kmBtn kmRange ${r === range ? "on" : ""}" data-range="${r}">${r}</button>`).join("")}</div>
-        <canvas id="kmChart"></canvas>
-        <div class="kmGrid2">
-            <div><h3>Where the price sits</h3>${rangeBar(page.range30, "30 days")}${rangeBar(page.range90, "90 days")}<h3>Sales by weekday</h3>${weekdayBars}</div>
-            <div><h3>Depth</h3>${page.depth ? `<div class="kmMuted">${page.depth.total} listings from ${page.depth.sellers} sellers, ${formatKr(page.depth.depthKr)} kr on the book, the biggest seller has ${page.depth.maxByOne}. Asks: lowest ${formatKr(page.depth.lowest ?? 0)}, quarter ${formatKr(page.depth.p25 ?? 0)}, median ${formatKr(page.depth.median ?? 0)}, three quarters ${formatKr(page.depth.p75 ?? 0)}.</div>` : "<div class=\"kmMuted\">No listings</div>"}
-            <h3>Ownership</h3>${owners ? `<div class="kmMuted">Top owner holds ${owners.top1Share === null ? "–" : (owners.top1Share * 100).toFixed(1) + " %"}, top 10 ${owners.top10Share === null ? "–" : (owners.top10Share * 100).toFixed(1) + " %"}, top 100 ${owners.top100Share === null ? "–" : (owners.top100Share * 100).toFixed(1) + " %"} of ${owners.inC.toLocaleString("en-US")}.</div><div class="kmMuted" style="font-size:12px;margin-top:4px">${owners.topOwners.slice(0, 10).map((o) => `${esc(o.name)} (${o.count})`).join(", ")}</div>` : "<div class=\"kmMuted\">Unknown</div>"}</div>
-        </div>
-        ${page.instances ? `<h3>Instances (${page.instances.registered} known)</h3><div class="kmGrid2"><table><thead><tr><th>Serial</th><th class="num">Count</th><th class="num">Share</th><th class="num">Premium</th></tr></thead><tbody>${brackets(page.instances.serial)}</tbody></table>${page.instances.wear.length ? `<table><thead><tr><th>Wear</th><th class="num">Count</th><th class="num">Share</th><th class="num">Premium</th></tr></thead><tbody>${brackets(page.instances.wear)}</tbody></table>` : ""}</div>` : ""}
-        <h3>Cheapest listings${listings ? ` (${listings.total})` : ""}</h3>
-        ${listingRows ? `<table><thead><tr><th class="num">Ask</th><th class="num">vs fair</th><th>Seller</th><th class="num">Listed</th><th></th></tr></thead><tbody>${listingRows}</tbody></table>` : "<div class=\"kmMuted\">None</div>"}
-        <div style="display:none" id="kmHistoryData">${esc(JSON.stringify(history ?? null))}</div>`;
-    }
-
+    /** @return {Promise<View>} */
     async analyze(){
         const { analyzer: a } = this;
-        const side = (/** @type {"give"|"get"} */ which, /** @type {string} */ title) => `<div class="kmSide"><h4>${title}</h4>
-            <div class="kmPick"><input class="kmPickInput" data-side="${which}" placeholder="Add an item by name"><div class="kmPickList" data-side="${which}" style="display:none"></div></div>
-            <table><tbody>${a[which].map((i, idx) => `<tr><td>${esc(i.name)}</td><td class="num"><input type="number" min="1" max="10000" value="${i.count}" class="kmCount" data-side="${which}" data-index="${idx}" style="width:70px"></td><td><button class="kmRemove" data-side="${which}" data-index="${idx}">✕</button></td></tr>`).join("")}</tbody></table>
-            <div class="kmRow" style="margin-top:8px"><label>KR</label><input type="number" min="0" class="kmKr" data-side="${which}" value="${which === "give" ? a.giveKr : a.getKr}" style="width:120px"></div></div>`;
-        let verdictHtml = "<div class=\"kmEmpty\">Add what you give and what you get</div>";
+        const side = (/** @type {"give"|"get"} */ which) => `<section class="tradeSide"><div class="eyebrow">${which === "give" ? "YOU GIVE" : "YOU RECEIVE"}</div><h2>${which === "give" ? "Your side" : "Their side"}</h2><div class="picker"><input data-pick="${which}" aria-label="Add an item to ${which === "give" ? "your side" : "their side"}" placeholder="Find an item to add..." autocomplete="off"><div class="pickList" data-picks="${which}" hidden></div></div><div class="tradeItems">${a[which].length ? a[which].map((i, index) => `<div class="tradeItem"><span class="spacer">${esc(i.name)}</span><input type="number" min="1" max="10000" value="${i.count}" data-count="${index}" data-side="${which}" aria-label="Quantity of ${esc(i.name)}"><button class="remove" data-remove="${index}" data-side="${which}" aria-label="Remove ${esc(i.name)}">&times;</button></div>`).join("") : '<p class="sub">No items yet. Search above to build this side.</p>'}</div><label class="field">Additional KR<input type="number" min="0" max="1000000000" data-kr="${which}" value="${which === "give" ? a.giveKr : a.getKr}"></label></section>`;
+        let result = '<section class="panel">' + empty("Build both sides of the trade", "Kute compares estimated value and liquidity, and explains when there is too little evidence to judge.") + "</section>";
+        let asOf;
         if (a.give.length || a.get.length || a.giveKr || a.getKr){
-            const verdict = await marketApi.analyze({ give: a.give.map((i) => ({ skin: i.skin, count: i.count })), get: a.get.map((i) => ({ skin: i.skin, count: i.count })), giveKr: a.giveKr, getKr: a.getKr });
-            if (!verdict) verdictHtml = await this.fail();
+            const v = await marketApi.analyze({ give: a.give.map(({ skin, count }) => ({ skin, count })), get: a.get.map(({ skin, count }) => ({ skin, count })), giveKr: a.giveKr, getKr: a.getKr });
+            if (!v) result = empty("Analysis unavailable", "Your selected items are preserved. Try again in a moment.");
             else {
-                this.foot(verdict.asOf);
-                const text = { good: "Good for you", bad: "Bad for you", fair: "Fair trade", uncertain: "Too little data to judge" }[verdict.verdict];
-                const lines = (/** @type {import("./types.js").TradeSide} */ sd) => sd.items.map((l) => `<tr><td>${esc(l.name)} × ${l.count}</td><td class="num">${l.unknown ? "<span class=\"kmMuted\">no value</span>" : formatKr(l.fair) + " kr"}</td><td>${l.unknown ? "" : grade(l.grade)}</td><td class="num">${formatKr(l.lineValue)}</td><td class="num kmMuted">${formatKr(l.liquidValue)}</td></tr>`).join("");
-                verdictHtml = `<div class="kmVerdict ${verdict.verdict}">${text}</div>
-                    <div class="kmMuted">You give ${formatKr(verdict.give.value)} kr, you get ${formatKr(verdict.get.value)} kr at fair value (${verdict.difference >= 0 ? "+" : ""}${formatKr(verdict.difference)} kr, ${formatPercent(verdict.differenceShare)}). Sold quickly: ${formatKr(verdict.give.liquidValue)} against ${formatKr(verdict.get.liquidValue)} kr.</div>
-                    <ul class="kmMuted" style="margin:8px 0 12px 18px;padding:0">${verdict.drivers.map((d) => `<li>${esc(d)}</li>`).join("")}</ul>
-                    <div class="kmGrid2"><table><thead><tr><th>You give</th><th class="num">Each</th><th>Liq.</th><th class="num">Value</th><th class="num">Quick</th></tr></thead><tbody>${lines(verdict.give)}</tbody></table><table><thead><tr><th>You get</th><th class="num">Each</th><th>Liq.</th><th class="num">Value</th><th class="num">Quick</th></tr></thead><tbody>${lines(verdict.get)}</tbody></table></div>`;
+                ({ asOf } = v);
+                const text = { good: "More estimated value coming in", bad: "More estimated value going out", fair: "Similar estimated value", uncertain: "Too little evidence for a verdict" }[v.verdict];
+                result = `<section class="panel"><div class="eyebrow">THE COMPARISON</div><div class="verdict ${({ good: "positive", bad: "negative", fair: "", uncertain: "" })[v.verdict]}">${text}</div><div class="metrics" style="margin-top:20px">${stat("You give", `${money(v.give.value)} <span class="unit">KR</span>`, "At estimated value")}${stat("You receive", `${money(v.get.value)} <span class="unit">KR</span>`, "At estimated value")}${stat("Difference", `${v.difference > 0 ? "+" : ""}${money(v.difference)} <span class="unit">KR</span>`, change(v.differenceShare))}</div><ul class="insightList">${v.drivers.map((d) => `<li>${esc(d)}</li>`).join("")}</ul>${this.advanced ? `<details><summary>Heuristic liquidity adjustment</summary><p>You give ${money(v.give.liquidValue)} KR against ${money(v.get.liquidValue)} KR coming in after grade and quantity discounts. These are illustrative adjustments, not forecasts of sale proceeds.</p></details>` : ""}</section>`;
             }
         }
-        return `<div class="kmGrid2">${side("give", "You give")}${side("get", "You get")}</div><div class="kmRow" style="margin-top:10px"><button class="kmBtn" id="kmAnalyzeGo">Analyze</button><button class="kmBtn" id="kmAnalyzeClear">Clear</button></div>${verdictHtml}`;
+        return { asOf, html: this.intro("See both sides clearly.", "Compare a proposed exchange before making your own decision.", '<button class="button" data-action="clear-trade">Clear trade</button>') + `<div class="equal">${side("give")}${side("get")}</div><div class="row" style="margin-bottom:20px"><button class="button primary" data-action="analyze">Compare trade</button></div>${result}` };
     }
 
-    /**
-     * @return {Promise<string>}
-     */
+    /** @return {Promise<View>} */
     async help(){
-        this.foot(0);
-        return `<div style="max-width:820px;line-height:1.55">
-        <h3>What the K value is</h3>
-        <p>Kute reads Krunker's public market around the clock: every listing of every item, the daily sales Krunker publishes, circulation and ownership. From the real sales of the last 7 days (or 30, or 90, when 7 hold fewer than five) Kute takes the middle price, weighted towards recent sales and with freak sales removed. That is the <b style="color:#f5479b">K</b> value: what you can expect to pay or get for the item right now. Asks only pull it down, never up: a seller who wants out tells you something, a seller dreaming does not. Nothing trades under what the game pays at once, so that is the floor.</p>
-        <p>Krunker's own "~" estimate is a flat number per item. The K value moves with the sales, and it comes with two things the estimate lacks.</p>
-        <h3>Confidence</h3>
-        <p>0 to 100 %: how many sales the value rests on, how recent they are, whether the asks agree with them, and how steady the prices were. Under 40 % the value is a hint, not a fact, and the trade analyzer says "uncertain" instead of pretending.</p>
-        <h3>Liquidity grade</h3>
-        <p><span class="kmGrade" style="background:#5ce05a">A</span> sells many times a day at the value, you are out within the hour. <span class="kmGrade" style="background:#9ccc65">B</span> sells daily. <span class="kmGrade" style="background:#fbc02d">C</span> sells every few days. <span class="kmGrade" style="background:#ff9800">D</span> takes weeks or a discount. <span class="kmGrade" style="background:#f44336">F</span> barely trades, the value is a guess and you will wait. The grade comes from sales per day, how much of the supply sits on the book, how far the asks sit from the value and how long listings took to sell.</p>
-        <h3>On a market card</h3>
-        <p><b>K 3,698 <span class="kmGrade" style="background:#fbc02d">C</span> <span class="down">−19%</span></b> means: Kute values this item at 3,698 kr, it sells every few days, and this ask is 19 % under the value. Green is a deal worth a look, red is an ask well over the value. Click the badge for the item page.</p>
-        <h3>In a trade</h3>
-        <p>Both sides are summed at K value. "Sold quickly" discounts every item by its grade and by how many of it are already for sale, because ten of one item are not worth ten times one. The verdict is fair when the difference sits inside what the confidence leaves open, good or bad for you beyond that, and uncertain when an item has no usable value.</p>
-        <h3>Deals and movers</h3>
-        <p>A deal is a listing under the K value by more than the confidence allows, grade C or better. A mover is an item whose K value changed over the window, only among items that trade enough that one odd sale cannot make a trend.</p>
-        <h3>What Kute does not do</h3>
-        <p>Nothing is bought, sold or traded for you, ever. The value is an estimate from public data, it can be wrong, and a thin market is thin whatever the number says. With Kute Market on, your own completed sales and trades are shared with Kute without names, so the numbers get better for everyone.</p>
-        </div>`;
+        return { html: this.intro("Understand the estimate.", "What the numbers mean, where they come from, and when to treat them cautiously.") + "<div class=\"prose\"><h2>Prices and evidence</h2><p>The Kute estimate uses recent completed daily sales aggregates, with older history when trading is sparse. It accounts for unusual averages and lower competing asks. When there are no recent sales, the estimate falls back to asking prices, Krunker's estimate, or a game quick-sell value. The item page tells you which evidence is available.</p><p>Recent sales and sparse sales describe the supporting data. A heuristic evidence score is not a probability that a price is correct. Historical price ranges describe daily averages, not every transaction or a prediction interval.</p><h2>Reading the charts</h2><p>The simple chart shows daily average sale prices. Short ranges show observed asking prices because official transaction history is aggregated daily. Advanced ask candles show the open, high, low, and close of sampled quotes, including historical quote changes. Gaps are retained. Volume bars show official daily sale counts where available.</p><h2>Activity and selling</h2><p>Activity grades combine historical sales frequency, listed supply, and the relationship between asks and estimated value. They do not promise a selling time. The asking-price planner compares your proposed price with observed competitors; its gross proceeds assume all units sell and exclude listing fees.</p><h2>Trade comparisons</h2><p>A verdict compares the estimated value of the two sides and becomes uncertain when an item cannot be reliably valued. Advanced liquidity adjustments are heuristic discounts, not guaranteed liquidation prices. Rare instance premiums remain unknown until supported by validated sales.</p><h2>Your watchlist and inventory</h2><p>Watchlists, target prices, and your preferred view are stored on this device. Target checks run in the menu and pause during gameplay. Inventory history applies historical prices to today's holdings. It does not measure personal profit.</p><h2>Your data</h2><p>With Kute Market enabled, your completed sales and trades are contributed without player names. Your game login token stays on your PC. Disable Kute Market to stop both contributions and the feature, or disable online features to stop all contact with Kute's server.</p><h2>You make the trade</h2><p>Kute does not buy, list, or trade items for you. Check the source, freshness, and trading activity alongside the estimate. Predictive prices and sale probabilities will only appear when their accuracy has been evaluated.</p></div>" };
     }
 
-    /**
-     * wires the rendered tab: clicks on rows, the controls, the chart
-     *
-     * @param {string} tab
-     */
-    afterRender(tab){
-        const { shadow } = this;
-        if (!shadow) return;
-        const body = getElement("#kmBody", shadow);
-        for (const row of body.querySelectorAll("tr.kmClick")){
-            row.addEventListener("click", () => this.show("item", Number(/** @type {HTMLElement} */ (row).dataset.skin)));
+    updatePlanner(){
+        const output = this.shadow?.querySelector("#kmPlannerResult");
+        if (!output || !this.view?.item) return;
+        const price = Number(this.value("#kmSellPrice"));
+        const quantity = Number(this.value("#kmSellQuantity"));
+        if (!Number.isFinite(price) || price <= 0 || !Number.isInteger(quantity) || quantity < 1 || quantity > 10000){
+            output.textContent = "Enter a positive asking price and a quantity from 1 to 10,000.";
+            return;
         }
-        body.querySelector("#kmBack")?.addEventListener("click", () => this.show(this.previous ?? "search"));
-        for (const link of body.querySelectorAll(".kmLink[data-tab]")) link.addEventListener("click", () => this.show(/** @type {HTMLElement} */ (link).dataset.tab ?? "help"));
-        if (tab !== "item") this.previous = tab;
-
-        if (tab === "search"){
-            const read = () => ({
-                q: /** @type {HTMLInputElement} */ (body.querySelector("#kmQ")).value.trim(),
-                rarity: /** @type {HTMLSelectElement} */ (body.querySelector("#kmRarity")).value,
-                type: /** @type {HTMLSelectElement} */ (body.querySelector("#kmType")).value,
-                sort: /** @type {HTMLSelectElement} */ (body.querySelector("#kmSort")).value,
-                page: 1,
-            });
-            const current = /** @type {{page: number}} */ (typeof this.arg === "object" && this.arg ? this.arg : { page: 1 });
-            /** @type {number|undefined} */
-            let debounce;
-            body.querySelector("#kmQ")?.addEventListener("input", () => {
-                clearTimeout(debounce);
-                debounce = window.setTimeout(() => this.show("search", read()), 350);
-            });
-            for (const id of ["#kmRarity", "#kmType", "#kmSort"]) body.querySelector(id)?.addEventListener("change", () => this.show("search", read()));
-            body.querySelector("#kmPrev")?.addEventListener("click", () => this.show("search", { ...read(), page: Math.max(1, (current.page ?? 1) - 1) }));
-            body.querySelector("#kmNext")?.addEventListener("click", () => this.show("search", { ...read(), page: (current.page ?? 1) + 1 }));
-            const q = body.querySelector("#kmQ");
-            if (q instanceof HTMLInputElement && (this.arg === undefined || /** @type {any} */ (this.arg)?.q)){
-                q.focus();
-                q.setSelectionRange(q.value.length, q.value.length);
-            }
-        }
-        for (const button of body.querySelectorAll(".kmWindow")) button.addEventListener("click", () => this.show("movers", /** @type {HTMLElement} */ (button).dataset.window));
-        for (const button of body.querySelectorAll(".kmGradeBtn")) button.addEventListener("click", () => this.show("deals", /** @type {HTMLElement} */ (button).dataset.grade));
-        for (const button of body.querySelectorAll(".kmRange")) button.addEventListener("click", () => this.show("item", { skin: Number(/** @type {any} */ (this.arg)?.skin ?? this.arg), range: /** @type {HTMLElement} */ (button).dataset.range }));
-        body.querySelector("#kmNameGo")?.addEventListener("click", () => this.show("portfolio", /** @type {HTMLInputElement} */ (body.querySelector("#kmName")).value.trim()));
-        body.querySelector("#kmName")?.addEventListener("keydown", (event) => {
-            if (/** @type {KeyboardEvent} */ (event).key === "Enter") this.show("portfolio", /** @type {HTMLInputElement} */ (event.target).value.trim());
-        });
-
-        if (tab === "analyze") this.wireAnalyzer(body);
-        this.drawCharts(tab, body);
+        const list = this.view.listings;
+        if (!list){ output.textContent = "Competing listings are unavailable. Try again when market data is available."; return; }
+        const cheaper = list?.listings.filter((l) => l.price < price).length ?? 0;
+        const incomplete = !!list && list.total > list.listings.length;
+        output.innerHTML = `<b>${incomplete ? "At least " : ""}${cheaper} cheaper listing${cheaper === 1 ? "" : "s"}</b> observed${list ? "" : " (listing data unavailable)"}.<br><span class="muted">${money(price * quantity)} KR gross if all ${quantity} sell &middot; ${formatPercent(price / this.view.item.skin.fair - 1)} vs estimate.</span>`;
     }
 
-    /**
-     * @param {HTMLElement} body
-     */
-    wireAnalyzer(body){
-        const { analyzer: a } = this;
-        for (const input of body.querySelectorAll(".kmPickInput")){
-            const side = /** @type {"give"|"get"} */ (String(/** @type {HTMLElement} */ (input).dataset.side));
-            const list = /** @type {HTMLElement} */ (body.querySelector(`.kmPickList[data-side="${side}"]`));
-            /** @type {number|undefined} */
-            let debounce;
-            input.addEventListener("input", () => {
-                clearTimeout(debounce);
-                const q = /** @type {HTMLInputElement} */ (input).value.trim();
-                if (q.length < 2){
-                    list.style.display = "none";
-                    return;
+    filterHoldings(){
+        const query = this.portfolioFilter.toLocaleLowerCase().trim();
+        for (const row of this.shadow?.querySelectorAll("tr[data-skin]") ?? []){
+            const el = /** @type {HTMLElement} */ (row);
+            el.hidden = !el.querySelector(".itemIdentity")?.textContent?.toLocaleLowerCase().includes(query);
+        }
+    }
+
+    filterListings(){
+        const max = this.value("#kmListingMax");
+        const serial = this.value("#kmSerialMax");
+        const wear = this.value("#kmWearMax");
+        const age = this.value("#kmAgeMax");
+        const seller = this.value("#kmSellerMax");
+        for (const row of this.shadow?.querySelectorAll("#kmListingRows tr") ?? []){
+            const el = /** @type {HTMLElement} */ (row);
+            el.hidden = !!(max && Number(el.dataset.price) > Number(max)) || !!(serial && (!el.dataset.serial || Number(el.dataset.serial) > Number(serial))) || !!(wear && (!el.dataset.wear || Number(el.dataset.wear) > Number(wear))) || !!(age && (!el.dataset.age || Number(el.dataset.age) > Number(age))) || !!(seller && (!el.dataset.sellerCount || Number(el.dataset.sellerCount) > Number(seller)));
+        }
+        const count = this.shadow?.querySelector("#kmListingCount");
+        const rows = [...this.shadow?.querySelectorAll("#kmListingRows tr") ?? []];
+        const shown = rows.filter((r) => !/** @type {HTMLElement} */ (r).hidden).length;
+        if (count) count.textContent = `${shown} sampled listings shown; ${this.view?.listings?.total ?? "unknown"} reported listed.`;
+    }
+
+    /** @param {number} [page] */
+    applyFilters(page = 1){
+        this.show("search", this.readFilters(page));
+    }
+
+    /** @param {number} page @return {SearchState} */
+    readFilters(page){
+        return { q: this.value("#kmQ").trim(), rarity: this.value("#kmRarity"), type: this.value("#kmType"), sort: this.value("#kmSort"), budget: this.value("#kmBudget"), minSales: this.value("#kmSales"), page };
+    }
+
+    /** @param {Event} event */
+    click(event){
+        const el = event.target instanceof Element ? /** @type {HTMLElement|null} */ (event.target.closest("button,tr[data-skin],tr[data-index-name]")) : null;
+        if (!el || el.hasAttribute("disabled")) return;
+        const d = el.dataset;
+        if (el.id === "kmClose"){ this.close(); return; }
+        if (d.nav === "deals" && this.tab === "search"){ this.show("deals", { budget: this.value("#kmBudget") }); return; }
+        if (d.nav){ this.show(d.nav); return; }
+        if (d.skin){ this.show("item", Number(d.skin)); return; }
+        if (d.category){ this.show("search", { ...defaultSearch(), type: d.category, minSales: "5" }); return; }
+        if (d.preset){ this.show("search", { ...defaultSearch(), minSales: "5" }); return; }
+        if (d.page){ this.applyFilters(Number(d.page)); return; }
+        if (d.range){ this.show("item", { ...this.itemState(), range: d.range, zoom: 1, offset: 0 }, true); return; }
+        if (d.chartMode){ this.show("item", { ...this.itemState(), candles: d.chartMode === "candles" }, true); return; }
+        if (d.pan !== undefined){ this.show("item", { ...this.itemState(), offset: Number(d.pan) }, true); return; }
+        if (d.zoom){ this.show("item", { ...this.itemState(), zoom: Number(d.zoom), offset: d.zoom === "1" ? 0 : this.itemState().offset }, true); return; }
+        if (d.window){ this.show("movers", d.window); return; }
+        if (d.indexName){ this.show("indices", d.indexName); return; }
+        if (d.unwatch){
+            if (!saveWatchlist(readWatchlist().filter((w) => w.skin !== Number(d.unwatch)))){ this.storageError(); return; }
+            this.show("watchlist", this.arg, true);
+            return;
+        }
+        if (d.addSkin && d.side){
+            const { side: rawSide } = d;
+            const side = /** @type {"give"|"get"} */ (rawSide);
+            const existing = this.analyzer[side].find((i) => i.skin === Number(d.addSkin));
+            if (existing) existing.count++;
+            else this.analyzer[side].push({ skin: Number(d.addSkin), count: 1, name: d.addName ?? "Item" });
+            this.show("analyze", this.arg, true);
+            return;
+        }
+        if (d.remove !== undefined && d.side){
+            this.analyzer[/** @type {"give"|"get"} */ (d.side)].splice(Number(d.remove), 1);
+            this.show("analyze", this.arg, true);
+            return;
+        }
+        switch (d.action){
+            case "back": this.show(this.previous); break;
+            case "retry": this.retry(); break;
+            case "filters": this.applyFilters(); break;
+            case "deal-budget": this.show("deals", { budget: this.value("#kmDealBudget") }); break;
+            case "inventory": this.show("portfolio", this.value("#kmName").trim()); break;
+            case "analyze": this.show("analyze", this.arg, true); break;
+            case "clear-trade": this.analyzer = { give: [], get: [], giveKr: 0, getKr: 0 }; this.show("analyze"); break;
+            case "watch":
+                if (this.view?.item){
+                    if (!toggleWatch(this.view.item.skin)){ this.storageError(); return; }
+                    this.show("item", this.arg, true);
                 }
-                debounce = window.setTimeout(async() => {
-                    /** @type {import("./types.js").SearchReply|null} */
-                    const reply = await marketApi.cached(`/market/search?q=${encodeURIComponent(q)}&sort=volume&page=1`, MINUTE);
-                    if (!reply || /** @type {HTMLInputElement} */ (input).value.trim() !== q) return;
-                    list.innerHTML = reply.items.slice(0, 12).map((s) => `<div data-skin="${s.skin}" data-name="${esc(s.name)}">${thumb(s)}${esc(s.name)} <span class="kmMuted">${formatKr(s.fair)} kr</span></div>`).join("") || "<div class=\"kmMuted\">no match</div>";
-                    list.style.display = "block";
-                    for (const option of list.querySelectorAll("div[data-skin]")){
-                        option.addEventListener("click", () => {
-                            const el = /** @type {HTMLElement} */ (option);
-                            const skin = Number(el.dataset.skin);
-                            const existing = a[side].find((i) => i.skin === skin);
-                            if (existing) existing.count++;
-                            else a[side].push({ skin, count: 1, name: el.dataset.name ?? "" });
-                            this.show("analyze");
-                        });
-                    }
-                }, 300);
-            });
+                break;
+            default: break;
         }
-        for (const input of body.querySelectorAll(".kmCount")){
-            input.addEventListener("change", () => {
-                const el = /** @type {HTMLInputElement} */ (input);
-                const entry = a[/** @type {"give"|"get"} */ (el.dataset.side)][Number(el.dataset.index)];
-                if (entry) entry.count = Math.max(1, Math.min(10_000, Number(el.value) || 1));
-            });
-        }
-        for (const input of body.querySelectorAll(".kmKr")){
-            input.addEventListener("change", () => {
-                const el = /** @type {HTMLInputElement} */ (input);
-                const kr = Math.max(0, Number(el.value) || 0);
-                if (el.dataset.side === "give") a.giveKr = kr;
-                else a.getKr = kr;
-            });
-        }
-        for (const button of body.querySelectorAll(".kmRemove")){
-            button.addEventListener("click", () => {
-                const el = /** @type {HTMLElement} */ (button);
-                a[/** @type {"give"|"get"} */ (el.dataset.side)].splice(Number(el.dataset.index), 1);
-                this.show("analyze");
-            });
-        }
-        body.querySelector("#kmAnalyzeGo")?.addEventListener("click", () => this.show("analyze"));
-        body.querySelector("#kmAnalyzeClear")?.addEventListener("click", () => {
-            this.analyzer = { give: [], get: [], giveKr: 0, getKr: 0 };
-            this.show("analyze");
-        });
     }
 
-    /**
-     * @param {string} tab
-     * @param {HTMLElement} body
-     */
-    async drawCharts(tab, body){
-        const canvas = body.querySelector("#kmChart");
-        if (!(canvas instanceof HTMLCanvasElement)) return;
-        if (tab === "overview"){
-            /** @type {import("./types.js").OverviewReply|null} */
-            const o = await marketApi.cached("/market/overview", 60 * MINUTE);
-            if (o && canvas.isConnected) drawChart(canvas, [{ values: o.days.map((d) => d.volume), color: "#f5479b", label: "kr volume" }], o.days.map((d) => d.day.slice(5)));
+    storageError(){
+        const foot = this.shadow?.querySelector("#kmFootRight");
+        if (foot) foot.textContent = "Could not save on this device. The watchlist holds up to 100 items.";
+    }
+
+    async retry(){
+        const { generation } = this;
+        await marketApi.retry();
+        if (generation === this.generation) await this.show(this.tab, this.arg);
+    }
+
+    /** @param {Event} event */
+    changed(event){
+        const el = event.target;
+        if (!(el instanceof HTMLInputElement || el instanceof HTMLSelectElement)) return;
+        if (el.id === "kmAdvanced"){
+            this.advanced = /** @type {HTMLInputElement} */ (el).checked;
+            try { localStorage.setItem(PREF_KEY, this.advanced ? "1" : "0"); }
+            catch { this.storageError(); }
+            this.show(this.tab, undefined, true);
         }
-        else if (tab === "indices"){
-            /** @type {import("./types.js").IndicesReply|null} */
-            const r = await marketApi.cached("/market/indices", 60 * MINUTE);
-            const main = r?.indices.find((i) => i.name === "kute-100") ?? r?.indices[0];
-            if (main && canvas.isConnected) drawChart(canvas, [{ values: main.series.map((p) => p.value), color: "#f5479b", label: main.name }], main.series.map((p) => p.day.slice(5)));
+        else if (el.id === "kmOverlay") this.show("item", { ...this.itemState(), overlay: el.value }, true);
+        else if (el.dataset.target){
+            const value = Number(el.value);
+            const watch = readWatchlist().map((w) => w.skin === Number(el.dataset.target) ? { ...w, target: value > 0 && Number.isFinite(value) ? value : null } : w);
+            if (!saveWatchlist(watch)){ this.storageError(); return; }
+            this.show("watchlist", this.arg, true);
         }
-        else if (tab === "portfolio"){
-            const name = typeof this.arg === "string" && this.arg ? this.arg : localStorage.getItem("krunker_username") ?? "";
-            /** @type {import("./types.js").PortfolioReply|null} */
-            const p = name ? await marketApi.cached(`/market/portfolio?name=${encodeURIComponent(name)}`, 5 * MINUTE) : null;
-            if (p && canvas.isConnected) drawChart(canvas, [{ values: p.series.map((d) => d.value), color: "#f5479b", label: "holdings value" }], p.series.map((d) => d.day.slice(5)));
+        else if (el.dataset.count !== undefined && el.dataset.side){
+            const item = this.analyzer[/** @type {"give"|"get"} */ (el.dataset.side)][Number(el.dataset.count)];
+            if (item) item.count = Math.min(10000, Math.max(1, Math.floor(Number(el.value) || 1)));
+            this.show("analyze", this.arg, true);
         }
-        else if (tab === "item"){
-            const raw = body.querySelector("#kmHistoryData")?.textContent;
-            /** @type {import("./types.js").HistoryReply|null} */
-            const history = raw ? JSON.parse(raw) : null;
-            if (!history) return;
-            const labels = history.points.map((p) => {
-                const d = new Date(p.t);
-                return history.resolution === "hour" ? `${d.getHours()}:00` : `${d.getMonth() + 1}/${d.getDate()}`;
-            });
-            drawChart(canvas, [
-                { values: history.points.map((p) => p.fair), color: "#f5479b", label: "Kute fair value" },
-                { values: history.points.map((p) => p.avg), color: "#5ce05a", label: "avg sale" },
-                { values: history.points.map((p) => p.lowest), color: "#2196F3", label: "lowest ask" },
-                { values: history.points.map((p) => p.krunker), color: "#889", label: "Krunker est." },
-            ], labels);
+        else if (el.dataset.kr){
+            const value = Math.max(0, Math.min(1e9, Math.floor(Number(el.value) || 0)));
+            if (el.dataset.kr === "give") this.analyzer.giveKr = value;
+            else this.analyzer.getKr = value;
+            this.show("analyze", this.arg, true);
         }
+        else if (el.closest("#kmFilters") && el instanceof HTMLSelectElement) this.applyFilters();
+    }
+
+    /** @param {Event} event */
+    input(event){
+        const el = event.target;
+        if (!(el instanceof HTMLInputElement)) return;
+        if (el.id === "kmSellPrice" || el.id === "kmSellQuantity"){ this.updatePlanner(); return; }
+        if (["kmListingMax", "kmSerialMax", "kmWearMax", "kmAgeMax", "kmSellerMax"].includes(el.id)){ this.filterListings(); return; }
+        if (el.id === "kmHoldingFilter"){ this.portfolioFilter = el.value; this.filterHoldings(); return; }
+        if (!el.dataset.pick) return;
+        const q = el.value.trim();
+        const side = el.dataset.pick;
+        const list = /** @type {HTMLElement|null} */ (this.shadow?.querySelector(`[data-picks="${side}"]`));
+        if (!list) return;
+        clearTimeout(this.debounce);
+        if (q.length < 2){ list.hidden = true; return; }
+        const {generation} = this;
+        this.debounce = window.setTimeout(async() => {
+            /** @type {import("./types.js").SearchReply|null} */
+            const reply = await marketApi.cached(`/market/search?q=${encodeURIComponent(q)}&sort=volume&page=1`, MINUTE);
+            if (!list.isConnected || generation !== this.generation || el.value.trim() !== q) return;
+            list.hidden = false;
+            list.innerHTML = reply?.items.slice(0, 8).map((i) => `<button data-add-skin="${i.skin}" data-add-name="${esc(i.name)}" data-side="${side}">${esc(i.name)} <span class="muted">${money(i.fair)} KR</span></button>`).join("") || '<div style="padding:12px">No matching items</div>';
+        }, 300);
+    }
+
+    /** @param {KeyboardEvent} event */
+    key(event){
+        if (!this.shadow) return;
+        event.stopImmediatePropagation();
+        if (event.key === "Escape"){
+            event.stopImmediatePropagation();
+            event.preventDefault();
+            this.close();
+            return;
+        }
+        const active = /** @type {HTMLElement|null} */ (this.shadow.activeElement);
+        if (event.key === "Enter" && active){
+            if (active.closest("#kmFilters")){ event.preventDefault(); this.applyFilters(); }
+            else if (active.id === "kmName"){ event.preventDefault(); this.show("portfolio", this.value("#kmName").trim()); }
+            else if (active.matches("tr[data-skin],tr[data-index-name]")){ event.preventDefault(); active.click(); }
+        }
+        if (event.key !== "Tab") return;
+        const focusable = [...this.shadow.querySelectorAll("button:not(:disabled),input:not([type=hidden]),select,summary,[tabindex='0']")].filter((e) => e instanceof HTMLElement && e.getClientRects().length && !e.closest("[hidden]"));
+        const first = /** @type {HTMLElement|undefined} */ (focusable[0]);
+        const last = /** @type {HTMLElement|undefined} */ (focusable.at(-1));
+        if (event.shiftKey && (active === first || !active)){ event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && (active === last || !active)){ event.preventDefault(); first?.focus(); }
     }
 }
 

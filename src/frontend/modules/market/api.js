@@ -21,6 +21,8 @@ class MarketApi {
     constructor(){
         /** @type {Promise<string|null>|null} */
         this.sessionPromise = null;
+        /** @type {StoredSession|null} */
+        this.memorySession = null;
         /** @type {Map<string, {at: number, ttl: number, value: Promise<any>}>} */
         this.cache = new Map();
         /** why the last session attempt failed, shown in the terminal */
@@ -29,7 +31,8 @@ class MarketApi {
 
     /** @return {boolean} the game has a login, the only state a session is issued for */
     loggedIn(){
-        return localStorage.getItem("krunker_token") !== null;
+        try { return localStorage.getItem("krunker_token") !== null; }
+        catch { return false; }
     }
 
     /** @return {boolean} the exe can sign challenges */
@@ -39,6 +42,7 @@ class MarketApi {
 
     /** @return {StoredSession|null} */
     stored(){
+        if (this.memorySession && Date.now() < this.memorySession.expiresAt - SESSION_MARGIN_MS) return this.memorySession;
         try {
             const raw = localStorage.getItem(SESSION_KEY);
             if (!raw) return null;
@@ -52,7 +56,9 @@ class MarketApi {
     }
 
     forget(){
-        localStorage.removeItem(SESSION_KEY);
+        try { localStorage.removeItem(SESSION_KEY); }
+        catch { /* the in-memory session can still be renewed */ }
+        this.memorySession = null;
         this.sessionPromise = null;
     }
 
@@ -136,8 +142,9 @@ class MarketApi {
             this.lastError = typeof confirm.error?.error === "string" ? confirm.error.error : "the market refused the sign in";
             return null;
         }
+        this.memorySession = { session: confirm.data.session, expiresAt: confirm.data.expiresAt };
         try {
-            localStorage.setItem(SESSION_KEY, JSON.stringify({ session: confirm.data.session, expiresAt: confirm.data.expiresAt }));
+            localStorage.setItem(SESSION_KEY, JSON.stringify(this.memorySession));
         }
         catch {
             // storage full or blocked, the session lives for this page load
@@ -157,7 +164,8 @@ class MarketApi {
         const session = await this.session();
         if (!session) return null;
         const headers = { ...(init.headers ?? {}), [SESSION_HEADER]: session };
-        const result = await api.requestStatus(path, { ...init, headers });
+        // the module and server own the TTL; a second browser cache can outlive either one
+        const result = await api.requestStatus(path, { ...init, headers, cache: "no-store" });
         if (result.status === 401 && !retried){
             this.forget();
             return this.request(path, init, true);
@@ -185,6 +193,11 @@ class MarketApi {
             if (!oldest.done) this.cache.delete(oldest.value);
         }
         return value;
+    }
+
+    retry(){
+        this.cache.clear();
+        return api.retry();
     }
 
     /**

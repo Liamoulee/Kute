@@ -4,6 +4,7 @@ import marketApi from "./api.js";
 import cards from "./cards.js";
 import contrib from "./contrib.js";
 import trade from "./trade.js";
+import alerts from "./alerts.js";
 
 // the kute market: fair values on market cards, verdicts in both trade windows, contributions of what
 // the player sees, and the terminal behind a header button. nothing here runs per frame; the views poll
@@ -53,6 +54,7 @@ class Market {
             cards.start();
             trade.start();
             contrib.start();
+            alerts.start();
         }
         else {
             this.headerObserver.disconnect();
@@ -61,6 +63,7 @@ class Market {
             cards.stop();
             trade.stop();
             contrib.stop();
+            alerts.stop();
             this.terminal?.close();
         }
     }
