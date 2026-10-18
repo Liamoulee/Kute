@@ -244,6 +244,18 @@
     .gradeRow b{font-size:13px;color:#ededf3}.gradeRow p{margin:4px 0 0;font-size:13px}
     @media(max-width:1050px){.km{grid-template-columns:68px minmax(0,1fr)}.kmSidebar{padding:24px 8px 12px}.brand{padding:0 9px 30px}.brandText,.navLabel,.navCaption,.navCount,.sidebarNote{display:none}.kmNav button,.helpNav{justify-content:center;padding:13px 8px}.kmHead{padding:16px 20px}.kmBody{padding:20px}.split{grid-template-columns:minmax(0,1.4fr) minmax(220px,1fr)}.categoryGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.kmFoot{padding:8px 20px}.metric{padding:15px}.metric strong{font-size:22px}}
     @media(max-width:760px){.split,.equal{grid-template-columns:1fr}.kmHeadTitle{display:none}.kmHead{gap:9px}.globalSearch{max-width:none}.mode{font-size:10px}.metrics{grid-template-columns:1fr}.metric+.metric{border-left:0;border-top:1px solid var(--line)}.metric{padding:12px 16px}.itemHero{flex-wrap:wrap}.itemHero h1{font-size:23px}.itemHero .itemActions{margin-left:0}.pageIntro{flex-wrap:wrap}.kmFoot>span:first-child{display:none}.kmFoot{justify-content:flex-end}.categoryGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    .sectionGap{margin-bottom:20px}
+    .controlsGap{margin-bottom:16px}
+    .sectionTop{margin-top:28px}
+    .sectionTopSmall{margin-top:22px}
+    .noteTop{margin-top:18px}
+    .contentTop{margin-top:15px}
+    .metricsGap{margin:16px 0}
+    .legendEstimate{background:#f580b4}
+    .legendAsk{background:#77d9b0}
+    .plannerResult{flex:1;min-width:220px;padding:6px 10px;font-size:12px;color:#b2b4c2}
+    .breadthRising,.legendAsk{background:#77d9b0}.breadthFlat{background:#686b7d}.breadthFalling{background:#f390a0}
+    .gradeA{background:#5ce05a}.gradeB{background:#9ccc65}.gradeC{background:#fbc02d}.gradeD{background:#ff9800}.gradeF{background:#f44336}
 </style>
 <div class="km" id="km" role="dialog" aria-modal="true" aria-label="Kute Market">
     <aside class="kmSidebar">
@@ -251,7 +263,6 @@
         <div class="navCaption">YOUR MARKET</div>
         <nav class="kmNav" aria-label="Market navigation">
             <button data-nav="overview" title="Market" aria-label="Market"><span class="navIcon">&#9672;</span><span class="navLabel">Market</span></button>
-            <button data-nav="intelligence" title="Intelligence" aria-label="Intelligence"><span class="navIcon">&#10023;</span><span class="navLabel">Intelligence</span></button>
             <button data-nav="search" title="Discover" aria-label="Discover"><span class="navIcon">&#9906;</span><span class="navLabel">Discover</span></button>
             <button data-nav="watchlist" title="Watchlist" aria-label="Watchlist"><span class="navIcon">&#9734;</span><span class="navLabel">Watchlist</span><span class="navCount" id="kmWatchCount">0</span></button>
             <button data-nav="portfolio" title="Inventory" aria-label="Inventory"><span class="navIcon">&#9636;</span><span class="navLabel">Inventory</span></button>
@@ -266,6 +277,7 @@
             <button id="kmDiscover-active" role="tab" data-discover="active" aria-controls="kmBody" aria-selected="false" tabindex="-1">Actively traded</button>
             <button id="kmDiscover-deals" role="tab" data-discover="deals" aria-controls="kmBody" aria-selected="false" tabindex="-1">Potential deals</button>
             <button id="kmDiscover-movers" role="tab" data-discover="movers" aria-controls="kmBody" aria-selected="false" tabindex="-1">Market movers</button>
+            <button id="kmDiscover-intelligence" role="tab" data-discover="intelligence" aria-controls="kmBody" aria-selected="false" tabindex="-1">Intelligence</button>
         </div>
         <div class="kmBody" id="kmBody" aria-live="polite"></div>
         <footer class="kmFoot"><span><i class="statusDot"></i>Market insights by Kute</span><span id="kmFootRight">Estimates from observed market data</span></footer>
