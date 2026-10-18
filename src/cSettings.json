@@ -79,7 +79,7 @@
     "market": {
         "name": "Kute Market",
         "id": "market",
-        "description": "The K value (what an item really sells for), liquidity and trade verdicts on the market and in trades. Shares your own sales and trades with Kute, without names",
+        "description": "Enables Market and Trade features. The K value, liquidity and trade verdicts, market analyzer, etc. In return, you agree that Kute can see item stats",
         "type": "checkbox",
         "category": "General",
         "defaultValue": true,
