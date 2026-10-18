@@ -9,7 +9,8 @@ import ItemSearch, { itemSearch } from "./itemSearch.js";
 const MINUTE = 60_000;
 const PREF_KEY = "kute_market_advanced";
 const RANGES = ["1D", "7D", "1M", "3M", "1Y", "ALL"];
-const TITLES = { overview: "Market", search: "Discover", movers: "Discover", deals: "Discover", indices: "Market", watchlist: "Watchlist", portfolio: "Inventory", analyze: "Trade", help: "How it works", item: "Item overview" };
+const TITLES = { overview: "Market", search: "Discover", active: "Discover", movers: "Discover", deals: "Discover", indices: "Market", watchlist: "Watchlist", portfolio: "Inventory", analyze: "Trade", help: "How it works", item: "Item overview" };
+const DISCOVERY_TABS = ["search", "active", "deals", "movers"];
 
 /**
  * @typedef {{q:string,rarity:string,type:string,sort:string,page:number,budget:string,minSales:string}} SearchState
@@ -32,6 +33,7 @@ class Terminal {
         /** @type {HTMLElement|null} */
         this.returnFocus = null;
         this.tab = "overview";
+        this.discoveryTab = "search";
         /** @type {unknown} */
         this.arg = undefined;
         this.generation = 0;
@@ -74,7 +76,7 @@ class Terminal {
             this.controller = new AbortController();
             const { signal } = this.controller;
             document.body.append(overlay);
-            this.itemSearch = new ItemSearch(this.shadow, signal, (item, context) => this.selectItem(item, context), (q, context) => this.show("search", { ...(context === "discover" ? this.readFilters(1) : defaultSearch()), q, page: 1 }), () => this.holdings);
+            this.itemSearch = new ItemSearch(this.shadow, signal, (item, context) => this.selectItem(item, context), (q, context) => this.show(context === "discover" ? this.searchTab() : "search", { ...(context === "discover" ? this.readFilters(1) : defaultSearch()), q, page: 1 }), () => this.holdings);
             this.shadow.addEventListener("click", (event) => this.click(event), { signal });
             this.shadow.addEventListener("change", (event) => this.changed(event), { signal });
             this.shadow.addEventListener("input", (event) => this.input(event), { signal });
@@ -109,7 +111,8 @@ class Terminal {
     remember(){
         const body = this.shadow?.querySelector("#kmBody");
         if (this.tab === "item") this.arg = this.itemState();
-        if (this.tab === "search" && this.shadow?.querySelector("#kmQ")) this.arg = this.readFilters(this.searchState().page);
+        if ((this.tab === "search" || this.tab === "active") && this.shadow?.querySelector("#kmQ")) this.arg = this.readFilters(this.searchState().page);
+        if (this.tab === "deals" && this.shadow?.querySelector("#kmDealBudget")) this.arg = { budget: this.value("#kmDealBudget") };
         if (body) this.saved.set(this.tab, { arg: this.arg, scroll: body.scrollTop });
     }
 
@@ -120,7 +123,13 @@ class Terminal {
 
     /** @return {SearchState} */
     searchState(){
-        return { ...defaultSearch(), ...(typeof this.arg === "object" && this.arg ? this.arg : {}) };
+        const state = { ...defaultSearch(), ...(this.tab === "active" ? { minSales: "5", sort: "liquidity" } : {}), ...(typeof this.arg === "object" && this.arg ? this.arg : {}) };
+        if (this.tab === "active") state.minSales = String(Math.max(5, Number(state.minSales) || 5));
+        return state;
+    }
+
+    searchTab(){
+        return this.tab === "active" ? "active" : "search";
     }
 
     /** @return {ItemState} */
@@ -148,11 +157,29 @@ class Terminal {
         this.chart?.destroy();
         this.chart = null;
         const body = /** @type {HTMLElement} */ (this.shadow.querySelector("#kmBody"));
+        const discovery = DISCOVERY_TABS.includes(tab);
+        if (discovery) this.discoveryTab = tab;
+        const tabs = /** @type {HTMLElement} */ (this.shadow.querySelector("#kmDiscoverTabs"));
+        tabs.hidden = !discovery;
+        for (const button of tabs.querySelectorAll("button")){
+            const selected = button.dataset.discover === tab;
+            button.setAttribute("aria-selected", String(selected));
+            button.tabIndex = selected ? 0 : -1;
+        }
+        if (discovery){
+            body.setAttribute("role", "tabpanel");
+            body.setAttribute("aria-labelledby", `kmDiscover-${tab}`);
+        }
+        else {
+            body.removeAttribute("role");
+            body.removeAttribute("aria-labelledby");
+        }
+        body.setAttribute("aria-busy", "true");
         body.innerHTML = empty("Loading market data", "Fetching the latest available observations.");
         const title = this.shadow.querySelector("#kmTitle");
         if (title) title.textContent = TITLES[/** @type {keyof typeof TITLES} */ (tab)] ?? "Market";
         let nav = tab === "item" ? this.previous : tab;
-        if (nav === "deals" || nav === "movers") nav = "search";
+        if (DISCOVERY_TABS.includes(nav)) nav = "search";
         if (nav === "indices") nav = "overview";
         for (const el of this.shadow.querySelectorAll("[data-nav]")){
             const active = /** @type {HTMLElement} */ (el).dataset.nav === nav;
@@ -189,6 +216,9 @@ class Terminal {
             if (generation !== this.generation) return;
             body.innerHTML = empty("Market data is unavailable", "Try again in a moment. Your saved watchlist stays on this device.", '<button class="button" data-action="retry">Try again</button>');
         }
+        finally {
+            if (generation === this.generation) body.setAttribute("aria-busy", "false");
+        }
     }
 
     updateWatchCount(){
@@ -201,6 +231,7 @@ class Terminal {
         switch (tab){
             case "overview": return this.overview();
             case "search": return this.search();
+            case "active": return this.search();
             case "item": return this.item();
             case "watchlist": return this.watchlist();
             case "movers": return this.movers();
@@ -274,8 +305,8 @@ class Terminal {
         if (!result)return this.unavailable();
         const options = (/** @type {string[]} */ names, /** @type {string} */ selected) => names.map((n, i) => `<option value="${i}" ${String(i) === selected ? "selected" : ""}>${esc(n)}</option>`).join("");
         const pages = Math.max(1, Math.ceil(result.total / result.perPage));
-        return { asOf: result.asOf, html: this.intro("Find your next item.", "Browse by budget, recent activity, or the items you already have in mind.")
-            + `<div class="chips"><button class="chip on" data-action="discover">All items</button><button class="chip" data-preset="active">Actively traded</button><button class="chip" data-nav="deals">Potential deals</button><button class="chip" data-nav="movers">Market movers</button></div><form id="kmFilters" class="filterBar">${itemSearch("kmQ", "discover", "Search all items", state.q)}<input id="kmBudget" type="number" min="1" aria-label="Maximum asking price in KR" placeholder="Budget in KR" value="${esc(state.budget)}"><select id="kmType" aria-label="Item type"><option value="">All types</option>${options(TYPE_NAMES, state.type)}</select>${this.advanced ? `<select id="kmRarity" aria-label="Rarity"><option value="">All rarities</option>${options(RARITIES.map((r) => r.name), state.rarity)}</select>` : `<input type="hidden" id="kmRarity" value="${esc(state.rarity)}">`}<select id="kmSales" aria-label="Minimum sales"><option value="">Any activity</option>${[1, 5, 20].map((n) => `<option value="${n}" ${String(n) === state.minSales ? "selected" : ""}>${n}+ sales / 7D</option>`).join("")}</select><select id="kmSort" aria-label="Sort items">${[["volume", "Most traded"], ["value", "Highest value"], ["trend7d", "7D gainers"], ["liquidity", "Most active"], ["name", "Name"]].map(([v, n]) => `<option value="${v}" ${v === state.sort ? "selected" : ""}>${n}</option>`).join("")}</select><button type="button" class="button small" data-action="filters">Apply</button></form>`
+        return { asOf: result.asOf, html: this.intro(this.tab === "active" ? "Find items that are trading." : "Find your next item.", this.tab === "active" ? `At least ${state.minSales} reported sales in seven days. Ranked by trading activity by default.` : "Browse by budget, recent activity, or the items you already have in mind.", '<button class="button small" data-action="reset-search">Reset filters</button>')
+            + `<form id="kmFilters" class="filterBar">${itemSearch("kmQ", "discover", "Search all items", state.q)}<input id="kmBudget" type="number" min="1" aria-label="Maximum asking price in KR" placeholder="Budget in KR" value="${esc(state.budget)}"><select id="kmType" aria-label="Item type"><option value="">All types</option>${options(TYPE_NAMES, state.type)}</select>${this.advanced ? `<select id="kmRarity" aria-label="Rarity"><option value="">All rarities</option>${options(RARITIES.map((r) => r.name), state.rarity)}</select>` : `<input type="hidden" id="kmRarity" value="${esc(state.rarity)}">`}<select id="kmSales" aria-label="Minimum sales">${this.tab === "active" ? "" : '<option value="">Any activity</option>'}${(this.tab === "active" ? [5, 20] : [1, 5, 20]).map((n) => `<option value="${n}" ${String(n) === state.minSales ? "selected" : ""}>${n}+ sales / 7D</option>`).join("")}</select><select id="kmSort" aria-label="Sort items">${[["volume", "Most traded"], ["value", "Highest value"], ["trend7d", "7D gainers"], ["liquidity", "Most active"], ["name", "Name"]].map(([v, n]) => `<option value="${v}" ${v === state.sort ? "selected" : ""}>${n}</option>`).join("")}</select><button type="button" class="button small" data-action="filters">Apply</button></form>`
             + this.table(result.items) + `<div class="pagination"><span>${money(result.total)} matching items</span><div class="row"><button class="button small" data-page="${state.page - 1}" ${state.page <= 1 ? "disabled" : ""}>Previous</button><span>${state.page} / ${pages}</span><button class="button small" data-page="${state.page + 1}" ${state.page >= pages ? "disabled" : ""}>Next</button></div></div>` };
     }
 
@@ -345,7 +376,7 @@ class Terminal {
         const m = await marketApi.cached(`/market/movers?window=${window}`, 5 * MINUTE);
         if (!m)return this.unavailable();
         const list = (/** @type {typeof m.gainers} */ rows) => `<div class="list">${rows.slice(0, 10).map((s) => `<button class="listRow" data-skin="${s.skin}">${identity(s)}<span class="listValue">${change(s.change)}<small>${money(s.fair)} KR &middot; ${s.sales7d} sales / 7D</small></span></button>`).join("") || '<p class="sub">No eligible items in this period.</p>'}</div>`;
-        return { asOf: m.asOf, html: this.intro("What is moving?", "Changes among items with enough recent sales to support a comparison.", '<button class="button" data-action="discover">All items</button>') + `<div class="row" style="margin-bottom:20px"><div class="segmented">${["1D", "7D", "30D"].map((w) => `<button data-window="${w}" class="${window === w ? "on" : ""}">${w}</button>`).join("")}</div></div><div class="equal"><section class="panel"><div class="panelHead"><h3 class="positive">&#8593; Rising</h3></div>${list(m.gainers)}</section><section class="panel"><div class="panelHead"><h3 class="negative">&#8595; Falling</h3></div>${list(m.losers)}</section></div>` };
+        return { asOf: m.asOf, html: this.intro("What is moving?", "Changes among items with enough recent sales to support a comparison.") + `<div class="row" style="margin-bottom:20px"><div class="segmented">${["1D", "7D", "30D"].map((w) => `<button data-window="${w}" class="${window === w ? "on" : ""}">${w}</button>`).join("")}</div></div><div class="equal"><section class="panel"><div class="panelHead"><h3 class="positive">&#8593; Rising</h3></div>${list(m.gainers)}</section><section class="panel"><div class="panelHead"><h3 class="negative">&#8595; Falling</h3></div>${list(m.losers)}</section></div>` };
     }
 
     /** @return {Promise<View>} */
@@ -355,7 +386,7 @@ class Terminal {
         /** @type {import("./types.js").DealsReply|null} */
         const result = await marketApi.cached(`/market/deals?min_grade=C&limit=100&budget=${encodeURIComponent(budget)}`, MINUTE);
         if (!result)return this.unavailable();
-        return { asOf: result.asOf, asOfLabel: "Quotes observed", html: this.intro("Worth a closer look.", "Observed asks below a sales-based estimate. Inspect the evidence before deciding.", '<button class="button" data-action="discover">All items</button>') + filters + (result.deals.length ? `<div class="tableWrap"><table><thead><tr><th>Item</th><th class="num">Ask / KR</th><th class="num">Estimate / KR</th><th class="num">Below estimate</th><th>Sales / 7D</th></tr></thead><tbody>${result.deals.map((d) => `<tr class="clickable" tabindex="0" data-skin="${d.skin}"><td>${identity(d)}</td><td class="num">${money(d.price)}</td><td class="num">${money(d.fair)}</td><td class="num positive">${Math.round(d.discount * 100)}%</td><td><span class="tag quiet">${d.sales7d ?? "Unknown"}</span></td></tr>`).join("")}</tbody></table></div><p class="chartNote">A discount is not a predicted profit. Ranked by discount and recent sales support, using heuristic thresholds. Quotes older than three hours are excluded; availability can still change.</p>` : '<section class="panel">' + empty("No supported candidates right now", "The scanner only includes sales-based estimates with sufficient activity and a meaningful discount. Your watchlist can track specific items in the meantime.", '<button class="button" data-nav="watchlist">Open watchlist</button>') + "</section>") };
+        return { asOf: result.asOf, asOfLabel: "Quotes observed", html: this.intro("Worth a closer look.", "Observed asks below a sales-based estimate. Inspect the evidence before deciding.") + filters + (result.deals.length ? `<div class="tableWrap"><table><thead><tr><th>Item</th><th class="num">Ask / KR</th><th class="num">Estimate / KR</th><th class="num">Below estimate</th><th>Sales / 7D</th></tr></thead><tbody>${result.deals.map((d) => `<tr class="clickable" tabindex="0" data-skin="${d.skin}"><td>${identity(d)}</td><td class="num">${money(d.price)}</td><td class="num">${money(d.fair)}</td><td class="num positive">${Math.round(d.discount * 100)}%</td><td><span class="tag quiet">${d.sales7d ?? "Unknown"}</span></td></tr>`).join("")}</tbody></table></div><p class="chartNote">A discount is not a predicted profit. Ranked by discount and recent sales support, using heuristic thresholds. Quotes older than three hours are excluded; availability can still change.</p>` : '<section class="panel">' + empty("No supported candidates right now", "The scanner only includes sales-based estimates with sufficient activity and a meaningful discount. Your watchlist can track specific items in the meantime.", '<button class="button" data-nav="watchlist">Open watchlist</button>') + "</section>") };
     }
 
     /** @return {Promise<View>} */
@@ -495,7 +526,7 @@ class Terminal {
 
     /** @param {number} [page] */
     applyFilters(page = 1){
-        this.show("search", this.readFilters(page));
+        this.show(this.searchTab(), this.readFilters(page));
     }
 
     /** @param {number} page @return {SearchState} */
@@ -509,11 +540,16 @@ class Terminal {
         if (!el || el.hasAttribute("disabled")) return;
         const d = el.dataset;
         if (el.id === "kmClose"){ this.close(); return; }
-        if (d.nav === "deals" && this.tab === "search"){ this.show("deals", { budget: this.value("#kmBudget") }); return; }
+        if (d.discover){
+            if (d.discover === this.tab) return;
+            if (d.discover === "deals" && !this.saved.has("deals") && (this.tab === "search" || this.tab === "active")) this.show("deals", { budget: this.value("#kmBudget") });
+            else this.show(d.discover);
+            return;
+        }
+        if (d.nav === "search"){ this.show(this.discoveryTab); return; }
         if (d.nav){ this.show(d.nav); return; }
         if (d.skin){ this.show("item", Number(d.skin)); return; }
         if (d.category){ this.show("search", { ...defaultSearch(), type: d.category, minSales: "5" }); return; }
-        if (d.preset){ this.show("search", { ...defaultSearch(), minSales: "5" }); return; }
         if (d.page){ this.applyFilters(Number(d.page)); return; }
         if (d.range){ this.show("item", { ...this.itemState(), range: d.range, zoom: 1, offset: 0 }, true); return; }
         if (d.chartMode){ this.show("item", { ...this.itemState(), candles: d.chartMode === "candles" }, true); return; }
@@ -533,6 +569,7 @@ class Terminal {
         }
         switch (d.action){
             case "discover": this.show("search", defaultSearch()); break;
+            case "reset-search": this.show(this.searchTab(), this.tab === "active" ? { ...defaultSearch(), minSales: "5", sort: "liquidity" } : defaultSearch()); break;
             case "back": this.show(this.previous); break;
             case "retry": this.retry(); break;
             case "filters": this.applyFilters(); break;
@@ -618,13 +655,25 @@ class Terminal {
             return;
         }
         const active = /** @type {HTMLElement|null} */ (this.shadow.activeElement);
+        if (active?.matches("[data-discover]") && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)){
+            event.preventDefault();
+            const tabs = [...this.shadow.querySelectorAll("#kmDiscoverTabs button")];
+            const current = tabs.indexOf(active);
+            let next = (current + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+            if (event.key === "Home") next = 0;
+            if (event.key === "End") next = tabs.length - 1;
+            const button = /** @type {HTMLButtonElement} */ (tabs[next]);
+            button.focus();
+            button.click();
+            return;
+        }
         if (event.key === "Enter" && active){
             if (active.closest("#kmFilters")){ event.preventDefault(); this.applyFilters(); }
             else if (active.id === "kmName"){ event.preventDefault(); this.show("portfolio", this.value("#kmName").trim()); }
             else if (active.matches("tr[data-skin],tr[data-index-name],tr[data-category]")){ event.preventDefault(); active.click(); }
         }
         if (event.key !== "Tab") return;
-        const focusable = [...this.shadow.querySelectorAll("button:not(:disabled),input:not([type=hidden]),select,summary,[tabindex='0']")].filter((e) => e instanceof HTMLElement && e.getClientRects().length && !e.closest("[hidden]"));
+        const focusable = [...this.shadow.querySelectorAll("button:not(:disabled):not([tabindex='-1']),input:not([type=hidden]),select,summary,[tabindex='0']")].filter((e) => e instanceof HTMLElement && e.getClientRects().length && !e.closest("[hidden]"));
         const first = /** @type {HTMLElement|undefined} */ (focusable[0]);
         const last = /** @type {HTMLElement|undefined} */ (focusable.at(-1));
         if (event.shiftKey && (active === first || !active)){ event.preventDefault(); last?.focus(); }

@@ -105,9 +105,13 @@
     .field input,.field select,.filterBar input,.filterBar select{background:#1d1e27;border:1px solid #353641;border-radius:6px;padding:8px 10px;color:#dedee7;min-width:0;font-size:12px}
     .filterBar input{max-width:200px}
     .filterBar input[type=number]{width:130px}
-    .chips{display:flex;gap:7px;flex-wrap:wrap}
-    .chip{padding:6px 11px;border:1px solid #343641;border-radius:20px;color:#999baa;font-size:11px}
-    .chip.on{background:#f580b410;border-color:#83516c;color:#f8aed1}
+    .discoverTabs{display:flex;flex-shrink:0;gap:6px;padding:0 28px;border-bottom:1px solid var(--line);background:#17181f;overflow-x:auto;scrollbar-width:thin}
+    .discoverTabs[hidden]{display:none}
+    .discoverTabs button{padding:13px 12px 11px;border-bottom:2px solid transparent;white-space:nowrap;color:#999baa;font-size:12px}
+    .discoverTabs button:hover{color:#f6c3db;background:#f580b407}
+    .discoverTabs button[aria-selected=true]{color:#ffb3d5;border-bottom-color:var(--pink);background:#f580b407}
+    .discoverTabs button:focus-visible{outline-offset:-4px}
+    @media(max-width:760px){.discoverTabs{padding:0 12px;gap:0}.discoverTabs button{padding:12px 9px 10px;font-size:11px}}
     .tableWrap{overflow:auto;border:1px solid var(--line);border-radius:10px}
     table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
     th{padding:11px 15px;text-align:left;color:#808391;font-weight:500;font-size:11px;background:#191a22;white-space:nowrap;border-bottom:1px solid var(--line)}
@@ -238,6 +242,12 @@
     </aside>
     <main class="kmMain">
         <header class="kmHead"><div class="kmHeadTitle" id="kmTitle">Market</div><form class="globalSearch" id="kmSearchForm"><span class="searchIcon" aria-hidden="true">&#9906;</span><input id="kmGlobalSearch" data-item-search="global" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="kmGlobalSearchOptions" aria-label="Search items" placeholder="Find an item..." autocomplete="off"><div class="suggestions" id="kmGlobalSearchList" hidden></div></form><label class="mode" title="Show technical metrics, market diagnostics, and detailed listings. Full chart controls are available in both modes."><input id="kmAdvanced" type="checkbox" role="switch">Advanced</label><button class="kmClose" id="kmClose" aria-label="Close market">&times;</button></header>
+        <div class="discoverTabs" id="kmDiscoverTabs" role="tablist" aria-label="Discover items" hidden>
+            <button id="kmDiscover-search" role="tab" data-discover="search" aria-controls="kmBody" aria-selected="true">All items</button>
+            <button id="kmDiscover-active" role="tab" data-discover="active" aria-controls="kmBody" aria-selected="false" tabindex="-1">Actively traded</button>
+            <button id="kmDiscover-deals" role="tab" data-discover="deals" aria-controls="kmBody" aria-selected="false" tabindex="-1">Potential deals</button>
+            <button id="kmDiscover-movers" role="tab" data-discover="movers" aria-controls="kmBody" aria-selected="false" tabindex="-1">Market movers</button>
+        </div>
         <div class="kmBody" id="kmBody" aria-live="polite"></div>
         <footer class="kmFoot"><span><i class="statusDot"></i>Market insights by Kute</span><span id="kmFootRight">Estimates from observed market data</span></footer>
     </main>
