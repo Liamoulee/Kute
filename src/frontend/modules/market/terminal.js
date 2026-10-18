@@ -180,7 +180,7 @@ class Terminal {
         for (const button of this.shadow.querySelectorAll(".kmTab")) button.classList.toggle("on", /** @type {HTMLElement} */ (button).dataset.tab === tab);
         const body = getElement("#kmBody", this.shadow);
         body.innerHTML = "<div class=\"kmEmpty\">Loading…</div>";
-        const renderers = { overview: () => this.overview(), search: () => this.search(), movers: () => this.movers(), deals: () => this.deals(), indices: () => this.indices(), portfolio: () => this.portfolio(), analyze: () => this.analyze(), item: () => this.item(Number(arg)) };
+        const renderers = { overview: () => this.overview(), search: () => this.search(), movers: () => this.movers(), deals: () => this.deals(), indices: () => this.indices(), portfolio: () => this.portfolio(), analyze: () => this.analyze(), help: () => this.help(), item: () => this.item(Number(arg)) };
         const render = renderers[/** @type {keyof typeof renderers} */ (tab)] ?? renderers.overview;
         try {
             const html = await render();
@@ -233,7 +233,8 @@ class Terminal {
         const today = o.days.at(-1);
         const bars = (/** @type {number[]} */ shares, /** @type {(i: number) => string} */ label) => `<div class="kmBars">${shares.map((s, i) => `<i style="height:${Math.round(s / Math.max(...shares, 0.0001) * 100)}%" title="${label(i)}: ${(s * 100).toFixed(1)} %"></i>`).join("")}</div>`;
         const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-        return `<div class="kmCards">
+        const intro = "<p class=\"kmMuted\" style=\"margin:0 0 12px\">Kute records Krunker's whole market around the clock and turns it into one number per item, the <b style=\"color:#f5479b\">K</b> value: what the item actually sells for right now, from real sales, not from asks. Next to it a liquidity grade, A (sells within the hour) to F (barely trades), and how an ask compares with the value. <span class=\"kmLink\" data-tab=\"help\">How it works</span></p>";
+        return intro + `<div class="kmCards">
             <div class="kmCard"><div class="k">Sales today</div><div class="v">${today ? today.sales.toLocaleString("en-US") : "–"}</div><div class="s">${today ? formatKr(today.volume) + " kr" : ""}</div></div>
             <div class="kmCard"><div class="k">Live listings</div><div class="v">${o.listingsLive.toLocaleString("en-US")}</div><div class="s">${o.skinsListed.toLocaleString("en-US")} skins on the book</div></div>
             <div class="kmCard"><div class="k">KR on the book</div><div class="v">${formatKr(o.krOnBook)}</div><div class="s">sum of every ask</div></div>
@@ -390,6 +391,30 @@ class Terminal {
     }
 
     /**
+     * @return {Promise<string>}
+     */
+    async help(){
+        this.foot(0);
+        return `<div style="max-width:820px;line-height:1.55">
+        <h3>What the K value is</h3>
+        <p>Kute reads Krunker's public market around the clock: every listing of every item, the daily sales Krunker publishes, circulation and ownership. From the real sales of the last 7 days (or 30, or 90, when 7 hold fewer than five) Kute takes the middle price, weighted towards recent sales and with freak sales removed. That is the <b style="color:#f5479b">K</b> value: what you can expect to pay or get for the item right now. Asks only pull it down, never up: a seller who wants out tells you something, a seller dreaming does not. Nothing trades under what the game pays at once, so that is the floor.</p>
+        <p>Krunker's own "~" estimate is a flat number per item. The K value moves with the sales, and it comes with two things the estimate lacks.</p>
+        <h3>Confidence</h3>
+        <p>0 to 100 %: how many sales the value rests on, how recent they are, whether the asks agree with them, and how steady the prices were. Under 40 % the value is a hint, not a fact, and the trade analyzer says "uncertain" instead of pretending.</p>
+        <h3>Liquidity grade</h3>
+        <p><span class="kmGrade" style="background:#5ce05a">A</span> sells many times a day at the value, you are out within the hour. <span class="kmGrade" style="background:#9ccc65">B</span> sells daily. <span class="kmGrade" style="background:#fbc02d">C</span> sells every few days. <span class="kmGrade" style="background:#ff9800">D</span> takes weeks or a discount. <span class="kmGrade" style="background:#f44336">F</span> barely trades, the value is a guess and you will wait. The grade comes from sales per day, how much of the supply sits on the book, how far the asks sit from the value and how long listings took to sell.</p>
+        <h3>On a market card</h3>
+        <p><b>K 3,698 <span class="kmGrade" style="background:#fbc02d">C</span> <span class="down">−19%</span></b> means: Kute values this item at 3,698 kr, it sells every few days, and this ask is 19 % under the value. Green is a deal worth a look, red is an ask well over the value. Click the badge for the item page.</p>
+        <h3>In a trade</h3>
+        <p>Both sides are summed at K value. "Sold quickly" discounts every item by its grade and by how many of it are already for sale, because ten of one item are not worth ten times one. The verdict is fair when the difference sits inside what the confidence leaves open, good or bad for you beyond that, and uncertain when an item has no usable value.</p>
+        <h3>Deals and movers</h3>
+        <p>A deal is a listing under the K value by more than the confidence allows, grade C or better. A mover is an item whose K value changed over the window, only among items that trade enough that one odd sale cannot make a trend.</p>
+        <h3>What Kute does not do</h3>
+        <p>Nothing is bought, sold or traded for you, ever. The value is an estimate from public data, it can be wrong, and a thin market is thin whatever the number says. With Kute Market on, your own completed sales and trades are shared with Kute without names, so the numbers get better for everyone.</p>
+        </div>`;
+    }
+
+    /**
      * wires the rendered tab: clicks on rows, the controls, the chart
      *
      * @param {string} tab
@@ -402,6 +427,7 @@ class Terminal {
             row.addEventListener("click", () => this.show("item", Number(/** @type {HTMLElement} */ (row).dataset.skin)));
         }
         body.querySelector("#kmBack")?.addEventListener("click", () => this.show(this.previous ?? "search"));
+        for (const link of body.querySelectorAll(".kmLink[data-tab]")) link.addEventListener("click", () => this.show(/** @type {HTMLElement} */ (link).dataset.tab ?? "help"));
         if (tab !== "item") this.previous = tab;
 
         if (tab === "search"){

@@ -1,3 +1,4 @@
+import { kute } from "../../client.js";
 import marketApi from "./api.js";
 import { GRADE_COLORS, formatKr, formatPercent } from "./types.js";
 
@@ -14,14 +15,18 @@ const CARD_SELECTOR = ".market-card, .market-item-card";
 // the grade square and the delta are ours
 const CSS = `
 .market-card,.market-item-card{position:relative}
-.${LINE_CLASS}{pointer-events:none;white-space:nowrap}
+.${LINE_CLASS}{display:inline-flex!important;align-items:center;gap:.35em;white-space:nowrap;cursor:pointer;pointer-events:auto}
+.${LINE_CLASS}:hover{filter:brightness(1.25)}
 .${LINE_CLASS}.kuteFloating{position:absolute;left:6px;bottom:6px;z-index:3;background:rgba(0,0,0,.72);color:#fff;padding:2px 7px;border-radius:5px;font-size:12px;font-weight:700}
 .${LINE_CLASS} .kuteMark{color:#f5479b;font-weight:900}
-.${LINE_CLASS} .kuteGrade{display:inline-block;min-width:1.1em;text-align:center;border-radius:3px;padding:0 .3em;margin-left:.35em;color:#111;font-size:.8em;vertical-align:middle}
-.${LINE_CLASS} .kuteDelta{margin-left:.35em;font-size:.85em}
+.${LINE_CLASS} .kuteGrade{display:inline-flex;align-items:center;justify-content:center;min-width:1.4em;height:1.4em;border-radius:3px;padding:0 .25em;color:#111;font-size:.75em;line-height:1}
+.${LINE_CLASS} .kuteDelta{font-size:.85em}
 .${LINE_CLASS} .kuteDelta.kuteDeal{color:#5ce05a}
 .${LINE_CLASS} .kuteDelta.kuteOver{color:#f44336}
+.kuteDetailBtn .kuteMark{color:#f5479b;font-weight:900;margin-right:2px}
 `;
+const DETAIL_SELECTOR = ".item-detail-container, .items-detail-root";
+const DETAIL_BTN_CLASS = "kuteDetailBtn";
 
 class Cards {
     constructor(){
@@ -44,7 +49,7 @@ class Cards {
     stop(){
         clearInterval(this.timer);
         this.timer = undefined;
-        for (const line of document.querySelectorAll(`.${LINE_CLASS}`)) line.remove();
+        for (const line of document.querySelectorAll(`.${LINE_CLASS}, .${DETAIL_BTN_CLASS}`)) line.remove();
         for (const card of document.querySelectorAll(`[${MARK}]`)) card.removeAttribute(MARK);
     }
 
@@ -83,6 +88,11 @@ class Cards {
 
     async tick(){
         if (this.busy || document.pointerLockElement) return;
+        const detail = document.querySelector(DETAIL_SELECTOR);
+        if (detail && !detail.hasAttribute(MARK)){
+            detail.setAttribute(MARK, "1");
+            await this.detailButton(detail);
+        }
         const cards = [...document.querySelectorAll(CARD_SELECTOR)].filter((card) => !card.hasAttribute(MARK));
         if (!cards.length) return;
         this.busy = true;
@@ -115,6 +125,40 @@ class Cards {
     }
 
     /**
+     * a "Kute Market" button in krunker's item detail header, styled like its own header buttons; the skin
+     * comes from the preview image like on the cards
+     *
+     * @param {Element} detail
+     */
+    async detailButton(detail){
+        // the market's "Listing Details" (next to Item Info) and the catalog's item page (header actions)
+        const actions = detail.querySelector(".full-details-container, .items-detail-header-actions");
+        const img = detail.querySelector(".market-card img, .items-detail-preview-panel img, img");
+        const path = img instanceof HTMLImageElement ? Cards.thumbPath(img.currentSrc || img.src) : null;
+        if (!actions || !path) return;
+        const button = document.createElement("button");
+        button.type = "button";
+        const sibling = actions.querySelector("button");
+        button.className = `${sibling?.className ?? ""} ${DETAIL_BTN_CLASS}`.trim();
+        const icon = sibling?.querySelector("i")?.className ?? "material-icons";
+        button.innerHTML = `<i class="${icon}">candlestick_chart</i> <span>Kute Market</span>`;
+        button.title = "K value, liquidity, price history, depth and owners in Kute Market";
+        actions.append(button);
+        const values = await marketApi.valuesByThumbnails([path]);
+        const value = values[path];
+        if (!value){
+            button.remove();
+            return;
+        }
+        const label = button.querySelector("span");
+        if (label) label.textContent = `Kute Market · K ${formatKr(value.fair)} ${value.grade}`;
+        button.addEventListener("click", (event) => {
+            event.stopPropagation();
+            kute.market?.open("item", value.skin);
+        });
+    }
+
+    /**
      * @param {Element} card
      * @param {import("./types.js").SkinValue|null} value
      */
@@ -135,7 +179,13 @@ class Cards {
             delta = `<span class="kuteDelta ${cls}">${share < 0 ? "−" : "+"}${percent}%</span>`;
         }
         line.innerHTML = `<span class="kuteMark">K</span> ${formatKr(value.fair)}<span class="kuteGrade" style="background:${GRADE_COLORS[value.grade]}">${value.grade}</span>${delta}`;
-        line.title = `Kute fair value ${formatKr(value.fair)} kr, ${value.confidence} % confidence, liquidity ${value.grade}` + (ask !== null ? `, this ask ${formatPercent(ask / value.fair - 1)} against it` : "");
+        line.title = `Kute fair value ${formatKr(value.fair)} kr, ${value.confidence} % confidence, liquidity ${value.grade}` + (ask !== null ? `, this ask ${formatPercent(ask / value.fair - 1)} against it` : "") + ". Click for the item in Kute Market";
+        line.addEventListener("click", (event) => {
+            // the card itself opens krunker's detail view on click
+            event.stopPropagation();
+            event.preventDefault();
+            kute.market?.open("item", value.skin);
+        });
         if (estimate) estimate.after(line);
         else card.append(line);
     }
