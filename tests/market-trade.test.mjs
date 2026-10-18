@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import fs from "node:fs";
 import vm from "node:vm";
-import { esc } from "../src/frontend/modules/market/presentation.js";
+import { esc, TRADE_VERDICTS } from "../src/frontend/modules/market/presentation.js";
 import { GRADE_COLORS, formatKr, formatPercent } from "../src/frontend/modules/market/types.js";
 
 const source = fs.readFileSync(new URL("../src/frontend/modules/market/trade.js", import.meta.url), "utf8")
@@ -16,7 +16,7 @@ function fixture(){
     const offers = [[], []];
     const sides = offers.map((items) => ({ parentElement: anchor, getClientRects: () => [{}], querySelectorAll: (selector) => selector === ".trade-offer-scroll .trade-inv-item" ? items : [] }));
     const document = { body: {}, hidden: false, pointerLockElement: null, querySelectorAll: () => sides, getElementById: () => null, createElement: () => box };
-    const context = vm.createContext({ document, window: { setInterval: () => 1, addEventListener(){}, removeEventListener(){} }, clearInterval(){}, HTMLInputElement: class {}, esc, GRADE_COLORS, formatKr, formatPercent, template: "",
+    const context = vm.createContext({ document, window: { setInterval: () => 1, addEventListener(){}, removeEventListener(){} }, clearInterval(){}, HTMLInputElement: class {}, esc, TRADE_VERDICTS, GRADE_COLORS, formatKr, formatPercent, template: "",
         marketApi: { analyze: (input) => new Promise((resolve) => requests.push({ input, resolve })), valuesByThumbnails: async(paths) => { lookups.push(paths); return {}; } },
     });
     vm.runInContext(source, context);

@@ -1,10 +1,9 @@
 import marketApi from "./api.js";
 import { GRADE_COLORS, formatKr, formatPercent } from "./types.js";
-import { esc } from "./presentation.js";
+import { esc, TRADE_VERDICTS } from "./presentation.js";
 import template from "../../components/marketTrade.html";
 
 const POLL_MS = 1200;
-const VERDICT_TEXT = { good: "More estimated value coming in", bad: "More estimated value going out", fair: "Similar estimated value", uncertain: "Limited evidence" };
 
 /**
  * @typedef {import("./types.js").TradeItem & {path?:string}} Entry
@@ -174,7 +173,10 @@ class TradeWindows {
         else {
             const oneSided = (!snapshot.give.length && !snapshot.giveKr) || (!snapshot.get.length && !snapshot.getKr);
             const partial = [...verdict.give.items, ...verdict.get.items].some((item) => item.unknown);
-            const status = oneSided ? "Add items on both sides to compare" : VERDICT_TEXT[verdict.verdict];
+            const status = oneSided ? "Add items on both sides to compare" : TRADE_VERDICTS[verdict.verdict].detail;
+            let callout = TRADE_VERDICTS[verdict.verdict].label;
+            if (partial) callout = "Incomplete comparison";
+            if (oneSided) callout = "Add both sides";
             html += `<span class="status ${oneSided ? "" : verdict.verdict}" role="status">${status}</span></header>`;
             /** @param {import("./types.js").TradeSide} side @param {string} label */
             const total = (side, label) => {
@@ -183,7 +185,7 @@ class TradeWindows {
                 return `<div class="side"><span class="label">${label}</span><strong>${formatKr(side.value)}${incomplete ? "+" : ""} <span class="unit">KR</span></strong><span class="meta">${count} ${count === 1 ? "item" : "items"}${side.kr ? ` + ${formatKr(side.kr)} KR` : ""} &middot; ${incomplete ? "Partial estimate" : "Estimated value"}</span></div>`;
             };
             const difference = oneSided || partial ? '<strong>&ndash;</strong><span class="meta">Incomplete comparison</span>' : `<strong>${verdict.difference > 0 ? "+" : ""}${formatKr(verdict.difference)} <span class="unit">KR</span></strong><span class="meta">${esc(formatPercent(verdict.differenceShare))} of the larger side</span>`;
-            html += `<div class="comparison">${total(verdict.give, "You give")}<div class="difference ${oneSided || partial ? "" : verdict.verdict}"><span class="label">Value difference</span>${difference}</div>${total(verdict.get, "You receive")}</div>`;
+            html += `<div class="comparison">${total(verdict.give, "You give")}<div class="difference ${oneSided || partial ? "" : verdict.verdict}"><span class="verdict" role="status">${callout}</span>${difference}</div>${total(verdict.get, "You receive")}</div>`;
             /** @param {import("./types.js").TradeSide} side @param {string} label */
             const breakdown = (side, label) => `<div><h3>${label}</h3>${side.items.map((item) => `<div class="line"><span class="name">${item.count > 1 ? `${item.count} &times; ` : ""}${esc(item.name)}${item.serial !== undefined ? ` #${item.serial}` : ""}${item.wear !== undefined ? ` &middot; wear ${item.wear.toFixed(4)}` : ""}${item.unknown ? "" : `<span class="grade" title="Activity grade ${item.grade}" style="background:${GRADE_COLORS[item.grade]}">${item.grade}</span>`}</span><span class="amount">${item.unknown ? "Unvalued" : `${formatKr(item.lineValue)} KR`}</span></div>`).join("")}${side.kr ? `<div class="line"><span>Added KR</span><span>${formatKr(side.kr)} KR</span></div>` : ""}${!side.items.length && !side.kr ? '<span class="meta">No items added</span>' : ""}</div>`;
             html += `<details${this.expanded ? " open" : ""}><summary><span class="show">Item breakdown &amp; evidence</span><span class="hide">Hide item breakdown &amp; evidence</span></summary><div class="detailBody"><div class="breakdown">${breakdown(verdict.give, "You give")}${breakdown(verdict.get, "You receive")}</div><ul class="notes"><li>Estimates describe market data, not guaranteed sale prices. Activity grades do not guarantee a selling time.</li>${verdict.drivers.filter((driver) => !driver.startsWith("Liquidity adjustments")).map((driver) => `<li>${esc(driver)}</li>`).join("")}</ul></div></details>`;

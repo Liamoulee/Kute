@@ -1,6 +1,6 @@
 import marketApi from "./api.js";
 import { RARITIES, GRADE_COLORS, formatAge, formatPercent } from "./types.js";
-import { TYPE_NAMES, esc, money, change, evidenceLabel, activityLabel, identity, empty, stat } from "./presentation.js";
+import { TYPE_NAMES, TRADE_VERDICTS, esc, money, change, evidenceLabel, activityLabel, identity, empty, stat } from "./presentation.js";
 import { readWatchlist, saveWatchlist, toggleWatch } from "./watchlist.js";
 import MarketChart from "./chart.js";
 import { itemDesk, marketDesk } from "./analytics.js";
@@ -452,9 +452,9 @@ class Terminal {
         let result = '<div class="tradeComparison muted">Add items or KR to see the difference. Estimates update as you build the trade.</div>';
         if (hasItems && !v) result = '<div class="notice">Analysis unavailable. Your selected items are preserved. <button class="textButton" data-action="analyze">Try again</button></div>';
         if (v){
-            const text = { good: "More estimated value coming in", bad: "More estimated value going out", fair: "Similar estimated value", uncertain: "Too little evidence for a verdict" }[v.verdict];
+            const text = TRADE_VERDICTS[v.verdict].label;
             const color = { good: "positive", bad: "negative", fair: "", uncertain: "" }[v.verdict];
-            result = `<div class="tradeComparison"><div><div class="eyebrow">THE DIFFERENCE</div><div class="verdict ${color}">${text}</div><span class="muted">Receiving minus giving, at estimated value</span></div><div class="tradeDifference ${color}"><strong>${v.difference > 0 ? "+" : ""}${money(v.difference)} <small>KR</small></strong>${change(v.differenceShare)}</div></div><ul class="insightList">${v.drivers.map((d) => `<li>${esc(d)}</li>`).join("")}</ul>${this.advanced ? `<details><summary>Heuristic liquidity adjustment</summary><div class="tradeAdjusted"><div><span>You give</span><strong>${money(v.give.liquidValue)} KR</strong></div><div><span>You receive</span><strong>${money(v.get.liquidValue)} KR</strong></div></div><p>After grade and quantity discounts. These are illustrative adjustments, not forecasts of sale proceeds.</p></details>` : ""}`;
+            result = `<div class="tradeComparison"><div><div class="eyebrow">THE DIFFERENCE</div><div class="verdict ${color}">${text}</div><span class="muted">${TRADE_VERDICTS[v.verdict].detail}</span></div><div class="tradeDifference ${color}"><strong>${v.difference > 0 ? "+" : ""}${money(v.difference)} <small>KR</small></strong>${change(v.differenceShare)}</div></div><ul class="insightList">${v.drivers.map((d) => `<li>${esc(d)}</li>`).join("")}</ul>${this.advanced ? `<details><summary>Heuristic liquidity adjustment</summary><div class="tradeAdjusted"><div><span>You give</span><strong>${money(v.give.liquidValue)} KR</strong></div><div><span>You receive</span><strong>${money(v.get.liquidValue)} KR</strong></div></div><p>After grade and quantity discounts. These are illustrative adjustments, not forecasts of sale proceeds.</p></details>` : ""}`;
         }
         return { asOf: v?.asOf, html: this.intro("Compare the trade.", "Your items on the left, theirs on the right. Add KR to either side.", '<button class="button" data-action="clear-trade">Clear trade</button>') + `<div class="tradeBoard">${side("give")}${side("get")}</div><div id="kmTradeOutcome" aria-live="polite">${result}</div>` };
     }

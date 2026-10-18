@@ -2,6 +2,13 @@ import { formatKr, formatPercent, RARITIES } from "./types.js";
 
 export const TYPE_NAMES = ["Weapons", "Hats", "Bodies", "Melee", "Sprays", "Dyes", "Waists", "Faces", "Charms", "Emotes", "Stickers", "Skydomes", "Poses", "Spin tickets", "Capes", "Heads", "Paints", "Backs", "Consumables"];
 
+export const TRADE_VERDICTS = {
+    good: { label: "Favorable trade", detail: "More estimated value coming in" },
+    fair: { label: "Fair trade", detail: "Similar estimated value" },
+    bad: { label: "Unfavorable trade", detail: "More estimated value going out" },
+    uncertain: { label: "Not enough evidence", detail: "Estimates are too uncertain for a verdict" },
+};
+
 /** @param {unknown} text */
 export const esc = (text) => String(text ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
 
