@@ -81,7 +81,9 @@ interface Kute {
     presence: { game: string; roster: Set<string>; devs: Map<string, string>; receive(data: unknown): void };
     /** absent on older exes */
     apiBase?: string;
-    api: { base: string; down: boolean; available(): Promise<boolean> };
+    api: { base: string; down: boolean; available(): Promise<boolean>; request(path: string, init?: RequestInit): Promise<any>; requestStatus(path: string, init?: RequestInit): Promise<{ status: number; data: any; error?: any }> };
+    /** the kute market, absent while the setting is off */
+    market?: { open(tab?: string, arg?: unknown): Promise<void>; toggle(enabled: boolean): void };
     bindShoot(): void;
     /** absent on older exes */
     hostFeatures?: string[];

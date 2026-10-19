@@ -92,7 +92,27 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # the market attestation key of this release: hmac(master, version) as hex, the server derives the same from its copy of the master.
+      # without the secret the exe signs nothing and the production market refuses it, which is what a fork gets
+      - name: Derive the market key
+        id: market
+        shell: pwsh
+        env:
+          KUTE_MARKET_MASTER: ${{ secrets.KUTE_MARKET_MASTER }}
+        run: |
+          if ($env:KUTE_MARKET_MASTER) {
+            $hmac = [System.Security.Cryptography.HMACSHA256]::new([System.Text.Encoding]::UTF8.GetBytes($env:KUTE_MARKET_MASTER))
+            $key = ($hmac.ComputeHash([System.Text.Encoding]::UTF8.GetBytes("${{ steps.version.outputs.version }}")) | ForEach-Object { $_.ToString("x2") }) -join ""
+            Write-Host "::add-mask::$key"
+            Add-Content $env:GITHUB_OUTPUT "key=$key"
+            Write-Host "market key derived for ${{ steps.version.outputs.version }}"
+          } else {
+            Write-Host "::warning::KUTE_MARKET_MASTER is not set, this build cannot use the market"
+          }
+
       - name: Build installer
+        env:
+          KUTE_MARKET_KEY: ${{ steps.market.outputs.key }}
         run: bun run package
 
       - name: Upload installer artifact

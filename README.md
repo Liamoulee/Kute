@@ -64,6 +64,8 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] OBS capture plugin (shared texture game capture plus a dedicated audio window)
 - [x] Officially supported by Medal.tv
 - [x] Encrypted Account Manager: drag accounts into your order, Ctrl+Alt+1, 2 and 3 log in the first three (rebindable)
+- [x] Kute Market (optional, on by default): a clear market overview, tabbed discovery with budget and activity filters, a local watchlist with price targets, inventory coverage, and side-by-side trade comparisons. Item searches suggest matches with thumbnails as you type. Native trade windows keep both inventories side by side, with a prominent trade verdict, a compact value comparison, and expandable evidence. A visual guide explains the colored liquidity grades. Both views offer price lines with dashed connections across missing observations, sampled asking-price candles with adaptive intervals and neutral single-quote ticks, comparisons, zoom, and reported sales bars. Advanced mode adds moving averages, RSI, volatility, drawdown, supply pressure, depth ladders, market diagnostics, and listing filters. Estimates show their evidence and quote freshness. Item details show the lowest and highest observed asks beside the estimate, separately from historical sale-price ranges. Market cards and trade windows link into the same tools. Analytics only: Kute never buys, lists, or trades for you.
+- [x] Market Intelligence, inside Discover: experimental descriptive signals for unusual activity, changing supply, movement relative to similar items, concentrated listings and current spin/shop availability. Item pages, deal ranking and trade explanations share scheduled snapshots. Signal thresholds have not been validated as predictive alerts. A trained research model records seven-day price forecasts and exposes its historical and forward track record; price predictions remain hidden until accuracy and uncertainty checks pass. Official news and catalog changes are collected as context, without invented sentiment scores.
 - [x] Match end message per account (optional): Krunker's end message is remembered for each account, so an alt never sends your main's message. An account without one sends nothing
 - [x] Queue ranked without the game open
 - [x] Better ranked with ELO system
@@ -88,7 +90,6 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] Matchmaker
 - [x] Spotify overlay - by [@Liamoulee](https://github.com/Liamoulee)
 - [ ] BetterKDR™️ (coming soon)
-- [ ] Bloomberg-style trading terminal & market analysis (coming soon)
 - [x] and more...
 
 <hr>

@@ -10,7 +10,7 @@
         "@fastify/static": "^10.1.4",
         "@fastify/websocket": "^11.3.0",
         "fastify": "^5.12.5",
-        "krapio": "^0.1.1",
+        "krapio": "^0.1.3",
         "node-cron": "^4.6.0",
       },
       "devDependencies": {
@@ -123,7 +123,7 @@
 
     "json-schema-traverse": ["json-schema-traverse@1.0.0", "", {}, "sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug=="],
 
-    "krapio": ["krapio@0.1.1", "", {}, "sha512-tA/liIWJbKv9dAr8vTRllknneQgdGWyaeSziw/O2jNDM5j2WVXLhec1UdrJAf/7AQr1qDBCRJINHJmQjnI8/Eg=="],
+    "krapio": ["krapio@0.1.3", "", {}, "sha512-g3BsOoIOyRxiQ1Y13syag57q0jHLIWInaA7SyLMZhqxTHBEttNgxlpESYdr0Y3mMmyXKJjuOXfDTZF8v4OpJug=="],
 
     "light-my-request": ["light-my-request@6.6.0", "", { "dependencies": { "cookie": "^1.0.1", "process-warning": "^4.0.0", "set-cookie-parser": "^2.6.0" } }, "sha512-CHYbu8RtboSIoVsHZ6Ye4cj4Aw/yg2oAFimlF7mNvfDV192LR7nDiKtSIfCuLT7KokPSTn/9kfVLm5OGN0A28A=="],
 

@@ -76,6 +76,15 @@
         "category": "General",
         "defaultValue": true
     },
+    "market": {
+        "name": "Kute Market",
+        "id": "market",
+        "description": "Enables market and trading features: K values, liquidity grades, trade verdicts and the market analyzer. In return, you allow Kute to see trading stats.",
+        "type": "checkbox",
+        "category": "General",
+        "defaultValue": true,
+        "disabledBy": "disableOnlineFeatures"
+    },
     "obsCapturePlugin": {
         "name": "OBS Capture Plugin",
         "id": "obsCapturePlugin",

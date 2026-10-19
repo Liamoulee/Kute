@@ -10,6 +10,8 @@ import { initDb } from "./db";
 import { loadPlayerStats } from "./util/playerStats";
 import { metaRoutes } from "./routes/meta";
 import { presenceRoutes } from "./routes/presence";
+import { marketRoutes } from "./routes/market";
+import { loadMarketEngine } from "./marketEngine";
 import { config, meta } from "../config/config";
 import sheduleCrons from "./util/cron";
 import { envName, envWasSet, isDevelopment } from "./util/env";
@@ -62,6 +64,8 @@ const app = Fastify({
 initDb();
 loadPlayerStats();
 sheduleCrons();
+const marketEngine = await loadMarketEngine();
+marketEngine?.start();
 
 app.register(cors, { origin: "*" });
 // public/kr gets embedded by krunker.io, helmet's default same-origin CORP would block it
@@ -82,6 +86,7 @@ app.register(fastifyStatic, {
 
 app.register(metaRoutes, { prefix: "/api" });
 app.register(presenceRoutes, { prefix: "/api" });
+app.register(marketRoutes, { prefix: "/api", engine: marketEngine });
 
 const port = parseInt(config.server.port ?? "3030", 10);
 await app.listen({ port, host: "127.0.0.1" });
