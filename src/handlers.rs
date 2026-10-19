@@ -754,8 +754,44 @@ fn handle_css_message(message: &str) -> Option<String> {
             Some(serde_json::json!({ "customCssSaved": { "error": error } }).to_string())
         }
         "reveal" => {
-            custom_css::reveal();
+            let name = payload_str(&payload, "name");
+            custom_css::reveal((!name.is_empty()).then_some(name));
             None
+        }
+        "list" => manager_reply("cssFiles", custom_css::list(), &[]),
+        "get" => {
+            let name = payload_str(&payload, "name");
+            Some(serde_json::json!({ "cssFile": { "name": name, "content": custom_css::read_file(name) } }).to_string())
+        }
+        "save" => {
+            let name = payload_str(&payload, "name");
+            let error = custom_css::write_file(name, payload_str(&payload, "content")).err();
+            Some(serde_json::json!({ "cssFiles": custom_css::list(), "cssSaved": { "name": name, "error": error } }).to_string())
+        }
+        // new, pasted and imported files, never over an existing one
+        "import" => {
+            let requested = payload_str(&payload, "name");
+            let name = custom_css::free_name(requested);
+            let error = custom_css::write_file(&name, payload_str(&payload, "content")).err();
+            let reply = serde_json::json!({ "requested": requested, "name": name, "error": error });
+            Some(serde_json::json!({ "cssFiles": custom_css::list(), "cssImported": reply }).to_string())
+        }
+        "rename" => {
+            let problems: Vec<String> = custom_css::rename(payload_str(&payload, "from"), payload_str(&payload, "to"))
+                .err()
+                .into_iter()
+                .collect();
+            manager_reply("cssFiles", custom_css::list(), &problems)
+        }
+        "delete" => {
+            let problems: Vec<String> = custom_css::delete(payload_str(&payload, "name")).err().into_iter().collect();
+            manager_reply("cssFiles", custom_css::list(), &problems)
+        }
+        "activate" => {
+            let name = payload_str(&payload, "name");
+            let error = custom_css::set_active(name).err();
+            let content = custom_css::read();
+            Some(serde_json::json!({ "cssFiles": custom_css::list(), "cssActivated": { "content": content, "error": error } }).to_string())
         }
         _ => None,
     }

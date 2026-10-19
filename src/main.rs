@@ -155,6 +155,7 @@ fn main() {
         eprintln!("failed to set all the files in place {}", e);
     }
     modules::userscripts::seed_shipped();
+    modules::custom_css::migrate();
     // preload the swapper off the IO thread, bench doesn't need it
     if bench.is_none() {
         std::thread::spawn(|| {
