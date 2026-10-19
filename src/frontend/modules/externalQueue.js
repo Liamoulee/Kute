@@ -1,5 +1,6 @@
 import { getElement } from "../utils.js";
 import { mapImageUrl, mapLabel, officialMaps } from "./maps.js";
+import { chosenSound, kuteSound, volume } from "./queueSound.js";
 
 /** @type {HTMLButtonElement} */
 const externalQueue = document.createElement("button");
@@ -30,7 +31,7 @@ function openExtQueue(){
     const windowHeight = 350;
     const left = (screenWidth - windowWidth) / 2;
     const top = (screenHeight - windowHeight) / 2;
-    /** @type {(Window & { info?: { allRegions: boolean, token: string, region: string, sound: string, maps: Record<string, { url: string, number: number }> } })|null} */
+    /** @type {(Window & { info?: { allRegions: boolean, token: string, region: string, sound: string, fallbackSound: string, volume: () => number, maps: Record<string, { url: string, number: number }> } })|null} */
     const queueWindow = window.open(
         "about:blank",
         "_blank",
@@ -60,12 +61,14 @@ function openExtQueue(){
     Promise.all([
         import("../components/queue/index.html"),
         import("popup-script:../components/queue/queue.js"),
-        import("../components/queue/match-found.ogg"),
+        chosenSound(),
+        kuteSound(),
         officialMaps(),
-    ]).then(([html, code, sound, mapEntries]) => {
+    ]).then(([html, code, sound, fallbackSound, mapEntries]) => {
         // the ranked pool changes every season, so every official map is offered and named
         const maps = Object.fromEntries(mapEntries.map(([id, name]) => [mapLabel(name), { url: mapImageUrl(id), number: id }]));
-        queueWindow.info = { allRegions, token, region, sound: sound.default, maps };
+        // volume is read from here when the sound plays, so the slider applies to an open queue window
+        queueWindow.info = { allRegions, token, region, sound, fallbackSound, volume, maps };
 
         const doc = new DOMParser().parseFromString(html.default, "text/html");
         queueWindow.document.head.append(...Array.from(doc.head.children, (child) => queueWindow.document.importNode(child, true)));
