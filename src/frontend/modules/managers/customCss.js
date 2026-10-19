@@ -343,7 +343,7 @@ class CssManager {
             return;
         }
         if (name === this.active) customCss.markSaved(content);
-        if (name === this.editing) this.editor?.markSaved();
+        if (name === this.editing) this.editor?.markSaved(content);
         this.preview();
         if (this.closeAfterSave) this.popup?.close();
     }
@@ -438,8 +438,7 @@ class CssManager {
         if (!this.popup) return;
         const sure = await askConfirm(this.popup.shadow, `Delete ${name}?`, "It goes to the recycle bin.", "Delete");
         if (!sure) return;
-        // the list reply closes the editor, the changes go with the file
-        if (this.editing === name) this.editor?.markSaved();
+        // the list reply closes the editor, the changes go with the file. a failed delete keeps them
         post("delete", { name });
     }
 

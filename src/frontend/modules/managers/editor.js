@@ -86,7 +86,7 @@ export function highlight(source, language = "js"){
  * @typedef {object} CodeEditor
  * @property {() => string} getValue
  * @property {() => boolean} isDirty
- * @property {() => void} markSaved
+ * @property {(content?: string) => void} markSaved Content is what was written, edits made while it saved stay unsaved
  * @property {() => void} focus
  */
 
@@ -194,8 +194,8 @@ export function createCodeEditor(container, content, { onSave, onDirtyChange, on
     return {
         getValue: () => textarea.value,
         isDirty: () => dirty,
-        markSaved(){
-            saved = textarea.value;
+        markSaved(written = textarea.value){
+            saved = written;
             render();
         },
         focus(){
