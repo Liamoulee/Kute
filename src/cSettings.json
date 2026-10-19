@@ -360,7 +360,7 @@
         "description": "How long the trail is when Motion Blur is on",
         "type": "slider",
         "category": "Customization",
-        "defaultValue": 25,
+        "defaultValue": 40,
         "min": 10,
         "max": 100,
         "step": 5
