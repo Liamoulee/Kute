@@ -58,7 +58,8 @@ const app = Fastify({
             req: (req) => ({ method: req.method, url: req.url }),
         },
     },
-    trustProxy: true,
+    // nginx appends to X-Forwarded-For, trusting more than itself lets a client pick its own address
+    trustProxy: "127.0.0.1",
 });
 
 initDb();
