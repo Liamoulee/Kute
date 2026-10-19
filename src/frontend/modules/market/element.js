@@ -12,3 +12,6 @@ export function element(tag, attributes, ...children){
     const body = children.map((child) => typeof child === "object" ? child.html : esc(String(child))).join("");
     return `<${tag}${attrs}>${body}</${tag}>`;
 }
+
+/** @param {TemplateStringsArray} strings @param {...unknown} values */
+export const html = (strings, ...values) => strings.reduce((result, part, i) => result + String(values[i - 1]) + part);

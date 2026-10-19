@@ -11,6 +11,11 @@ export async function researchView(desk){
     return {
         asOf: reply.asOf,
         asOfLabel: "Analyzed",
-        html: intelligenceView(reply, kind, desk.advanced, readWatchlist().map(w => w.skin)),
+        html: intelligenceView(
+            reply,
+            kind,
+            desk.advanced,
+            readWatchlist().map((w) => w.skin),
+        ),
     };
 }
