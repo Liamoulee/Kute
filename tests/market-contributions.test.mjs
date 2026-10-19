@@ -22,19 +22,20 @@ test("invalid, cancelled, future and partially parsed trades never become comple
     expect(contributedSale({ ...sale, status: "cancelled" }, NOW)).toBeNull();
 });
 
-const TRADE_URL = "https://gapi.svc.krunker.io/trades/history?offset=0&limit=100";
 const settle = () => new Promise(resolve => setTimeout(resolve, 10));
+const tradeReply = () => ({ data: { completed: [rawTrade], open: [{ ...rawTrade, trid: 999 }], completed_has_more: true } });
 
-function collectorFixture(){
+function collectorFixture(features = ["history-capture"]){
     let now = NOW;
     class Clock extends Date { static now(){ return now; } }
-    const storage = new Map([["krunker_username", "local account"]]); const posted = []; const requested = [];
+    const storage = new Map([["krunker_username", "local account"]]); const posted = []; const listeners = [];
     const timers = new Map(); let timerId = 0;
-    const response = () => Response.json({ data: { completed: [rawTrade], open: [{ ...rawTrade, trid: 999 }], completed_has_more: true } });
-    const original = (...args) => { requested.push(args); return Promise.resolve(response()); };
-    const context = vm.createContext({ Date: Clock, AbortController, Request, Response, URL, contributedSale, contributedTrade,
-        location: { href: "https://krunker.io/" }, document: { hidden: false, pointerLockElement: null },
-        window: { fetch: original, setTimeout: (fn, delay) => { const id = ++timerId; timers.set(id, { fn, at: now + delay }); return id; } },
+    const context = vm.createContext({ Date: Clock, AbortController, contributedSale, contributedTrade,
+        kute: { hostFeatures: features }, document: { hidden: false, pointerLockElement: null },
+        window: {
+            chrome: { webview: { addEventListener: (name, fn) => listeners.push(fn), removeEventListener: (name, fn) => { const at = listeners.indexOf(fn); if (at >= 0) listeners.splice(at, 1); } } },
+            setTimeout: (fn, delay) => { const id = ++timerId; timers.set(id, { fn, at: now + delay }); return id; },
+        },
         clearTimeout: id => timers.delete(id), api: { down: false, offline: () => false },
         localStorage: { getItem: k => { if (k.includes("token")) throw new Error("credentials must not be accessed"); return storage.get(k) ?? null; } },
         marketApi: { loggedIn: () => true, retryAt: 0, observe: async(body) => { posted.push(body); return { accepted: 1 }; } },
@@ -42,91 +43,93 @@ function collectorFixture(){
     const code = fs.readFileSync(new URL("../src/frontend/modules/market/contrib.js", import.meta.url), "utf8").replace(/^import .*;\r?\n/gm, "").replace("export default contrib;", "globalThis.subject = contrib;");
     vm.runInContext(code, context);
     context.subject.start();
-    return { subject: context.subject, context, storage, posted, requested, timers, original, response,
+    return { subject: context.subject, context, storage, posted, listeners, timers,
         advance: async(ms) => {
             now += ms;
             for (const [id, timer] of [...timers]) if (timer.at <= now){ timers.delete(id); timer.fn(); }
             await settle();
         },
-        game: async(input = TRADE_URL, init) => { const result = await context.window.fetch(input, init); await settle(); return result; },
+        host: async(reply = tradeReply(), kind = "trades", asObject = false) => {
+            const message = { marketHistory: { kind, data: reply } };
+            for (const fn of [...listeners]) fn({ data: asObject ? message : JSON.stringify(message) });
+            await settle();
+        },
     };
 }
 
-test("passive collection starts without requests and preserves the game's response and full completed details", async() => {
+test("the page never touches fetch or credentials; it only normalizes what the host forwards", async() => {
     const f = collectorFixture();
+    expect(f.context.fetch).toBeUndefined();
+    expect(f.listeners).toHaveLength(1);
     await f.advance(3_600_000);
-    expect(f.requested).toHaveLength(0); expect(f.timers.size).toBe(0);
-    const result = await f.game();
-    expect((await result.json()).data.completed[0].player).toBe(rawTrade.player);
+    expect(f.posted).toHaveLength(0); expect(f.timers.size).toBe(0);
+    await f.host();
     await f.subject.flush();
-    expect(f.requested).toHaveLength(1);
     expect(f.posted).toHaveLength(1);
     expect(f.posted[0].trades).toHaveLength(1);
     expect(f.posted[0].trades[0]).toMatchObject({ trid: 123, giveKr: 100, get: [{ skin: 2, count: 2 }] });
     expect(JSON.stringify(f.posted)).not.toContain("private");
     expect(JSON.stringify(f.posted)).not.toContain("local account");
-    await f.advance(3_600_000);
-    expect(f.requested).toHaveLength(1);
+    await f.host(); await f.subject.flush();
+    expect(f.posted).toHaveLength(1);
 });
 
-test("only exact history GET endpoints are observed; Request inputs keep working", async() => {
+test("host messages arrive as text or objects; unrelated messages and unknown kinds are ignored", async() => {
     const f = collectorFixture();
-    for (const url of ["https://gapi.svc.krunker.io.evil.test/trades/history", "http://gapi.svc.krunker.io/trades/history", "https://gapi.svc.krunker.io/trades/open"]){
-        await f.game(url);
+    await f.host(tradeReply(), "trades", true);
+    expect(f.subject.queue.size).toBe(1);
+    for (const data of ["not json", JSON.stringify({ pingInfo: 3 }), JSON.stringify({ marketHistory: { kind: "listings", data: tradeReply() } }), JSON.stringify({ marketHistory: { kind: "trades", data: { error: "nope", data: tradeReply().data } } })]){
+        for (const fn of f.listeners) fn({ data });
     }
-    await f.game(TRADE_URL, { method: "POST" });
-    await f.subject.flush(); expect(f.posted).toHaveLength(0);
-    await f.game(new Request(TRADE_URL)); await f.subject.flush();
-    expect(f.posted).toHaveLength(1); expect(f.requested).toHaveLength(5);
+    await settle();
+    expect(f.subject.queue.size).toBe(1);
 });
 
-test("stopping and account changes discard pending history, without clobbering another fetch wrapper", async() => {
-    const f = collectorFixture();
-    let release;
+test("an exe without the history capture registers nothing", async() => {
+    const f = collectorFixture([]);
+    expect(f.listeners).toHaveLength(0);
+    expect(f.subject.running).toBe(false);
     f.subject.stop();
-    expect(f.context.window.fetch).toBe(f.original);
-    f.context.window.fetch = () => new Promise(resolve => { release = resolve; });
-    f.subject.start();
-    const pending = f.context.window.fetch(TRADE_URL);
-    f.subject.stop(); release(f.response()); await pending; await settle();
-    expect(f.subject.queue.size).toBe(0);
-    f.context.window.fetch = f.original; f.subject.start();
-    await f.game(); f.storage.set("krunker_username", "another account"); await f.subject.flush();
-    expect(f.posted).toHaveLength(0); expect(f.subject.queue.size).toBe(0);
-    const wrapped = f.context.window.fetch;
-    const later = (...args) => wrapped(...args);
-    f.context.window.fetch = later; f.subject.stop();
-    expect(f.context.window.fetch).toBe(later);
-    await f.game(); expect(f.subject.queue.size).toBe(0);
+    expect(f.listeners).toHaveLength(0);
 });
 
-test("gameplay, hidden pages and offline mode leave game requests alone without collecting", async() => {
+test("stopping detaches the listener and account changes discard pending history", async() => {
     const f = collectorFixture();
-    f.context.document.pointerLockElement = {}; await f.game();
-    f.context.document.pointerLockElement = null; f.context.document.hidden = true; await f.game();
-    f.context.document.hidden = false; f.context.api.offline = () => true; await f.game();
-    expect(f.requested).toHaveLength(3); expect(f.subject.queue.size).toBe(0);
+    f.subject.stop();
+    expect(f.listeners).toHaveLength(0);
+    await f.host(); expect(f.subject.queue.size).toBe(0);
+    f.subject.start(); expect(f.listeners).toHaveLength(1);
+    await f.host(); f.storage.set("krunker_username", "another account"); await f.subject.flush();
+    expect(f.posted).toHaveLength(0); expect(f.subject.queue.size).toBe(0);
 });
 
-test("repeated pages deduplicate and shared cooldown pauses uploads without creating more game requests", async() => {
+test("gameplay, hidden pages and offline mode drop forwarded history without collecting", async() => {
+    const f = collectorFixture();
+    f.context.document.pointerLockElement = {}; await f.host();
+    f.context.document.pointerLockElement = null; f.context.document.hidden = true; await f.host();
+    f.context.document.hidden = false; f.context.api.offline = () => true; await f.host();
+    expect(f.subject.queue.size).toBe(0);
+});
+
+test("repeated pages deduplicate and shared cooldown pauses uploads", async() => {
     const f = collectorFixture();
     f.context.marketApi.observe = async(body) => { f.posted.push(body); f.context.marketApi.retryAt = NOW + 60_000; return null; };
-    await f.game(); await f.subject.flush();
-    for (let i = 0; i < 3; i++){ await f.game(); await f.subject.flush(); }
+    await f.host(); await f.subject.flush();
+    for (let i = 0; i < 3; i++){ await f.host(); await f.subject.flush(); }
     expect(f.posted).toHaveLength(1); expect(f.subject.queue.size).toBe(1);
     await f.advance(59_999); expect(f.posted).toHaveLength(1);
     f.context.marketApi.observe = async(body) => { f.posted.push(body); return { accepted: 1 }; };
     await f.advance(1);
     expect(f.posted).toHaveLength(2); expect(f.subject.queue.size).toBe(0);
-    await f.game(); await f.advance(10_000);
-    expect(f.posted).toHaveLength(2); expect(f.requested).toHaveLength(5);
+    await f.host(); await f.advance(10_000);
+    expect(f.posted).toHaveLength(2);
 });
 
 test("failed uploads back off, and stopped uploads cannot clear a restarted queue", async() => {
     const f = collectorFixture(); let release;
     f.context.marketApi.observe = () => new Promise(resolve => { release = resolve; });
-    await f.game(); const pending = f.subject.flush();
-    f.subject.stop(); f.subject.start(); await f.game();
+    await f.host(); const pending = f.subject.flush();
+    f.subject.stop(); f.subject.start(); await f.host();
     release({ accepted: 1 }); await pending;
     expect(f.subject.queue.size).toBe(1);
     f.context.marketApi.observe = async(body) => { f.posted.push(body); return null; };
@@ -137,12 +140,12 @@ test("failed uploads back off, and stopped uploads cannot clear a restarted queu
 });
 
 test("completed market-history responses are normalized without other-party details", async() => {
-    const f = collectorFixture(); f.subject.stop();
-    f.context.window.fetch = async() => Response.json({ data: { history: [
+    const f = collectorFixture();
+    await f.host({ data: { history: [
         { marketid: 7, skinindex: 1, amount: 100, type: "sell", status: "completed", date: rawTrade.dte, other_party_name: "private" },
         { marketid: 8, skinindex: 1, amount: 100, type: "sell", status: "cancelled", date: rawTrade.dte },
-    ], has_more: true } });
-    f.subject.start(); await f.game("https://gapi.svc.krunker.io/market/history"); await f.subject.flush();
+    ], has_more: true } }, "sales");
+    await f.subject.flush();
     expect(f.posted[0].sales).toHaveLength(1); expect(f.posted[0].sales[0]).not.toHaveProperty("other_party_name");
 });
 
