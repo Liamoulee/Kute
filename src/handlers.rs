@@ -1197,7 +1197,7 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             modules::ping::ping_regions(browser.identifier());
         }
         // the challenge is base64url from the server, so it never contains the message separator
-        ["market-attest", challenge, logged_in] => {
+        ["market-attest", challenge, logged_in] if is_krunker_frame(frame) && challenge.len() <= 128 => {
             bridge::post_json(browser, &modules::attest::attest(challenge, logged_in.parse::<bool>().unwrap_or(false)));
         }
         _ => {}

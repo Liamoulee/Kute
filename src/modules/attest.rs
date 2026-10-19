@@ -2,10 +2,7 @@ use base64::{Engine, engine::general_purpose::STANDARD};
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 
-// the market attestation: the page asks the host to sign a challenge the kute server issued, and the
-// server only hands out a market session for a signature made with this release's key. the key is derived
-// per release by the workflow from a secret only it and the server know and embedded at build time, so a
-// local build has none and signs nothing; the page never sees the key, only the signature
+// market session signature, design in _docs/code/host.md (market attestation)
 
 /// hmac(master, version) as hex, set by the release workflow; absent in local builds
 const KEY: Option<&str> = option_env!("KUTE_MARKET_KEY");
