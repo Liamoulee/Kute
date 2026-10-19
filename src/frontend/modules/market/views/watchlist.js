@@ -1,7 +1,7 @@
 import { html } from "../element.js";
 import marketApi from "../api.js";
 import { esc, money, identity, empty } from "../presentation.js";
-import { readWatchlist } from "../watchlist.js";
+import { readWatchlist, saveWatchlist } from "../watchlist.js";
 /** @param {import("../terminal.js").Terminal} desk  @return {Promise<import("../terminal.js").View>} */
 export async function watchlistView(desk){
     const watch = readWatchlist();
@@ -22,6 +22,16 @@ export async function watchlistView(desk){
                 ) +
                 "</section>",
         };
+    }
+    // items watched before the rarity was stored get it once
+    const missing = watch.filter((w) => w.rarity === undefined);
+    if (missing.length){
+        const items = await Promise.all(missing.map((w) => marketApi.cached(`/market/item/${w.skin}`, 300_000)));
+        missing.forEach((w, i) => {
+            const rarity = items[i]?.skin?.rarity;
+            if (Number.isInteger(rarity)) w.rarity = rarity;
+        });
+        if (missing.some((w) => w.rarity !== undefined)) saveWatchlist(watch);
     }
     const values = await marketApi.values(watch.map((w) => w.skin));
     const asOf = Math.min(...Object.values(values).flatMap((v) => (v.valuedAt ? [v.valuedAt] : [])));
