@@ -7,6 +7,8 @@ import { kute } from "../client.js";
 
 // value of queueSoundFile for the sound that ships with kute
 const KUTE_SOUND = "";
+// percent. full volume was far louder than the game, which plays its own match found pop at 0.15
+const DEFAULT_VOLUME = 40;
 const REPLY_TIMEOUT = 5000;
 
 /**
@@ -17,7 +19,7 @@ const hostSupportsSounds = () => kute.hostFeatures?.includes("custom-sounds") ??
 /**
  * @return {number} 0 to 1, read when the sound plays so the slider applies to an open queue window
  */
-export const volume = () => Math.min(1, Math.max(0, Number(kute.settings.data.queueSoundVolume ?? 40) / 100 || 0));
+export const volume = () => Math.min(1, Math.max(0, Number(kute.settings.data.queueSoundVolume ?? DEFAULT_VOLUME) / 100 || 0));
 
 /**
  * @template T
@@ -77,6 +79,8 @@ class QueueSound {
         this.context = null;
         /** @type {AudioBufferSourceNode|null} */
         this.playing = null;
+        /** @type {GainNode|null} */
+        this.gain = null;
         kute.queueSound = { showOptions: () => this.showOptions() };
     }
 
@@ -102,6 +106,7 @@ class QueueSound {
         };
         source.start();
         this.playing = source;
+        this.gain = gain;
     }
 
     stop(){
@@ -125,6 +130,8 @@ class QueueSound {
          */
         const element = (id) => /** @type {HTMLElement} */ (shadow.querySelector(`#${id}`));
         const select = /** @type {HTMLSelectElement} */ (element("qsSound"));
+        const slider = /** @type {HTMLInputElement} */ (element("qsVolume"));
+        const savedVolume = Math.round(volume() * 100);
         const error = element("qsError");
         let chosen = String(kute.settings.data.queueSoundFile ?? KUTE_SOUND);
 
@@ -158,13 +165,25 @@ class QueueSound {
             element("qsFileHint").textContent = hint;
         };
 
+        const showVolume = () => {
+            element("qsVolumeValue").textContent = `${slider.value} %`;
+        };
+        slider.value = String(savedVolume);
+        showVolume();
+        // live, so Play and an open queue window use it right away. stored on close
+        slider.oninput = () => {
+            kute.settings.data.queueSoundVolume = Number(slider.value);
+            showVolume();
+            if (this.playing && this.gain) this.gain.gain.value = volume();
+        };
+
         select.onchange = () => {
             chosen = select.value;
             showError("");
         };
         element("qsPlay").onclick = async() => {
             showError("");
-            if (volume() === 0) showError("The volume is at 0 (Settings, Game).");
+            if (volume() === 0) showError("The volume is at 0.");
             try {
                 if (chosen === KUTE_SOUND){
                     await this.play(await kuteSound());
@@ -189,6 +208,7 @@ class QueueSound {
             controller.abort();
             this.stop();
             overlay.remove();
+            if (Number(slider.value) !== savedVolume) window.chrome.webview.postMessage(`set-config-json queueSoundVolume ${Number(slider.value)}`);
             if (chosen === String(kute.settings.data.queueSoundFile ?? KUTE_SOUND)) return;
             kute.settings.data.queueSoundFile = chosen;
             window.chrome.webview.postMessage(`set-config-json queueSoundFile ${JSON.stringify(chosen)}`);

@@ -173,26 +173,8 @@
         "description": "When Krunker's ranked queue finds a match while you are tabbed out, Kute comes to the front",
         "type": "checkbox",
         "category": "Game",
-        "defaultValue": true
-    },
-    "queueSoundVolume": {
-        "name": "Match Found Volume",
-        "id": "queueSoundVolume",
-        "description": "How loud Kute's queue window plays its match found sound, 0 mutes it",
-        "type": "slider",
-        "category": "Game",
-        "defaultValue": 40,
-        "min": 0,
-        "max": 100,
-        "step": 5
-    },
-    "queueSound": {
-        "name": "Match Found Sound",
-        "id": "queueSound",
-        "description": "Kute's sound or your own one for the queue window",
-        "type": "none",
-        "category": "Game",
-        "button": "Change",
+        "defaultValue": true,
+        "button": "Sound",
         "buttonAction": "{{kute}}.queueSound.showOptions()"
     },
     "accountEndMessage": {
