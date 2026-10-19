@@ -182,7 +182,7 @@ class MarketApi {
         if (result.status === 429){
             this.limited(result.retryAt);
         }
-        else this.lastError = result.data === null ? "The market is temporarily unavailable. Please try again shortly." : "";
+        else this.lastError = result.data === null && result.status !== 404 ? "The market is temporarily unavailable. Please try again shortly." : "";
         return result;
     }
 

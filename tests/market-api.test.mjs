@@ -81,3 +81,14 @@ test("item desk is one cached request with a fallback for older servers only", a
     expect(await busy.api.itemDesk(1, "1M")).toBeNull();
     expect(busy.calls).toHaveLength(1);
 });
+
+
+test("an expected desk 404 leaves no unavailable message when every fallback is cached", async() => {
+    const f = marketFixture([{ status: 404, data: null }]);
+    for (const [path, data] of [["/market/item/1", { skin: 1 }], ["/market/item/1/history?range=1M", { points: [] }], ["/market/item/1/listings", { listings: [] }]]){
+        await f.api.cached(path, 300_000, async() => data);
+    }
+    expect((await f.api.itemDesk(1, "1M")).item.skin).toBe(1);
+    expect(f.calls).toHaveLength(1);
+    expect(f.api.lastError).toBe("");
+});

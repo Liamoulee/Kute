@@ -1,3 +1,4 @@
+import { kute } from "../../client.js";
 import { TITLES, DISCOVERY_TABS } from "./navigation.js";
 import { overviewView } from "./views/overview.js";
 import { searchView } from "./views/search.js";
@@ -547,7 +548,18 @@ export class Terminal {
             event.preventDefault();
             try {
                 const url = new URL(d.externalUrl);
-                if (url.protocol === "https:" && !url.username && !url.password) window.chrome.webview.postMessage(`open-url, ${url.href}`);
+                if (url.protocol !== "https:" || url.username || url.password || url.port) return;
+                const allowed = ["github.com", "kute.lol", "krunker.io"].includes(url.hostname)
+                    || url.hostname === "discord.com" && url.pathname.startsWith("/invite/");
+                if (!allowed){
+                    kute.showNotification("This news link is not supported by Kute.", false, 6);
+                    return;
+                }
+                if (url.hostname === "krunker.io" && !kute.hostFeatures?.includes("krunker-links")){
+                    kute.showNotification("Update the Kute application to open Krunker news links.", false, 6);
+                    return;
+                }
+                window.chrome.webview.postMessage(`open-url, ${url.href}`);
             }
             catch { /* malformed feed links stay inert */ }
             return;
