@@ -79,7 +79,7 @@
     "market": {
         "name": "Kute Market",
         "id": "market",
-        "description": "Market estimates and trade analysis. Shares completed sale and trade facts from history the game loads, without player names or login tokens.",
+        "description": "Enables market and trading features: K values, liquidity grades, trade verdicts and the market analyzer. Shares item and transaction data without player names.",
         "type": "checkbox",
         "category": "General",
         "defaultValue": true,
