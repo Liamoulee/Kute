@@ -79,6 +79,7 @@ pub mod modules {
     pub use crate::linux::replay;
     pub mod resource;
     pub mod skybox;
+    pub mod sounds;
     #[cfg(windows)]
     pub mod specs;
     #[cfg(target_os = "linux")]
