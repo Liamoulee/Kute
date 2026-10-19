@@ -1,58 +1,25 @@
 <div class="prose">
-<h2>Prices and evidence</h2>
-<p>The Kute estimate combines completed public sales with eligible completed private exchanges. A trade of two items plus KR for another item supplies a relationship between their values. Public sales and KR payments anchor that relationship; overlapping bundles can establish values even without listings. Recent reports receive more weight, repeated-source influence is limited, and unresolved conflicts withdraw dependent estimates. A new private estimate needs at least two reporting sources; an item with its own supported public-sales baseline can also use private exchanges. Sparse corroborated estimates remain tentative. If a bundle cannot establish separate item values, Kute keeps the public-data baseline instead of guessing. The item page explains which evidence contributes.</p>
-<p>Recent sales and sparse sales describe the supporting data. A heuristic evidence score is not a probability that a price is correct. Historical price ranges describe daily averages, not every transaction or a prediction interval.</p>
-<h2>Reading the charts</h2>
-<p>Both modes include line and candle charts, comparisons, zoom, pan, and reported sales bars. Line charts show daily average sale prices, except the 1D range which uses observed asks. Solid lines join consecutive observations; dashed lines connect recorded values across missing periods without estimating prices in between. Dots mark actual observations.</p>
-<p>Ask candles show the open, high, low, and close of sampled lowest asks over time. They use a larger, labeled interval when sparse quotes can support multiple candles. Green means the closing ask rose, red means it fell, and gray means only one quote or an unchanged close. Missing periods remain empty. These are asking prices, not completed-trade candles. Volume bars sum reported sale counts within each displayed interval; missing counts stay unknown.</p>
-<h2>Advanced analytics</h2>
-<p>Advanced adds daily-price moving averages, RSI, volatility, drawdown, sales-weighted prices, activity comparisons, and an ask-side depth ladder. These describe completed observations. Moving averages and RSI need consecutive priced days; missing data stays unavailable. Market diagnostics show breadth, return dispersion, category performance, and turnover concentration. Metric explanations and coverage appear alongside the numbers.</p>
-<h2>Activity and selling</h2>
-<p>The letter grades describe public-market activity using sales frequency, listed supply and public-data estimates. Private exchange counts appear separately and qualify items for Actively Traded, even without listings. A low letter grade can coexist with recent private trades: barter activity does not establish how quickly an item sells for KR. Neither measure promises a selling time.</p>
-<div class="gradeGuide" aria-label="Liquidity grades">
-<div class="gradeRow">
-<span class="liquidityBadge gradeA">A</span>
-<div>
-<b>Very active</b>
-<p>Strongest activity score. Frequent sales and supportive asking prices relative to the estimate.</p>
+<h2>The numbers</h2>
+<div class="gradeGuide compact">
+<div class="gradeRow"><span class="liquidityBadge helpMark">K</span><div><b>Kute estimate</b><p>What the item is worth, from recent sales and trades.</p></div></div>
+<div class="gradeRow"><span class="liquidityBadge helpMark">Ask</span><div><b>Lowest ask</b><p>The cheapest listing right now.</p></div></div>
+<div class="gradeRow"><span class="liquidityBadge helpMark">%</span><div><b>Ask vs estimate</b><p>Plus means the ask is above the estimate, minus means below.</p></div></div>
+<div class="gradeRow"><span class="liquidityBadge helpMark">0-100</span><div><b>Evidence score</b><p>How much data backs the estimate. Low means take it with a grain of salt.</p></div></div>
 </div>
+<h2>Activity grades</h2>
+<div class="gradeGuide compact" aria-label="Liquidity grades">
+<div class="gradeRow"><span class="liquidityBadge gradeA">A</span><div><b>Very active</b><p>Sells often, easy to get rid of.</p></div></div>
+<div class="gradeRow"><span class="liquidityBadge gradeB">B</span><div><b>Active</b><p>Sells regularly.</p></div></div>
+<div class="gradeRow"><span class="liquidityBadge gradeC">C</span><div><b>Moderate</b><p>Might take a while or a lower price.</p></div></div>
+<div class="gradeRow"><span class="liquidityBadge gradeD">D</span><div><b>Thin</b><p>Few sales, hard to sell.</p></div></div>
+<div class="gradeRow"><span class="liquidityBadge gradeF">F</span><div><b>Very limited</b><p>Barely trades, the estimate is a rough guess.</p></div></div>
 </div>
-<div class="gradeRow">
-<span class="liquidityBadge gradeB">B</span>
-<div>
-<b>Active</b>
-<p>A strong activity score, with less support than grade A. Check recent sales and competing listings.</p>
+<h2>Trade verdicts</h2>
+<div class="gradeGuide compact">
+<div class="gradeRow"><span class="liquidityBadge gradeA">+</span><div><b>Favorable</b><p>You get more value than you give.</p></div></div>
+<div class="gradeRow"><span class="liquidityBadge gradeC">=</span><div><b>Fair</b><p>Both sides are about even.</p></div></div>
+<div class="gradeRow"><span class="liquidityBadge gradeF">-</span><div><b>Unfavorable</b><p>You give more value than you get.</p></div></div>
+<div class="gradeRow"><span class="liquidityBadge helpMark">?</span><div><b>Not enough evidence</b><p>Some items can't be valued well enough to say.</p></div></div>
 </div>
-</div>
-<div class="gradeRow">
-<span class="liquidityBadge gradeC">C</span>
-<div>
-<b>Moderate</b>
-<p>Mixed trading activity and pricing support. Selling may require more patience or a more competitive ask.</p>
-</div>
-</div>
-<div class="gradeRow">
-<span class="liquidityBadge gradeD">D</span>
-<div>
-<b>Thin</b>
-<p>Weak activity support. Sparse sales or less supportive asking prices make an exit harder to assess.</p>
-</div>
-</div>
-<div class="gradeRow">
-<span class="liquidityBadge gradeF">F</span>
-<div>
-<b>Very limited</b>
-<p>The lowest activity score, including items without a sales-based estimate. Check the available evidence carefully.</p>
-</div>
-</div>
-</div>
-<p>The asking-price planner compares your proposed price with observed competitors; its gross proceeds assume all units sell and exclude listing fees.</p>
-<h2>Trade comparisons</h2>
-<p>A verdict compares the estimated value of the two sides and becomes uncertain when an item cannot be reliably valued. Advanced liquidity adjustments are heuristic discounts, not guaranteed liquidation prices. Rare instance premiums remain unknown until supported by validated sales.</p>
-<h2>Your watchlist and inventory</h2>
-<p>Watchlists, target prices, and your preferred view are stored on this device. Target checks run in the menu and pause during gameplay. Inventory history applies historical prices to today's holdings. It does not measure personal profit.</p>
-<h2>Your data</h2>
-<p>See the <button class="textButton" data-external-url="https://kute.lol/privacy.html">privacy policy</button> for details about data use and how to turn sharing off.</p>
-<h2>You make the trade</h2>
-<p>Kute does not buy, list, or trade items for you. Check the source, freshness, and trading activity alongside the estimate. Predictive prices and sale probabilities will only appear when their accuracy has been evaluated.</p>
+<p>Estimates, not promises. Kute never buys, sells or trades for you.</p>
 </div>
