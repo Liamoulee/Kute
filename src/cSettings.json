@@ -433,6 +433,17 @@
         "defaultValue": true,
         "needsRefresh": true
     },
+    "disableVideoSkins": {
+        "name": "Disable Video Skins",
+        "id": "disableVideoSkins",
+        "performance": true,
+        "description": "Video skins like Glitch are not loaded and show black instead, which can save FPS",
+        "type": "checkbox",
+        "category": "Customization",
+        "defaultValue": false,
+        "needsRefresh": true,
+        "hostFeature": "video-skins"
+    },
     "uncapFps": {
         "name": "Uncap FPS",
         "id": "uncapFps",

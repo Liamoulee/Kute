@@ -6,8 +6,6 @@ import trade from "./trade.js";
 import alerts from "./alerts.js";
 import contrib from "./contrib.js";
 
-// market observers pause during gameplay
-
 class Market {
     constructor(){
         /** @type {HTMLDivElement} */

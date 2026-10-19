@@ -310,9 +310,7 @@ pub fn attach_browser(browser: &Browser) {
         if config("realPing", false) {
             modules::ping::load(browser);
         }
-        if config("market", true) {
-            modules::history::load(browser);
-        }
+        modules::history::load(browser);
         if config("renderStats", false) {
             unsafe {
                 SetTimer(Some(hwnd), RENDER_STATS_TIMER, 100, None);

@@ -1,6 +1,6 @@
 import { html } from "../element.js";
 import marketApi from "../api.js";
-import { TRADE_VERDICTS, esc, money, change, identity } from "../presentation.js";
+import { TRADE_VERDICTS, verdictOf, esc, money, change, identity } from "../presentation.js";
 import { itemSearch } from "../itemSearch.js";
 /** @param {import("../terminal.js").Terminal} desk  @return {Promise<import("../terminal.js").View>} */
 export async function analyzeView(desk){
@@ -107,19 +107,20 @@ export async function analyzeView(desk){
         `;
     }
     if (v){
-        const text = TRADE_VERDICTS[v.verdict].label;
+        const kind = verdictOf(v.verdict);
+        const text = TRADE_VERDICTS[kind].label;
         const color = {
             good: "positive",
             bad: "negative",
             fair: "",
             uncertain: "",
-        }[v.verdict];
+        }[kind];
         result = html`
             <div class="tradeComparison">
                 <div>
                     <div class="eyebrow">THE DIFFERENCE</div>
                     <div class="verdict ${color}">${text}</div>
-                    <span class="muted">${TRADE_VERDICTS[v.verdict].detail}</span>
+                    <span class="muted">${TRADE_VERDICTS[kind].detail}</span>
                 </div>
                 <div class="tradeDifference ${color}">
                     <strong>

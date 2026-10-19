@@ -134,7 +134,7 @@ export default class MarketChart {
             if (candles){
                 details = "No quote in this bucket";
                 if (q?.samples === 1 && !emptyInterval) details = `Observed ask <b>${money(q.close)}</b><br>1 sampled quote; direction unknown`;
-                else if (q && !emptyInterval) details = `Open ${money(q.open)} &middot; High ${money(q.high)}<br>Low ${money(q.low)} &middot; Close ${money(q.close)}<br>${q.samples} sampled quotes`;
+                else if (q && !emptyInterval) details = `Open ${money(q.open)} &middot; High ${money(q.high)}<br>Low ${money(q.low)} &middot; Close ${money(q.close)}<br>${esc(q.samples)} sampled quotes`;
                 if (point.partial && !emptyInterval) details += "<br>Partial interval";
             }
             if (candles && !emptyInterval && series.length > 1) details += "<br>Last observed in interval:<br>" + series.slice(1).map((s, i) => `${esc(s.label)} <b>${money(point.values[i + 1])}</b>`).join("<br>");

@@ -457,7 +457,7 @@ export async function itemView(desk){
                                                       ? html`
                                                             <td class="muted">${l.ageMs === null ? "Unknown" : formatAge(l.ageMs)}</td>
                                                             <td class="muted">
-                                                                ${l.serial !== null ? `#${l.serial}` : ""}${l.wear !== null
+                                                                ${l.serial !== null ? `#${esc(l.serial)}` : ""}${l.wear !== null
                                                                     ? ` &middot; wear ${l.wear.toFixed(3)}`
                                                                     : ""}
                                                             </td>

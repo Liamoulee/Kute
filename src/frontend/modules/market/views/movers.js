@@ -1,6 +1,6 @@
 import { html } from "../element.js";
 import marketApi from "../api.js";
-import { money, change, identity } from "../presentation.js";
+import { esc, money, change, identity } from "../presentation.js";
 const MINUTE = 60_000;
 /** @param {import("../terminal.js").Terminal} desk  @return {Promise<import("../terminal.js").View>} */
 export async function moversView(desk){
@@ -14,7 +14,7 @@ export async function moversView(desk){
                 .slice(0, 10)
                 .map(
                     (s) => html`
-                        <button class="listRow" data-skin="${s.skin}">
+                        <button class="listRow" data-skin="${esc(s.skin)}">
                             ${identity(s)}
                             <span class="listValue">
                                 ${change(s.change)}

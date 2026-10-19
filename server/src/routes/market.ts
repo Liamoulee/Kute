@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { krunker } from "../api/index";
 import { apiHealth } from "../api/health";
 import type { DealsQuery, Grade, HistoryRange, MarketEngine, MoversWindow, ObserveBody, SearchQuery, SearchSort, TradeInput } from "../marketEngine";
-import { checkSession, confirmSession, issueChallenge, sessionCounts, type Attestation } from "../util/marketSessions";
+import { attestationReady, checkSession, confirmSession, issueChallenge, sessionCounts, type Attestation } from "../util/marketSessions";
 import { applyHit, createRateLimit, hit, sourceKey } from "../util/rateLimit";
 import { TtlCache } from "../util/ttlCache";
 
@@ -25,6 +25,7 @@ const WINDOWS: MoversWindow[] = ["1D", "7D", "30D"];
 const SORTS: SearchSort[] = ["volume", "value", "trend1d", "trend7d", "trend30d", "liquidity", "onsale", "name"];
 const MAX_VALUE_IDS = 100;
 const MAX_TRADE_ITEMS = 40;
+const PORTFOLIO_LOOKUPS = 30;
 
 const cache = new TtlCache();
 
@@ -59,7 +60,7 @@ export async function marketRoutes(app: FastifyInstance, options: { engine: Mark
     });
 
     app.post("/market/session", { preHandler: sessionLimit }, (req, reply) => {
-        if (!engine) return reply.code(503).send({ error: "market unavailable" });
+        if (!engine || !attestationReady()) return reply.code(503).send({ error: "market unavailable" });
         return issueChallenge(req.ip);
     });
 
@@ -77,7 +78,7 @@ export async function marketRoutes(app: FastifyInstance, options: { engine: Mark
         return { session: result.session, expiresAt: result.expiresAt };
     });
 
-    /** the gate every data route passes: engine present, session valid, both limits under their max */
+    /** the gate every data route passes: engine present, session valid, both limits under their max. returns the reporter source */
     const gate = (req: FastifyRequest, reply: FastifyReply, route: string, perSession: number): string | null => {
         if (!engine){
             reply.code(503).send({ error: "market unavailable" });
@@ -91,7 +92,7 @@ export async function marketRoutes(app: FastifyInstance, options: { engine: Mark
         const key = req.headers[SESSION_HEADER] as string;
         if (!applyHit(reply, hit("market-address", sourceKey(req.ip), 120, MINUTE), "Rate limit exceeded. Max 120 market requests per minute per address.")) return null;
         if (!applyHit(reply, hit("market-" + route, key, perSession, MINUTE), `Rate limit exceeded. Max ${perSession} ${route} requests per minute.`)) return null;
-        return key;
+        return session.source;
     };
 
     const serve = (reply: FastifyReply, ttlMs: number, key: string, make: () => unknown): unknown => {
@@ -210,7 +211,9 @@ export async function marketRoutes(app: FastifyInstance, options: { engine: Mark
         const side = (items: unknown): TradeInput["give"] | null => {
             if (!Array.isArray(items) || items.length > MAX_TRADE_ITEMS) return null;
             const out: TradeInput["give"] = [];
-            for (const item of items as Record<string, unknown>[]){
+            for (const entry of items as unknown[]){
+                if (!entry || typeof entry !== "object") return null;
+                const item = entry as Record<string, unknown>;
                 const skin = int(String(item.skin), 0, 100_000_000);
                 const count = int(String(item.count ?? 1), 1, 10_000);
                 if (skin === undefined || count === undefined) return null;
@@ -241,17 +244,20 @@ export async function marketRoutes(app: FastifyInstance, options: { engine: Mark
         if (!gate(req, reply, "portfolio", 6)) return reply;
         const player = name((req.query as Query).name);
         if (!player) return reply.code(400).send({ error: "name: a krunker username" });
-        const { value } = await cache.getAsync("portfolio:" + player.toLowerCase(), 5 * MINUTE, () => engine!.query.portfolio(player));
+        // every new name can cost a developer key request, the per session limit alone scales with sessions
+        const key = "portfolio:" + player.toLowerCase();
+        if (!cache.has(key) && !applyHit(reply, hit("market-portfolio-lookups", "all", PORTFOLIO_LOOKUPS, MINUTE), "The market is busy, try again in a minute.")) return reply;
+        const { value } = await cache.getAsync(key, 5 * MINUTE, () => engine!.query.portfolio(player));
         if (!value) return reply.code(404).send({ error: "player not found" });
         reply.header("Cache-Control", "private, max-age=300");
         return value;
     });
 
     app.post("/market/observe", { bodyLimit: 256 * 1024 }, (req, reply) => {
-        const session = gate(req, reply, "observe", 10);
-        if (!session) return reply;
+        const source = gate(req, reply, "observe", 10);
+        if (!source) return reply;
         const body = req.body as ObserveBody | null;
         if (!body || typeof body !== "object") return reply.code(400).send({ error: "a json body" });
-        return engine!.query.observe(session, body);
+        return engine!.query.observe(source, body);
     });
 }

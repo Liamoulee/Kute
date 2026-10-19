@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { createHmac } from "node:crypto";
 import Fastify from "fastify";
+import { config } from "../config/config";
 import { marketRoutes } from "../src/routes/market";
 import { confirmSession, issueChallenge, keyForVersion } from "../src/util/marketSessions";
 import type { MarketEngine } from "../src/marketEngine";
@@ -18,8 +19,10 @@ test("an item desk consumes one read, reuses caches and contributions reach the 
     const ip = "127.0.0.98";
     const { challenge } = issueChallenge(ip);
     const version = "9999.0.0";
-    const key = keyForVersion(version);
-    const sig = key ? createHmac("sha256", key).update(`${challenge}|${version}|1`).digest("base64") : null;
+    // bun test runs as production, which only confirms signed sessions
+    config.market.attest_master ||= "test master";
+    const key = keyForVersion(version)!;
+    const sig = createHmac("sha256", key).update(`${challenge}|${version}|1`).digest("base64");
     const session = confirmSession(ip, { challenge, version, sig, loggedIn: true });
     if (!session.ok) throw new Error("fixture session refused");
     const headers = { "x-kute-session": session.session };

@@ -45,7 +45,7 @@ export async function dealsView(desk){
                                   ${result.deals
                                       .map(
                                           (d) => html`
-                                              <tr class="clickable" tabindex="0" data-skin="${d.skin}">
+                                              <tr class="clickable" tabindex="0" data-skin="${esc(d.skin)}">
                                                   <td>${identity(d)}${dealEvidence(d)}</td>
                                                   <td class="num">${money(d.price)}</td>
                                                   <td class="num">${money(d.fair)}</td>

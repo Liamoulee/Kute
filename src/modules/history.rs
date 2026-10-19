@@ -1,14 +1,17 @@
 use cef::{rc::*, *};
-use std::{cell::RefCell, collections::HashMap};
+use std::{
+    cell::{Cell, RefCell},
+    collections::HashMap,
+};
 
 use crate::{bridge, modules::devtools, utils::config};
 
-// the game's own completed history replies, read on the browser side like the lobby socket in ping.rs:
-// a fetch wrapper in the page would be visible to krunker's cheat checks
+// reads the game's history replies over devtools, a fetch wrapper would be visible to krunker's cheat checks
 
 const ORIGIN: &str = "https://gapi.svc.krunker.io";
 
 thread_local! {
+    static ACTIVE: Cell<bool> = const { Cell::new(false) };
     static REGISTRATIONS: RefCell<Vec<Registration>> = const { RefCell::new(Vec::new()) };
     // request id of a history read in flight, then the getResponseBody message id, each with its kind
     static REQUESTS: RefCell<HashMap<String, &'static str>> = RefCell::new(HashMap::new());
@@ -33,8 +36,14 @@ wrap_dev_tools_message_observer! {
     impl DevToolsMessageObserver {
         fn on_dev_tools_event(&self, browser: Option<&mut Browser>, method: Option<&CefString>, params: Option<&[u8]>) {
             let (Some(browser), Some(method), Some(params)) = (browser, method, params) else { return };
+            // every game socket frame is a network event too, parse only the four we read
             let method = method.to_string();
-            if !method.starts_with("Network.") {
+            if !ACTIVE.get()
+                || !matches!(
+                    method.as_str(),
+                    "Network.requestWillBeSent" | "Network.responseReceived" | "Network.loadingFailed" | "Network.loadingFinished"
+                )
+            {
                 return;
             }
             let Ok(json) = serde_json::from_slice::<serde_json::Value>(params) else { return };
@@ -43,7 +52,7 @@ wrap_dev_tools_message_observer! {
                 "Network.requestWillBeSent" => {
                     let request = &json["request"];
                     let Some(kind) = request.get("url").and_then(|u| u.as_str()).and_then(kind_of) else { return };
-                    if request.get("method").and_then(|m| m.as_str()) != Some("GET") || !config("market", true) {
+                    if request.get("method").and_then(|m| m.as_str()) != Some("GET") {
                         return;
                     }
                     REQUESTS.with_borrow_mut(|r| {
@@ -96,7 +105,21 @@ wrap_dev_tools_message_observer! {
     }
 }
 
+fn wanted() -> bool {
+    config("market", true) && !config("disableOnlineFeatures", false)
+}
+
+/// starts or stops the capture to match the settings, the network domain stays on once enabled
 pub fn load(browser: &Browser) {
+    let on = wanted();
+    ACTIVE.set(on);
+    if !on {
+        REQUESTS.with_borrow_mut(|r| r.clear());
+        return;
+    }
+    if REGISTRATIONS.with_borrow(|r| !r.is_empty()) {
+        return;
+    }
     devtools::enable_network(browser);
     let Some(host) = browser.host() else { return };
     let mut observer = HistoryObserver::new();

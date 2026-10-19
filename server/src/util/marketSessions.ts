@@ -21,7 +21,8 @@ const SESSIONS_PER_ADDRESS = 8;
 const MAX_CHALLENGES = 10_000;
 
 type Challenge = { address: string; expiresAt: number };
-type Session = { address: string; expiresAt: number; version: string };
+/** source: who a contribution counts as, the address and not the session, so fresh sessions are no new reporters */
+type Session = { address: string; source: string; expiresAt: number; version: string };
 
 const challenges = new Map<string, Challenge>();
 const sessions = new Map<string, Session>();
@@ -63,10 +64,30 @@ export function pruneSessions(now = Date.now()): number {
     return removed;
 }
 
+/** whether a session can be confirmed at all: production needs the master */
+export function attestationReady(): boolean {
+    return isDevelopment || config.market.attest_master !== "";
+}
+
+// an ipv6 client picks any address of its /64, all of them are one reporter
+function network(ip: string): string {
+    if (!ip.includes(":") || ip.startsWith("::ffff:")) return ip;
+    const groups = ip.split("::");
+    const head = groups[0]!.split(":").filter(Boolean);
+    const tail = groups.length > 1 ? groups[1]!.split(":").filter(Boolean) : [];
+    const full = [...head, ...Array(Math.max(0, 8 - head.length - tail.length)).fill("0"), ...tail];
+    return full.slice(0, 4).map(g => g.toLowerCase().replace(/^0+(?=.)/, "")).join(":") + "::/64";
+}
+
 /** step one: a challenge for this address */
 export function issueChallenge(ip: string): { challenge: string; expiresIn: number } {
     const now = Date.now();
     if (challenges.size >= MAX_CHALLENGES) pruneSessions(now);
+    // a flood of fresh challenges: the oldest go first, maps keep insertion order
+    for (const id of challenges.keys()){
+        if (challenges.size < MAX_CHALLENGES) break;
+        challenges.delete(id);
+    }
     const challenge = token();
     challenges.set(challenge, { address: sourceKey(ip), expiresAt: now + CHALLENGE_TTL_MS });
     return { challenge, expiresIn: CHALLENGE_TTL_MS / 1000 };
@@ -112,7 +133,7 @@ export function confirmSession(ip: string, attestation: Attestation): ConfirmRes
 
     const session = token();
     const expiresAt = now + SESSION_TTL_MS;
-    sessions.set(session, { address, expiresAt, version: attestation.version });
+    sessions.set(session, { address, source: sourceKey(network(ip)), expiresAt, version: attestation.version });
     return { ok: true, session, expiresAt };
 }
 

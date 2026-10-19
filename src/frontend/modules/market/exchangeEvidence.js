@@ -18,7 +18,7 @@ export function exchangeEvidence(skin, advanced){
         ${advanced && applied ? `<div class="metricsGap metrics">
             <div class="metric"><span>Public-data baseline</span><strong>${money(e.baseline)} <span class="unit">KR</span></strong><small>${esc(BASELINES[e.baselineMethod] ?? "Public evidence")}</small></div>
             <div class="metric"><span>Model sensitivity range</span><strong>${money(e.low)} to ${money(e.high)}</strong><small>KR; not a calibrated prediction interval</small></div>
-            <div class="metric"><span>Report diversity</span><strong>${esc(e.sources)} source${e.sources === 1 ? "" : "s"} / ${esc(e.days)} day${e.days === 1 ? "" : "s"}</strong><small>Anonymous sessions, not verified unique players</small></div>
+            <div class="metric"><span>Report diversity</span><strong>${esc(e.sources)} source${e.sources === 1 ? "" : "s"} / ${esc(e.days)} day${e.days === 1 ? "" : "s"}</strong><small>Anonymous connections, not verified unique players</small></div>
         </div>` : ""}
         <p class="chartNote">Client reports can be incomplete or inaccurate. A verdict needs sufficient combined public and private evidence.
         Private trading does not establish cash-sale liquidity. The letter grade still describes public-market activity.</p>
