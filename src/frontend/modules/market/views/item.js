@@ -7,6 +7,7 @@ import { itemDesk } from "../analytics.js";
 import { itemIntelligence } from "../intelligence.js";
 import { contributionEvidence } from "../contributionEvidence.js";
 import { exchangeEvidence } from "../exchangeEvidence.js";
+import { candleSeries } from "../chartData.js";
 const RANGES = ["1D", "7D", "1M", "3M", "1Y", "ALL"];
 
 /** @param {import("../terminal.js").Terminal} desk  @return {Promise<import("../terminal.js").View>} */
@@ -42,7 +43,8 @@ export async function itemView(desk){
             color: "#87b8f7",
         });
     }
-    const points = (history?.points ?? []).filter(p => historyRange === state.range || p.t >= Date.now() - 7 * 86_400_000).map(p => ({
+    /** @type {import("../chart.js").ChartPoint[]} */
+    let points = (history?.points ?? []).filter(p => historyRange === state.range || p.t >= Date.now() - 7 * 86_400_000).map(p => ({
         t: p.t,
         values: [history?.resolution === "hour" ? p.lowest : p.avg, ...(series.length > 1 ? [({
             fair: p.fair,
@@ -52,9 +54,14 @@ export async function itemView(desk){
         volume: history?.resolution === "day" && p.salesObserved !== false ? p.sales : null,
         ask: p.ask,
     }));
-    let chartNote = "Daily average completed-sale prices. Today's point, when present, is incomplete. Gaps mean no sale-price observation.";
-    if (history?.resolution === "hour") chartNote = "Intraday history shows sampled asks. Official sales data is daily; individual transaction timing is unavailable.";
-    if (state.candles) chartNote = "Candles describe sampled asking prices, including historical quote changes. They are not transaction candles. Unsampled periods remain empty.";
+    let stepMs = history?.resolution === "hour" ? 3_600_000 : 86_400_000;
+    const candles = state.candles ? candleSeries(points, stepMs) : null;
+    if (candles){
+        ({ points, stepMs } = candles);
+    }
+    let chartNote = "Daily average completed-sale prices. Today's point, when present, is incomplete. Dashed connections cross missing observations; they do not supply prices for those dates.";
+    if (history?.resolution === "hour") chartNote = "Intraday lines show sampled asks. Dashed connections cross unsampled periods. Official sales data is daily; individual transaction timing is unavailable.";
+    if (candles) chartNote = `Auto interval: ${candles.label}. Sparse quotes use larger intervals when they can support multiple candles. Green and red show rising and falling sampled asks; gray ticks show one quote or an unchanged close. Empty intervals remain empty. These are asking-price candles, not transaction candles.`;
     const visiblePoints = Math.max(8, Math.ceil(points.length / state.zoom));
     const panStep = Math.max(1, Math.floor(visiblePoints / 2));
     const listingRows = (listings?.listings ?? []).slice(0, desk.advanced ? 250 : 5);
@@ -97,7 +104,8 @@ export async function itemView(desk){
             candles: state.candles,
             volume: history?.resolution === "day",
             zoom: state.zoom,
-            stepMs: history?.resolution === "hour" ? 3_600_000 : 86_400_000,
+            stepMs,
+            connectGaps: true,
             offset: state.offset,
         },
         html: `<button
@@ -168,13 +176,13 @@ export async function itemView(desk){
     data-zoom="1">Reset</button>
 </div>
 <div
-    class="chartLegend">${state.candles ? '<span><i class="legendAsk"></i>Observed ask OHLC</span>' + series.slice(1).map(line => `<span>
+    class="chartLegend">${candles ? `<span><i class="legendAsk"></i>Sampled asks / ${candles.label} candles</span><span><i class="legendNeutral"></i>Single quote or unchanged close</span>` + series.slice(1).map(line => `<span>
 <i
     style="background:${line.color}">
 </i>${esc(line.label)}</span>`).join("") : series.map(line => `<span>
 <i
     style="background:${line.color}">
-</i>${esc(line.label)}</span>`).join("")}${history?.resolution === "day" ? "<span>Bars: reported sales</span>" : ""}</div>
+</i>${esc(line.label)}</span>`).join("")}${!candles || series.length > 1 ? '<span><i class="legendGap"></i>Dashed: missing observations</span>' : ""}${history?.resolution === "day" ? `<span>Bars: reported sales${candles ? " / " + candles.label : " / day"}</span>` : ""}</div>
 <div
     class="chart">${history ? "" : empty("History unavailable", "Price history could not be loaded. Try again in a moment.", '<button class="button small" data-action="retry">Try again</button>')}</div>
 <p

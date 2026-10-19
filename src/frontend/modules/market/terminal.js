@@ -25,7 +25,7 @@ const PREF_KEY = "kute_market_advanced";
 /**
  * @typedef {{q:string,rarity:string,type:string,sort:string,page:number,budget:string,minSales:string}} SearchState
  * @typedef {{skin:number,range:string,candles:boolean,overlay:string,zoom:number,offset:number,price?:string,quantity?:string,listingMax?:string,serialMax?:string,wearMax?:string,ageMax?:string,sellerMax?:string}} ItemState
- * @typedef {{html:string,asOf?:number,asOfLabel?:string,points?:import("./chart.js").ChartPoint[],series?:import("./chart.js").Series[],chartOptions?:{candles?:boolean,volume?:boolean,zoom?:number,stepMs?:number,offset?:number},item?:import("./types.js").ItemPage,listings?:import("./types.js").ListingsReply|null,holdings?:import("./types.js").PortfolioItem[]}} View
+ * @typedef {{html:string,asOf?:number,asOfLabel?:string,points?:import("./chart.js").ChartPoint[],series?:import("./chart.js").Series[],chartOptions?:import("./chart.js").ChartOptions,item?:import("./types.js").ItemPage,listings?:import("./types.js").ListingsReply|null,holdings?:import("./types.js").PortfolioItem[]}} View
  */
 
 const defaultSearch = () => ({
