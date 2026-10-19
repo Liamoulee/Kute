@@ -6,6 +6,7 @@ import { readWatchlist } from "../watchlist.js";
 import { itemDesk } from "../analytics.js";
 import { itemIntelligence } from "../intelligence.js";
 import { contributionEvidence } from "../contributionEvidence.js";
+import { exchangeEvidence } from "../exchangeEvidence.js";
 const RANGES = ["1D", "7D", "1M", "3M", "1Y", "ALL"];
 
 /** @param {import("../terminal.js").Terminal} desk  @return {Promise<import("../terminal.js").View>} */
@@ -24,7 +25,8 @@ export async function itemView(desk){
     const e = page.evidence;
     const watched = readWatchlist().some(w => w.skin === s.skin);
     const range = e?.dailyRange;
-    const recent = e ? `${e.sales} sales across ${e.days} trading days in 30D` : `${page.liquidity.sales30d} sales in 30 days`;
+    const salesDetail = e ? `${e.sales} sales across ${e.days} trading days in 30D` : `${page.liquidity.sales30d} sales in 30 days`;
+    const recent = s.exchange?.status === "applied" ? `${s.exchange.reports} eligible private exchanges${s.method.startsWith("sales") ? " + public sales" : "; tentative when sparse"}` : salesDetail;
     const reasons = e?.reasons ?? [recent, `The estimate is based on ${s.method.startsWith("sales") ? "historical sales aggregates" : "limited market evidence"}.`];
     const series = [{
         label: history?.resolution === "hour" ? "Lowest observed ask" : "Daily average sale",
@@ -169,7 +171,7 @@ export async function itemView(desk){
     class="chart">${history ? "" : empty("History unavailable", "Price history could not be loaded. Try again in a moment.", '<button class="button small" data-action="retry">Try again</button>')}</div>
 <p
     class="chartNote">${history ? chartNote : ""} Dates and times are UTC.</p>
-</section>` + itemIntelligence(page.intelligence) + (desk.advanced ? itemDesk(page) + contributionEvidence(page.contributions) : "") + `<div
+</section>` + exchangeEvidence(s, desk.advanced) + itemIntelligence(page.intelligence) + (desk.advanced ? itemDesk(page) + contributionEvidence(page.contributions) : "") + `<div
     class="equal">
 <section
     class="panel">

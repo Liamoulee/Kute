@@ -2,11 +2,15 @@
 
 /**
  * @typedef {"A"|"B"|"C"|"D"|"F"} Grade
+ * @typedef {{trades7d:number,trades30d:number,lastTradeDay:string}} PrivateTrading
+ * @typedef {{version:string,status:"applied"|"unresolved",estimate:number|null,low:number|null,high:number|null,baseline:number,baselineMethod:string,confidence:number,reports:number,sources:number,days:number,reason:string,asOf:number}} ExchangeEvidence
  * @typedef {{samples:number,median:number,low:number,high:number}} ContributionSample
  * @typedef {{trades30d:number,sales30d:number,matchedSales30d:number,lastTradeDay:string|null,cash:ContributionSample|null,sales:ContributionSample|null,swaps:(ContributionSample & {skin:number,name:string})[],asOf:number}} ContributionEvidence
  *
  * @typedef {object} SkinValue
  * @property {number} skin
+ * @property {PrivateTrading} [privateTrading]
+ * @property {ExchangeEvidence} [exchange]
  * @property {number} fair
  * @property {number} confidence 0 to 100
  * @property {Grade} grade

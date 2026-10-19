@@ -191,12 +191,12 @@ export class Terminal {
         const state = {
             ...defaultSearch(),
             ...(this.tab === "active" ? {
-                minSales: "5",
+                minSales: "1",
                 sort: "liquidity",
             } : {}),
             ...(typeof this.arg === "object" && this.arg ? this.arg : {}),
         };
-        if (this.tab === "active") state.minSales = String(Math.max(5, Number(state.minSales) || 5));
+        if (this.tab === "active") state.minSales = String(Math.max(1, Number(state.minSales) || 1));
         return state;
     }
     searchTab(){
@@ -586,7 +586,7 @@ export class Terminal {
             this.show("search", {
                 ...defaultSearch(),
                 type: d.category,
-                minSales: "5",
+                minSales: "1",
             });
             return;
         }
@@ -653,7 +653,7 @@ export class Terminal {
             case "reset-search":
                 this.show(this.searchTab(), this.tab === "active" ? {
                     ...defaultSearch(),
-                    minSales: "5",
+                    minSales: "1",
                     sort: "liquidity",
                 } : defaultSearch());
                 break;

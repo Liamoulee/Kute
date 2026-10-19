@@ -15,7 +15,7 @@ export async function searchView(desk){
         rarity: state.rarity,
         type: state.type,
         budget: state.budget,
-        min_sales: state.minSales,
+        [desk.tab === "active" ? "min_activity" : "min_sales"]: state.minSales,
     })) if (value !== "") params.set(key, value);
     /** @type {import("../types.js").SearchReply|null} */
     const result = await marketApi.cached(`/market/search?${params}`, MINUTE);
@@ -25,7 +25,7 @@ export async function searchView(desk){
     const pages = Math.max(1, Math.ceil(result.total / result.perPage));
     return {
         asOf: result.asOf,
-        html: desk.intro(desk.tab === "active" ? "Find items that are trading." : "Find your next item.", desk.tab === "active" ? `At least ${state.minSales} reported sales in seven days. Ranked by trading activity by default.` : "Browse by budget, recent activity, or the items you already have in mind.", '<button class="button small" data-action="reset-search">Reset filters</button>') + `<form
+        html: desk.intro(desk.tab === "active" ? "Find items that are trading." : "Find your next item.", desk.tab === "active" ? `At least ${state.minSales} public sales or reported private exchanges in seven days. Private activity is shown separately from cash-sale liquidity.` : "Browse by budget, recent activity, or the items you already have in mind.", '<button class="button small" data-action="reset-search">Reset filters</button>') + `<form
     id="kmFilters"
     class="filterBar">${itemSearch("kmQ", "discover", "Search all items", state.q)}<input
     id="kmBudget" type="number" min="1"
@@ -44,8 +44,8 @@ export async function searchView(desk){
     id="kmRarity"
     value="${esc(state.rarity)}">`}<select
     id="kmSales"
-    aria-label="Minimum sales">${desk.tab === "active" ? "" : '<option value="">Any activity</option>'}${(desk.tab === "active" ? [5, 20] : [1, 5, 20]).map(n => `<option
-    value="${n}" ${String(n) === state.minSales ? "selected" : ""}>${n}+ sales / 7D</option>`).join("")}</select>
+    aria-label="Minimum activity">${desk.tab === "active" ? "" : '<option value="">Any activity</option>'}${[1, 5, 20].map(n => `<option
+    value="${n}" ${String(n) === state.minSales ? "selected" : ""}>${n}+ ${desk.tab === "active" ? "sales or trades" : "sales"} / 7D</option>`).join("")}</select>
 <select
     id="kmSort"
     aria-label="Sort items">${[["volume", "Most traded"], ["value", "Highest value"], ["trend7d", "7D gainers"], ["liquidity", "Most active"], ["name", "Name"]].map(([v, n]) => `<option

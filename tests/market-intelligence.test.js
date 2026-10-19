@@ -2,6 +2,28 @@ import { expect, test } from "bun:test";
 import { itemIntelligence, dealEvidence, intelligenceView } from "../src/frontend/modules/market/intelligence.js";
 import { element, markup } from "../src/frontend/modules/market/element.js";
 import { contributionEvidence } from "../src/frontend/modules/market/contributionEvidence.js";
+import { exchangeEvidence } from "../src/frontend/modules/market/exchangeEvidence.js";
+import { activityLabel, evidenceLabel } from "../src/frontend/modules/market/presentation.js";
+
+test("private-trade estimates explain their contribution in simple mode without implying cash liquidity", () => {
+    const skin = { fair: 60000, method: "trades", sales7d: 0, privateTrading: { trades7d: 1, trades30d: 1, lastTradeDay: "2026-10-19" },
+        exchange: { status: "applied", estimate: 60000, baseline: 1, baselineMethod: "floor", confidence: 15, reports: 1, sources: 1, days: 1, low: 20000, high: 100000 } };
+    const simple = exchangeEvidence(skin, false);
+    expect(simple).toContain("60,000"); expect(simple).toContain("Tentative evidence");
+    expect(simple).toContain("does not establish cash-sale liquidity");
+    expect(simple).not.toContain("Model sensitivity range");
+    expect(exchangeEvidence(skin, true)).toContain("not a calibrated prediction interval");
+    expect(activityLabel(skin)).toBe("1 private trade this week");
+    expect(evidenceLabel(skin)).toBe("Private-trade estimate");
+    expect(evidenceLabel({ method: "sales7d+trades" })).toBe("Sales + private trades");
+});
+
+test("unresolved exchange evidence keeps the missing anchor explanation and escapes all report text", () => {
+    const html = exchangeEvidence({ exchange: { status: "unresolved", reason: "<img onerror=bad()>" } }, true);
+    expect(html).toContain("&lt;img"); expect(html).not.toContain("<img");
+    expect(html).not.toContain("contribute to this value");
+    expect(exchangeEvidence({}, false)).toBe("");
+});
 
 test("private exchange comparisons remain labeled and escape contributed display values", () => {
     const html = contributionEvidence({ trades30d: 8, sales30d: 6, matchedSales30d: 5, cash: { samples: 5, median: 100, low: 90, high: 110 }, sales: null, swaps: [{ skin: 2, name: '<img onerror="bad()">', samples: 5, median: 2, low: 1, high: 3 }] });

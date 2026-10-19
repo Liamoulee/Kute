@@ -19,7 +19,7 @@ export function contributionEvidence(evidence){
         <td class="num">${s.median.toFixed(2)} <span class="muted">(${s.low.toFixed(2)} to ${s.high.toFixed(2)})</span></td><td class="num">${s.samples}</td></tr>`).join("")}</tbody></table></div>` : ""}
         <p class="chartNote">These are client-reported observations, not a complete trade history or independently verified private transactions.
         Comparisons require multiple reports, source sessions and dates; source sessions do not identify unique players.
-        Bundles and non-KR currencies are retained without inventing per-item KR prices. Samples exclude reported serial, wear, style and paint attributes.
-        These comparisons do not change the market estimate or trade verdict.</p>
+        These descriptive samples exclude bundles and reported serial, wear, style and paint attributes.
+        The valuation model separately uses supported bundles with KR anchors; its contribution is explained above.</p>
     </section>`;
 }

@@ -26,12 +26,14 @@ export const change = (value) => {
 
 /** @param {{method?:string, sales7d?:number, confidence?:number}} item */
 export const evidenceLabel = (item) => {
+    if (item.method?.includes("trades")) return item.method.startsWith("sales") ? "Sales + private trades" : "Private-trade estimate";
     if (!item.method?.startsWith("sales")) return "Limited evidence";
     return (item.sales7d ?? 0) >= 5 ? "Recent sales" : "Sparse sales";
 };
 
-/** @param {{velocity?:number, sales7d?:number}} item */
+/** @param {{velocity?:number, sales7d?:number, privateTrading?:import("./types.js").PrivateTrading}} item */
 export const activityLabel = (item) => {
+    if (item.privateTrading?.trades7d) return `${item.privateTrading.trades7d} private trade${item.privateTrading.trades7d === 1 ? "" : "s"} this week${item.sales7d ? ` + ${item.sales7d} sales` : ""}`;
     if ((item.sales7d ?? 0) >= 7) return "Active this week";
     return (item.sales7d ?? 0) > 0 ? "Traded this week" : "No reported sales this week";
 };
