@@ -40,14 +40,17 @@ describe("native trade analysis", () => {
         const f = fixture(); f.sides.length = 0;
         const item = (id, count) => ({ id, querySelector: () => ({ textContent: `x${count}` }) });
         const lists = [
-            { parentElement: f.anchor, getClientRects: () => [{}], querySelectorAll: () => [item("trd_0_12", 3), item("trd_inv_0_99", 5)] },
+            { parentElement: f.anchor, getClientRects: () => [{}], querySelectorAll: () => [item("trd_sel_0_12", 3), item("trd_inv_0_99", 5)] },
             { parentElement: f.anchor, getClientRects: () => [{}], querySelectorAll: () => [item("trd_1_32_1234", 1)] },
         ];
-        f.document.getElementById = (id) => ({ tradeList0: lists[0], tradeList1: lists[1], offerVal0: { textContent: "1,500 KR" }, offerVal1: { textContent: "0" } })[id];
+        const currency = (text) => ({ querySelector: (selector) => selector === ".tCurrencyAmount" ? { textContent: text } : null });
+        // offerVal holds the game's estimate on the plaza, it must never become offered KR
+        f.document.getElementById = (id) => ({ tradeList0: lists[0], tradeList1: lists[1], offerVal0: { textContent: "Est. Value 999 KR" }, offerVal1: { textContent: "Est. Value 328 KR" }, currency_item_0_1: currency("1,500 KR"), currency_item_1_2: currency("7 JNK") })[id];
         const snapshot = f.trade.snapshot();
         expect(snapshot.give).toEqual([{ skin: 12, count: 3 }]);
         expect(snapshot.get).toEqual([{ skin: 32, count: 1 }]);
         expect(snapshot.giveKr).toBe(1500);
+        expect(snapshot.getKr).toBe(0);
         expect(snapshot.anchor).toBe(f.anchor);
     });
 
