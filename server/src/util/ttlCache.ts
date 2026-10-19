@@ -44,6 +44,10 @@ export class TtlCache {
         }
     }
 
+    has(key: string): boolean {
+        return (this.#entries.get(key)?.expiresAt ?? 0) > Date.now();
+    }
+
     delete(key: string): void {
         this.#entries.delete(key);
     }
