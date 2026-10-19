@@ -65,6 +65,7 @@ wrap_dev_tools_message_observer! {
                 "Network.loadingFinished" => {
                     let Some(kind) = REQUESTS.with_borrow_mut(|r| r.remove(id)) else { return };
                     let message = devtools::get_response_body(browser, id);
+                    crate::debug_print!("history: {kind} reply finished, reading body as message {message}");
                     BODIES.with_borrow_mut(|b| b.insert(message, kind));
                 }
                 _ => {}
@@ -89,6 +90,7 @@ wrap_dev_tools_message_observer! {
             };
             // the page gets the parsed reply, never text it has to parse itself
             let Ok(data) = serde_json::from_str::<serde_json::Value>(&text) else { return };
+            crate::debug_print!("history: posting {kind} reply to the page ({} bytes)", text.len());
             bridge::post_json(browser, &serde_json::json!({ "marketHistory": { "kind": kind, "data": data } }).to_string());
         }
     }
