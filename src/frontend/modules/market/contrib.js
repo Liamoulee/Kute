@@ -2,16 +2,35 @@ import api from "../api.js";
 import marketApi from "./api.js";
 import { contributedSale, contributedTrade } from "./contributionData.js";
 
-const KEY = "kute_market_contribution_checks";
-const HOUR = 3_600_000;
-const GAPI = "https://gapi.svc.krunker.io";
+/** @param {RequestInfo|URL} input @param {RequestInit} [init] @return {"sales"|"trades"|null} */
+function historyKind(input, init){
+    try {
+        const request = input instanceof Request ? input : null;
+        if ((init?.method ?? request?.method ?? "GET").toUpperCase() !== "GET") return null;
+        const url = new URL(request ? request.url : String(input), location.href);
+        if (url.origin !== "https://gapi.svc.krunker.io") return null;
+        if (url.pathname === "/trades/history") return "trades";
+        if (url.pathname === "/market/history") return "sales";
+    }
+    catch { /* unrelated requests must behave exactly as the game expects */ }
+    return null;
+}
 
 class Contributions {
     constructor(){
         this.running = false;
-        this.busy = false;
         this.generation = 0;
         this.nextPostAt = 0;
+        this.failures = 0;
+        this.account = "";
+        /** @type {Map<string,{kind:"sales"|"trades",row:object}>} */
+        this.queue = new Map();
+        /** @type {Set<string>} */
+        this.sent = new Set();
+        /** @type {typeof fetch|null} */
+        this.originalFetch = null;
+        /** @type {typeof fetch|null} */
+        this.observer = null;
         /** @type {number|undefined} */
         this.timer = undefined;
         /** @type {AbortController|null} */
@@ -21,7 +40,25 @@ class Contributions {
     start(){
         if (this.running) return;
         this.running = true;
-        this.timer = window.setTimeout(() => this.tick(), 45_000);
+        const generation = ++this.generation;
+        const original = window.fetch;
+        this.originalFetch = original;
+        this.observer = (input, init) => {
+            const kind = this.active() ? historyKind(input, init) : null;
+            const account = kind ? this.currentAccount() : "";
+            const pending = original.call(window, input, init);
+            if (kind){
+                // clone only history; never consume the game's response or inspect its credentials
+                void pending.then(response => {
+                    if (response.ok && this.current(generation, account)){
+                        return this.capture(response.clone(), kind, generation, account);
+                    }
+                    return undefined;
+                }).catch(() => {});
+            }
+            return pending;
+        };
+        window.fetch = this.observer;
     }
 
     stop(){
@@ -30,100 +67,88 @@ class Contributions {
         clearTimeout(this.timer);
         this.controller?.abort();
         this.controller = null;
+        this.queue.clear();
+        this.sent.clear();
+        if (window.fetch === this.observer && this.originalFetch) window.fetch = this.originalFetch;
+        this.observer = null;
+        this.originalFetch = null;
     }
 
     active(){
-        return this.running && !document.hidden && !document.pointerLockElement && !api.down && !api.offline() && Date.now() >= marketApi.retryAt && marketApi.loggedIn();
+        return this.running && !document.hidden && !document.pointerLockElement && !api.down && !api.offline() && marketApi.loggedIn();
     }
 
-    token(){
-        const stored = localStorage.getItem("__FRVR_auth_access_token");
-        if (!stored) return null;
-        try { const parsed = JSON.parse(stored); return typeof parsed === "string" ? parsed : null; }
-        catch { return stored; }
+    currentAccount(){
+        try { return localStorage.getItem("krunker_username") ?? ""; }
+        catch { return ""; }
     }
 
-    /** @param {AbortSignal} signal */
-    async waitToPost(signal){
-        const wait = Math.max(0, this.nextPostAt - Date.now());
-        if (!wait || signal.aborted) return;
-        await new Promise(resolve => {
-            let timer = 0;
-            const finish = () => { clearTimeout(timer); signal.removeEventListener("abort", finish); resolve(undefined); };
-            timer = window.setTimeout(finish, wait);
-            signal.addEventListener("abort", finish, { once: true });
-        });
+    /** @param {number} generation @param {string} account */
+    current(generation, account){
+        return this.active() && generation === this.generation && account === this.currentAccount();
     }
 
-    /** @param {string} path @param {string} token @param {AbortSignal} signal */
-    async read(path, token, signal){
-        const response = await fetch(GAPI + path, {
-            headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
-            signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
-        });
-        if (!response.ok) throw new Error("history unavailable");
+    /** @param {Response} response @param {"sales"|"trades"} kind @param {number} generation @param {string} account */
+    async capture(response, kind, generation, account){
         const body = await response.json();
-        if (body?.error || !body?.data) throw new Error("history unavailable");
-        return body.data;
-    }
-
-    /** @param {"sales"|"trades"} kind @param {string} token @param {AbortSignal} signal */
-    async collect(kind, token, signal){
-        const rows = []; const now = Date.now();
-        let cursor = ""; let offset = 0;
-        for (let page = 0; page < 3; page++){
-            if (!this.active() || token !== this.token() || signal.aborted) throw new Error("collection paused");
-            const path = kind === "sales"
-                ? `/market/history?sort=date_desc&limit=100${cursor ? "&cursor=" + encodeURIComponent(cursor) : ""}`
-                : `/trades/history?offset=${offset}&limit=100&include_open=0`;
-            const data = await this.read(path, token, signal);
-            const raw = kind === "sales" ? data.history : data.completed;
-            if (!Array.isArray(raw)) throw new Error("unknown history format");
-            rows.push(...raw.map(r => kind === "sales" ? contributedSale(r, now) : contributedTrade(r, now)).filter(Boolean));
-            const more = kind === "sales" ? data.has_more : data.completed_has_more;
-            if (!more || !raw.length || Date.parse(raw.at(-1)?.dte ?? raw.at(-1)?.date) < now - 48 * HOUR) break;
-            cursor = String(data.next_cursor ?? "");
-            offset += raw.length;
-            if (kind === "sales" && !cursor) throw new Error("missing history cursor");
+        if (!this.current(generation, account) || body?.error) return;
+        const data = body?.data ?? body;
+        const rows = kind === "trades" ? data?.completed : data?.history;
+        if (!Array.isArray(rows)) return;
+        if (this.account !== account){ this.queue.clear(); this.sent.clear(); this.account = account; }
+        const now = Date.now();
+        for (const raw of rows.slice(0, 500)){
+            const row = kind === "trades" ? contributedTrade(raw, now) : contributedSale(raw, now);
+            if (!row) continue;
+            const key = kind + JSON.stringify(row);
+            if (!this.sent.has(key)) this.queue.set(key, { kind, row });
         }
-        return rows;
+        while (this.queue.size > 300) this.queue.delete(this.queue.keys().next().value ?? "");
+        this.schedule();
     }
 
-    async tick(){
-        if (this.running) this.timer = window.setTimeout(() => this.tick(), 60_000);
-        if (this.busy || !this.active() || Date.now() < marketApi.retryAt) return;
-        const token = this.token();
-        if (!token) return;
-        this.busy = true;
-        const {generation} = this;
+    schedule(){
+        clearTimeout(this.timer);
+        if (!this.running || !this.queue.size) return;
+        const delay = Math.max(100, this.nextPostAt - Date.now(), marketApi.retryAt - Date.now());
+        this.timer = window.setTimeout(() => { void this.flush(); }, delay);
+    }
+
+    async flush(){
+        if (!this.running || this.controller || !this.queue.size) return;
+        if (this.account !== this.currentAccount()){ this.queue.clear(); this.sent.clear(); return; }
+        if (!this.active() || Date.now() < Math.max(this.nextPostAt, marketApi.retryAt)){
+            this.nextPostAt = Math.max(this.nextPostAt, Date.now() + 10_000);
+            this.schedule();
+            return;
+        }
+        const {generation} = this; const {account} = this;
+        const batch = [...this.queue].slice(0, 100);
+        /** @type {{sales:object[],trades:object[]}} */
+        const body = { sales: [], trades: [] };
+        for (const [, entry] of batch) body[entry.kind].push(entry.row);
         const controller = new AbortController();
         this.controller = controller;
+        this.nextPostAt = Date.now() + 10_000;
         try {
-            /** @type {Record<string,number>} */
-            let checked = {};
-            try { checked = JSON.parse(localStorage.getItem(KEY) ?? "{}"); }
-            catch { /* rereading is safe because the server deduplicates transaction ids */ }
-            for (const kind of /** @type {const} */ (["sales", "trades"])){
-                if (Date.now() - (checked?.[kind] ?? 0) < HOUR) continue;
-                try {
-                    const rows = await this.collect(kind, token, controller.signal);
-                    for (let start = 0; start < rows.length; start += 100){
-                        await this.waitToPost(controller.signal);
-                        if (!this.active() || generation !== this.generation || token !== this.token()) throw new Error("collection paused");
-                        this.nextPostAt = Date.now() + 10_000;
-                        const result = await marketApi.observe({ [kind]: rows.slice(start, start + 100) }, controller.signal);
-                        if (!result) throw new Error("contribution unavailable");
-                    }
-                    if (!this.active() || generation !== this.generation || token !== this.token()) return;
-                    checked = { ...checked, [kind]: Date.now() };
-                    localStorage.setItem(KEY, JSON.stringify(checked));
-                }
-                catch { /* leave this source due; the other history can still succeed */ }
+            const result = await marketApi.observe(body, controller.signal);
+            if (!result) throw new Error("contribution unavailable");
+            if (!this.current(generation, account)) return;
+            for (const [key] of batch){ this.queue.delete(key); this.sent.add(key); }
+            while (this.sent.size > 1000) this.sent.delete(this.sent.values().next().value ?? "");
+            this.failures = 0;
+        }
+        catch {
+            if (generation === this.generation){
+                this.failures++;
+                this.nextPostAt = Date.now() + Math.min(60_000, 5000 * 2 ** Math.min(this.failures - 1, 4));
             }
         }
         finally {
-            if (this.controller === controller) this.controller = null;
-            this.busy = false;
+            if (this.controller === controller){
+                this.controller = null;
+                this.schedule();
+            }
         }
     }
 }

@@ -79,7 +79,7 @@
     "market": {
         "name": "Kute Market",
         "id": "market",
-        "description": "Market estimates and trade analysis. Contributes completed sales and private trade facts without player names or login tokens.",
+        "description": "Market estimates and trade analysis. Shares completed sale and trade facts from history the game loads, without player names or login tokens.",
         "type": "checkbox",
         "category": "General",
         "defaultValue": true,
