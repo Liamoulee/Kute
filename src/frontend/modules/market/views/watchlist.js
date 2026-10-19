@@ -2,6 +2,7 @@ import { html } from "../element.js";
 import marketApi from "../api.js";
 import { esc, money, identity, empty } from "../presentation.js";
 import { readWatchlist, saveWatchlist } from "../watchlist.js";
+import alerts from "../alerts.js";
 /** @param {import("../terminal.js").Terminal} desk  @return {Promise<import("../terminal.js").View>} */
 export async function watchlistView(desk){
     const watch = readWatchlist();
@@ -34,6 +35,9 @@ export async function watchlistView(desk){
         if (missing.some((w) => w.rarity !== undefined)) saveWatchlist(watch);
     }
     const values = await marketApi.values(watch.map((w) => w.skin));
+    // the rows below still show what was new, the badge goes
+    const unread = new Set(alerts.unread);
+    queueMicrotask(() => alerts.markRead());
     const asOf = Math.min(...Object.values(values).flatMap((v) => (v.valuedAt ? [v.valuedAt] : [])));
     return {
         asOf: Number.isFinite(asOf) ? asOf : undefined,
@@ -71,6 +75,7 @@ export async function watchlistView(desk){
                                     ){
                                         status = '<span class="tag good">At your target</span>';
                                     }
+                                    if (unread.has(w.skin)) status = '<span class="tag good">New: price reached</span>';
                                     return html`
                                         <tr>
                                             <td>
