@@ -4,6 +4,7 @@ import vm from "node:vm";
 
 const source = fs.readFileSync(new URL("../src/frontend/modules/market/alerts.js", import.meta.url), "utf8")
     .replace(/^import .*;\r?\n/gm, "")
+    .replace(/^export const /gm, "const ")
     .replace("export default alerts;", "globalThis.alerts = alerts;");
 
 function fixture(){
@@ -11,11 +12,13 @@ function fixture(){
     const data = { lowest: 90, bookAt: Date.now(), valuedAt: Date.now() };
     const watch = [{ skin: 1, name: "Fixture", target: 100 }];
     let calls = 0;
+    let badgeEvents = 0;
     let offline = false;
     const storage = new Map();
     const context = vm.createContext({
         document: { pointerLockElement: null, hidden: false },
-        window: { setInterval: () => 1, addEventListener(){}, removeEventListener(){} },
+        window: { setInterval: () => 1, addEventListener(){}, removeEventListener(){}, dispatchEvent: () => { badgeEvents++; } },
+        Event: class { constructor(type){ this.type = type; } },
         clearInterval(){},
         localStorage: { getItem: (k) => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, v) },
         kute: { showNotification: (...args) => notifications.push(args) },
@@ -26,7 +29,7 @@ function fixture(){
     });
     vm.runInContext(source, context);
     context.alerts.timer = 1;
-    return { context, alerts: context.alerts, data, watch, notifications, calls: () => calls, setOffline: (v) => { offline = v; } };
+    return { context, alerts: context.alerts, data, watch, notifications, calls: () => calls, badgeEvents: () => badgeEvents, setOffline: (v) => { offline = v; } };
 }
 
 describe("watchlist menu alerts", () => {
@@ -59,6 +62,26 @@ describe("watchlist menu alerts", () => {
         f.watch[0].target = 110;
         await f.alerts.check();
         expect(f.notifications).toHaveLength(3);
+    });
+
+    test("a crossing counts as unread until the watchlist is opened, and a removed watch drops it", async() => {
+        const f = fixture();
+        await f.alerts.check();
+        expect([...f.alerts.unread]).toEqual([1]);
+        expect(f.badgeEvents()).toBe(1);
+        await f.alerts.check();
+        expect(f.badgeEvents()).toBe(1);
+        f.alerts.markRead();
+        expect(f.alerts.unread.size).toBe(0);
+        expect(f.badgeEvents()).toBe(2);
+        f.data.lowest = 120;
+        await f.alerts.check();
+        f.data.lowest = 95;
+        await f.alerts.check();
+        expect(f.alerts.unread.size).toBe(1);
+        f.watch[0].target = null;
+        await f.alerts.check();
+        expect(f.alerts.unread.size).toBe(0);
     });
 
     test("stale or unobserved quotes never trigger a target alert", async() => {
