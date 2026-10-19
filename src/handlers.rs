@@ -973,6 +973,9 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             if *setting == "disableOnlineFeatures" {
                 modules::blocklist::set_online_off(*value == "true");
             }
+            if (*setting == "market" || *setting == "disableOnlineFeatures") && browser.is_popup() == 0 {
+                modules::history::load(browser);
+            }
             if *setting == "disableCats" {
                 modules::blocklist::set_cats_off(*value == "true");
             }
