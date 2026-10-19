@@ -143,6 +143,8 @@ class MotionBlur {
             context.globalCompositeOperation = "copy";
             context.globalAlpha = 1;
             this.hasHistory = true;
+            // krunker's in-game saturation and hue are a css filter on its canvas, this canvas covers it
+            this.overlay.style.filter = this.game.style.filter;
             this.overlay.style.display = "block";
         }
         context.drawImage(this.game, 0, 0);
