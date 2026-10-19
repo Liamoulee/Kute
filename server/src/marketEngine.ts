@@ -254,6 +254,8 @@ export type MarketQuery = {
     portfolio(name: string): Promise<PortfolioReply | null>;
     /** session is an opaque contribution source, never a player identity */
     observe(session: string, body: ObserveBody): ObserveResult;
+    /** the skins a source watches, read more often; an engine without it ignores the list */
+    watch?(source: string, body: unknown): { watched: number };
 };
 
 export type MarketEngine = {
