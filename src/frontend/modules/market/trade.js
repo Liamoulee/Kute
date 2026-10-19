@@ -104,18 +104,17 @@ class TradeWindows {
         if (!anchor) return null;
         /** @param {Element} list */
         const items = (list) => [...list.querySelectorAll("[id^='trd_']")].flatMap((node) => {
-            const match = /^trd_\d+_(\d+)(?:_\d+)?$/.exec(node.id);
+            // the plaza names selected items trd_sel_<side>_<skin>, inventory entries trd_inv_* stay out
+            const match = /^trd_(?:sel_)?\d+_(\d+)(?:_\d+)?$/.exec(node.id);
             return match ? [{ skin: Number(match[1]), count: TradeWindows.kr(node.querySelector(".tItemCnt")?.textContent ?? "1") || 1 }] : [];
         });
-        /** @param {string} id */
-        const kr = (id) => {
-            const el = document.getElementById(id);
-            return Math.max(0, el instanceof HTMLInputElement ? Number(el.value) || 0 : TradeWindows.kr(el?.textContent ?? "0"));
-        };
+        // offered KR is currency 1 in the list; offerVal0/1 show the game's own estimate, never the offer
+        /** @param {number} side */
+        const kr = (side) => Math.max(0, TradeWindows.kr(document.getElementById(`currency_item_${side}_1`)?.querySelector(".tCurrencyAmount")?.textContent ?? "0"));
         const give = items(lists[0]);
         const get = items(lists[1]);
-        const giveKr = kr("offerVal0");
-        const getKr = kr("offerVal1");
+        const giveKr = kr(0);
+        const getKr = kr(1);
         return { give, get, giveKr, getKr, anchor, key: JSON.stringify([give, get, giveKr, getKr]) };
     }
 
