@@ -64,7 +64,7 @@ export async function watchlistView(desk){
                                     return html`
                                         <tr>
                                             <td>
-                                                <button data-skin="${w.skin}">${identity(w)}</button>
+                                                <button data-skin="${esc(w.skin)}">${identity(w)}</button>
                                             </td>
                                             <td class="num">${money(v?.fair)}</td>
                                             <td class="num">${money(v?.lowest)}</td>
@@ -73,7 +73,7 @@ export async function watchlistView(desk){
                                                     class="watchTarget"
                                                     type="number"
                                                     min="1"
-                                                    data-target="${w.skin}"
+                                                    data-target="${esc(w.skin)}"
                                                     value="${w.target ?? ""}"
                                                     aria-label="Target price for ${esc(w.name)}"
                                                     placeholder="Set target"
@@ -83,7 +83,7 @@ export async function watchlistView(desk){
                                             <td>
                                                 <button
                                                     class="remove"
-                                                    data-unwatch="${w.skin}"
+                                                    data-unwatch="${esc(w.skin)}"
                                                     aria-label="Remove ${esc(w.name)} from watchlist"
                                                 >
                                                     &times;

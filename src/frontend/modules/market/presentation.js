@@ -9,6 +9,12 @@ export const TRADE_VERDICTS = {
     uncertain: { label: "Not enough evidence", detail: "Estimates are too uncertain for a verdict" },
 };
 
+/**
+ * @param {string} verdict
+ * @return {keyof typeof TRADE_VERDICTS} a verdict a newer server added reads as uncertain
+ */
+export const verdictOf = (verdict) => Object.hasOwn(TRADE_VERDICTS, verdict) ? /** @type {keyof typeof TRADE_VERDICTS} */ (verdict) : "uncertain";
+
 /** @param {unknown} text */
 export const esc = (text) => String(text ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
 

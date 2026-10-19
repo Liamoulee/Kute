@@ -26,7 +26,7 @@ export async function overviewView(desk){
                       .map((w) => {
                           const v = values[w.skin];
                           return html`
-                              <button class="listRow" data-skin="${w.skin}">
+                              <button class="listRow" data-skin="${esc(w.skin)}">
                                   ${identity(w)}
                                   <span class="listValue">
                                       ${money(v?.lowest)}

@@ -1,6 +1,7 @@
 import { kute } from "../../client.js";
 import marketApi from "./api.js";
 import { GRADE_COLORS, formatKr, formatPercent } from "./types.js";
+import { esc } from "./presentation.js";
 
 // one line under every market card: our value, the grade and how the ask compares. the game's card
 // shows only a preview image and an ask, the image path names the skin. the menu is polled at a slow
@@ -228,7 +229,7 @@ class Cards {
             const percent = Math.round(Math.abs(share) * 100);
             delta = `<span class="kuteDelta ${cls}">${share < 0 ? "−" : "+"}${percent}%</span>`;
         }
-        line.innerHTML = `<span class="kuteMark">K</span> ${formatKr(value.fair)}<span class="kuteGrade" style="background:${GRADE_COLORS[value.grade]}">${value.grade}</span>${delta}`;
+        line.innerHTML = `<span class="kuteMark">K</span> ${formatKr(value.fair)}<span class="kuteGrade" style="background:${GRADE_COLORS[value.grade]}">${esc(value.grade)}</span>${delta}`;
         line.title = `Kute fair value ${formatKr(value.fair)} kr, evidence score ${value.confidence}/100, public-market activity grade ${value.grade}`
             + (value.privateTrading?.trades7d ? `, ${value.privateTrading.trades7d} reported private trades this week` : "")
             + (value.exchange?.status === "applied" ? ", includes private exchange evidence" : "")

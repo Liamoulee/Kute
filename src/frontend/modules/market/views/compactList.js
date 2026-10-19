@@ -1,5 +1,5 @@
 import { html } from "../element.js";
-import { money, identity } from "../presentation.js";
+import { esc, money, identity } from "../presentation.js";
 /** @param {import("../terminal.js").Terminal} desk  @param {import("../types.js").SkinSummary[]} items */
 export function compactListView(desk, items){
     return html`
@@ -7,7 +7,7 @@ export function compactListView(desk, items){
             ${items
                 .map(
                     (s) => html`
-                        <button class="listRow" data-skin="${s.skin}">
+                        <button class="listRow" data-skin="${esc(s.skin)}">
                             ${identity(s)}
                             <span class="listValue">
                                 ${money(s.fair)}

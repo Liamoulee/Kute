@@ -52,7 +52,7 @@ export function itemIntelligence(intel, compact = false){
 </div>${signals.length ? signals.map(s => `<div
     class="signalReason">
 <b
-    class="${s.tone}">${esc(s.title)}</b>
+    class="${esc(s.tone)}">${esc(s.title)}</b>
 <p>${esc(s.detail)}</p>
 </div>`).join("") : '<p class="sub">No observation to highlight.</p>'}${forecast}</section>`;
 }
@@ -111,9 +111,9 @@ export function intelligenceView(reply, kind, advanced, watched){
 <div
     class="panelHead">
 <button
-    data-skin="${s.skin}">${identity(s)}</button>${watched.includes(s.skin) ? '<span class="tag quiet">Watching</span>' : ""}</div>
+    data-skin="${esc(s.skin)}">${identity(s)}</button>${watched.includes(s.skin) ? '<span class="tag quiet">Watching</span>' : ""}</div>
 <div
-    class="eyebrow ${first?.tone ?? "muted"}">${esc(first?.kind ?? "signal")}</div>
+    class="eyebrow ${esc(first?.tone ?? "muted")}">${esc(first?.kind ?? "signal")}</div>
 <h2>${esc(first?.title)}</h2>
 <p
     class="sub">${esc(first?.detail)}</p>${second ? `<p
@@ -123,7 +123,7 @@ export function intelligenceView(reply, kind, advanced, watched){
 </span>
 <button
     class="textButton"
-    data-skin="${s.skin}">Inspect item &#8594;</button>
+    data-skin="${esc(s.skin)}">Inspect item &#8594;</button>
 </div>
 </article>`;
         }).join("")}</div>` : `<section

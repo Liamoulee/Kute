@@ -126,7 +126,7 @@ export async function portfolioView(desk){
                             ${p.items
                                 .map(
                                     (i) => html`
-                                        <tr class="clickable" data-skin="${i.skin}" tabindex="0">
+                                        <tr class="clickable" data-skin="${esc(i.skin)}" tabindex="0">
                                             <td>${identity(i)}</td>
                                             <td class="num">${i.count}</td>
                                             <td class="num">${money(i.fair)}</td>
@@ -134,7 +134,7 @@ export async function portfolioView(desk){
                                             <td class="num">${change(i.trend7d)}</td>
                                             ${desk.advanced
                                                 ? html`
-                                                      <td>${i.grade}</td>
+                                                      <td>${esc(i.grade)}</td>
                                                   `
                                                 : ""}
                                         </tr>

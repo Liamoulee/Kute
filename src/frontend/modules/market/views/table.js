@@ -21,7 +21,7 @@ export function tableView(desk, items){
                     ${items
                         .map(
                             (s) => html`
-                                <tr class="clickable" data-skin="${s.skin}" tabindex="0">
+                                <tr class="clickable" data-skin="${esc(s.skin)}" tabindex="0">
                                     <td>${identity(s)}</td>
                                     <td class="num">
                                         ${money(s.fair)}
