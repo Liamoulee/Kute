@@ -36,25 +36,48 @@ fn path_for(name: &str) -> Option<PathBuf> {
     valid_file(name).then(|| css_dir().join(name))
 }
 
-// browser process, before cef starts. copied, not moved: an older exe still reads custom.css
+fn legacy_modified() -> Option<u64> {
+    let modified = fs::metadata(legacy_path()).ok()?.modified().ok()?;
+    modified.duration_since(std::time::UNIX_EPOCH).ok().map(|age| age.as_millis() as u64)
+}
+
+fn read_state() -> Option<Value> {
+    serde_json::from_str::<Value>(&fs::read_to_string(state_path()).ok()?).ok()
+}
+
+fn write_state(active: Option<&str>, legacy: Option<u64>) -> Result<(), String> {
+    fs::create_dir_all(css_dir()).map_err(|e| e.to_string())?;
+    utils::atomic_write(&state_path(), &json!({ "active": active, "legacy": legacy }).to_string()).map_err(|e| e.to_string())
+}
+
+// browser process, before cef starts. copied, not moved: an older exe still reads custom.css, and what
+// it saved there after the first copy comes in again as a new file
 pub fn migrate() {
-    let legacy = legacy_path();
-    if !legacy.exists() || state_path().exists() {
-        return;
-    }
-    let target = css_dir().join(DEFAULT_FILE);
-    let copied = fs::create_dir_all(css_dir()).and_then(|_| if target.exists() { Ok(0) } else { fs::copy(&legacy, &target) });
+    let Some(modified) = legacy_modified() else { return };
+    let state = read_state();
+    let taken = state.as_ref().map(|state| state["legacy"].as_u64());
+    let name = match taken {
+        None => DEFAULT_FILE.to_string(),
+        // a state from before this check, its copy is the current one
+        Some(None) => {
+            write_state(active().as_deref(), Some(modified)).ok();
+            return;
+        }
+        Some(Some(taken)) if modified <= taken => return,
+        Some(Some(_)) => free_name(DEFAULT_FILE),
+    };
+    let target = css_dir().join(&name);
+    let copied = fs::create_dir_all(css_dir()).and_then(|_| if target.exists() { Ok(0) } else { fs::copy(legacy_path(), &target) });
     match copied {
         Ok(_) => {
-            set_active(DEFAULT_FILE).ok();
+            write_state(Some(&name), Some(modified)).ok();
         }
-        Err(e) => eprintln!("custom css: can't copy {} into {}: {}", legacy.display(), css_dir().display(), e),
+        Err(e) => eprintln!("custom css: can't copy {} into {}: {}", legacy_path().display(), css_dir().display(), e),
     }
 }
 
 pub fn active() -> Option<String> {
-    let text = fs::read_to_string(state_path()).ok()?;
-    let name = serde_json::from_str::<Value>(&text).ok()?["active"].as_str()?.to_string();
+    let name = read_state()?["active"].as_str()?.to_string();
     path_for(&name)?.is_file().then_some(name)
 }
 
@@ -63,9 +86,8 @@ pub fn set_active(name: &str) -> Result<(), String> {
     if !name.is_empty() && !path_for(name).is_some_and(|path| path.is_file()) {
         return Err(format!("{name} does not exist"));
     }
-    fs::create_dir_all(css_dir()).map_err(|e| e.to_string())?;
-    let state = json!({ "active": if name.is_empty() { Value::Null } else { json!(name) } });
-    utils::atomic_write(&state_path(), &state.to_string()).map_err(|e| e.to_string())
+    let legacy = read_state().and_then(|state| state["legacy"].as_u64()).or_else(legacy_modified);
+    write_state((!name.is_empty()).then_some(name), legacy)
 }
 
 pub fn list() -> Value {
@@ -112,8 +134,8 @@ pub fn free_name(name: &str) -> String {
 pub fn rename(from: &str, to: &str) -> Result<(), String> {
     let source = path_for(from).ok_or("Unknown CSS file")?;
     let target = path_for(to).ok_or("CSS file names end in .css and cannot contain \\ / : * ? \" < > |")?;
-    // a case-only rename is the same file on windows
-    if target.exists() && !from.eq_ignore_ascii_case(to) {
+    // a case-only rename is the same file on windows, two files on linux
+    if target.exists() && !(cfg!(windows) && from.eq_ignore_ascii_case(to)) {
         return Err(format!("{to} already exists"));
     }
     let was_active = active().as_deref() == Some(from);
