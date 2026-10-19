@@ -56,11 +56,14 @@ class MarketApi {
         }
     }
 
-    forget(){
+    /**
+     * @param {string} session the one the server refused; parallel 401s of it must not each start a new flow
+     */
+    forget(session){
+        if (this.stored()?.session !== session) return;
         try { localStorage.removeItem(SESSION_KEY); }
         catch { /* the in-memory session can still be renewed */ }
         this.memorySession = null;
-        this.sessionPromise = null;
     }
 
     /**
@@ -176,7 +179,7 @@ class MarketApi {
         // the module and server own the TTL; a second browser cache can outlive either one
         const result = await api.requestStatus(path, { ...init, headers, cache: "no-store" });
         if (result.status === 401 && !retried){
-            this.forget();
+            this.forget(session);
             return this.requestStatus(path, init, true);
         }
         if (result.status === 429){
