@@ -1,12 +1,14 @@
 import { esc, money } from "./presentation.js";
+import { lineSegments } from "./chartData.js";
 
 /**
- * @typedef {{t:number,values:(number|null)[],volume?:number|null,ask?:{open:number,high:number,low:number,close:number,samples:number}|null}} ChartPoint
+ * @typedef {{t:number,end?:number,partial?:boolean,values:(number|null)[],volume?:number|null,ask?:{open:number,high:number,low:number,close:number,samples:number}|null}} ChartPoint
  * @typedef {{label:string,color:string}} Series
+ * @typedef {{candles?:boolean,volume?:boolean,zoom?:number,stepMs?:number,offset?:number,connectGaps?:boolean}} ChartOptions
  */
 
 export default class MarketChart {
-    /** @param {HTMLElement} host @param {ChartPoint[]} points @param {Series[]} series @param {{candles?:boolean,volume?:boolean,zoom?:number,stepMs?:number,offset?:number}} [options] */
+    /** @param {HTMLElement} host @param {ChartPoint[]} points @param {Series[]} series @param {ChartOptions} [options] */
     constructor(host, points, series, options = {}){
         this.host = host;
         this.points = points;
@@ -49,10 +51,13 @@ export default class MarketChart {
         const low = Math.max(0, min - span * 0.12);
         const high = max + span * 0.12;
         const first = points[0].t;
-        const last = points.at(-1)?.t ?? first;
+        const last = (candles ? points.at(-1)?.end : points.at(-1)?.t) ?? first;
         const duration = last - first || 86_400_000;
         const x = (/** @type {number} */ t) => left + (t - first) / duration * (right - left);
         const y = (/** @type {number} */ v) => bottom - (v - low) / (high - low) * (bottom - top);
+        const at = (/** @type {ChartPoint} */ point) => candles && point.end ? (point.t + point.end) / 2 : point.t;
+        const step = options.stepMs ?? 86_400_000;
+        const segments = series.map((s, index) => lineSegments(points, index, step));
         let svg = "";
         for (let i = 0; i <= 4; i++){
             const value = low + (high - low) * i / 4;
@@ -71,35 +76,46 @@ export default class MarketChart {
         if (options.volume){
             const volumeMax = Math.max(1, ...points.map((p) => p.volume ?? 0));
             const barWidth = Math.max(1, Math.min(14, (right - left) / Math.max(1, points.length) * 0.6));
-            svg += points.filter((p) => p.volume !== null && p.volume !== undefined).map((p) => `<rect x="${x(p.t) - barWidth / 2}" y="${244 - (p.volume ?? 0) / volumeMax * 30}" width="${barWidth}" height="${(p.volume ?? 0) / volumeMax * 30}" fill="#f36eaa" opacity=".23"/>`).join("");
+            svg += points.filter((p) => p.volume !== null && p.volume !== undefined).map((p) => `<rect x="${x(at(p)) - barWidth / 2}" y="${244 - (p.volume ?? 0) / volumeMax * 30}" width="${barWidth}" height="${(p.volume ?? 0) / volumeMax * 30}" fill="#f36eaa" opacity=".23"/>`).join("");
         }
         if (candles){
-            const bw = Math.max(2, Math.min(12, (right - left) / points.length * 0.65));
+            const bw = Math.max(3, Math.min(14, (right - left) * step / duration * 0.65));
             for (const p of points){
                 const q = p.ask;
                 if (!q) continue;
-                const color = q.close >= q.open ? "#71d9b0" : "#f68c9b";
-                svg += `<line x1="${x(p.t)}" x2="${x(p.t)}" y1="${y(q.high)}" y2="${y(q.low)}" stroke="${color}"/><rect x="${x(p.t) - bw / 2}" y="${Math.min(y(q.open), y(q.close))}" width="${bw}" height="${Math.max(2, Math.abs(y(q.open) - y(q.close)))}" fill="${color}"/>`;
+                let direction = "flat";
+                let color = "#9698a7";
+                if (q.samples <= 1) direction = "single";
+                else if (q.close !== q.open){
+                    direction = q.close > q.open ? "up" : "down";
+                    color = q.close > q.open ? "#71d9b0" : "#f68c9b";
+                }
+                const cx = x(at(p));
+                svg += `<g data-candle="${direction}">`;
+                if (q.samples > 1) svg += `<line x1="${cx}" x2="${cx}" y1="${y(q.high)}" y2="${y(q.low)}" stroke="${color}"/>`;
+                if (direction === "single" || direction === "flat") svg += `<line x1="${cx - bw / 2}" x2="${cx + bw / 2}" y1="${y(q.close)}" y2="${y(q.close)}" stroke="${color}" stroke-width="2"/>`;
+                else svg += `<rect x="${cx - bw / 2}" y="${Math.min(y(q.open), y(q.close))}" width="${bw}" height="${Math.max(2, Math.abs(y(q.open) - y(q.close)))}" fill="${color}"/>`;
+                svg += "</g>";
             }
         }
-        {
-            const step = options.stepMs ?? 86_400_000;
-            for (const [index, s] of series.entries()){
-                if (candles && index === 0) continue;
-                let path = "";
-                let previous = 0;
-                for (const p of points){
-                    const v = p.values[index];
-                    if (v === null || v === undefined || !Number.isFinite(v)){
-                        previous = 0;
-                        continue;
-                    }
-                    path += `${previous && p.t - previous <= step * 1.5 ? "L" : "M"}${x(p.t)},${y(v)} `;
-                    previous = p.t;
-                    svg += `<circle cx="${x(p.t)}" cy="${y(v)}" r="${points.length < 3 ? 3 : 1.5}" fill="${s.color}"/>`;
-                }
-                svg += `<path d="${path}" fill="none" stroke="${s.color}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>`;
+        for (const [index, s] of series.entries()){
+            if (candles && index === 0) continue;
+            let path = "";
+            let gaps = "";
+            for (const segment of segments[index]){
+                const line = `M${x(at(segment.from))},${y(/** @type {number} */(segment.from.values[index]))} L${x(at(segment.to))},${y(/** @type {number} */(segment.to.values[index]))} `;
+                if (!segment.gap) path += line;
+                else if (options.connectGaps) gaps += line;
             }
+            for (const p of points){
+                const v = p.values[index];
+                if (v === null || v === undefined || !Number.isFinite(v)){
+                    continue;
+                }
+                svg += `<circle cx="${x(at(p))}" cy="${y(v)}" r="${points.length < 20 ? 3 : 1.5}" fill="${s.color}"/>`;
+            }
+            svg += `<path class="observedLine" d="${path}" fill="none" stroke="${s.color}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>`;
+            if (gaps) svg += `<path class="gapLine" d="${gaps}" fill="none" stroke="${s.color}" stroke-width="1.6" stroke-dasharray="5 5" opacity=".65"/>`;
         }
         host.innerHTML = `<svg viewBox="0 0 ${w} ${h}" role="img" aria-label="${esc(candles ? "Sampled asking-price candles" : series.map((s) => s.label).join(", "))}">${svg}<line class="crosshair" x1="0" x2="0" y1="${top}" y2="244" stroke="#858796" stroke-dasharray="3 4" visibility="hidden"/></svg><div class="chartTooltip" hidden></div>`;
         const graph = /** @type {SVGSVGElement} */ (host.querySelector("svg"));
@@ -109,16 +125,28 @@ export default class MarketChart {
             const bounds = graph.getBoundingClientRect();
             const px = (event.clientX - bounds.left) * w / bounds.width;
             const t = first + (px - left) / (right - left) * duration;
-            const point = points.reduce((best, p) => Math.abs(p.t - t) < Math.abs(best.t - t) ? p : best);
+            const point = points.find(p => candles && p.end && t >= p.t && t < p.end)
+                ?? points.reduce((best, p) => Math.abs(at(p) - t) < Math.abs(at(best) - t) ? p : best);
+            const gap = !candles && options.connectGaps ? segments[0]?.find(s => s.gap && x(s.from.t) + 5 < px && px < x(s.to.t) - 5) : null;
+            const emptyInterval = candles && point.end !== undefined && (t < point.t || t >= point.end);
             const q = point.ask;
             let details = series.map((s, i) => `${esc(s.label)} <b>${money(point.values[i])}</b>`).join("<br>");
-            if (candles) details = q ? `Open ${money(q.open)} &middot; High ${money(q.high)}<br>Low ${money(q.low)} &middot; Close ${money(q.close)}<br>${q.samples} sampled quote${q.samples === 1 ? "" : "s"}` : "No quote in this bucket";
-            if (candles && series.length > 1) details += "<br>" + series.slice(1).map((s, i) => `${esc(s.label)} <b>${money(point.values[i + 1])}</b>`).join("<br>");
-            tooltip.innerHTML = `<strong>${esc(new Date(point.t).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" }))} UTC</strong><br>${details}${options.volume && point.volume !== null && point.volume !== undefined ? `<br>Sales ${point.volume}` : ""}`;
+            if (candles){
+                details = "No quote in this bucket";
+                if (q?.samples === 1 && !emptyInterval) details = `Observed ask <b>${money(q.close)}</b><br>1 sampled quote; direction unknown`;
+                else if (q && !emptyInterval) details = `Open ${money(q.open)} &middot; High ${money(q.high)}<br>Low ${money(q.low)} &middot; Close ${money(q.close)}<br>${q.samples} sampled quotes`;
+                if (point.partial && !emptyInterval) details += "<br>Partial interval";
+            }
+            if (candles && !emptyInterval && series.length > 1) details += "<br>Last observed in interval:<br>" + series.slice(1).map((s, i) => `${esc(s.label)} <b>${money(point.values[i + 1])}</b>`).join("<br>");
+            if (gap) details = "No price observation in this gap.<br>Dashed line connects recorded values.";
+            const dateLabel = (/** @type {number} */ time) => new Date(time).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
+            let date = dateLabel(gap || emptyInterval ? t : point.t);
+            if (candles && point.end && !emptyInterval) date = `${dateLabel(point.t)} to ${dateLabel(point.end)}`;
+            tooltip.innerHTML = `<strong>${esc(date)} UTC</strong><br>${details}${!gap && !emptyInterval && options.volume && point.volume !== null && point.volume !== undefined ? `<br>Reported sales ${point.volume}` : ""}`;
             tooltip.hidden = false;
             tooltip.style.left = `${Math.max(0, Math.min(px + 14, w - 240))}px`;
-            crosshair.setAttribute("x1", String(x(point.t)));
-            crosshair.setAttribute("x2", String(x(point.t)));
+            crosshair.setAttribute("x1", String(gap || emptyInterval ? px : x(at(point))));
+            crosshair.setAttribute("x2", String(gap || emptyInterval ? px : x(at(point))));
             crosshair.setAttribute("visibility", "visible");
         });
         graph.addEventListener("pointerleave", () => {
