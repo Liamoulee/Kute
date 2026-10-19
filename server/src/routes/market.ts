@@ -123,6 +123,7 @@ export async function marketRoutes(app: FastifyInstance, options: { engine: Mark
             page: int(q.page, 1, 200) ?? 1,
             budget: int(q.budget, 1, 1_000_000_000),
             minSales: int(q.min_sales, 0, 100_000),
+            minActivity: int(q.min_activity, 0, 100_000),
         };
         return serve(reply, MINUTE, "search:" + JSON.stringify(query), () => engine!.query.search(query));
     });

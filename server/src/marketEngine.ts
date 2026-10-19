@@ -32,15 +32,23 @@ export type MarketStatus = {
 
 export type Grade = "A" | "B" | "C" | "D" | "F";
 
+export type PrivateTrading = { trades7d: number; trades30d: number; lastTradeDay: string };
+export type ExchangeEvidence = {
+    version: string; status: "applied" | "unresolved"; estimate: number | null; low: number | null; high: number | null;
+    baseline: number; baselineMethod: string; confidence: number; reports: number; sources: number; days: number; reason: string; asOf: number;
+};
+
 /** what every card, row and trade line needs about a skin */
 export type SkinValue = {
+    privateTrading?: PrivateTrading;
+    exchange?: ExchangeEvidence;
     skin: number;
     /** kr */
     fair: number;
     /** 0 to 100 */
     confidence: number;
     grade: Grade;
-    /** how the value was made: sales7d, sales30d, sales90d, ask, krunker, floor */
+    /** public baseline method, trades, or a sales method with +trades */
     method: string;
     /** cheapest live ask, null without listings */
     lowest: number | null;
@@ -70,7 +78,7 @@ export type SkinSummary = SkinValue & {
 };
 
 export type SearchSort = "volume" | "value" | "trend1d" | "trend7d" | "trend30d" | "liquidity" | "onsale" | "name";
-export type SearchQuery = { q?: string; rarity?: number; type?: number; season?: number; sort?: SearchSort; page?: number; budget?: number; minSales?: number };
+export type SearchQuery = { q?: string; rarity?: number; type?: number; season?: number; sort?: SearchSort; page?: number; budget?: number; minSales?: number; minActivity?: number };
 export type SearchReply = { total: number; page: number; perPage: number; items: SkinSummary[]; asOf: number };
 
 export type Depth = { total: number; lowest: number | null; p25: number | null; median: number | null; p75: number | null; depthKr: number; sellers: number; maxByOne: number };
@@ -174,7 +182,7 @@ export type OverviewReply = {
 };
 
 export type TradeItem = { skin: number; count: number; serial?: number; wear?: number; style?: number };
-export type TradeLine = TradeItem & { name: string; fair: number; confidence: number; grade: Grade; unknown: boolean; lineValue: number; liquidValue: number; premium: number | null };
+export type TradeLine = TradeItem & { name: string; fair: number; confidence: number; grade: Grade; unknown: boolean; lineValue: number; liquidValue: number; premium: number | null; privateTrading?: PrivateTrading; exchange?: ExchangeEvidence };
 export type TradeSide = { items: TradeLine[]; kr: number; value: number; liquidValue: number; confidence: number };
 export type TradeInput = { give: TradeItem[]; get: TradeItem[]; giveKr: number; getKr: number };
 export type TradeVerdict = {
