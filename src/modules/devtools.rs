@@ -82,7 +82,10 @@ pub fn evaluate(browser: &Browser, expression: &str) {
 }
 
 pub fn enable_network(browser: &Browser) {
-    call(browser, "Network.enable", None);
+    // history capture reads the game's own list and purchase bodies, all far smaller
+    let Some(params) = dictionary_value_create() else { return };
+    params.set_int(Some(&CefString::from("maxPostDataSize")), 64 * 1024);
+    call(browser, "Network.enable", Some(params));
 }
 
 pub fn get_response_body(browser: &Browser, request_id: &str) -> i32 {
