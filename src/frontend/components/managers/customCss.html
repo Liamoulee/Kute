@@ -2,6 +2,7 @@
 .managerBody {
 	display: flex;
 	flex-direction: column;
+	gap: 0.9em;
 }
 
 .previewToggle {
@@ -16,18 +17,116 @@
 .previewToggle input {
 	accent-color: var(--accent);
 }
+
+#ccEditor {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	min-height: 0;
+}
+
+#ccEditor > .empty {
+	margin: auto;
+}
+
+#ccFiles {
+	flex: 0 0 auto;
+	margin-bottom: 0;
+}
+
+#ccList {
+	max-height: 168px;
+	overflow-y: auto;
+}
+
+.cssRow {
+	display: flex;
+	align-items: center;
+	gap: 0.7em;
+	padding: 0.35em 0.9em;
+	border-bottom: 1px solid #2e2e2e;
+	cursor: pointer;
+}
+
+.cssRow:last-child {
+	border-bottom: 0;
+}
+
+.cssRow:hover {
+	background: #2b2b2b;
+}
+
+.cssRow.editing {
+	background: rgba(53, 224, 232, 0.08);
+}
+
+.cssRadio {
+	flex: 0 0 auto;
+	box-sizing: border-box;
+	width: 16px;
+	height: 16px;
+	border: 2px solid #666;
+	border-radius: 50%;
+}
+
+.cssRow.active .cssRadio {
+	border-color: var(--accent);
+	background: radial-gradient(circle, var(--accent) 0 3px, transparent 4px);
+}
+
+.cssName {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	color: #fff;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.cssRow.none .cssName {
+	color: var(--muted);
+}
+
+.cssSize {
+	flex: 0 0 auto;
+	color: #666;
+	font-size: 0.85em;
+}
+
+.cssActions {
+	display: flex;
+	flex: 0 0 auto;
+	gap: 0.15em;
+}
+
+.managerPopup.legacy #ccFiles {
+	display: none;
+}
 </style>
 <div class="managerPopup">
 	<div class="managerHeader">
-		<h2 class="managerTitle">Custom CSS</h2>
-		<label class="previewToggle" title="Apply every change right away, Close throws unsaved changes away again"><input type="checkbox" id="ccLive" checked>Live preview</label>
+		<h2 class="managerTitle">CSS Manager</h2>
+		<label class="previewToggle" title="Show the file you edit right away, closing puts the active one back"><input type="checkbox" id="ccLive" checked>Live preview</label>
 		<div class="btn" id="ccPeek" title="Hold to look at the game behind this window"><span class="mi">visibility</span>Hold to peek</div>
-		<div class="btn" id="ccFolder"><span class="mi">folder_open</span>Show file</div>
+		<div class="btn" id="ccFolder"><span class="mi">folder_open</span>Show folder</div>
 		<div class="managerClose" data-close>&times;</div>
 	</div>
-	<div class="managerHint">Loaded after all of Krunker's styles, so a rule with the same selector wins. Krunker's inline styles
-		and its own <code>!important</code> rules still need <code>!important</code> here. Saved as <code>Documents\kute\custom.css</code>.</div>
+	<div class="managerHint" id="ccHint">One file is active at a time and loads after all of Krunker's styles, so a rule with the same selector wins.
+		Krunker's inline styles and its own <code>!important</code> rules still need <code>!important</code> here. Files live in <code>Documents\kute\css</code>.</div>
 	<div class="managerError" data-error hidden></div>
-	<div class="managerNotice" id="ccOff" hidden><span>Custom CSS is switched off (Settings, Customization), nothing of this is applied.</span></div>
-	<div class="managerBody" id="ccBody"></div>
+	<div class="managerNotice" id="ccOff" hidden><span>CSS Manager is switched off (Settings, Customization), nothing of this is applied.</span></div>
+	<div class="managerBody">
+		<div id="ccEditor"></div>
+		<div class="group" id="ccFiles">
+			<div class="groupHead">
+				<div class="groupTitle">Your CSS</div>
+				<div class="groupRuns">Click a file to edit it, the circle makes it active</div>
+				<div class="btn small" id="ccNew"><span class="mi">add</span>New</div>
+				<div class="btn small" id="ccPaste" title="New file from the CSS on your clipboard"><span class="mi">content_paste</span>Paste</div>
+				<div class="btn small" id="ccImport" title="Pick .css files, or drop them on this list"><span class="mi">upload_file</span>Import</div>
+				<input type="file" id="ccImportInput" accept=".css,text/css" multiple hidden>
+			</div>
+			<div id="ccList"></div>
+		</div>
+	</div>
 </div>

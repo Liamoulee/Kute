@@ -49,8 +49,8 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] Resource swapper with an in-client manager: shows which game files your swaps replace, drag'n'drop & built-in editor. CSS swaps apply instantly, and your swaps win over the built-in blocklist
 - [x] Classic menu (optional): the Season 9 menu layout, with every new Season 10 button and feature still in it
 - [x] Cleaner menu (optional): hides the store ad, live streams, featured maps, the "Popular Now" row and other promos in the menu, in the regular and the classic menu. The logo, every button and the match info stay
-- [x] Custom CSS with a syntax highlighted editor and live preview, always applied on top of Krunker's own styles
-- [x] Kute CSS (optional): Kute's own look for the whole client, menus, settings, every window and popup, the social window and the HUD, with a few cats. Colors that carry meaning (KR, rarities, teams, health) stay Krunker's, the classic menu keeps its buttons, and your Custom CSS still wins
+- [x] CSS Manager: keep several CSS files (write them, paste them or import them) and switch between them, with a syntax highlighted editor and live preview, always applied on top of Krunker's own styles
+- [x] Kute CSS (optional): Kute's own look for the whole client, menus, settings, every window and popup, the social window and the HUD, with a few cats. Colors that carry meaning (KR, rarities, teams, health) stay Krunker's, the classic menu keeps its buttons, and your own CSS still wins
 - [x] Motion blur (optional): a slight blur while you turn the camera, the HUD stays sharp
 - [x] Custom sky (optional): a built-in preset, your own color gradient or your own image as the sky of every map
 - [x] All settings togglable

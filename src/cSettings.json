@@ -390,10 +390,10 @@
         "needsRefresh": true
     },
     "customCss": {
-        "name": "Custom CSS",
+        "name": "CSS Manager",
         "id": "customCss",
         "performance": false,
-        "description": "Your own CSS on top of Krunker's, with a live preview while you write it",
+        "description": "Your own CSS on top of Krunker's. Keep several files and switch between them, with a live preview",
         "type": "checkbox",
         "category": "Customization",
         "defaultValue": true,
