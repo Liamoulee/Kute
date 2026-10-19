@@ -28,6 +28,8 @@ export type MarketStatus = {
     collector: boolean;
     jobs: MarketJobStatus[];
     counts: Record<string, number>;
+    /** in memory only: sources with a watchlist, skins watched, skins seen listed in the last hour */
+    watch?: { sources: number; skins: number; seen: number };
 };
 
 export type Grade = "A" | "B" | "C" | "D" | "F";
@@ -234,7 +236,8 @@ export type ObservedSale = { marketid: number; type: "sell" | "buy"; skinindex: 
 export type ObservedTradeItem = { skin: number; count: number; serial?: number; wear?: number; style?: number; paint?: number; instance?: number };
 export type ObservedCurrency = { id: number; amount: number };
 export type ObservedTrade = { trid?: number; at: number; context: "history" | "plaza" | "window"; give: ObservedTradeItem[]; get: ObservedTradeItem[]; giveKr: number; getKr: number; giveCurrencies?: ObservedCurrency[]; getCurrencies?: ObservedCurrency[] };
-export type ObserveBody = { listings?: ObservedListing[]; sales?: ObservedSale[]; trades?: ObservedTrade[] };
+/** seen: skins the game listed for the player, a hint to read their books sooner */
+export type ObserveBody = { listings?: ObservedListing[]; sales?: ObservedSale[]; trades?: ObservedTrade[]; seen?: unknown[] };
 export type ObserveResult = { accepted: number; rejected: number };
 
 export type MarketQuery = {
