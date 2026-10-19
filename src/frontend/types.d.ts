@@ -105,6 +105,7 @@ interface Kute {
     recovery?: RecoveryInfo;
     nukeCounter: { showOptions(): Promise<void> };
     customSky: { showOptions(): Promise<void> };
+    queueSound: { showOptions(): Promise<void> };
     hudEditor: { edit(): void; apply(): void };
     kuteIcons: { customize(): void; refresh(): void };
     /** masterChanged is set once the manager module loaded */

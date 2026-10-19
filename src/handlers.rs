@@ -648,6 +648,7 @@ static MANAGER_QUEUE: LazyLock<Option<mpsc::Sender<(i32, String)>>> = LazyLock::
                     Some(("scripts", rest)) => handle_scripts_message(rest),
                     Some(("swapper", rest)) => handle_swapper_message(rest),
                     Some(("css", rest)) => handle_css_message(rest),
+                    Some(("sound", rest)) => modules::sounds::handle_message(rest),
                     _ => None,
                 };
                 if let Some(reply) = reply {
@@ -807,6 +808,11 @@ pub fn open_documents_subpath(target: &str) {
             std::fs::create_dir_all(&dir).ok();
             dir
         }
+        "sounds" => {
+            let dir = modules::sounds::sounds_dir();
+            std::fs::create_dir_all(&dir).ok();
+            dir
+        }
         _ => return,
     };
     #[cfg(windows)]
@@ -879,6 +885,13 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
     }
     if let Some(rest) = message_string.strip_prefix("css-") {
         if is_krunker_frame(frame) && rest.len() <= 8 * 1024 * 1024 {
+            queue_manager_message(browser, message_string);
+        }
+        return;
+    }
+    // reads a whole sound file, off the ui thread
+    if message_string.starts_with("sound-") {
+        if is_krunker_frame(frame) && message_string.len() <= 4096 {
             queue_manager_message(browser, message_string);
         }
         return;

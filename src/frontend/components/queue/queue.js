@@ -8,6 +8,8 @@
      * @property {string} region "na", "eu" or "as"
      * @property {boolean} allRegions
      * @property {string} sound match found sound, base64
+     * @property {string} fallbackSound kute's own, when the player's sound does not decode
+     * @property {() => number} [volume] 0 to 1, absent from bundles before the volume setting
      * @property {Record<string, { url: string, number: number }>} maps label to preview image and map id
      */
 
@@ -120,8 +122,17 @@
     async function initializeAudio(){
         audioContext = new AudioContext();
         if (audioContext.state === "suspended") await audioContext.resume();
-        const bytes = Uint8Array.from(atob(info.sound), (char) => char.charCodeAt(0));
-        notificationBuffer = await audioContext.decodeAudioData(bytes.buffer);
+        /**
+         * @param {string} base64
+         * @return {Promise<AudioBuffer>}
+         */
+        const decode = (base64) => /** @type {AudioContext} */ (audioContext).decodeAudioData(Uint8Array.from(atob(base64), (char) => char.charCodeAt(0)).buffer);
+        try {
+            notificationBuffer = await decode(info.sound);
+        }
+        catch {
+            notificationBuffer = await decode(info.fallbackSound ?? info.sound);
+        }
     }
 
     function stopNotificationSound(){
@@ -134,14 +145,26 @@
     function playNotificationSound(){
         if (!notificationBuffer || audioContext?.state !== "running") return;
         stopNotificationSound();
+        let volume = 1;
+        try {
+            volume = info.volume?.() ?? 1;
+        }
+        catch {
+            // the main window is gone, full volume like before the setting
+        }
+        if (!(volume > 0)) return;
+        const gain = audioContext.createGain();
+        gain.gain.value = volume;
+        gain.connect(audioContext.destination);
         const source = audioContext.createBufferSource();
         source.buffer = notificationBuffer;
-        source.connect(audioContext.destination);
+        source.connect(gain);
         source.start(0);
         currentSource = source;
         source.onended = () => {
             if (currentSource === source) currentSource = null;
             source.disconnect();
+            gain.disconnect();
         };
     }
 
