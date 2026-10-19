@@ -9,12 +9,14 @@ import { setFrameEnd } from "./gameFpsLimit.js";
 
 const OVERLAY_ID = "kuteMotionBlur";
 const REFERENCE_FRAME_MS = 1000 / 60;
-// share of the previous frame kept at 60 fps with strength 100
-const MAX_RETENTION = 0.5;
+// share of the previous frame kept at 60 fps with strength 100, 0.5 smeared whole frames on fast flicks
+const MAX_RETENTION = 0.4;
 const MIN_WEIGHT = 0.002;
-// camera turn in px per 60 fps frame
-const TURN_START_PX = 3;
-const TURN_FULL_PX = 30;
+// camera turn in screen heights per second
+const TURN_START = 0.2;
+const TURN_FULL = 2;
+// krunker turns the camera by 0.0024 rad per count times the sensitivity
+const RAD_PER_COUNT = 0.0024;
 
 const VERTEX = `#version 300 es
 void main(){
@@ -54,6 +56,16 @@ function clamp(value, min, max){
 }
 
 /**
+ * @param {string} key
+ * @param {number} fallback
+ * @return {number}
+ */
+function krunkerSetting(key, fallback){
+    const value = parseFloat(localStorage.getItem("kro_setngss_" + key) ?? "");
+    return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+/**
  * @param {WebGL2RenderingContext} gl
  * @param {string} fragment
  * @return {WebGLProgram|null}
@@ -77,6 +89,9 @@ class MotionBlur {
         this.running = false;
         this.moveX = 0;
         this.moveY = 0;
+        // screen heights per mouse count, from krunker's sensitivity and fov
+        this.scaleX = 0;
+        this.scaleY = 0;
         this.weight = 0;
         this.lastFrame = 0;
         this.hasHistory = false;
@@ -107,6 +122,7 @@ class MotionBlur {
             if (!this.running){
                 this.running = true;
                 this.lastFrame = 0;
+                this.readScale();
                 setFrameEnd(this.onFrameEnd);
             }
         };
@@ -158,6 +174,14 @@ class MotionBlur {
         this.history = null;
         this.historyBuffer = null;
         this.hasHistory = false;
+    }
+
+    // hip fire numbers, scoped krunker scales sensitivity with the zoom so the screen moves about the same
+    readScale(){
+        const fov = clamp(krunkerSetting("fov", 100), 10, 170) * Math.PI / 180;
+        const heightsPerRad = 0.5 / Math.tan(fov / 2);
+        this.scaleX = RAD_PER_COUNT * krunkerSetting("sensitivityX", 1) * heightsPerRad;
+        this.scaleY = RAD_PER_COUNT * krunkerSetting("sensitivityY", 1) * heightsPerRad;
     }
 
     /** @return {boolean} */
@@ -239,14 +263,14 @@ class MotionBlur {
         const delta = this.lastFrame ? clamp(timestamp - this.lastFrame, 1, 100) : REFERENCE_FRAME_MS;
         this.lastFrame = timestamp;
 
-        const turn = Math.hypot(this.moveX, this.moveY) * (REFERENCE_FRAME_MS / delta);
+        const turn = Math.hypot(this.moveX * this.scaleX, this.moveY * this.scaleY) * (1000 / delta);
         this.moveX = 0;
         this.moveY = 0;
-        const amount = clamp((turn - TURN_START_PX) / (TURN_FULL_PX - TURN_START_PX), 0, 1);
+        const amount = clamp((turn - TURN_START) / (TURN_FULL - TURN_START), 0, 1);
         const strength = clamp(Number(kute.settings.data.motionBlurStrength) || 0, 0, 100) / 100;
         const target = strength * MAX_RETENTION * amount * amount * (3 - 2 * amount);
-        // quick to start, slower to fade out
-        this.weight += (target - this.weight) * (1 - Math.exp(-delta / (target > this.weight ? 6 : 24)));
+        // quick to start, a bit slower to fade out. a long fade left a smear after the turn ended
+        this.weight += (target - this.weight) * (1 - Math.exp(-delta / (target > this.weight ? 6 : 12)));
 
         if (this.weight < MIN_WEIGHT){
             this.stop();
