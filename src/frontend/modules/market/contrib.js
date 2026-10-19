@@ -6,6 +6,32 @@ import { contributedSale, contributedTrade } from "./contributionData.js";
 // the host hands over the game's own completed history replies (modules/history.rs); nothing here
 // touches fetch or another page global, krunker's cheat checks would see that
 
+// the game shows the same history on every load; a report sent again after a server restart would count as a second source
+const SENT_KEY = "kute_market_sent";
+const MAX_SENT = 2000;
+
+/** @param {string} text @return {string} two 32 bit fnv-1a hashes, a collision would only drop one report */
+function shortHash(text){
+    let a = 0x811c9dc5;
+    let b = 0x050c5d1f;
+    for (let i = 0; i < text.length; i++){
+        a = Math.imul(a ^ text.charCodeAt(i), 0x01000193) >>> 0;
+        b = Math.imul(b ^ text.charCodeAt(i), 0x01000193) >>> 0;
+    }
+    return a.toString(36) + b.toString(36);
+}
+
+/** @return {Set<string>} */
+function loadSent(){
+    try {
+        const saved = JSON.parse(localStorage.getItem(SENT_KEY) ?? "[]");
+        return new Set(Array.isArray(saved) ? saved.filter((h) => typeof h === "string").slice(-MAX_SENT) : []);
+    }
+    catch {
+        return new Set();
+    }
+}
+
 class Contributions {
     constructor(){
         this.running = false;
@@ -15,8 +41,8 @@ class Contributions {
         this.account = "";
         /** @type {Map<string,{kind:"sales"|"trades",row:object}>} */
         this.queue = new Map();
-        /** @type {Set<string>} */
-        this.sent = new Set();
+        /** @type {Set<string>} hashes of account and report, across page loads */
+        this.sent = loadSent();
         /** @type {number|undefined} */
         this.timer = undefined;
         /** @type {AbortController|null} */
@@ -45,7 +71,6 @@ class Contributions {
         this.controller?.abort();
         this.controller = null;
         this.queue.clear();
-        this.sent.clear();
         this.forgetCaptured();
     }
 
@@ -53,7 +78,6 @@ class Contributions {
     useAccount(account){
         if (this.account === account) return;
         this.queue.clear();
-        this.sent.clear();
         this.forgetCaptured();
         this.account = account;
     }
@@ -157,7 +181,7 @@ class Contributions {
             const row = kind === "trades" ? contributedTrade(raw, now) : contributedSale(raw, now);
             if (!row) continue;
             const key = kind + JSON.stringify(row);
-            if (!this.sent.has(key)) this.queue.set(key, { kind, row });
+            if (!this.sent.has(shortHash(`${account}\n${key}`))) this.queue.set(key, { kind, row });
         }
         while (this.queue.size > 300) this.queue.delete(this.queue.keys().next().value ?? "");
         this.schedule();
@@ -172,7 +196,7 @@ class Contributions {
 
     async flush(){
         if (!this.running || this.controller || !this.queue.size && !this.seen.size) return;
-        if (this.account !== this.currentAccount()){ this.queue.clear(); this.sent.clear(); this.seen.clear(); return; }
+        if (this.account !== this.currentAccount()){ this.queue.clear(); this.seen.clear(); return; }
         if (!this.active() || Date.now() < Math.max(this.nextPostAt, marketApi.retryAt)){
             this.nextPostAt = Math.max(this.nextPostAt, Date.now() + 10_000);
             this.schedule();
@@ -192,9 +216,11 @@ class Contributions {
             if (!result) throw new Error("contribution unavailable");
             // sent is sent, a pointer lock during the post must not queue the batch again
             if (generation !== this.generation || account !== this.currentAccount()) return;
-            for (const [key] of batch){ this.queue.delete(key); this.sent.add(key); }
+            for (const [key] of batch){ this.queue.delete(key); this.sent.add(shortHash(`${account}\n${key}`)); }
             for (const skin of seen) this.seen.delete(skin);
-            while (this.sent.size > 1000) this.sent.delete(this.sent.values().next().value ?? "");
+            while (this.sent.size > MAX_SENT) this.sent.delete(this.sent.values().next().value ?? "");
+            try { localStorage.setItem(SENT_KEY, JSON.stringify([...this.sent])); }
+            catch { /* this page load still skips them */ }
             this.failures = 0;
         }
         catch {
