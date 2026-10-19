@@ -1,7 +1,7 @@
 import styles from "./components/base.css";
 import { kute, ready, globalRef } from "./client.js";
 import { hook, getElement, checkCompMode } from "./utils.js";
-import { setRampBoost } from "./modules/rampBoost.js";
+import { setRampBoost, syncScrollBinds } from "./modules/rampBoost.js";
 import { prepareShootBind, syncLeftClick } from "./modules/leftClick.js";
 // imported first so later throws still get reported
 import { postUrls as postIconUrls } from "./modules/kuteIcons/slots.js";
@@ -76,6 +76,7 @@ document.addEventListener(
 
         hook(HTMLCanvasElement, "requestPointerLock", function(args, original){
             syncLeftClick();
+            syncScrollBinds();
             window.chrome.webview.postMessage("drag, false");
             window.chrome.webview.postMessage("throttle, game");
 

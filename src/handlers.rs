@@ -1058,6 +1058,9 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             // false: shoot is bound to the player's own key, a locked left click stays a mouse button
             modules::input::set_left_click_f20(value.parse::<bool>().unwrap_or(true));
         }
+        ["wheel-to-page", value] => {
+            modules::input::set_wheel_to_page(value.parse::<bool>().unwrap_or(false));
+        }
         ["throttle", status] => {
             // "off" is used by auto-detect
             let rate = match *status {

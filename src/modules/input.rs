@@ -80,6 +80,8 @@ static mut PREV_WNDPROC_2: WNDPROC = None;
 static POINTER_LOCKED: AtomicBool = AtomicBool::new(false);
 // off when the player bound shoot elsewhere (leftClick.js), the click is a mouse button then
 static LEFT_CLICK_F20: AtomicBool = AtomicBool::new(true);
+// a krunker control is bound to the wheel, ramp boost then passes the tick to the game as well
+static WHEEL_TO_PAGE: AtomicBool = AtomicBool::new(false);
 static F20_DOWN: AtomicBool = AtomicBool::new(false);
 static RAMPBOOST: AtomicBool = AtomicBool::new(false);
 static WINDOW_HANDLE: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
@@ -159,6 +161,11 @@ pub fn pointer_locked() -> bool {
 pub fn set_left_click_f20(enabled: bool) {
     LEFT_CLICK_F20.store(enabled, sync::atomic::Ordering::Relaxed);
     debug_print!("input: left click as f20={enabled}");
+}
+
+pub fn set_wheel_to_page(enabled: bool) {
+    WHEEL_TO_PAGE.store(enabled, sync::atomic::Ordering::Relaxed);
+    debug_print!("input: wheel to page with ramp boost={enabled}");
 }
 
 fn click_as_f20() -> bool {
@@ -428,6 +435,9 @@ unsafe extern "system" fn wnd_proc_widget_rampboost(window: HWND, message: u32, 
                     let kute = WINDOW_HANDLE.load(sync::atomic::Ordering::Relaxed);
                     // before the space goes out, so the page knows the space is ours
                     PostMessageW(Some(HWND(kute)), WM_RAMPBOOST_WHEEL, wparam, lparam).ok();
+                    if WHEEL_TO_PAGE.load(sync::atomic::Ordering::Relaxed) {
+                        PostMessageW(Some(HWND(kute)), message, wparam, lparam).ok();
+                    }
                     SCROLL_SENDER.send(()).ok();
                     return LRESULT(1);
                 }
