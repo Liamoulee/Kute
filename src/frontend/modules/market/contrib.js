@@ -112,7 +112,8 @@ class Contributions {
         try {
             const result = await marketApi.observe(body, controller.signal);
             if (!result) throw new Error("contribution unavailable");
-            if (!this.current(generation, account)) return;
+            // sent is sent, a pointer lock during the post must not queue the batch again
+            if (generation !== this.generation || account !== this.currentAccount()) return;
             for (const [key] of batch){ this.queue.delete(key); this.sent.add(key); }
             while (this.sent.size > 1000) this.sent.delete(this.sent.values().next().value ?? "");
             this.failures = 0;
