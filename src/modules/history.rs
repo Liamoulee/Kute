@@ -6,28 +6,43 @@ use std::{
 
 use crate::{bridge, modules::devtools, utils::config};
 
-// reads the game's history replies over devtools, a fetch wrapper would be visible to krunker's cheat checks
+// reads the game's own market and trade replies over devtools, a fetch wrapper would be visible to krunker's cheat checks
 
 const ORIGIN: &str = "https://gapi.svc.krunker.io";
+// a list or trade request is a few hundred bytes, anything bigger is not one we read
+const MAX_REQUEST_BODY: usize = 16 * 1024;
+
+struct Pending {
+    // the two replies bundles before market-capture read as marketHistory
+    history: Option<&'static str>,
+    method: String,
+    path: String,
+    request: Option<String>,
+}
 
 thread_local! {
     static ACTIVE: Cell<bool> = const { Cell::new(false) };
     static REGISTRATIONS: RefCell<Vec<Registration>> = const { RefCell::new(Vec::new()) };
-    // request id of a history read in flight, then the getResponseBody message id, each with its kind
-    static REQUESTS: RefCell<HashMap<String, &'static str>> = RefCell::new(HashMap::new());
-    static BODIES: RefCell<HashMap<i32, &'static str>> = RefCell::new(HashMap::new());
+    // request id of a read in flight, then the getResponseBody message id
+    static REQUESTS: RefCell<HashMap<String, Pending>> = RefCell::new(HashMap::new());
+    static BODIES: RefCell<HashMap<i32, Pending>> = RefCell::new(HashMap::new());
 }
 
-fn kind_of(url: &str) -> Option<&'static str> {
+fn market_path(url: &str) -> Option<&str> {
     let path = url.strip_prefix(ORIGIN)?;
-    for (prefix, kind) in [("/trades/history", "trades"), ("/market/history", "sales")] {
-        if let Some(rest) = path.strip_prefix(prefix)
-            && (rest.is_empty() || rest.starts_with('?') || rest.starts_with('#'))
-        {
-            return Some(kind);
-        }
+    (path.starts_with("/market/") || path.starts_with("/trades/")).then_some(path)
+}
+
+fn history_kind(method: &str, path: &str) -> Option<&'static str> {
+    if method != "GET" {
+        return None;
     }
-    None
+    let base = path.split(['?', '#']).next().unwrap_or(path);
+    match base {
+        "/trades/history" => Some("trades"),
+        "/market/history" => Some("sales"),
+        _ => None,
+    }
 }
 
 wrap_dev_tools_message_observer! {
@@ -51,16 +66,24 @@ wrap_dev_tools_message_observer! {
             match method.as_str() {
                 "Network.requestWillBeSent" => {
                     let request = &json["request"];
-                    let Some(kind) = request.get("url").and_then(|u| u.as_str()).and_then(kind_of) else { return };
-                    if request.get("method").and_then(|m| m.as_str()) != Some("GET") {
+                    let Some(path) = request.get("url").and_then(|u| u.as_str()).and_then(market_path) else { return };
+                    let verb = request.get("method").and_then(|m| m.as_str()).unwrap_or_default();
+                    if !matches!(verb, "GET" | "POST") {
                         return;
                     }
+                    let body = request.get("postData").and_then(|b| b.as_str()).filter(|b| b.len() <= MAX_REQUEST_BODY);
+                    let pending = Pending {
+                        history: history_kind(verb, path),
+                        method: verb.to_string(),
+                        path: path.to_string(),
+                        request: body.map(str::to_string),
+                    };
                     REQUESTS.with_borrow_mut(|r| {
                         // a read that never finishes must not pile up
-                        if r.len() > 32 {
+                        if r.len() > 64 {
                             r.clear();
                         }
-                        r.insert(id.to_string(), kind);
+                        r.insert(id.to_string(), pending);
                     });
                 }
                 "Network.responseReceived" => {
@@ -72,17 +95,22 @@ wrap_dev_tools_message_observer! {
                     REQUESTS.with_borrow_mut(|r| r.remove(id));
                 }
                 "Network.loadingFinished" => {
-                    let Some(kind) = REQUESTS.with_borrow_mut(|r| r.remove(id)) else { return };
+                    let Some(pending) = REQUESTS.with_borrow_mut(|r| r.remove(id)) else { return };
                     let message = devtools::get_response_body(browser, id);
-                    crate::debug_print!("history: {kind} reply finished, reading body as message {message}");
-                    BODIES.with_borrow_mut(|b| b.insert(message, kind));
+                    crate::debug_print!("history: {} {} finished, reading body as message {message}", pending.method, pending.path);
+                    BODIES.with_borrow_mut(|b| {
+                        if b.len() > 64 {
+                            b.clear();
+                        }
+                        b.insert(message, pending)
+                    });
                 }
                 _ => {}
             }
         }
 
         fn on_dev_tools_method_result(&self, browser: Option<&mut Browser>, message_id: i32, success: i32, result: Option<&[u8]>) {
-            let Some(kind) = BODIES.with_borrow_mut(|b| b.remove(&message_id)) else { return };
+            let Some(pending) = BODIES.with_borrow_mut(|b| b.remove(&message_id)) else { return };
             let (Some(browser), Some(result)) = (browser, result) else { return };
             if success == 0 {
                 return;
@@ -99,8 +127,13 @@ wrap_dev_tools_message_observer! {
             };
             // the page gets the parsed reply, never text it has to parse itself
             let Ok(data) = serde_json::from_str::<serde_json::Value>(&text) else { return };
-            crate::debug_print!("history: posting {kind} reply to the page ({} bytes)", text.len());
-            bridge::post_json(browser, &serde_json::json!({ "marketHistory": { "kind": kind, "data": data } }).to_string());
+            crate::debug_print!("history: posting {} {} to the page ({} bytes)", pending.method, pending.path, text.len());
+            if let Some(kind) = pending.history {
+                bridge::post_json(browser, &serde_json::json!({ "marketHistory": { "kind": kind, "data": data } }).to_string());
+            }
+            let request = pending.request.and_then(|r| serde_json::from_str::<serde_json::Value>(&r).ok());
+            let capture = serde_json::json!({ "marketCapture": { "method": pending.method, "path": pending.path, "request": request, "data": data } });
+            bridge::post_json(browser, &capture.to_string());
         }
     }
 }

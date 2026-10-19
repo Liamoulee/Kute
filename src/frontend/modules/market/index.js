@@ -3,7 +3,7 @@ import api from "../api.js";
 import marketApi from "./api.js";
 import cards from "./cards.js";
 import trade from "./trade.js";
-import alerts from "./alerts.js";
+import alerts, { UNREAD_EVENT } from "./alerts.js";
 import contrib from "./contrib.js";
 
 class Market {
@@ -14,6 +14,7 @@ class Market {
         this.headerSeparator = document.createElement("div");
         /** @type {MutationObserver} */
         this.headerObserver = new MutationObserver(() => this.placeButton());
+        this.onUnread = () => this.updateBadge();
         /** @type {typeof import("./terminal.js").default|null} */
         this.terminal = null;
         this.running = false;
@@ -47,6 +48,7 @@ class Market {
             this.placeButton();
             const header = document.querySelector("#playerHeaderEl");
             if (header) this.headerObserver.observe(header, { childList: true, subtree: true });
+            window.addEventListener(UNREAD_EVENT, this.onUnread);
             cards.start();
             trade.start();
             alerts.start();
@@ -54,6 +56,7 @@ class Market {
         }
         else {
             this.headerObserver.disconnect();
+            window.removeEventListener(UNREAD_EVENT, this.onUnread);
             this.headerItem.remove();
             this.headerSeparator.remove();
             cards.stop();
@@ -71,11 +74,21 @@ class Market {
         if (right.contains(this.headerItem)) return;
         const scope = [...(right.querySelector(".nav-item")?.classList ?? [])].find((name) => name.startsWith("svelte-")) ?? "";
         this.headerItem.className = `nav-item ${scope}`;
-        this.headerItem.innerHTML = `<span class="material-icons nav-mat-icon ${scope}">candlestick_chart</span> <span class="nav-label ${scope}">Kute Market</span>`;
-        this.headerItem.onclick = () => this.open();
+        // the inbox's own markup and classes, so the count looks like krunker's mail badge
+        this.headerItem.innerHTML = `<div class="nav-icon-wrap ${scope}"><span class="material-icons nav-mat-icon ${scope}">candlestick_chart</span></div> <span class="nav-label ${scope}">Kute Market</span> <div class="nav-badge ${scope}" style="display: none;"></div>`;
+        this.headerItem.onclick = () => this.open(alerts.unread.size ? "watchlist" : undefined);
         this.headerSeparator.className = "verticalSeparator";
         this.headerSeparator.style.cssText = "height: 35px;";
         right.prepend(this.headerItem, this.headerSeparator);
+        this.updateBadge();
+    }
+
+    updateBadge(){
+        const badge = /** @type {HTMLElement|null} */ (this.headerItem.querySelector(".nav-badge"));
+        if (!badge) return;
+        const count = alerts.unread.size;
+        badge.textContent = String(Math.min(99, count));
+        badge.style.display = count ? "inline-block" : "none";
     }
 
     /**

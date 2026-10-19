@@ -14,9 +14,14 @@ const RANGES = ["1D", "7D", "1M", "3M", "1Y", "ALL"];
 /** @param {import("../terminal.js").Terminal} desk  @return {Promise<import("../terminal.js").View>} */
 export async function itemView(desk){
     const state = desk.itemState();
-    const historyRange = !state.candles && state.range === "7D" ? "1M" : state.range;
+    let historyRange = !state.candles && state.range === "7D" ? "1M" : state.range;
     /** @type {{item:import("../types.js").ItemPage,history:import("../types.js").HistoryReply|null,listings:import("../types.js").ListingsReply|null}|null} */
-    const reply = await marketApi.itemDesk(state.skin, historyRange);
+    let reply = await marketApi.itemDesk(state.skin, historyRange);
+    // no sale this week: the week's sampled asks instead of an empty chart
+    if (historyRange !== state.range && reply?.history && !reply.history.points.some((p) => p.t >= Date.now() - 7 * 86_400_000 && p.avg !== null)){
+        historyRange = state.range;
+        reply = await marketApi.itemDesk(state.skin, historyRange) ?? reply;
+    }
     const { item: page, history, listings } = reply ?? {};
     if (!page) return desk.unavailable();
     const s = page.skin;

@@ -253,6 +253,12 @@ export async function marketRoutes(app: FastifyInstance, options: { engine: Mark
         return value;
     });
 
+    app.post("/market/watch", { bodyLimit: 4 * 1024 }, (req, reply) => {
+        const source = gate(req, reply, "watch", 6);
+        if (!source) return reply;
+        return engine!.query.watch?.(source, req.body) ?? { watched: 0 };
+    });
+
     app.post("/market/observe", { bodyLimit: 256 * 1024 }, (req, reply) => {
         const source = gate(req, reply, "observe", 10);
         if (!source) return reply;
