@@ -3,10 +3,13 @@ use std::sync::atomic::{AtomicI32, AtomicU32, Ordering};
 
 static NEXT_ID: AtomicI32 = AtomicI32::new(1);
 
-fn call(browser: &Browser, method: &str, params: Option<DictionaryValue>) {
-    let Some(host) = browser.host() else { return };
+// returns the message id the reply carries in on_dev_tools_method_result
+fn call(browser: &Browser, method: &str, params: Option<DictionaryValue>) -> i32 {
+    let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+    let Some(host) = browser.host() else { return id };
     let mut params = params;
-    host.execute_dev_tools_method(NEXT_ID.fetch_add(1, Ordering::Relaxed), Some(&CefString::from(method)), params.as_mut());
+    host.execute_dev_tools_method(id, Some(&CefString::from(method)), params.as_mut());
+    id
 }
 
 static LAST_THROTTLE_BITS: AtomicU32 = AtomicU32::new(1.0f32.to_bits());
@@ -80,6 +83,12 @@ pub fn evaluate(browser: &Browser, expression: &str) {
 
 pub fn enable_network(browser: &Browser) {
     call(browser, "Network.enable", None);
+}
+
+pub fn get_response_body(browser: &Browser, request_id: &str) -> i32 {
+    let Some(params) = dictionary_value_create() else { return 0 };
+    params.set_string(Some(&CefString::from("requestId")), Some(&CefString::from(request_id)));
+    call(browser, "Network.getResponseBody", Some(params))
 }
 
 pub fn add_document_script(browser: &Browser, source: &str) {
