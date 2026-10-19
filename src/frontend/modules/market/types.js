@@ -89,7 +89,7 @@
  * @typedef {{t: number, lowest: number|null, median: number|null, sales: number, salesObserved?:boolean, volume: number, avg: number|null, fair: number|null, krunker: number|null, onS: number|null,ask?:{open:number,high:number,low:number,close:number,samples:number}|null}} HistoryPoint
  * @typedef {{skin: number, range: string, resolution: "hour"|"day", points: HistoryPoint[], asOf: number,salesSource?:string,askSource?:string}} HistoryReply
  * @typedef {{uid: number, price: number, listedAt: number|null, ageMs: number|null, seller: string|null, sellerListings: number, wear: number|null, serial: number|null}} ListingRow
- * @typedef {{skin: number, total: number, listings: ListingRow[], asOf: number,observedAt?:number|null,observedTotal?:number}} ListingsReply
+ * @typedef {{skin: number, total: number, listings: ListingRow[], asOf: number,observedAt?:number|null,observedTotal?:number,highest?:number|null}} ListingsReply
  * @typedef {{window: string, gainers: (SkinSummary & {change: number})[], losers: (SkinSummary & {change: number})[], asOf: number}} MoversReply
  * @typedef {{uid: number, skin: number, name: string, rarity: number, thumbnail: string|null, price: number, fair: number, discount: number, grade: Grade, confidence: number, seller: string|null, ageMs: number|null,sales7d?:number,assessment?:{score:number,reasons:string[],risks:string[],historicalLow:number|null}}} Deal
  * @typedef {{deals: Deal[], asOf: number}} DealsReply

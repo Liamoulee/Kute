@@ -60,6 +60,14 @@ export async function itemView(desk){
     const listingRows = (listings?.listings ?? []).slice(0, desk.advanced ? 250 : 5);
     const bookAt = listings?.observedAt ?? e?.bookAt;
     const stale = !bookAt || Date.now() - bookAt > 3 * 3_600_000;
+    const highestAsk = listings?.highest;
+    let highestValue = "Unavailable";
+    let highestNote = "No available quote";
+    if (highestAsk === null) highestValue = "None observed";
+    else if (highestAsk !== undefined){
+        highestValue = `${money(highestAsk)} <span class="unit">KR</span>`;
+        highestNote = `Sampled ask, not a sale price${stale ? " &middot; quote needs updating" : ""}`;
+    }
     const premiumTable = (/** @type {import("../types.js").InstanceBracket[]} */brackets) => `<div
     class="tableWrap">
 <table>
@@ -113,9 +121,9 @@ export async function itemView(desk){
     class="button ${watched ? "" : "primary"}" data-action="watch">${watched ? "Watching" : "+ Watch item"}</button>
 </div>
 </div>` + `<div
-    class="metrics">${stat("Kute estimate", `${money(s.fair)} <span
+    class="metrics itemMetrics">${stat("Kute estimate", `${money(s.fair)} <span
     class="unit">KR</span>`, esc(recent))}${stat("Lowest observed ask", s.lowest === null ? "None listed" : `${money(s.lowest)} <span
-    class="unit">KR</span>`, s.spread !== null ? change(s.spread) + ` vs estimate${stale ? " &middot; quote needs updating" : ""}` : "No available quote")}${stat("Sales in the last 7 days", String(s.sales7d), `${s.onS} currently listed &middot; ${money(s.inC)} in circulation`)}</div>` + `<section
+    class="unit">KR</span>`, s.spread !== null ? change(s.spread) + ` vs estimate${stale ? " &middot; quote needs updating" : ""}` : "No available quote")}${stat("Highest observed ask", highestValue, highestNote)}${stat("Sales in the last 7 days", String(s.sales7d), `${s.onS} currently listed &middot; ${money(s.inC)} in circulation`)}</div>` + `<section
     class="sectionGap panel">
 <div
     class="panelHead">
@@ -184,7 +192,7 @@ export async function itemView(desk){
 <section
     class="panel">
 <div
-    class="eyebrow">RECENT PRICE RANGE</div>
+    class="eyebrow">RECENT SALE-PRICE RANGE</div>
 <h2>${range ? `${money(range.low)} to ${money(range.high)} KR` : "More trading history needed"}</h2>
 <p
     class="sub">${range ? "Central range of observed daily average prices over 30 days. This is historical context, not a forecast." : "A useful range needs several completed trading days."}</p>${range ? `<div

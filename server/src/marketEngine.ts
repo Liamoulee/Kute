@@ -132,7 +132,7 @@ export type HistoryPoint = {
 export type HistoryReply = { skin: number; range: HistoryRange; resolution: "hour" | "day"; points: HistoryPoint[]; asOf: number; salesSource?: "daily-aggregate" | "unavailable"; askSource?: "sampled-quotes" };
 
 export type ListingRow = { uid: number; price: number; listedAt: number | null; ageMs: number | null; seller: string | null; sellerListings: number; wear: number | null; serial: number | null };
-export type ListingsReply = { skin: number; total: number; listings: ListingRow[]; asOf: number; observedAt?: number | null; observedTotal?: number };
+export type ListingsReply = { skin: number; total: number; listings: ListingRow[]; asOf: number; observedAt?: number | null; observedTotal?: number; highest?: number | null };
 
 export type ItemDeskReply = { item: ItemPage; history: HistoryReply | null; listings: ListingsReply | null };
 

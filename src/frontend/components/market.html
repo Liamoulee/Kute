@@ -76,6 +76,8 @@
     .split{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(240px,1fr);gap:18px;margin-bottom:20px}
     .equal{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:20px}
     .metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid var(--line);border-radius:10px;margin-bottom:20px;background:#191a22}
+    .itemMetrics{grid-template-columns:repeat(4,minmax(0,1fr))}
+    @media(min-width:761px) and (max-width:1050px){.itemMetrics{grid-template-columns:repeat(2,minmax(0,1fr))}.itemMetrics .metric:nth-child(3){border-left:0}.itemMetrics .metric:nth-child(n+3){border-top:1px solid var(--line)}}
     .metric{padding:18px 20px;min-width:0}
     .metric+.metric{border-left:1px solid var(--line)}
     .metric>span{font-size:11px;color:var(--muted);display:block}
