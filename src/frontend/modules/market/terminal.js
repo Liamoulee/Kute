@@ -93,7 +93,8 @@ export class Terminal {
             }
             this.returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
             const overlay = document.createElement("div");
-            overlay.style.cssText = "position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;background:rgba(7,8,13,.78)";
+            // krunker's item detail view stack sits at 2147483646 and the market opens from it
+            overlay.style.cssText = "position:fixed;inset:0;z-index:2147483647;display:grid;place-items:center;background:rgba(7,8,13,.78)";
             const host = document.createElement("div");
             overlay.append(host);
             this.shadow = host.attachShadow({
