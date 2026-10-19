@@ -62,7 +62,8 @@ pub fn host_features() -> serde_json::Value {
         "accounts-order",
         "diagnostics",
         "recovery",
-        "left-click-f20"
+        "left-click-f20",
+        "scroll-binds"
     ])
 }
 
