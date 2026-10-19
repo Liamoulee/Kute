@@ -288,6 +288,11 @@ class MarketApi {
     observe(body, signal){
         return this.request("/market/observe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal });
     }
+
+    /** @param {number[]} skins @return {Promise<{watched:number}|null>} */
+    watch(skins){
+        return this.request("/market/watch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ skins }) });
+    }
 }
 
 const marketApi = new MarketApi();

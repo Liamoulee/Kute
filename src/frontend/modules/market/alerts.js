@@ -7,6 +7,9 @@ import { formatKr } from "./types.js";
 const INTERVAL = 5 * 60_000;
 const MAX_AGE = 3 * 3_600_000;
 const STATE_KEY = "kute_market_alerts";
+const REPORT_KEY = "kute_market_watch_report";
+// the server keeps watched ids in memory, a restart forgets them until the next report
+const REPORT_EVERY = 2 * 3_600_000;
 
 class WatchAlerts {
     constructor(){
@@ -25,7 +28,10 @@ class WatchAlerts {
         catch {
             this.seen.clear();
         }
-        this.onChange = () => { void this.check(); };
+        this.onChange = () => {
+            void this.check();
+            void this.report();
+        };
     }
 
     start(){
@@ -33,6 +39,24 @@ class WatchAlerts {
         this.timer = window.setInterval(() => { void this.check(); }, INTERVAL);
         window.addEventListener("kute-market-watch-changed", this.onChange);
         void this.check();
+        void this.report();
+    }
+
+    /** tells the server which skins to read more often: ids only, when they change or the last report got old */
+    async report(){
+        if (!this.active()) return;
+        const skins = readWatchlist().map((w) => w.skin).sort((a, b) => a - b);
+        const key = skins.join(",");
+        /** @type {{key?:string,at?:number}} */
+        let last = {};
+        try { last = JSON.parse(localStorage.getItem(REPORT_KEY) ?? "{}") ?? {}; }
+        catch { /* reports again */ }
+        if (last.key === key && Date.now() - (last.at ?? 0) < REPORT_EVERY) return;
+        // nothing watched and nothing reported: the server has nothing to forget
+        if (!skins.length && last.key === undefined) return;
+        if (!await marketApi.watch(skins)) return;
+        try { localStorage.setItem(REPORT_KEY, JSON.stringify({ key, at: Date.now() })); }
+        catch { /* reports again on the next load */ }
     }
 
     stop(){
