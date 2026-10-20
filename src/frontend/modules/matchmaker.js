@@ -50,8 +50,10 @@ const normalizeMap = (name) => name.toLowerCase().replace(/[^a-z0-9]/g, "");
 const MAP_ICON_BY_NAME = new Map(OFFICIAL_MAPS.map((name, index) => [normalizeMap(name), index]));
 
 const DEFAULT_MAPS = new Set(MAP_FILTER.map(normalizeMap));
-// parkour maps have no round timer. untimed on any other map = custom game
+// parkour maps have no round timer
 const UNTIMED_MAPS = new Set(["Eterno Jump", "Slide Moonlight"].map(normalizeMap));
+// the id goes into the join url as is
+const URL_UNSAFE = /[\s&#?/%\\]/;
 
 const GAME_LIST_URL = "https://matchmaker.krunker.io/game-list?hostname=krunker.io";
 const FETCH_TIMEOUT_MS = 10000;
@@ -182,7 +184,10 @@ function readLobbies(games, filter){
     const maps = filter.maps.length > 0 ? new Set(filter.maps.map(normalizeMap)) : DEFAULT_MAPS;
     return games.map((game) => {
         const id = String(game[0]);
-        const map = String(game[4]?.i ?? "");
+        const details = game[4] ?? {};
+        // c 1 = custom game, oc 1 = custom game run by krunker (parkour, raids, events)
+        const official = details.c === 0 || details.oc === 1;
+        const map = String(details.i ?? "");
         const mapId = normalizeMap(map);
         /** @type {Lobby} */
         const lobby = {
@@ -192,11 +197,13 @@ function readLobbies(games, filter){
             players: Number(game[2]),
             limit: Number(game[3]),
             map,
-            mode: GAMEMODES[game[4]?.g] ?? "Unknown",
+            mode: GAMEMODES[details.g] ?? "Unknown",
             timeLeft: Number(game[5]),
             passes: false,
         };
         lobby.passes =
+            official &&
+            !URL_UNSAFE.test(id) &&
             (filter.regions.length === 0 || filter.regions.includes(lobby.region)) &&
             (filter.modes.length === 0 || filter.modes.includes(lobby.mode)) &&
             maps.has(mapId) &&
