@@ -242,7 +242,25 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # same derivation as the windows job, both builds carry one version and so one key
+      - name: Derive the market key
+        id: market
+        env:
+          KUTE_MARKET_MASTER: ${{ secrets.KUTE_MARKET_MASTER }}
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          if [ -n "$KUTE_MARKET_MASTER" ]; then
+            key=$(printf '%s' "$VERSION" | openssl dgst -sha256 -hmac "$KUTE_MARKET_MASTER" | awk '{print $NF}')
+            echo "::add-mask::$key"
+            echo "key=$key" >> "$GITHUB_OUTPUT"
+            echo "market key derived for $VERSION"
+          else
+            echo "::warning::KUTE_MARKET_MASTER is not set, this build cannot use the market"
+          fi
+
       - name: Build AppImage
+        env:
+          KUTE_MARKET_KEY: ${{ steps.market.outputs.key }}
         run: bun run package:linux
 
       - name: Upload AppImage artifact
