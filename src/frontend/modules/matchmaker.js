@@ -371,7 +371,7 @@ class Matchmaker {
     }
 
     /**
-     * lobby may have filled up during the animation, joins the first candidate with room
+     * lobby may have filled up or changed map during the animation, joins the first candidate that still passes
      *
      * @param {number} run
      * @param {Lobby} best
@@ -388,12 +388,9 @@ class Matchmaker {
         }
         if (this.cancelled(run)) return;
 
-        const live = new Map(games.map((game) => [String(game[0]), { players: Number(game[2]), limit: Number(game[3]) }]));
+        const live = new Map(readLobbies(games, filter).map((lobby) => [lobby.id, lobby]));
         const ordered = [best, ...this.candidates.filter((lobby) => lobby !== best)];
-        const open = ordered.find((lobby) => {
-            const game = live.get(lobby.id);
-            return game && game.players < game.limit;
-        });
+        const open = ordered.find((lobby) => live.get(lobby.id)?.passes);
         if (open) this.join(open.id);
         else this.openServerBrowser(filter);
     }
