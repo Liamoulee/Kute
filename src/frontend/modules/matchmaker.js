@@ -78,6 +78,7 @@ const NOT_FOUND_HOLD_MS = 1100;
  * @property {boolean} sortByPlayers most players first instead of lowest ping
  * @property {boolean} serverBrowser open the server browser when nothing matches
  * @property {boolean} animation show the search popup
+ * @property {boolean} searchAfterMatch search again when the end screen shows
  */
 
 /** @type {MatchmakerFilter} */
@@ -93,6 +94,7 @@ const DEFAULT_FILTER = {
     sortByPlayers: false,
     serverBrowser: true,
     animation: true,
+    searchAfterMatch: false,
 };
 
 /**
@@ -263,6 +265,27 @@ class Matchmaker {
             },
             true,
         );
+        this.watchEndScreen();
+    }
+
+    // only after the player played this match, joining a lobby on its end screen shows it too
+    watchEndScreen(){
+        const endUI = document.getElementById("endUI");
+        if (!endUI) return;
+        let played = false;
+        let shown = endUI.style.display !== "none";
+        document.addEventListener("pointerlockchange", () => {
+            if (document.pointerLockElement) played = true;
+        });
+        new MutationObserver(() => {
+            const up = endUI.style.display !== "none";
+            if (up === shown) return;
+            shown = up;
+            if (!up || !played) return;
+            played = false;
+            if (!kute.settings.data.matchmaker || !this.filter.searchAfterMatch || window.getGameActivity?.()?.custom) return;
+            this.start().catch((error) => console.error("[kute] matchmaker:", error));
+        }).observe(endUI, { attributes: true, attributeFilter: ["style"] });
     }
 
     /**
@@ -701,6 +724,7 @@ class Matchmaker {
             element("mmSortByPlayers").checked = filter.sortByPlayers;
             element("mmServerBrowser").checked = filter.serverBrowser;
             element("mmAnimation").checked = filter.animation;
+            element("mmSearchAfterMatch").checked = filter.searchAfterMatch;
         };
         // copies, the chips change the lists in place
         filter.regions = [...filter.regions];
@@ -734,6 +758,7 @@ class Matchmaker {
                 sortByPlayers: element("mmSortByPlayers").checked,
                 serverBrowser: element("mmServerBrowser").checked,
                 animation: element("mmAnimation").checked,
+                searchAfterMatch: element("mmSearchAfterMatch").checked,
             });
         };
         element("mmDone").onclick = close;
