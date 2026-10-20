@@ -21,11 +21,16 @@ import { readWatchlist, saveWatchlist, toggleWatch } from "./watchlist.js";
 import MarketChart from "./chart.js";
 import ItemSearch from "./itemSearch.js";
 const PREF_KEY = "kute_market_advanced";
+const LAYOUT_KEY = "kute_market_layout";
+const SCALES = [0.8, 0.9, 1, 1.1, 1.2, 1.35, 1.5];
+const MIN_WIDTH = 480;
+const MIN_HEIGHT = 360;
 
 
 /**
  * @typedef {{q:string,rarity:string,type:string,sort:string,page:number,budget:string,minSales:string}} SearchState
  * @typedef {{skin:number,range:string,candles:boolean,overlay:string,zoom:number,offset:number,price?:string,quantity?:string,listingMax?:string,serialMax?:string,wearMax?:string,ageMax?:string,sellerMax?:string}} ItemState
+ * @typedef {{width:number,height:number,scale:number,maximized:boolean}} Layout
  * @typedef {{html:string,asOf?:number,asOfLabel?:string,points?:import("./chart.js").ChartPoint[],series?:import("./chart.js").Series[],chartOptions?:import("./chart.js").ChartOptions,item?:import("./types.js").ItemPage,listings?:import("./types.js").ListingsReply|null,holdings?:import("./types.js").PortfolioItem[]}} View
  */
 
@@ -79,6 +84,100 @@ export class Terminal {
         catch {
             this.advanced = false;
         }
+        /** @type {Layout} */
+        this.layout = {
+            width: 0,
+            height: 0,
+            scale: 1,
+            maximized: false,
+        };
+        try {
+            const saved = JSON.parse(localStorage.getItem(LAYOUT_KEY) ?? "{}");
+            if (Number.isFinite(saved.width)) this.layout.width = saved.width;
+            if (Number.isFinite(saved.height)) this.layout.height = saved.height;
+            if (SCALES.includes(saved.scale)) this.layout.scale = saved.scale;
+            this.layout.maximized = saved.maximized === true;
+        }
+        catch { /* defaults */ }
+    }
+
+    /** @return {HTMLElement|null} */
+    frame(){
+        return this.shadow?.querySelector("#km") ?? null;
+    }
+
+    applyLayout(){
+        const frame = this.frame();
+        if (!frame) return;
+        const { scale, maximized } = this.layout;
+        const maxWidth = window.innerWidth - (maximized ? 0 : 16);
+        const maxHeight = window.innerHeight - (maximized ? 0 : 16);
+        const width = maximized ? maxWidth : Math.max(Math.min(MIN_WIDTH, maxWidth), Math.min(this.layout.width || Math.min(1320, window.innerWidth * 0.96), maxWidth));
+        const height = maximized ? maxHeight : Math.max(Math.min(MIN_HEIGHT, maxHeight), Math.min(this.layout.height || Math.min(880, window.innerHeight * 0.92), maxHeight));
+        // zoom scales the box too, so it gets the on-screen size divided back out
+        frame.style.zoom = String(scale);
+        frame.style.width = `${width / scale}px`;
+        frame.style.height = `${height / scale}px`;
+        frame.classList.toggle("maximized", maximized);
+        const button = this.shadow?.querySelector("#kmMaximize");
+        button?.setAttribute("aria-pressed", String(maximized));
+        button?.setAttribute("title", maximized ? "Restore size (double-click the header)" : "Maximize (double-click the header)");
+        const value = this.shadow?.querySelector("#kmScaleValue");
+        if (value) value.textContent = `${Math.round(scale * 100)}%`;
+    }
+
+    saveLayout(){
+        this.applyLayout();
+        try {
+            localStorage.setItem(LAYOUT_KEY, JSON.stringify(this.layout));
+        }
+        catch { /* layout stays for this page load */ }
+    }
+
+    /** @param {number} step 0 resets */
+    rescale(step){
+        const index = SCALES.indexOf(this.layout.scale);
+        this.layout.scale = step ? SCALES[Math.max(0, Math.min(SCALES.length - 1, index + step))] : 1;
+        this.saveLayout();
+    }
+
+    toggleMaximized(){
+        this.layout.maximized = !this.layout.maximized;
+        this.saveLayout();
+    }
+
+    /** @param {PointerEvent} event */
+    startResize(event){
+        const { target } = event;
+        const frame = this.frame();
+        if (!(target instanceof HTMLElement) || !frame || event.button !== 0) return;
+        const { grip } = target.dataset;
+        if (!grip) return;
+        event.preventDefault();
+        target.setPointerCapture(event.pointerId);
+        const start = frame.getBoundingClientRect();
+        const { clientX, clientY } = event;
+        const x = Number(grip.includes("e")) - Number(grip.includes("w"));
+        const y = Number(grip.includes("s")) - Number(grip.includes("n"));
+        frame.classList.add("resizing");
+        /** @param {PointerEvent} move */
+        const resize = move => {
+            // the overlay keeps the market centered, so an edge moves half of what the size changes
+            if (x) this.layout.width = Math.max(MIN_WIDTH, start.width + 2 * x * (move.clientX - clientX));
+            if (y) this.layout.height = Math.max(MIN_HEIGHT, start.height + 2 * y * (move.clientY - clientY));
+            this.applyLayout();
+        };
+        const end = () => {
+            target.removeEventListener("pointermove", resize);
+            frame.classList.remove("resizing");
+            this.layout.width = Math.round(Math.min(this.layout.width, window.innerWidth - 16));
+            this.layout.height = Math.round(Math.min(this.layout.height, window.innerHeight - 16));
+            this.saveLayout();
+        };
+        target.addEventListener("pointermove", resize);
+        target.addEventListener("lostpointercapture", end, {
+            once: true,
+        });
     }
 
     /** @param {string} [tab] @param {unknown} [arg] */
@@ -107,6 +206,18 @@ export class Terminal {
                 signal,
             } = this.controller;
             document.body.append(overlay);
+            this.applyLayout();
+            window.addEventListener("resize", () => this.applyLayout(), {
+                signal,
+            });
+            this.shadow.addEventListener("pointerdown", event => this.startResize(/** @type {PointerEvent} */(event)), {
+                signal,
+            });
+            this.shadow.querySelector(".kmHead")?.addEventListener("dblclick", event => {
+                if (event.target instanceof Element && !event.target.closest("button,input,label,form")) this.toggleMaximized();
+            }, {
+                signal,
+            });
             this.itemSearch = new ItemSearch(this.shadow, signal, (item, context) => this.selectItem(item, context), (q, context) => this.show(context === "discover" ? this.searchTab() : "search", {
                 ...(context === "discover" ? this.readFilters(1) : defaultSearch()),
                 q,
@@ -573,6 +684,14 @@ export class Terminal {
             this.close();
             return;
         }
+        if (el.id === "kmMaximize"){
+            this.toggleMaximized();
+            return;
+        }
+        if (d.scale !== undefined){
+            this.rescale(Number(d.scale));
+            return;
+        }
         if (d.discover){
             if (d.discover === this.tab) return;
             if (d.discover === "deals" && !this.saved.has("deals") && (this.tab === "search" || this.tab === "active")){
@@ -802,6 +921,11 @@ export class Terminal {
             event.stopImmediatePropagation();
             event.preventDefault();
             this.close();
+            return;
+        }
+        if (event.ctrlKey && !event.altKey && ["+", "=", "-", "0"].includes(event.key)){
+            event.preventDefault();
+            this.rescale({ "-": -1, 0: 0 }[event.key] ?? 1);
             return;
         }
         const active = /** @type {HTMLElement|null} */(this.shadow.activeElement);

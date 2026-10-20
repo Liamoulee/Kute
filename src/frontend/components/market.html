@@ -1,13 +1,13 @@
 <style>
     :host{all:initial;color-scheme:dark}
     *{box-sizing:border-box}
-    .km{--pink:#f580b4;--text:#e9e9ef;--muted:#9899a8;--line:#292b35;display:grid;grid-template-columns:184px minmax(0,1fr);width:min(1320px,96vw);height:min(880px,92vh);background:#15161c;color:var(--text);border:1px solid #36333e;border-radius:16px;box-shadow:0 28px 100px #0009;font:14px/1.5 "Segoe UI",Arial,sans-serif;overflow:hidden;text-align:left}
+    .km{--pink:#f580b4;--text:#e9e9ef;--muted:#9899a8;--line:#292b35;position:relative;container:km/size;display:grid;grid-template-columns:auto minmax(0,1fr);width:min(1320px,96vw);height:min(880px,92vh);background:#15161c;color:var(--text);border:1px solid #36333e;border-radius:16px;box-shadow:0 28px 100px #0009;font:14px/1.5 "Segoe UI",Arial,sans-serif;overflow:hidden;text-align:left}
     button,input,select{font:inherit;color:inherit}
     button{cursor:pointer}
     button:disabled{opacity:.35;cursor:default}
     button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--pink);outline-offset:3px}
     button{border:0;background:none}
-    .kmSidebar{display:flex;flex-direction:column;background:#111218;border-right:1px solid var(--line);padding:26px 14px 16px;min-width:0}
+    .kmSidebar{width:184px;display:flex;flex-direction:column;background:#111218;border-right:1px solid var(--line);padding:26px 14px 16px;min-width:0}
     .intelligenceHero{display:grid;grid-template-columns:minmax(0,1fr) 220px;gap:28px;padding:25px;border:1px solid #443443;background:linear-gradient(120deg,#29202c,#1b1d26);border-radius:12px;margin-bottom:24px}
     .intelligenceHero h2{font-size:22px;line-height:1.35;max-width:440px}.intelligenceHero .sub{max-width:590px}
     .intelligenceProof{display:flex;flex-direction:column;align-items:flex-start;gap:7px;border-left:1px solid #463746;padding-left:24px;font-size:11px;color:var(--muted)}
@@ -21,7 +21,7 @@
     .signalCaution{font-size:11px;color:#e8b69a;margin-top:12px}.signalReason{padding:12px 0;border-bottom:1px solid var(--line);font-size:13px}.signalReason p{color:var(--muted);font-size:12px;margin-top:4px}
     .intelligenceItem{margin-bottom:20px}.outlook{padding-top:20px}.intelligenceDetails{margin-top:24px}.intelligenceDetails summary{cursor:pointer;font-weight:600}.intelligenceDetails .tableWrap{margin-top:18px}
     .coverageRow{display:flex;flex-wrap:wrap;gap:12px 24px;margin-top:18px;font-size:11px;color:var(--muted)}.coverageRow b{color:var(--text)}
-    @media(max-width:800px){.intelligenceHero{grid-template-columns:1fr;gap:18px;padding:20px}.intelligenceProof{border-left:0;border-top:1px solid #463746;padding:15px 0 0}.intelligenceGrid{grid-template-columns:1fr}.signalBottom{flex-wrap:wrap}}
+    @container km (max-width:768px){.intelligenceHero{grid-template-columns:1fr;gap:18px;padding:20px}.intelligenceProof{border-left:0;border-top:1px solid #463746;padding:15px 0 0}.intelligenceGrid{grid-template-columns:1fr}.signalBottom{flex-wrap:wrap}}
     .brand{display:flex;align-items:center;gap:10px;padding:0 10px 35px;font-weight:700;font-size:16px;letter-spacing:-.4px}
     .brandMark{width:32px;height:32px;border-radius:10px;background:#f580b4;color:#25151f;display:grid;place-items:center;font-size:21px;font-weight:900}
     .brand small{display:block;color:#858593;font-size:10px;letter-spacing:2px;font-weight:600;line-height:1.1;margin-top:4px}
@@ -48,6 +48,22 @@
     .mode input:checked:before{left:15px;background:#ffc4df}
     .kmClose{font-size:20px;line-height:1;color:#7f8190;padding:3px 7px;border-radius:5px}
     .kmClose:hover{background:#30313b;color:#fff}
+    .kmScale{display:inline-flex;gap:1px;background:#13141a;border:1px solid #2a2c36;border-radius:7px;padding:2px;flex-shrink:0}
+    .kmScale button{font-size:11px;color:#9a9caa;padding:3px 7px;border-radius:4px;font-variant-numeric:tabular-nums}
+    .kmScale button:hover,.kmIconButton:hover{background:#30313b;color:#fff}
+    #kmScaleValue{min-width:42px}
+    .kmIconButton{font-size:15px;line-height:1;color:#7f8190;padding:5px 7px;border-radius:5px}
+    .kmIconButton[aria-pressed=true]{color:var(--pink)}
+    .kmGrip{position:absolute;z-index:20;touch-action:none}
+    .kmGrip[data-grip=n],.kmGrip[data-grip=s]{left:14px;right:14px;height:6px;cursor:ns-resize}
+    .kmGrip[data-grip=w],.kmGrip[data-grip=e]{top:14px;bottom:14px;width:6px;cursor:ew-resize}
+    .kmGrip[data-grip=n]{top:0}.kmGrip[data-grip=s]{bottom:0}.kmGrip[data-grip=w]{left:0}.kmGrip[data-grip=e]{right:0}
+    .kmGrip[data-grip=nw],.kmGrip[data-grip=ne],.kmGrip[data-grip=sw],.kmGrip[data-grip=se]{width:14px;height:14px}
+    .kmGrip[data-grip=nw]{top:0;left:0;cursor:nwse-resize}.kmGrip[data-grip=se]{bottom:0;right:0;cursor:nwse-resize}
+    .kmGrip[data-grip=ne]{top:0;right:0;cursor:nesw-resize}.kmGrip[data-grip=sw]{bottom:0;left:0;cursor:nesw-resize}
+    .kmGrip[data-grip=se]{background:linear-gradient(135deg,transparent 55%,#4a4b58 55%,#4a4b58 62%,transparent 62%,transparent 75%,#4a4b58 75%,#4a4b58 82%,transparent 82%)}
+    .km.maximized{border-radius:0}.km.maximized .kmGrip{display:none}
+    .km.resizing{user-select:none}
     .kmBody{flex:1;overflow:auto;padding:28px;scrollbar-color:#373945 transparent;scrollbar-width:thin;min-height:0}
     .kmFoot{border-top:1px solid var(--line);padding:9px 28px;display:flex;align-items:center;justify-content:space-between;gap:16px;color:#777988;font-size:10px}
     .statusDot{display:inline-block;width:5px;height:5px;border-radius:50%;background:#7ec9aa;margin-right:6px}
@@ -77,7 +93,7 @@
     .equal{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:20px}
     .metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid var(--line);border-radius:10px;margin-bottom:20px;background:#191a22}
     .itemMetrics{grid-template-columns:repeat(4,minmax(0,1fr))}
-    @media(min-width:761px) and (max-width:1050px){.itemMetrics{grid-template-columns:repeat(2,minmax(0,1fr))}.itemMetrics .metric:nth-child(3){border-left:0}.itemMetrics .metric:nth-child(n+3){border-top:1px solid var(--line)}}
+    @container km (min-width:731px) and (max-width:1008px){.itemMetrics{grid-template-columns:repeat(2,minmax(0,1fr))}.itemMetrics .metric:nth-child(3){border-left:0}.itemMetrics .metric:nth-child(n+3){border-top:1px solid var(--line)}}
     .metric{padding:18px 20px;min-width:0}
     .metric+.metric{border-left:1px solid var(--line)}
     .metric>span{font-size:11px;color:var(--muted);display:block}
@@ -129,7 +145,7 @@
     .discoverTabs button:hover{color:#f6c3db;background:#f580b407}
     .discoverTabs button[aria-selected=true]{color:#ffb3d5;border-bottom-color:var(--pink);background:#f580b407}
     .discoverTabs button:focus-visible{outline-offset:-4px}
-    @media(max-width:760px){.discoverTabs{padding:0 12px;gap:0}.discoverTabs button{padding:12px 9px 10px;font-size:11px}}
+    @container km (max-width:730px){.discoverTabs{padding:0 12px;gap:0}.discoverTabs button{padding:12px 9px 10px;font-size:11px}}
     .tableWrap{overflow:auto;border:1px solid var(--line);border-radius:10px}
     table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
     th{padding:11px 15px;text-align:left;color:#808391;font-weight:500;font-size:11px;background:#191a22;white-space:nowrap;border-bottom:1px solid var(--line)}
@@ -216,7 +232,7 @@
     .suggestionStatus{padding:16px 12px;font-size:12px;color:var(--muted)}
     .suggestions .searchAll{display:block;width:100%;padding:10px 12px;text-align:left;color:var(--pink);border-top:1px solid #343541;font-size:11px}
     .suggestions .searchAll:hover{background:#39313f}
-    @media(max-width:900px){.tradeItems{grid-template-columns:minmax(0,1fr)}.tradeSide{padding:14px}.tradeTotal strong{font-size:23px}.tradeBoard{gap:10px}.tradeSideHead{flex-wrap:wrap}.tradeComparison{flex-wrap:wrap}.tradeDifference{text-align:left}}
+    @container km (max-width:864px){.tradeItems{grid-template-columns:minmax(0,1fr)}.tradeSide{padding:14px}.tradeTotal strong{font-size:23px}.tradeBoard{gap:10px}.tradeSideHead{flex-wrap:wrap}.tradeComparison{flex-wrap:wrap}.tradeDifference{text-align:left}}
     .verdict{font-size:23px;font-weight:600;margin-bottom:10px}
     .allocation{display:flex;gap:4px;height:8px;border-radius:10px;overflow:hidden;margin:15px 0}
     .allocation i{display:block;height:100%}
@@ -239,8 +255,8 @@
     .depthTable td{padding:9px 8px}
     .depthAmount{position:relative;min-width:65px;padding:3px 5px;isolation:isolate}
     .depthAmount i{position:absolute;z-index:-1;inset:0 auto 0 0;background:#f580b422;border-right:2px solid #cf7ba2}
-    @media(max-width:1100px){.analyticsGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    @media(max-width:560px){.analyticsGrid{grid-template-columns:1fr}.analyticsRow{align-items:flex-start;flex-wrap:wrap}.analyticsDesk>.panelHead{flex-wrap:wrap}}
+    @container km (max-width:1056px){.analyticsGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @container km (max-width:538px){.analyticsGrid{grid-template-columns:1fr}.analyticsRow{align-items:flex-start;flex-wrap:wrap}.analyticsDesk>.panelHead{flex-wrap:wrap}}
     .srOnly{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
     .gradeGuide{display:grid;gap:10px;margin:18px 0 22px}
     .gradeRow{display:flex;align-items:flex-start;gap:14px;padding:13px 15px;border:1px solid #30323e;border-radius:9px;background:#1a1b23}
@@ -248,8 +264,8 @@
     .gradeRow b{font-size:13px;color:#ededf3}.gradeRow p{margin:4px 0 0;font-size:13px}
     .gradeGuide.compact{grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:6px;margin:10px 0 16px}.gradeGuide.compact .gradeRow{align-items:center;padding:8px 12px}.gradeGuide.compact .gradeRow p{margin:1px 0 0}
     .liquidityBadge.helpMark{flex:0 0 44px;background:#2a2c38;color:#ededf3;font-size:12px}
-    @media(max-width:1050px){.km{grid-template-columns:68px minmax(0,1fr)}.kmSidebar{padding:24px 8px 12px}.brand{padding:0 9px 30px}.brandText,.navLabel,.navCaption,.navCount,.sidebarNote{display:none}.kmNav button,.helpNav{justify-content:center;padding:13px 8px}.kmHead{padding:16px 20px}.kmBody{padding:20px}.split{grid-template-columns:minmax(0,1.4fr) minmax(220px,1fr)}.categoryGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.kmFoot{padding:8px 20px}.metric{padding:15px}.metric strong{font-size:22px}}
-    @media(max-width:760px){.split,.equal{grid-template-columns:1fr}.kmHeadTitle{display:none}.kmHead{gap:9px}.globalSearch{max-width:none}.mode{font-size:10px}.metrics{grid-template-columns:1fr}.metric+.metric{border-left:0;border-top:1px solid var(--line)}.metric{padding:12px 16px}.itemHero{flex-wrap:wrap}.itemHero h1{font-size:23px}.itemHero .itemActions{margin-left:0}.pageIntro{flex-wrap:wrap}.kmFoot>span:first-child{display:none}.kmFoot{justify-content:flex-end}.categoryGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @container km (max-width:1008px){.kmSidebar{width:68px;padding:24px 8px 12px}.brand{padding:0 9px 30px}.brandText,.navLabel,.navCaption,.navCount,.sidebarNote{display:none}.kmNav button,.helpNav{justify-content:center;padding:13px 8px}.kmHead{padding:16px 20px}.kmBody{padding:20px}.split{grid-template-columns:minmax(0,1.4fr) minmax(220px,1fr)}.categoryGrid{grid-template-columns:repeat(2,minmax(0,1fr))}.kmFoot{padding:8px 20px}.metric{padding:15px}.metric strong{font-size:22px}}
+    @container km (max-width:730px){.split,.equal{grid-template-columns:1fr}.kmHeadTitle,.kmScale{display:none}.kmHead{gap:9px}.globalSearch{max-width:none}.mode{font-size:10px}.metrics{grid-template-columns:1fr}.metric+.metric{border-left:0;border-top:1px solid var(--line)}.metric{padding:12px 16px}.itemHero{flex-wrap:wrap}.itemHero h1{font-size:23px}.itemHero .itemActions{margin-left:0}.pageIntro{flex-wrap:wrap}.kmFoot>span:first-child{display:none}.kmFoot{justify-content:flex-end}.categoryGrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
     .sectionGap{margin-bottom:20px}
     .controlsGap{margin-bottom:16px}
     .sectionTop{margin-top:28px}
@@ -277,7 +293,7 @@
         <div class="sidebarBottom"><button class="helpNav" data-nav="help" title="How it works" aria-label="How it works"><span class="navIcon">?</span><span class="navLabel">How it works</span></button><div class="sidebarNote">Best effort estimates. <br>No guarantees.</div></div>
     </aside>
     <main class="kmMain">
-        <header class="kmHead"><div class="kmHeadTitle" id="kmTitle">Market</div><form class="globalSearch" id="kmSearchForm"><span class="searchIcon" aria-hidden="true">&#9906;</span><input id="kmGlobalSearch" data-item-search="global" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="kmGlobalSearchOptions" aria-label="Search items" placeholder="Find an item..." autocomplete="off"><div class="suggestions" id="kmGlobalSearchList" hidden></div></form><label class="mode" title="Show technical metrics, market diagnostics, and detailed listings. Full chart controls are available in both modes."><input id="kmAdvanced" type="checkbox" role="switch">Advanced</label><button class="kmClose" id="kmClose" aria-label="Close market">&times;</button></header>
+        <header class="kmHead"><div class="kmHeadTitle" id="kmTitle">Market</div><form class="globalSearch" id="kmSearchForm"><span class="searchIcon" aria-hidden="true">&#9906;</span><input id="kmGlobalSearch" data-item-search="global" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="kmGlobalSearchOptions" aria-label="Search items" placeholder="Find an item..." autocomplete="off"><div class="suggestions" id="kmGlobalSearchList" hidden></div></form><label class="mode" title="Show technical metrics, market diagnostics, and detailed listings. Full chart controls are available in both modes."><input id="kmAdvanced" type="checkbox" role="switch">Advanced</label><div class="kmScale" role="group" aria-label="Text size"><button data-scale="-1" title="Smaller text (Ctrl -)" aria-label="Smaller text">A&minus;</button><button data-scale="0" id="kmScaleValue" title="Reset text size (Ctrl 0)">100%</button><button data-scale="1" title="Bigger text (Ctrl +)" aria-label="Bigger text">A+</button></div><button class="kmIconButton" id="kmMaximize" title="Maximize (double-click the header)" aria-label="Maximize" aria-pressed="false">&#9634;</button><button class="kmClose" id="kmClose" aria-label="Close market">&times;</button></header>
         <div class="discoverTabs" id="kmDiscoverTabs" role="tablist" aria-label="Discover items" hidden>
             <button id="kmDiscover-search" role="tab" data-discover="search" aria-controls="kmBody" aria-selected="true">All items</button>
             <button id="kmDiscover-active" role="tab" data-discover="active" aria-controls="kmBody" aria-selected="false" tabindex="-1">Actively traded</button>
@@ -288,4 +304,6 @@
         <div class="kmBody" id="kmBody" aria-live="polite"></div>
         <footer class="kmFoot"><span><i class="statusDot"></i>Market insights by Kute</span><span id="kmFootRight">Estimates from observed market data</span></footer>
     </main>
+    <div class="kmGrip" data-grip="n"></div><div class="kmGrip" data-grip="s"></div><div class="kmGrip" data-grip="w"></div><div class="kmGrip" data-grip="e"></div>
+    <div class="kmGrip" data-grip="nw"></div><div class="kmGrip" data-grip="ne"></div><div class="kmGrip" data-grip="sw"></div><div class="kmGrip" data-grip="se" title="Drag to resize"></div>
 </div>

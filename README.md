@@ -64,7 +64,7 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] OBS capture plugin (shared texture game capture plus a dedicated audio window)
 - [x] Officially supported by Medal.tv
 - [x] Encrypted Account Manager: drag accounts into your order, Ctrl+Alt+1, 2 and 3 log in the first three (rebindable)
-- [x] Kute Market: a clear market overview, tabbed discovery with budget and activity filters, a local watchlist with price targets, inventory coverage, and side-by-side trade comparisons.
+- [x] Kute Market: a clear market overview, tabbed discovery with budget and activity filters, a local watchlist with price targets, inventory coverage, and side-by-side trade comparisons, in a window you can resize and zoom.
 - [x] Match end message per account (optional): Krunker's end message is remembered for each account, so an alt never sends your main's message. An account without one sends nothing
 - [x] Queue ranked without the game open, with a match found sound you can turn down or swap for your own
 - [x] Better ranked with ELO system
