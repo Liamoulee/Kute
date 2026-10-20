@@ -30,7 +30,6 @@ try {
     await run("git pull");
     console.log("[pull-and-restart] Done.");
 
-    // the market engine is a private checkout inside src/market, see src/marketEngine.ts
     if (existsSync(path.resolve(serverDir, "src/market/.git"))){
         console.log("[pull-and-restart] Pulling the market engine...");
         await run("git -C src/market pull");

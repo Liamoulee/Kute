@@ -50,29 +50,28 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] Classic menu (optional): the Season 9 menu layout, with every new Season 10 button and feature still in it
 - [x] Cleaner menu (optional): hides the store ad, live streams, featured maps, the "Popular Now" row and other promos in the menu, in the regular and the classic menu. The logo, every button and the match info stay
 - [x] CSS Manager: keep several CSS files (write them, paste them or import them) and switch between them, with a syntax highlighted editor and live preview, always applied on top of Krunker's own styles
-- [x] Kute CSS (optional): Kute's own look for the whole client, menus, settings, every window and popup, the social window and the HUD, with a few cats. Colors that carry meaning (KR, rarities, teams, health) stay Krunker's, the classic menu keeps its buttons, and your own CSS still wins
+- [x] Kute CSS (optional): Kute's own look for the whole client, menus, settings, every window and popup, the social window and the HUD, with a few cats
 - [x] Motion blur (optional): a slight blur while you turn the camera, the HUD stays sharp
 - [x] Custom sky (optional): a built-in preset, your own color gradient or your own image as the sky of every map
 - [x] All settings togglable
 - [x] Export and import Kute's settings (client settings, HUD positions, matchmaker filters, hotkeys) as one file, for a second PC or a fresh install
-- [x] Diagnostics Report (About settings): hardware, drivers, system load, Kute and Krunker settings, the last Auto-Detect run, recent errors and crash logs in one file to attach to an issue. You see every part first and can leave any out, user names and addresses are removed, nothing is uploaded
-- [x] Safe mode and crash finder: after two crashes in a row Kute offers to start without your userscripts, swaps, custom CSS, flags and engine tweaks, or finds the cause by itself, restarting with parts switched off until it can name the one that crashes. Nothing of yours changes until you say so. Hold Shift while starting Kute (or start it with `--safe-mode`) for safe mode at any time
+- [x] Diagnostics Report
+- [x] Safe mode and crash finder
 - [x] Battle pass claim-all
-- [x] Userscripts (Crankshaft and idkr formats) with an in-client manager: live on/off, script settings, a built-in editor, drag and drop. New and edited scripts load without a refresh. Ships with example scripts, off by default: Class Roulette draws a random class on every respawn (Sharp Shooter in any mode), with a toggle per class and a "don't repeat the last N" option; Quick Sell by Rarity sells every quick sellable item of one rarity at once, with a preview of items and KR and a confirmation before anything is sold
+- [x] Userscripts (Crankshaft and idkr formats) with an in-client manager. Ships with example scripts, off by default: Class Roulette and Quick Sell by Rarity
 - [x] Mod compatibility: mods, lobby and invite links open in the game window instead of a second one that would end your match
 - [x] One-click mod download: a download button on every mod in Krunker's Mods window saves its zip to your Downloads folder
 - [x] OBS capture plugin (shared texture game capture plus a dedicated audio window)
 - [x] Officially supported by Medal.tv
 - [x] Encrypted Account Manager: drag accounts into your order, Ctrl+Alt+1, 2 and 3 log in the first three (rebindable)
-- [x] Kute Market (optional, on by default): a clear market overview, tabbed discovery with budget and activity filters, a local watchlist with price targets, inventory coverage, and side-by-side trade comparisons. Item searches suggest matches with thumbnails as you type. Native trade windows keep both inventories side by side, with a prominent trade verdict, a compact value comparison, and expandable evidence. A visual guide explains the colored liquidity grades. Both views offer price lines with dashed connections across missing observations, sampled asking-price candles with adaptive intervals and neutral single-quote ticks, comparisons, zoom, and reported sales bars. Advanced mode adds moving averages, RSI, volatility, drawdown, supply pressure, depth ladders, market diagnostics, and listing filters. Estimates show their evidence and quote freshness. Item details show the lowest and highest observed asks beside the estimate, separately from historical sale-price ranges. Market cards and trade windows link into the same tools. Analytics only: Kute never buys, lists, or trades for you.
-- [x] Market Intelligence, inside Discover: experimental descriptive signals for unusual activity, changing supply, movement relative to similar items, concentrated listings and current spin/shop availability. Item pages, deal ranking and trade explanations share scheduled snapshots. Signal thresholds have not been validated as predictive alerts. A trained research model records seven-day price forecasts and exposes its historical and forward track record; price predictions remain hidden until accuracy and uncertainty checks pass. Official news and catalog changes are collected as context, without invented sentiment scores.
+- [x] Kute Market: a clear market overview, tabbed discovery with budget and activity filters, a local watchlist with price targets, inventory coverage, and side-by-side trade comparisons.
 - [x] Match end message per account (optional): Krunker's end message is remembered for each account, so an alt never sends your main's message. An account without one sends nothing
 - [x] Queue ranked without the game open, with a match found sound you can turn down or swap for your own
 - [x] Better ranked with ELO system
 - [x] Find out your real ping to the servers
 - [x] Real pings in Find Game: every server shows its region's ping, and the old browser layout sorts regions fastest first
 - [x] Ranked match alert (optional): when Krunker's ranked queue finds a match while you are tabbed out, Kute comes to the front or flashes in the taskbar
-- [x] Matchmaker: F6 joins the lowest ping lobby that fits your filters (region, mode, map, players, time left), with starred modes and maps tried first in your order. Lobbies with one free slot come after roomier ones (they fill up while Krunker loads), and it can search again when a match ends
+- [x] Matchmaker: F6 joins the lowest ping lobby that fits your filters (region, mode, map, players, time left)
 - [x] Better chat
 - [x] Chat logs: the last 2000 chat lines, kept across lobbies, to filter, search and copy (F1, rebindable)
 - [x] Hardpoint enemy counter
@@ -87,7 +86,6 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] CPU throttler (a last resort, see below)
 - [x] Autoupdater with a download progress window, plus changelogs
 - [x] Rebindable kute hotkeys
-- [x] Matchmaker
 - [x] Spotify overlay - by [@Liamoulee](https://github.com/Liamoulee)
 - [ ] BetterKDR™️ (coming soon)
 - [x] and more...
