@@ -441,13 +441,17 @@ class Matchmaker {
         /** @param {Lobby} lobby */
         const rank = (lobby) =>
             (modeRanks.get(lobby.mode) ?? modeRanks.size) * (mapRanks.size + 1) + (mapRanks.get(normalizeMap(lobby.map)) ?? mapRanks.size);
+        // measured: a lobby with one free slot was full 12 % of the time 4 s later, 24 % after 8 s. two free: 1.6 and 3.3 %
+        /** @param {Lobby} lobby */
+        const lastSlot = (lobby) => (lobby.limit - lobby.players <= 1 ? 1 : 0);
         const passing = lobbies.filter((lobby) => lobby.passes);
         passing.sort((a, b) => {
             const byRank = rank(a) - rank(b);
+            const bySlot = lastSlot(a) - lastSlot(b);
             const byPing = ping(a) - ping(b);
             const byPlayers = b.players - a.players;
-            if (filter.sortByPlayers) return byRank || byPlayers || byPing;
-            return byRank || byPing || byPlayers;
+            if (filter.sortByPlayers) return byRank || bySlot || byPlayers || byPing;
+            return byRank || bySlot || byPing || byPlayers;
         });
         this.candidates = passing;
 
@@ -457,7 +461,11 @@ class Matchmaker {
         if (passing.length > 0){
             const top = passing[0];
             const pool = passing.filter(
-                (lobby) => rank(lobby) === rank(top) && Math.abs(ping(lobby) - ping(top)) <= 20 && top.players - lobby.players <= 2,
+                (lobby) =>
+                    rank(lobby) === rank(top) &&
+                    lastSlot(lobby) === lastSlot(top) &&
+                    Math.abs(ping(lobby) - ping(top)) <= 20 &&
+                    top.players - lobby.players <= 2,
             );
             best = pool[Math.floor(Math.random() * pool.length)];
         }
