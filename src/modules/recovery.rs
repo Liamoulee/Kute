@@ -419,7 +419,7 @@ fn label(item: &Item) -> String {
         Item::UserFlag { flag } => format!("Chromium flag {flag} (user_flags.json)"),
         Item::UserBlocklist => "Your blocklist entries (user_blocklist.json)".to_string(),
         Item::Swaps => "Resource swapper files".to_string(),
-        Item::CustomCss => "Custom CSS".to_string(),
+        Item::CustomCss => "CSS Manager".to_string(),
         Item::DownloadedBundle => "The downloaded Kute script update".to_string(),
     }
 }

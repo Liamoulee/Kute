@@ -1,7 +1,8 @@
 import styles from "./components/base.css";
 import { kute, ready, globalRef } from "./client.js";
 import { hook, getElement, checkCompMode } from "./utils.js";
-import { setRampBoost } from "./modules/rampBoost.js";
+import { setRampBoost, syncScrollBinds } from "./modules/rampBoost.js";
+import { prepareShootBind, syncLeftClick } from "./modules/leftClick.js";
 // imported first so later throws still get reported
 import { postUrls as postIconUrls } from "./modules/kuteIcons/slots.js";
 // static import: the host only hands over the userscript registry during bundle eval
@@ -38,7 +39,7 @@ document.addEventListener(
     () => {
         if (isBenchPage) return;
 
-        window.localStorage.setItem("cont_shoot1Key_alt", "131");
+        prepareShootBind();
         import("./modules/gameFpsLimit.js");
         import("./modules/logoBadge.js");
 
@@ -74,6 +75,8 @@ document.addEventListener(
         }, { capture: true, passive: false });
 
         hook(HTMLCanvasElement, "requestPointerLock", function(args, original){
+            syncLeftClick();
+            syncScrollBinds();
             window.chrome.webview.postMessage("drag, false");
             window.chrome.webview.postMessage("throttle, game");
 
@@ -216,6 +219,7 @@ Object.defineProperty(window, "gameLoaded", {
         if (kute?.settings?.data?.rankedAlert) import("./modules/rankedAlert.js");
         if (kute?.settings?.data?.hpEnemyCounter) import("./modules/hpEnemyCounter.js");
         if (kute?.settings?.data?.accountManager) import("./modules/accountManager.js");
+        if (kute?.settings?.data?.market !== false && kute?.settings?.data?.disableOnlineFeatures !== true) import("./modules/market/index.js").catch(() => {});
         if (kute?.settings?.data?.showPing) import("./modules/showPing.js");
         if (kute?.settings?.data?.realPing) import("./modules/realPing.js");
         if (kute?.settings?.data?.exitButton) getElement("#clientExit").style.display = "flex";

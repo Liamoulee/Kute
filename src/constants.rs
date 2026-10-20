@@ -11,7 +11,7 @@ pub const RELEASE_DOWNLOAD_PREFIX: &str = "https://github.com/NullDev/Kute/relea
 pub const PORTABLE_MARKER: &str = "portable.flag";
 pub const API_URL: &str = "https://kute.lol/api";
 // any page script can post open-url, keep this short. trailing slash so look-alike domains don't match
-pub const OPEN_URL_ALLOWED: [&str; 3] = ["https://github.com/", "https://kute.lol/", "https://discord.com/invite/"];
+pub const OPEN_URL_ALLOWED: [&str; 4] = ["https://github.com/", "https://kute.lol/", "https://discord.com/invite/", "https://krunker.io/"];
 pub const JS_VERSION_URL: &str = "https://raw.githubusercontent.com/NullDev/Kute/master/target/bundle_version";
 pub const JS_BUNDLE_URL: &str = "https://raw.githubusercontent.com/NullDev/Kute/master/target/bundle.js";
 #[cfg(windows)]
@@ -61,9 +61,6 @@ pub const DEFAULT_BLOCKLIST: &str = r#"[
   "*://coeus.frvr.com/*",
   "*://krunker.io/libs/anzu.js*"
 ]"#;
-
-// video skin textures (Glitch etc.), blocked while "disableVideoSkins" is on. tutorial videos sit in videos/tutorial/, map video textures under user-assets/<id>/
-pub const VIDEO_SKIN_BLOCKLIST: &[&str] = &["*://assets.krunker.io/videos/video_*.mp4*", "*://user-assets.krunker.io/skins/*.mp4*"];
 
 // the cat models, blocked while "disableCats" is on
 pub const CAT_BLOCKLIST: &[&str] = &[

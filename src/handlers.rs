@@ -648,6 +648,7 @@ static MANAGER_QUEUE: LazyLock<Option<mpsc::Sender<(i32, String)>>> = LazyLock::
                     Some(("scripts", rest)) => handle_scripts_message(rest),
                     Some(("swapper", rest)) => handle_swapper_message(rest),
                     Some(("css", rest)) => handle_css_message(rest),
+                    Some(("sound", rest)) => modules::sounds::handle_message(rest),
                     _ => None,
                 };
                 if let Some(reply) = reply {
@@ -754,8 +755,44 @@ fn handle_css_message(message: &str) -> Option<String> {
             Some(serde_json::json!({ "customCssSaved": { "error": error } }).to_string())
         }
         "reveal" => {
-            custom_css::reveal();
+            let name = payload_str(&payload, "name");
+            custom_css::reveal((!name.is_empty()).then_some(name));
             None
+        }
+        "list" => manager_reply("cssFiles", custom_css::list(), &[]),
+        "get" => {
+            let name = payload_str(&payload, "name");
+            Some(serde_json::json!({ "cssFile": { "name": name, "content": custom_css::read_file(name) } }).to_string())
+        }
+        "save" => {
+            let name = payload_str(&payload, "name");
+            let error = custom_css::write_file(name, payload_str(&payload, "content")).err();
+            Some(serde_json::json!({ "cssFiles": custom_css::list(), "cssSaved": { "name": name, "error": error } }).to_string())
+        }
+        // new, pasted and imported files, never over an existing one
+        "import" => {
+            let requested = payload_str(&payload, "name");
+            let name = custom_css::free_name(requested);
+            let error = custom_css::write_file(&name, payload_str(&payload, "content")).err();
+            let reply = serde_json::json!({ "requested": requested, "name": name, "error": error });
+            Some(serde_json::json!({ "cssFiles": custom_css::list(), "cssImported": reply }).to_string())
+        }
+        "rename" => {
+            let problems: Vec<String> = custom_css::rename(payload_str(&payload, "from"), payload_str(&payload, "to"))
+                .err()
+                .into_iter()
+                .collect();
+            manager_reply("cssFiles", custom_css::list(), &problems)
+        }
+        "delete" => {
+            let problems: Vec<String> = custom_css::delete(payload_str(&payload, "name")).err().into_iter().collect();
+            manager_reply("cssFiles", custom_css::list(), &problems)
+        }
+        "activate" => {
+            let name = payload_str(&payload, "name");
+            let error = custom_css::set_active(name).err();
+            let content = custom_css::read();
+            Some(serde_json::json!({ "cssFiles": custom_css::list(), "cssActivated": { "content": content, "error": error } }).to_string())
         }
         _ => None,
     }
@@ -768,6 +805,11 @@ pub fn open_documents_subpath(target: &str) {
         "userscripts" => utils::settings_dir().join("scripts"),
         "skies" => {
             let dir = modules::skybox::skies_dir();
+            std::fs::create_dir_all(&dir).ok();
+            dir
+        }
+        "sounds" => {
+            let dir = modules::sounds::sounds_dir();
             std::fs::create_dir_all(&dir).ok();
             dir
         }
@@ -843,6 +885,13 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
     }
     if let Some(rest) = message_string.strip_prefix("css-") {
         if is_krunker_frame(frame) && rest.len() <= 8 * 1024 * 1024 {
+            queue_manager_message(browser, message_string);
+        }
+        return;
+    }
+    // reads a whole sound file, off the ui thread
+    if message_string.starts_with("sound-") {
+        if is_krunker_frame(frame) && message_string.len() <= 4096 {
             queue_manager_message(browser, message_string);
         }
         return;
@@ -924,11 +973,11 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             if *setting == "disableOnlineFeatures" {
                 modules::blocklist::set_online_off(*value == "true");
             }
+            if (*setting == "market" || *setting == "disableOnlineFeatures") && browser.is_popup() == 0 {
+                modules::history::load(browser);
+            }
             if *setting == "disableCats" {
                 modules::blocklist::set_cats_off(*value == "true");
-            }
-            if *setting == "disableVideoSkins" {
-                modules::blocklist::set_video_skins_off(*value == "true");
             }
             if *setting == "laptopPowerBoost" {
                 if *value == "true" {
@@ -940,10 +989,9 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             if *setting == "swapper" {
                 queue_manager_message(browser, "swapper-list");
             }
-            // overrides disableCats, disableVideoSkins and swapper, the stored values stay
+            // overrides disableCats and swapper, the stored values stay
             if *setting == "performanceMode" {
                 modules::blocklist::set_cats_off(config("disableCats", true));
-                modules::blocklist::set_video_skins_off(config("disableVideoSkins", false));
                 queue_manager_message(browser, "swapper-list");
             }
             // present hook paces the game loop, gameFpsLimit.js has the fallback
@@ -1005,6 +1053,13 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
             if !value {
                 modules::recovery::milestone("match");
             }
+        }
+        ["left-click-f20", value] => {
+            // false: shoot is bound to the player's own key, a locked left click stays a mouse button
+            modules::input::set_left_click_f20(value.parse::<bool>().unwrap_or(true));
+        }
+        ["wheel-to-page", value] => {
+            modules::input::set_wheel_to_page(value.parse::<bool>().unwrap_or(false));
         }
         ["throttle", status] => {
             // "off" is used by auto-detect
@@ -1143,6 +1198,10 @@ pub fn handle_web_message(browser: &Browser, frame: &Frame, message_string: &str
         }
         ["ping-regions"] => {
             modules::ping::ping_regions(browser.identifier());
+        }
+        // the challenge is base64url from the server, so it never contains the message separator
+        ["market-attest", challenge, logged_in] if is_krunker_frame(frame) && challenge.len() <= 128 => {
+            bridge::post_json(browser, &modules::attest::attest(challenge, logged_in.parse::<bool>().unwrap_or(false)));
         }
         _ => {}
     }

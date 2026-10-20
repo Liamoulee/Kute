@@ -27,5 +27,16 @@ export function initDb(): void {
         );
     `);
 
+    // krunker api replies, see api/cache; value is the json text, times are unix ms
+    db.run(`
+        CREATE TABLE IF NOT EXISTS api_cache (
+            key        TEXT PRIMARY KEY,
+            value      TEXT NOT NULL,
+            fetched_at INTEGER NOT NULL,
+            expires_at INTEGER NOT NULL
+        );
+    `);
+    db.run("CREATE INDEX IF NOT EXISTS api_cache_expires ON api_cache (expires_at);");
+
     Log.done("Database initialized (" + file + ").");
 }

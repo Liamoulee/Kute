@@ -16,15 +16,22 @@ class ShowPing {
      * @param {boolean} enabled
      */
     toggle(enabled){
-        if (enabled) window.windows[22].genList = this.modifiedGenList.bind(this);
+        const showPing = this;
+        // krunker's genList reads the search box text from its window (this.playerSearch), so that stays its this
+        if (enabled){
+            window.windows[22].genList = /** @this {object} */ function(){
+                return showPing.modifiedGenList(this);
+            };
+        }
         else window.windows[22].genList = this.originalGenList;
     }
 
     /**
+     * @param {object} listWindow
      * @return {string}
      */
-    modifiedGenList(){
-        const htmlString = this.originalGenList.call(this);
+    modifiedGenList(listWindow){
+        const htmlString = this.originalGenList.call(listWindow);
 
         // template instead of DOMParser, that built a whole document per refresh
         this.template.innerHTML = htmlString;

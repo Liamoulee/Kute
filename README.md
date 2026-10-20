@@ -49,29 +49,29 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] Resource swapper with an in-client manager: shows which game files your swaps replace, drag'n'drop & built-in editor. CSS swaps apply instantly, and your swaps win over the built-in blocklist
 - [x] Classic menu (optional): the Season 9 menu layout, with every new Season 10 button and feature still in it
 - [x] Cleaner menu (optional): hides the store ad, live streams, featured maps, the "Popular Now" row and other promos in the menu, in the regular and the classic menu. The logo, every button and the match info stay
-- [x] Custom CSS with a syntax highlighted editor and live preview, always applied on top of Krunker's own styles
-- [x] Kute CSS (optional): Kute's own look for the whole client, menus, settings, every window and popup, the social window and the HUD, with a few cats. Colors that carry meaning (KR, rarities, teams, health) stay Krunker's, the classic menu keeps its buttons, and your Custom CSS still wins
+- [x] CSS Manager: keep several CSS files (write them, paste them or import them) and switch between them, with a syntax highlighted editor and live preview, always applied on top of Krunker's own styles
+- [x] Kute CSS (optional): Kute's own look for the whole client, menus, settings, every window and popup, the social window and the HUD, with a few cats
 - [x] Motion blur (optional): a slight blur while you turn the camera, the HUD stays sharp
 - [x] Custom sky (optional): a built-in preset, your own color gradient or your own image as the sky of every map
-- [x] Disable video skins (optional): animated video skins like Glitch are not loaded, for more FPS
 - [x] All settings togglable
 - [x] Export and import Kute's settings (client settings, HUD positions, matchmaker filters, hotkeys) as one file, for a second PC or a fresh install
-- [x] Diagnostics Report (About settings): hardware, drivers, system load, Kute and Krunker settings, the last Auto-Detect run, recent errors and crash logs in one file to attach to an issue. You see every part first and can leave any out, user names and addresses are removed, nothing is uploaded
-- [x] Safe mode and crash finder: after two crashes in a row Kute offers to start without your userscripts, swaps, custom CSS, flags and engine tweaks, or finds the cause by itself, restarting with parts switched off until it can name the one that crashes. Nothing of yours changes until you say so. Hold Shift while starting Kute (or start it with `--safe-mode`) for safe mode at any time
+- [x] Diagnostics Report
+- [x] Safe mode and crash finder
 - [x] Battle pass claim-all
-- [x] Userscripts (Crankshaft and idkr formats) with an in-client manager: live on/off, script settings, a built-in editor, drag and drop. New and edited scripts load without a refresh. Ships with example scripts, off by default: Class Roulette draws a random class on every respawn (Sharp Shooter in any mode), with a toggle per class and a "don't repeat the last N" option; Quick Sell by Rarity sells every quick sellable item of one rarity at once, with a preview of items and KR and a confirmation before anything is sold
+- [x] Userscripts (Crankshaft and idkr formats) with an in-client manager. Ships with example scripts, off by default: Class Roulette and Quick Sell by Rarity
 - [x] Mod compatibility: mods, lobby and invite links open in the game window instead of a second one that would end your match
 - [x] One-click mod download: a download button on every mod in Krunker's Mods window saves its zip to your Downloads folder
 - [x] OBS capture plugin (shared texture game capture plus a dedicated audio window)
 - [x] Officially supported by Medal.tv
 - [x] Encrypted Account Manager: drag accounts into your order, Ctrl+Alt+1, 2 and 3 log in the first three (rebindable)
+- [x] Kute Market: a clear market overview, tabbed discovery with budget and activity filters, a local watchlist with price targets, inventory coverage, and side-by-side trade comparisons.
 - [x] Match end message per account (optional): Krunker's end message is remembered for each account, so an alt never sends your main's message. An account without one sends nothing
-- [x] Queue ranked without the game open
+- [x] Queue ranked without the game open, with a match found sound you can turn down or swap for your own
 - [x] Better ranked with ELO system
 - [x] Find out your real ping to the servers
 - [x] Real pings in Find Game: every server shows its region's ping, and the old browser layout sorts regions fastest first
 - [x] Ranked match alert (optional): when Krunker's ranked queue finds a match while you are tabbed out, Kute comes to the front or flashes in the taskbar
-- [x] Matchmaker: F6 joins the lowest ping lobby that fits your filters (region, mode, map, players, time left), with starred modes and maps tried first in your order
+- [x] Matchmaker: F6 joins the lowest ping lobby that fits your filters (region, mode, map, players, time left)
 - [x] Better chat
 - [x] Chat logs: the last 2000 chat lines, kept across lobbies, to filter, search and copy (F1, rebindable)
 - [x] Hardpoint enemy counter
@@ -86,10 +86,8 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] CPU throttler (a last resort, see below)
 - [x] Autoupdater with a download progress window, plus changelogs
 - [x] Rebindable kute hotkeys
-- [x] Matchmaker
 - [x] Spotify overlay - by [@Liamoulee](https://github.com/Liamoulee)
 - [ ] BetterKDR™️ (coming soon)
-- [ ] Bloomberg-style trading terminal & market analysis (coming soon)
 - [x] and more...
 
 <hr>
@@ -98,6 +96,15 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 If you want to support this Project, you can help with Code contributions :octocat: or a donation ❇️ <br> <br>
 <a href="https://ko-fi.com/null_dev"><img src="https://ko-fi.com/img/githubbutton_sm.svg"></a>
 </p>
+
+<hr>
+
+## 🗒️ API Client
+
+Kute has it's own fully documented API Client: 
+- https://github.com/NullDev/krapio
+- https://nulldev.github.io/krapio/docs/
+- https://www.npmjs.com/package/krapio
 
 <hr>
 

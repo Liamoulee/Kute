@@ -1,0 +1,120 @@
+<style>
+#qsOptions {
+	box-sizing: border-box;
+	width: 420px;
+	max-width: 92vw;
+	padding: 1.8em 2.2em 1.4em 2.2em;
+	background: #1e1e1e;
+	color: #fff;
+	border-radius: 14px;
+	box-shadow: 0 8px 48px #000c;
+	font-family: Consolas, monospace;
+}
+
+#qsOptions h2 {
+	margin: 0 0 0.3em 0;
+	font-size: 1.6em;
+	letter-spacing: 1px;
+	color: #35e0e8;
+	text-align: center;
+}
+
+.qsHint {
+	margin-bottom: 1.2em;
+	color: #999;
+	text-align: center;
+}
+
+.qsRow {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 1em;
+	margin: 0.5em 0;
+	color: #ccc;
+}
+
+.qsRow select {
+	min-width: 0;
+	flex: 1 1 auto;
+	max-width: 16em;
+	padding: 0.35em 0.5em;
+	border: none;
+	border-radius: 6px;
+	background: #2a2a2a;
+	color: #fff;
+	font-family: inherit;
+}
+
+.qsRow input[type="range"] {
+	flex: 1 1 auto;
+	max-width: 12em;
+	accent-color: #35e0e8;
+}
+
+#qsVolumeValue {
+	width: 3.5em;
+	text-align: right;
+}
+
+#qsFileHint {
+	margin: 0.8em 0 0 0;
+	font-size: 0.9em;
+}
+
+#qsError {
+	margin-top: 0.8em;
+	color: #eb5656;
+	text-align: center;
+}
+
+.qsActions {
+	display: flex;
+	gap: 0.7em;
+	margin-top: 0.8em;
+}
+
+.qsButton {
+	flex: 1 1 0;
+	padding: 0.7em 0.5em;
+	border-radius: 8px;
+	background: #2a2a2a;
+	color: #999;
+	text-align: center;
+	cursor: pointer;
+	user-select: none;
+}
+
+.qsButton:hover {
+	background: #333;
+}
+
+#qsDone {
+	background: #1b5e63;
+	color: #fff;
+}
+
+#qsDone:hover {
+	background: #23777d;
+}
+
+[hidden] {
+	display: none !important;
+}
+</style>
+<div id="qsOptions">
+	<h2>Match Found Sound</h2>
+	<div class="qsHint">Plays in Kute's queue window when it finds a match</div>
+	<label class="qsRow">Sound <select id="qsSound"></select></label>
+	<label class="qsRow">Volume <input type="range" id="qsVolume" min="0" max="100" step="5"><span id="qsVolumeValue"></span></label>
+	<div class="qsActions">
+		<div class="qsButton" id="qsPlay">Play</div>
+		<div class="qsButton" id="qsOpenFolder">Open folder</div>
+		<div class="qsButton" id="qsRefresh">Refresh</div>
+	</div>
+	<div class="qsHint" id="qsFileHint">Put MP3, OGG, WAV or FLAC files into Documents\kute\sounds</div>
+	<div id="qsError" hidden></div>
+	<div class="qsActions">
+		<div class="qsButton" id="qsDone">Done</div>
+	</div>
+</div>
