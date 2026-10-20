@@ -63,72 +63,225 @@ class CssManager {
     }
 
     open(){
-        if (this.popup) return;
-        if (!hostSupportsCustomCss()){
-            kute.showNotification("The CSS Manager needs a newer Kute. Update Kute to use it.", false, 6);
-            return;
-        }
-        this.legacy = !hostSupportsManager();
-        this.popup = openManagerPopup(html, {
-            onMessage: (data) => this.receive(data),
-            canClose: () => this.canClose(),
-        });
-        const { shadow, signal } = this.popup;
-        signal.addEventListener("abort", () => {
-            clearTimeout(this.previewTimer);
-            // closing without saving drops the preview
-            customCss.revert();
-            this.popup = null;
-            this.editor = null;
-            this.editing = null;
-            this.loading = null;
-            this.listed = false;
-            this.saving = null;
-            this.renaming = null;
-            this.openAfterImport = null;
-            this.activating = false;
-            this.forceClose = false;
-        });
-        this.$("#ccFolder").onclick = () => post("reveal", { name: this.editing ?? "" });
-        this.$("#ccOff").hidden = kute.settings.data.customCss !== false;
-
-        const live = /** @type {HTMLInputElement} */ (this.$("#ccLive"));
-        live.checked = this.live;
-        live.onchange = () => {
-            this.live = live.checked;
-            this.preview();
-        };
-
-        const overlay = /** @type {HTMLElement} */ (/** @type {HTMLElement} */ (shadow.host).parentElement);
-        this.$("#ccPeek").onpointerdown = (event) => {
-            event.preventDefault();
-            overlay.style.opacity = "0";
-            window.addEventListener("pointerup", () => {
-                overlay.style.opacity = "";
-            }, { once: true, signal });
-        };
-
-        if (this.legacy){
-            this.$(".managerPopup").classList.add("legacy");
-            this.$("#ccHint").textContent = "Loaded after all of Krunker's styles, so a rule with the same selector wins. " +
-                "Saved as Documents\\kute\\custom.css. Update Kute to keep several CSS files and switch between them.";
-            this.$("#ccEditor").textContent = "Loading...";
-            post("read");
-            return;
-        }
-
-        this.$("#ccNew").onclick = () => this.create();
-        this.$("#ccPaste").onclick = () => this.paste();
-        const input = /** @type {HTMLInputElement} */ (this.$("#ccImportInput"));
-        this.$("#ccImport").onclick = () => input.click();
-        input.onchange = () => {
-            this.importFiles([...input.files ?? []]);
-            input.value = "";
-        };
-        makeDropTarget(this.$("#ccFiles"), (dropped) => this.importFiles(dropped.map((entry) => entry.file)));
-        this.$("#ccEditor").textContent = "Loading...";
-        post("list");
+    if (this.popup) return;
+    if (!hostSupportsCustomCss()){
+        kute.showNotification("The CSS Manager needs a newer Kute. Update Kute to use it.", false, 6);
+        return;
     }
+
+    this.legacy = !hostSupportsManager();
+    this.popup = openManagerPopup(html, {
+        onMessage: (data) => this.receive(data),
+        canClose: () => this.canClose(),
+    });
+
+    const { shadow, signal } = this.popup;
+
+    signal.addEventListener("abort", () => {
+        clearTimeout(this.previewTimer);
+        // closing without saving drops the preview
+        customCss.revert();
+        this.popup = null;
+        this.editor = null;
+        this.editing = null;
+        this.loading = null;
+        this.listed = false;
+        this.saving = null;
+        this.renaming = null;
+        this.openAfterImport = null;
+        this.activating = false;
+        this.forceClose = false;
+    });
+
+    this.$("#ccFolder").onclick = () => post("reveal", { name: this.editing ?? "" });
+    this.$("#ccOff").hidden = kute.settings.data.customCss !== false;
+
+    // CSS Store
+    this.$("#ccStore").onclick = () => this.openStore();
+
+    this.$("#ccStoreBack").onclick = () => {
+        this.$("#ccStorePanel").hidden = true;
+        this.$(".managerBody").classList.remove("storeOpen");
+    };
+
+    const live = /** @type {HTMLInputElement} */ (this.$("#ccLive"));
+    live.checked = this.live;
+    live.onchange = () => {
+        this.live = live.checked;
+        this.preview();
+    };
+
+    const overlay = /** @type {HTMLElement} */ (/** @type {HTMLElement} */ (shadow.host).parentElement);
+    this.$("#ccPeek").onpointerdown = (event) => {
+        event.preventDefault();
+        overlay.style.opacity = "0";
+        window.addEventListener("pointerup", () => {
+            overlay.style.opacity = "";
+        }, { once: true, signal });
+    };
+
+    if (this.legacy){
+        this.$(".managerPopup").classList.add("legacy");
+        this.$("#ccHint").textContent = "Loaded after all of Krunker's styles, so a rule with the same selector wins. " +
+            "Saved as Documents\\kute\\custom.css. Update Kute to keep several CSS files and switch between them.";
+        this.$("#ccEditor").textContent = "Loading...";
+        post("read");
+        return;
+    }
+
+    this.$("#ccNew").onclick = () => this.create();
+    this.$("#ccPaste").onclick = () => this.paste();
+
+    const input = /** @type {HTMLInputElement} */ (this.$("#ccImportInput"));
+    this.$("#ccImport").onclick = () => input.click();
+    input.onchange = () => {
+        this.importFiles([...input.files ?? []]);
+        input.value = "";
+    };
+
+    makeDropTarget(
+        this.$("#ccFiles"),
+        (dropped) => this.importFiles(dropped.map((entry) => entry.file))
+    );
+
+    this.$("#ccEditor").textContent = "Loading...";
+    post("list");
+    }
+
+    
+    
+async openStore() {
+    const panel = this.$("#ccStorePanel");
+    const list = this.$("#ccStoreList");
+
+    this.$(".managerBody").classList.add("storeOpen");
+    panel.hidden = false;
+    list.replaceChildren();
+
+    const status = document.createElement("p");
+    status.textContent = "Loading the CSS Store...";
+    list.append(status);
+
+    try {
+        const response = await fetch(
+            "https://raw.githubusercontent.com/Liamoulee/KSS/main/index.json"
+        );
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const catalog = await response.json();
+        list.replaceChildren();
+
+        for (const item of catalog) {
+            const card = document.createElement("div");
+            card.className = "storeCard";
+
+            if (item.preview) {
+                const image = document.createElement("img");
+
+                image.src = item.preview.startsWith("https://")
+                    ? item.preview
+                    : "https://raw.githubusercontent.com/Liamoulee/KSS/main/" +
+                      item.preview.split("/").map(encodeURIComponent).join("/");
+
+                image.alt = `${item.name} preview`;
+                image.onerror = () => image.remove();
+
+                card.append(image);
+            }
+
+            const title = document.createElement("h3");
+            title.textContent = item.name;
+
+            const author = document.createElement("p");
+            author.textContent = `By ${item.author}`;
+
+            const description = document.createElement("p");
+            description.textContent = item.description ?? "";
+
+            const button = document.createElement("button");
+            button.className = "storeDownloadBtn";
+
+            let installed = this.files.some(
+                file => file.name.toLowerCase() === cssName(item.name).toLowerCase()
+            );
+
+            /** @param {string} text */
+            const setButtonText = (text) => {
+                button.textContent = text;
+            };
+
+            setButtonText(installed ? "Already downloaded" : "Download the CSS");
+            if (installed) {
+                button.classList.add("installed");
+                button.disabled = true;
+            }
+
+            button.onclick = async () => {
+                installed = this.files.some(
+                    file => file.name.toLowerCase() === cssName(item.name).toLowerCase()
+                );
+
+            if (installed) {
+                setButtonText("Already downloaded");
+                button.classList.add("installed");
+                button.disabled = true;
+                return;
+            }
+
+                button.disabled = true;
+                setButtonText("Downloading...");
+
+                try {
+                    const cssResponse = await fetch(
+                        "https://raw.githubusercontent.com/Liamoulee/KSS/main/" +
+                        item.file.split("/").map(encodeURIComponent).join("/")
+                    );
+
+                    if (!cssResponse.ok) {
+                        throw new Error(`HTTP ${cssResponse.status}`);
+                    }
+
+                    const content = await cssResponse.text();
+
+                    post("import", {
+                        name: cssName(item.name),
+                        content
+                    });
+
+                installed = true;
+                setButtonText("Already downloaded");
+                button.classList.add("installed");
+                button.disabled = true;
+                } catch (error) {
+                    console.error("CSS Store import failed:", error);
+                    button.disabled = false;
+                    setButtonText("Try again");
+                }
+            };
+
+            card.append(title, author, description, button);
+            list.append(card);
+        }
+
+        if (catalog.length === 0) {
+            list.textContent = "No CSS available.";
+        }
+    } catch (error) {
+        console.error("CSS Store failed to load:", error);
+        list.replaceChildren();
+
+        const errorMessage = document.createElement("p");
+        errorMessage.textContent =
+            "Unable to load the CSS Store. Please try again later.";
+
+        list.append(errorMessage);
+    }
+}
+
+
 
     /**
      * @param {string} selector

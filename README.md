@@ -87,6 +87,7 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] Autoupdater with a download progress window, plus changelogs
 - [x] Rebindable kute hotkeys
 - [x] Spotify overlay - by [@Liamoulee](https://github.com/Liamoulee)
+- [x] CSS Store - by [@Liamoulee](https://github.com/Liamoulee)
 - [ ] BetterKDR™️ (coming soon)
 - [x] and more...
 
