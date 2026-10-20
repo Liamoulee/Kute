@@ -191,36 +191,34 @@ pub fn set_panic_hook() -> io::Result<()> {
         }
         fs::write(&log_file_path, &crash_message).ok();
         let location = panic_info.location().map(|loc| loc.to_string()).unwrap_or_default();
-        if crate::modules::recovery::on_crash(&format!("panic at {location}")) {
-            return;
-        }
-
-        #[cfg(windows)]
-        unsafe {
-            let result = MessageBoxW(
-                None,
-                PCWSTR(
-                    create_utf_string(format!(
-                        "A crash report has been saved to:\n\
-                        {}\n\n\
-                        Click Yes to open the log.",
-                        log_file_path.display()
-                    ))
-                    .as_ptr(),
-                ),
-                PCWSTR(create_utf_string("Application Error").as_ptr()),
-                MB_YESNO | MB_ICONERROR,
-            );
-
-            if result == IDYES {
-                ShellExecuteW(
+        if !crate::modules::recovery::on_crash(&format!("panic at {location}")) {
+            #[cfg(windows)]
+            unsafe {
+                let result = MessageBoxW(
                     None,
-                    PCWSTR(create_utf_string("open").as_ptr()),
-                    PCWSTR(create_utf_string(log_file_path.to_string_lossy()).as_ptr()),
-                    PCWSTR::null(),
-                    PCWSTR::null(),
-                    SW_SHOW,
+                    PCWSTR(
+                        create_utf_string(format!(
+                            "A crash report has been saved to:\n\
+                            {}\n\n\
+                            Click Yes to open the log.",
+                            log_file_path.display()
+                        ))
+                        .as_ptr(),
+                    ),
+                    PCWSTR(create_utf_string("Application Error").as_ptr()),
+                    MB_YESNO | MB_ICONERROR,
                 );
+
+                if result == IDYES {
+                    ShellExecuteW(
+                        None,
+                        PCWSTR(create_utf_string("open").as_ptr()),
+                        PCWSTR(create_utf_string(log_file_path.to_string_lossy()).as_ptr()),
+                        PCWSTR::null(),
+                        PCWSTR::null(),
+                        SW_SHOW,
+                    );
+                }
             }
         }
     }));
