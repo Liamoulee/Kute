@@ -99,6 +99,15 @@ If you want to support this Project, you can help with Code contributions :octoc
 
 <hr>
 
+## 🗒️ API Client
+
+Kute has it's own fully documented API Client: 
+- https://github.com/NullDev/krapio
+- https://nulldev.github.io/krapio/docs/
+- https://www.npmjs.com/package/krapio
+
+<hr>
+
 ## :question: FAQ
 
 <details>
