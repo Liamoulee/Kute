@@ -72,7 +72,7 @@ Kute is a high-performance Krunker client designed to enhance your gaming experi
 - [x] Find out your real ping to the servers
 - [x] Real pings in Find Game: every server shows its region's ping, and the old browser layout sorts regions fastest first
 - [x] Ranked match alert (optional): when Krunker's ranked queue finds a match while you are tabbed out, Kute comes to the front or flashes in the taskbar
-- [x] Matchmaker: F6 joins the lowest ping lobby that fits your filters (region, mode, map, players, time left), with starred modes and maps tried first in your order
+- [x] Matchmaker: F6 joins the lowest ping lobby that fits your filters (region, mode, map, players, time left), with starred modes and maps tried first in your order. Lobbies with one free slot come after roomier ones (they fill up while Krunker loads), and it can search again when a match ends
 - [x] Better chat
 - [x] Chat logs: the last 2000 chat lines, kept across lobbies, to filter, search and copy (F1, rebindable)
 - [x] Hardpoint enemy counter
