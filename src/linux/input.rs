@@ -20,6 +20,11 @@ pub fn pointer_locked() -> bool {
     POINTER_LOCKED.load(Ordering::Relaxed)
 }
 
+// clicks reach the page as mouse buttons here, there is no F20 to switch off
+pub fn set_left_click_f20(_enabled: bool) {}
+
+pub fn set_wheel_to_page(_enabled: bool) {}
+
 pub fn set_rampboost(enabled: bool) {
     RAMPBOOST.store(enabled, Ordering::Relaxed);
 }

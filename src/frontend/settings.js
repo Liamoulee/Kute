@@ -377,11 +377,14 @@ class SettingsManager {
         const buttonAction = option.buttonAction?.replaceAll("{{kute}}", globalRef).replaceAll('"', "&quot;") ?? "";
         const locked = option.requiresLogin && document.querySelector("#signedInHeaderBar") === null;
         let button = "";
+        // krunker's row buttons sit flush right (width auto, no margin). next to a switch the button floats left of
+        // it and keeps the 8 px krunker's .settingsBtn has between two of its own
+        const gap = option.type === "checkbox" ? "margin-right: 8px; " : "";
         if (option.button && locked){
-            button = `<div class="settingsBtn" style="margin-right: 20px; width: auto; opacity: 0.35; cursor: not-allowed" title="Log in first">${option.button}</div>`;
+            button = `<div class="settingsBtn" style="${gap}width: auto; opacity: 0.35; cursor: not-allowed" title="Log in first">${option.button}</div>`;
         }
         else if (option.button){
-            button = `<div class="settingsBtn" style="margin-right: 20px; width: auto" onclick="${buttonAction}">${option.button}</div>`;
+            button = `<div class="settingsBtn" style="${gap}width: auto" onclick="${buttonAction}">${option.button}</div>`;
         }
         switch (option.type){
             case "checkbox": {

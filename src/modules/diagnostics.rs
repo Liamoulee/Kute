@@ -296,7 +296,7 @@ fn config_section() -> Value {
         "userBlocklist": json_file(&dir.join("user_blocklist.json")),
         "userscripts": userscripts_section(),
         "swapper": { "enabled": swaps["enabled"], "count": swap_count, "files": listed },
-        "customCssBytes": fs::metadata(dir.join("custom.css")).map(|meta| meta.len()).unwrap_or(0),
+        "customCssBytes": crate::modules::custom_css::read().len(),
     })
 }
 

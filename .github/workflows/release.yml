@@ -92,7 +92,25 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Derive the market key
+        id: market
+        shell: pwsh
+        env:
+          KUTE_MARKET_MASTER: ${{ secrets.KUTE_MARKET_MASTER }}
+        run: |
+          if ($env:KUTE_MARKET_MASTER) {
+            $hmac = [System.Security.Cryptography.HMACSHA256]::new([System.Text.Encoding]::UTF8.GetBytes($env:KUTE_MARKET_MASTER))
+            $key = ($hmac.ComputeHash([System.Text.Encoding]::UTF8.GetBytes("${{ steps.version.outputs.version }}")) | ForEach-Object { $_.ToString("x2") }) -join ""
+            Write-Host "::add-mask::$key"
+            Add-Content $env:GITHUB_OUTPUT "key=$key"
+            Write-Host "market key derived for ${{ steps.version.outputs.version }}"
+          } else {
+            Write-Host "::warning::KUTE_MARKET_MASTER is not set, this build cannot use the market"
+          }
+
       - name: Build installer
+        env:
+          KUTE_MARKET_KEY: ${{ steps.market.outputs.key }}
         run: bun run package
 
       - name: Upload installer artifact
@@ -109,8 +127,6 @@ jobs:
           path: target/kute-x86_64-portable.zip
           retention-days: 7
 
-      # via the API so GitHub signs it. if master moved during the build the bump goes on top as long as
-      # the version files are unchanged there, expectedHeadOid guards the rest
       - name: Commit the version bump
         id: commit
         if: inputs.mode != 'build only'

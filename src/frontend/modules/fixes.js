@@ -1,4 +1,5 @@
 import { kute } from "../client.js";
+import { claimAltShoot, syncLeftClick } from "./leftClick.js";
 
 window.chrome.webview.postMessage("drag, true");
 window.chrome.webview.postMessage("throttle, menu");
@@ -62,18 +63,21 @@ window.closWind = (...args) => {
 };
 
 /**
- * binds alt shoot to F20 (131), the host sends left click as F20 while locked
+ * binds alt shoot to F20 (131) after an import, the host sends left click as F20 while locked (leftClick.js)
  */
 kute.bindShoot = () => {
-    window.changeCont("shoot", 1, undefined);
-    const eventOptions = {
-        key: "F20",
-        code: "F20",
-        keyCode: 131,
-        which: 131,
-        bubbles: true,
-        cancelable: true,
-    };
-    window.dispatchEvent(new KeyboardEvent("keydown", eventOptions));
-    window.dispatchEvent(new KeyboardEvent("keyup", eventOptions));
+    if (claimAltShoot()){
+        window.changeCont("shoot", 1, undefined);
+        const eventOptions = {
+            key: "F20",
+            code: "F20",
+            keyCode: 131,
+            which: 131,
+            bubbles: true,
+            cancelable: true,
+        };
+        window.dispatchEvent(new KeyboardEvent("keydown", eventOptions));
+        window.dispatchEvent(new KeyboardEvent("keyup", eventOptions));
+    }
+    syncLeftClick();
 };

@@ -216,6 +216,12 @@ export default [{
     },
     rules,
 }, {
+    files: ["src/frontend/modules/market/views/*.js"],
+    rules: {
+        // embedded expressions follow HTML indentation inside view templates
+        indent: [2, 4, { SwitchCase: 1, ignoredNodes: ["TaggedTemplateExpression[tag.name='html'] *"] }],
+    },
+}, {
     files: ["**/*.ts"],
     plugins: {
         "@typescript-eslint": tsPlugin,

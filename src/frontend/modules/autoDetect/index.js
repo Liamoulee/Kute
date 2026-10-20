@@ -601,20 +601,8 @@ class Panel {
      * @param {string} [note] yellow warning under the line
      */
     choose(title, line, choices, note){
-        this.unbindEscape();
         const cancel = choices.find((choice) => choice.cancel);
-        // a click outside the panel cancels too
-        this.overlay.onclick = cancel ? (event) => {
-            if (event.target === this.overlay) cancel.onPick();
-        } : null;
-        if (cancel){
-            this.onEscape = (/** @type {KeyboardEvent} */ event) => {
-                if (event.key !== "Escape") return;
-                event.stopPropagation();
-                cancel.onPick();
-            };
-            document.addEventListener("keydown", this.onEscape, true);
-        }
+        this.dismissWith(cancel ? () => cancel.onPick() : undefined);
         this.element("adTitle").textContent = title;
         this.element("adStatus").textContent = line;
         const noteElement = this.element("adNote");
@@ -639,6 +627,7 @@ class Panel {
      * @param {{onUndo?: () => void, onRun?: () => void, report?: Report}} [actions]
      */
     result(summary, actions = {}){
+        this.dismissWith(() => this.close());
         this.element("adTitle").textContent = summary.title;
         this.element("adStatus").textContent = summary.line;
         this.element("adNote").style.display = "none";
@@ -699,6 +688,25 @@ class Panel {
      */
     clickThrough(enabled){
         this.overlay.style.pointerEvents = enabled ? "none" : "";
+    }
+
+    /**
+     * a click outside the panel or Escape runs the action, like every other kute popup. none keeps both inert
+     *
+     * @param {(() => void)|undefined} action
+     */
+    dismissWith(action){
+        this.unbindEscape();
+        this.overlay.onclick = action ? (event) => {
+            if (event.target === this.overlay) action();
+        } : null;
+        if (!action) return;
+        this.onEscape = (/** @type {KeyboardEvent} */ event) => {
+            if (event.key !== "Escape") return;
+            event.stopPropagation();
+            action();
+        };
+        document.addEventListener("keydown", this.onEscape, true);
     }
 
     unbindEscape(){

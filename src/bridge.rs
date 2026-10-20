@@ -36,11 +36,17 @@ pub fn host_features() -> serde_json::Value {
     serde_json::json!([
         "matchmaker",
         "dev-proof",
+        "market-attest",
+        "history-capture",
+        "market-capture",
+        "krunker-links",
         "kute-icons",
         "script-manager",
         "audio-fix",
         "spotify",
         "custom-css",
+        "css-manager",
+        "custom-sounds",
         "swapper-editor",
         "x3d-cores",
         "custom-sky",
@@ -50,14 +56,15 @@ pub fn host_features() -> serde_json::Value {
         "autodetect-v2",
         "load-sample",
         "hotkeys",
-        "video-skins",
         "mute",
         "userscripts-live",
         "swapper-over-blocklist",
         "swapper-watch",
         "accounts-order",
         "diagnostics",
-        "recovery"
+        "recovery",
+        "left-click-f20",
+        "scroll-binds"
     ])
 }
 
@@ -67,11 +74,17 @@ pub fn host_features() -> serde_json::Value {
     serde_json::json!([
         "matchmaker",
         "dev-proof",
+        "market-attest",
+        "history-capture",
+        "market-capture",
+        "krunker-links",
         "kute-icons",
         "script-manager",
         "audio-fix",
         "spotify",
         "custom-css",
+        "css-manager",
+        "custom-sounds",
         "swapper-editor",
         "custom-sky",
         "performance-mode",
@@ -83,14 +96,14 @@ pub fn host_features() -> serde_json::Value {
         "x3d-cores",
         "load-sample",
         "autodetect-v2",
-        "video-skins",
         "prime-offload",
         "mute",
         "userscripts-live",
         "swapper-over-blocklist",
         "accounts-order",
         "diagnostics",
-        "recovery"
+        "recovery",
+        "left-click-f20"
     ])
 }
 
