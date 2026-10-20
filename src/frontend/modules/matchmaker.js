@@ -50,8 +50,10 @@ const normalizeMap = (name) => name.toLowerCase().replace(/[^a-z0-9]/g, "");
 const MAP_ICON_BY_NAME = new Map(OFFICIAL_MAPS.map((name, index) => [normalizeMap(name), index]));
 
 const DEFAULT_MAPS = new Set(MAP_FILTER.map(normalizeMap));
-// parkour maps have no round timer. untimed on any other map = custom game
+// parkour maps have no round timer
 const UNTIMED_MAPS = new Set(["Eterno Jump", "Slide Moonlight"].map(normalizeMap));
+// the id goes into the join url as is
+const URL_UNSAFE = /[\s&#?/%\\]/;
 
 const GAME_LIST_URL = "https://matchmaker.krunker.io/game-list?hostname=krunker.io";
 const FETCH_TIMEOUT_MS = 10000;
@@ -76,6 +78,7 @@ const NOT_FOUND_HOLD_MS = 1100;
  * @property {boolean} sortByPlayers most players first instead of lowest ping
  * @property {boolean} serverBrowser open the server browser when nothing matches
  * @property {boolean} animation show the search popup
+ * @property {boolean} searchAfterMatch search again when the end screen shows
  */
 
 /** @type {MatchmakerFilter} */
@@ -91,6 +94,7 @@ const DEFAULT_FILTER = {
     sortByPlayers: false,
     serverBrowser: true,
     animation: true,
+    searchAfterMatch: false,
 };
 
 /**
@@ -182,7 +186,10 @@ function readLobbies(games, filter){
     const maps = filter.maps.length > 0 ? new Set(filter.maps.map(normalizeMap)) : DEFAULT_MAPS;
     return games.map((game) => {
         const id = String(game[0]);
-        const map = String(game[4]?.i ?? "");
+        const details = game[4] ?? {};
+        // c 1 = custom game, oc 1 = custom game run by krunker (parkour, raids, events)
+        const official = details.c === 0 || details.oc === 1;
+        const map = String(details.i ?? "");
         const mapId = normalizeMap(map);
         /** @type {Lobby} */
         const lobby = {
@@ -192,11 +199,13 @@ function readLobbies(games, filter){
             players: Number(game[2]),
             limit: Number(game[3]),
             map,
-            mode: GAMEMODES[game[4]?.g] ?? "Unknown",
+            mode: GAMEMODES[details.g] ?? "Unknown",
             timeLeft: Number(game[5]),
             passes: false,
         };
         lobby.passes =
+            official &&
+            !URL_UNSAFE.test(id) &&
             (filter.regions.length === 0 || filter.regions.includes(lobby.region)) &&
             (filter.modes.length === 0 || filter.modes.includes(lobby.mode)) &&
             maps.has(mapId) &&
@@ -256,6 +265,27 @@ class Matchmaker {
             },
             true,
         );
+        this.watchEndScreen();
+    }
+
+    // only after the player played this match, joining a lobby on its end screen shows it too
+    watchEndScreen(){
+        const endUI = document.getElementById("endUI");
+        if (!endUI) return;
+        let played = false;
+        let shown = endUI.style.display !== "none";
+        document.addEventListener("pointerlockchange", () => {
+            if (document.pointerLockElement) played = true;
+        });
+        new MutationObserver(() => {
+            const up = endUI.style.display !== "none";
+            if (up === shown) return;
+            shown = up;
+            if (!up || !played) return;
+            played = false;
+            if (!kute.settings.data.matchmaker || !this.filter.searchAfterMatch || window.getGameActivity?.()?.custom) return;
+            this.start().catch((error) => console.error("[kute] matchmaker:", error));
+        }).observe(endUI, { attributes: true, attributeFilter: ["style"] });
     }
 
     /**
@@ -364,7 +394,7 @@ class Matchmaker {
     }
 
     /**
-     * lobby may have filled up during the animation, joins the first candidate with room
+     * lobby may have filled up or changed map during the animation, joins the first candidate that still passes
      *
      * @param {number} run
      * @param {Lobby} best
@@ -381,12 +411,9 @@ class Matchmaker {
         }
         if (this.cancelled(run)) return;
 
-        const live = new Map(games.map((game) => [String(game[0]), { players: Number(game[2]), limit: Number(game[3]) }]));
+        const live = new Map(readLobbies(games, filter).map((lobby) => [lobby.id, lobby]));
         const ordered = [best, ...this.candidates.filter((lobby) => lobby !== best)];
-        const open = ordered.find((lobby) => {
-            const game = live.get(lobby.id);
-            return game && game.players < game.limit;
-        });
+        const open = ordered.find((lobby) => live.get(lobby.id)?.passes);
         if (open) this.join(open.id);
         else this.openServerBrowser(filter);
     }
@@ -437,13 +464,17 @@ class Matchmaker {
         /** @param {Lobby} lobby */
         const rank = (lobby) =>
             (modeRanks.get(lobby.mode) ?? modeRanks.size) * (mapRanks.size + 1) + (mapRanks.get(normalizeMap(lobby.map)) ?? mapRanks.size);
+        // measured: a lobby with one free slot was full 12 % of the time 4 s later, 24 % after 8 s. two free: 1.6 and 3.3 %
+        /** @param {Lobby} lobby */
+        const lastSlot = (lobby) => (lobby.limit - lobby.players <= 1 ? 1 : 0);
         const passing = lobbies.filter((lobby) => lobby.passes);
         passing.sort((a, b) => {
             const byRank = rank(a) - rank(b);
+            const bySlot = lastSlot(a) - lastSlot(b);
             const byPing = ping(a) - ping(b);
             const byPlayers = b.players - a.players;
-            if (filter.sortByPlayers) return byRank || byPlayers || byPing;
-            return byRank || byPing || byPlayers;
+            if (filter.sortByPlayers) return byRank || bySlot || byPlayers || byPing;
+            return byRank || bySlot || byPing || byPlayers;
         });
         this.candidates = passing;
 
@@ -453,7 +484,11 @@ class Matchmaker {
         if (passing.length > 0){
             const top = passing[0];
             const pool = passing.filter(
-                (lobby) => rank(lobby) === rank(top) && Math.abs(ping(lobby) - ping(top)) <= 20 && top.players - lobby.players <= 2,
+                (lobby) =>
+                    rank(lobby) === rank(top) &&
+                    lastSlot(lobby) === lastSlot(top) &&
+                    Math.abs(ping(lobby) - ping(top)) <= 20 &&
+                    top.players - lobby.players <= 2,
             );
             best = pool[Math.floor(Math.random() * pool.length)];
         }
@@ -689,6 +724,7 @@ class Matchmaker {
             element("mmSortByPlayers").checked = filter.sortByPlayers;
             element("mmServerBrowser").checked = filter.serverBrowser;
             element("mmAnimation").checked = filter.animation;
+            element("mmSearchAfterMatch").checked = filter.searchAfterMatch;
         };
         // copies, the chips change the lists in place
         filter.regions = [...filter.regions];
@@ -722,6 +758,7 @@ class Matchmaker {
                 sortByPlayers: element("mmSortByPlayers").checked,
                 serverBrowser: element("mmServerBrowser").checked,
                 animation: element("mmAnimation").checked,
+                searchAfterMatch: element("mmSearchAfterMatch").checked,
             });
         };
         element("mmDone").onclick = close;
