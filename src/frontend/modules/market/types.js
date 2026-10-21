@@ -84,8 +84,10 @@
  * @property {{days:number,sales:number,lastSaleDay:string|null,dailyRange:{low:number,high:number}|null,bookAt:number|null,updatedAt:number|null,reasons:string[]}} [evidence]
  * @property {ItemAnalytics} [analytics]
  * @property {import("./intelligence.js").ItemIntelligence} [intelligence]
+ * @property {RarityContext} [rarityContext]
  * @property {number} asOf
  *
+ * @typedef {{rarity:number,pricedItems:number,median:number|null,low:number|null,high:number|null,krunkerItems:number,krunkerRatio:number|null}} RarityContext
  * @typedef {{t: number, lowest: number|null, median: number|null, sales: number, salesObserved?:boolean, volume: number, avg: number|null, fair: number|null, krunker: number|null, onS: number|null,ask?:{open:number,high:number,low:number,close:number,samples:number}|null}} HistoryPoint
  * @typedef {{skin: number, range: string, resolution: "hour"|"day", points: HistoryPoint[], asOf: number,salesSource?:string,askSource?:string}} HistoryReply
  * @typedef {{uid: number, price: number, listedAt: number|null, ageMs: number|null, seller: string|null, sellerListings: number, wear: number|null, serial: number|null}} ListingRow
@@ -98,13 +100,13 @@
  * @typedef {{days: {day: string, sales: number, volume: number}[], listingsLive: number, skinsListed: number, krOnBook: number, hours: number[], weekdays: number[], asOf: number,breadth?:{rising:number,falling:number,flat:number,eligible:number,total:number,window:string},categories?:{type:number,items:number,volume:number,change:number|null,rising?:number,falling?:number}[],diagnostics?:{medianChange:number|null,lowerQuartile:number|null,upperQuartile:number|null,advanceDeclineRatio:number|null,top10VolumeShare:number|null,eligibleVolume:number},active?:SkinSummary[],completedDay?:string|null,valuationAt?:number}} OverviewReply
  *
  * @typedef {{skin: number, count: number, serial?: number, wear?: number, style?: number}} TradeItem
- * @typedef {TradeItem & {name: string, fair: number, confidence: number, grade: Grade, unknown: boolean, lineValue: number, liquidValue: number, premium: number|null}} TradeLine
+ * @typedef {TradeItem & {name: string, fair: number, confidence: number, grade: Grade, unknown: boolean, lineValue: number, liquidValue: number, premium: number|null, method?: string}} TradeLine
  * @typedef {{items: TradeLine[], kr: number, value: number, liquidValue: number, confidence: number}} TradeSide
  * @typedef {{give: TradeItem[], get: TradeItem[], giveKr: number, getKr: number}} TradeInput
  * @typedef {{verdict: "fair"|"good"|"bad"|"uncertain", difference: number, differenceShare: number, give: TradeSide, get: TradeSide, drivers: string[], asOf: number}} TradeVerdict
  *
- * @typedef {{skin: number, name: string, rarity: number, type: number, thumbnail: string|null, count: number, fair: number, value: number, grade: Grade, confidence: number, trend7d: number|null, trend30d: number|null}} PortfolioItem
- * @typedef {{name: string, totalValue: number, liquidValue: number, items: PortfolioItem[], byRarity: Record<string, number>, byType: Record<string, number>, best7d: PortfolioItem|null, worst7d: PortfolioItem|null, concentration: number, liquidShare: number, series: {day: string, value: number}[], asOf: number,unvaluedItems?:number,limitedEvidenceItems?:number,limitedEvidenceValue?:number,historyBasket?:{items:number,total:number,valueShare:number,series:{day:string,value:number}[]},historyCoverage?:{day:string,priced:number,total:number}[]}} PortfolioReply
+ * @typedef {{skin: number, name: string, rarity: number, type: number, thumbnail: string|null, count: number, fair: number, value: number, grade: Grade, confidence: number, trend7d: number|null, trend30d: number|null, method?: string, noEvidence?: boolean}} PortfolioItem
+ * @typedef {{name: string, totalValue: number, liquidValue: number, items: PortfolioItem[], byRarity: Record<string, number>, byType: Record<string, number>, best7d: PortfolioItem|null, worst7d: PortfolioItem|null, concentration: number, liquidShare: number, series: {day: string, value: number}[], asOf: number,unvaluedItems?:number,limitedEvidenceItems?:number,limitedEvidenceValue?:number,noEvidenceItems?:number,noEvidenceReference?:number,historyBasket?:{items:number,total:number,valueShare:number,series:{day:string,value:number}[]},historyCoverage?:{day:string,priced:number,total:number}[]}} PortfolioReply
  */
 
 /** the game's rarity names and colors, from its rarity table */
