@@ -134,6 +134,7 @@ pub fn set_target_fps(fps_limit: u64) {
 
 // chromium makes a swap chain per hwnd: a select popup on a scaled display is over 200 px both ways, so the hook
 // tells the game's chain by the main window's client size instead (a dropdown's chain got prepared and captured once)
+#[cfg(windows)]
 pub fn set_window_size(width: u32, height: u32) {
     if let Some(size) = shared!(window_size) {
         size.store(((width as u64) << 32) | height as u64, Ordering::Relaxed);
