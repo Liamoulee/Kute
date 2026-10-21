@@ -1,7 +1,7 @@
 import { kute } from "../../client.js";
 import marketApi from "./api.js";
 import { GRADE_COLORS, formatKr, formatPercent } from "./types.js";
-import { esc } from "./presentation.js";
+import { esc, noEvidence } from "./presentation.js";
 
 // one line under every market card: our value, the grade and how the ask compares. the game's card
 // shows only a preview image and an ask, the image path names the skin. the menu is polled at a slow
@@ -24,6 +24,7 @@ const CSS = `
 .${LINE_CLASS} .kuteDelta{font-size:.85em}
 .${LINE_CLASS} .kuteDelta.kuteDeal{color:#5ce05a}
 .${LINE_CLASS} .kuteDelta.kuteOver{color:#f44336}
+.${LINE_CLASS} .kuteNone{opacity:.6}
 .kuteDetailBtn .kuteMark{color:#f5479b;font-weight:900;margin-right:2px}
 `;
 const DETAIL_SELECTOR = ".item-detail-container, .items-detail-root";
@@ -202,7 +203,7 @@ class Cards {
             return;
         }
         const text = button.querySelector("span");
-        if (text) text.textContent = `Kute Market · K ${formatKr(value.fair)} ${value.grade}`;
+        if (text) text.textContent = noEvidence(value) ? "Kute Market · no price data" : `Kute Market · K ${formatKr(value.fair)} ${value.grade}`;
         button.addEventListener("click", (event) => {
             event.stopPropagation();
             kute.market?.open("item", value.skin);
@@ -220,20 +221,26 @@ class Cards {
         const estimate = card.querySelector(".estimate-badge");
         line.className = estimate ? `${estimate.className} ${LINE_CLASS}` : `${LINE_CLASS} kuteFloating`;
         const ask = Cards.askOf(card);
-        let delta = "";
-        if (ask !== null && value.fair > 0){
-            const share = ask / value.fair - 1;
-            let cls = "";
-            if (share <= -0.1 && value.confidence >= 40) cls = "kuteDeal";
-            else if (share >= 0.25) cls = "kuteOver";
-            const percent = Math.round(Math.abs(share) * 100);
-            delta = `<span class="kuteDelta ${cls}">${share < 0 ? "−" : "+"}${percent}%</span>`;
+        if (noEvidence(value)){
+            line.innerHTML = '<span class="kuteMark">K</span> <span class="kuteNone">no data</span>';
+            line.title = `Kute has no price evidence for this item: no sale, trade or listing it could see. ${value.method === "floor" ? "The game's quick-sell floor" : "Krunker's estimate"} is ${formatKr(value.fair)} kr, and such items are often worth far more. Click for the item in Kute Market`;
         }
-        line.innerHTML = `<span class="kuteMark">K</span> ${formatKr(value.fair)}<span class="kuteGrade" style="background:${GRADE_COLORS[value.grade]}">${esc(value.grade)}</span>${delta}`;
-        line.title = `Kute fair value ${formatKr(value.fair)} kr, evidence score ${value.confidence}/100, public-market activity grade ${value.grade}`
-            + (value.privateTrading?.trades7d ? `, ${value.privateTrading.trades7d} reported private trades this week` : "")
-            + (value.exchange?.status === "applied" ? ", includes private exchange evidence" : "")
-            + (ask !== null ? `, this ask ${formatPercent(ask / value.fair - 1)} against it` : "") + ". Click for the item in Kute Market";
+        else {
+            let delta = "";
+            if (ask !== null && value.fair > 0){
+                const share = ask / value.fair - 1;
+                let cls = "";
+                if (share <= -0.1 && value.confidence >= 40) cls = "kuteDeal";
+                else if (share >= 0.25) cls = "kuteOver";
+                const percent = Math.round(Math.abs(share) * 100);
+                delta = `<span class="kuteDelta ${cls}">${share < 0 ? "−" : "+"}${percent}%</span>`;
+            }
+            line.innerHTML = `<span class="kuteMark">K</span> ${formatKr(value.fair)}<span class="kuteGrade" style="background:${GRADE_COLORS[value.grade]}">${esc(value.grade)}</span>${delta}`;
+            line.title = `Kute fair value ${formatKr(value.fair)} kr, evidence score ${value.confidence}/100, public-market activity grade ${value.grade}`
+                + (value.privateTrading?.trades7d ? `, ${value.privateTrading.trades7d} reported private trades this week` : "")
+                + (value.exchange?.status === "applied" ? ", includes private exchange evidence" : "")
+                + (ask !== null ? `, this ask ${formatPercent(ask / value.fair - 1)} against it` : "") + ". Click for the item in Kute Market";
+        }
         line.addEventListener("click", (event) => {
             // the card itself opens krunker's detail view on click
             event.stopPropagation();

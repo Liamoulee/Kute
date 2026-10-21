@@ -2,7 +2,7 @@ import { html } from "../element.js";
 import marketApi from "../api.js";
 import { TITLES } from "../navigation.js";
 import { RARITIES, formatAge } from "../types.js";
-import { TYPE_NAMES, esc, money, change, evidenceLabel, activityLabel, empty, stat } from "../presentation.js";
+import { TYPE_NAMES, esc, money, change, evidenceLabel, activityLabel, empty, stat, fairValue, noEvidence } from "../presentation.js";
 import { readWatchlist } from "../watchlist.js";
 import { itemDesk } from "../analytics.js";
 import { itemIntelligence } from "../intelligence.js";
@@ -10,6 +10,23 @@ import { contributionEvidence } from "../contributionEvidence.js";
 import { exchangeEvidence } from "../exchangeEvidence.js";
 import { candleSeries } from "../chartData.js";
 const RANGES = ["1D", "7D", "1M", "3M", "1Y", "ALL"];
+
+/**
+ * @param {import("../types.js").SkinSummary} s
+ * @param {import("../types.js").RarityContext|undefined} context
+ */
+function unpricedNotice(s, context){
+    const rarity = RARITIES[s.rarity]?.name ?? "items";
+    const lines = [`Nobody has sold, traded or listed this item where Kute could see it, so ${s.method === "floor" ? "the number above is only what the game pays on quick sell" : "the number above is Krunker's own estimate"}. It can be worth far more.`];
+    if (context && context.pricedItems >= 5 && context.low !== null && context.high !== null){
+        lines.push(`For reference, ${rarity} items with recent sales mostly went for ${money(context.low)} to ${money(context.high)} KR (middle half of ${context.pricedItems} items). Rare items of the same rarity can be worth many times that.`);
+    }
+    if (context && context.krunkerItems >= 5 && context.krunkerRatio !== null){
+        const off = Math.abs(context.krunkerRatio - 1) < 0.1 ? "close to their real sale prices" : `${context.krunkerRatio < 1 ? "above" : "below"} their real sale prices (ratio ${context.krunkerRatio})`;
+        lines.push(`Where ${rarity} items do sell, Krunker's estimate sits ${off}, but it is missing for most items without sales.`);
+    }
+    return `<div class="notice">${lines.map(esc).join("<br>")}</div>`;
+}
 
 /** @param {import("../terminal.js").Terminal} desk  @return {Promise<import("../terminal.js").View>} */
 export async function itemView(desk){
@@ -180,10 +197,7 @@ export async function itemView(desk){
                 <div class="metrics itemMetrics">
                     ${stat(
                         "Kute estimate",
-                        html`
-                            ${money(s.fair)}
-                            <span class="unit">KR</span>
-                        `,
+                        fairValue(s, '<span class="unit"> KR</span>'),
                         esc(recent),
                     )}${stat(
                         "Lowest observed ask",
@@ -202,6 +216,7 @@ export async function itemView(desk){
                         `${s.onS} currently listed &middot; ${money(s.inC)} in circulation`,
                     )}
                 </div>
+                ${noEvidence(s) ? unpricedNotice(s, page.rarityContext) : ""}
             ` +
             html`
                 <section class="sectionGap panel">

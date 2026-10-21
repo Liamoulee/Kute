@@ -22,7 +22,17 @@ test("invalid, cancelled, future and partially parsed trades never become comple
     expect(contributedSale({ ...sale, status: "cancelled" }, NOW)).toBeNull();
 });
 
-const settle = () => new Promise(resolve => setTimeout(resolve, 10));
+test("game history times are utc in every timezone", () => {
+    const zone = process.env.TZ;
+    for (const tz of ["Europe/Berlin", "America/New_York", "UTC"]){
+        process.env.TZ = tz;
+        expect(contributedTrade({ ...rawTrade, dte: "2026-10-19 11:00:00" }, NOW)?.at).toBe(NOW - 3_600_000);
+        expect(contributedSale({ marketid: 4, skinindex: 1, amount: 100, type: "sell", status: "completed", date: "2026-10-19 11:00:00" }, NOW)?.date).toBe("2026-10-19T11:00:00.000Z");
+    }
+    process.env.TZ = zone;
+});
+
+const settle = () =>new Promise(resolve => setTimeout(resolve, 10));
 const tradeReply = () => ({ data: { completed: [rawTrade], open: [{ ...rawTrade, trid: 999 }], completed_has_more: true } });
 
 function collectorFixture(features = ["history-capture"]){

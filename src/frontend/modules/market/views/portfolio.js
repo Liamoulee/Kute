@@ -1,6 +1,6 @@
 import { html } from "../element.js";
 import marketApi from "../api.js";
-import { esc, money, change, identity, empty, stat } from "../presentation.js";
+import { esc, money, change, identity, empty, stat, fairValue } from "../presentation.js";
 import { itemSearch } from "../itemSearch.js";
 const MINUTE = 60_000;
 /** @param {import("../terminal.js").Terminal} desk  @return {Promise<import("../terminal.js").View>} */
@@ -70,7 +70,7 @@ export async function portfolioView(desk){
                             ${money(p.totalValue)}
                             <span class="unit">KR</span>
                         `,
-                        `${p.items.length} valued item types`,
+                        `${p.items.length - (p.noEvidenceItems ?? 0)} valued item types`,
                     )}${stat(
                         "In more active items",
                         html`
@@ -92,6 +92,13 @@ export async function portfolioView(desk){
                           <div class="notice">
                               ${p.limitedEvidenceItems} item types (${money(p.limitedEvidenceValue)} KR of the total) have limited sales
                               evidence or use fallback estimates.
+                          </div>
+                      `
+                    : ""}${p.noEvidenceItems
+                    ? html`
+                          <div class="notice">
+                              ${p.noEvidenceItems} item types have no price evidence and are not in the total. At the quick-sell floor or
+                              Krunker's estimate they would add ${money(p.noEvidenceReference ?? 0)} KR, but such items are often worth far more.
                           </div>
                       `
                     : ""}${p.unvaluedItems
@@ -129,8 +136,8 @@ export async function portfolioView(desk){
                                         <tr class="clickable" data-skin="${esc(i.skin)}" tabindex="0">
                                             <td>${identity(i)}</td>
                                             <td class="num">${i.count}</td>
-                                            <td class="num">${money(i.fair)}</td>
-                                            <td class="num">${money(i.value)}</td>
+                                            <td class="num">${fairValue(i)}</td>
+                                            <td class="num">${i.noEvidence ? '<span class="noEvidence">Not counted</span>' : money(i.value)}</td>
                                             <td class="num">${change(i.trend7d)}</td>
                                             ${desk.advanced
                                                 ? html`

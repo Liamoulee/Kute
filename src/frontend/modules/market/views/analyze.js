@@ -1,6 +1,6 @@
 import { html } from "../element.js";
 import marketApi from "../api.js";
-import { TRADE_VERDICTS, verdictOf, esc, money, change, identity } from "../presentation.js";
+import { TRADE_VERDICTS, verdictOf, esc, money, change, identity, lineNote } from "../presentation.js";
 import { itemSearch } from "../itemSearch.js";
 /** @param {import("../terminal.js").Terminal} desk  @return {Promise<import("../terminal.js").View>} */
 export async function analyzeView(desk){
@@ -61,7 +61,7 @@ export async function analyzeView(desk){
                                           <div class="tradeItemValue">
                                               ${value}
                                               <small>
-                                                  ${line && !line.unknown ? `${money(line.fair)} KR each` : "Needs more evidence"}
+                                                  ${line ? lineNote(line) : "Needs more evidence"}
                                               </small>
                                           </div>
                                           <label class="tradeQuantity">
