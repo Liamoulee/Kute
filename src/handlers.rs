@@ -255,6 +255,7 @@ wrap_keyboard_handler! {
             if event.type_ != KeyEventType::RAWKEYDOWN {
                 return 0;
             }
+            ALT_F4.set(event.windows_key_code == 0x73 && event.modifiers & crate::modules::hotkeys::ALT != 0);
             // after the key: a resize closes a focused popup (color picker), chromium then sends the key into the freed widget
             if let Some(action) = crate::modules::hotkeys::action_for(event.windows_key_code, event.modifiers) {
                 let mut task = HotkeyTask::new(browser.identifier(), action);
@@ -268,6 +269,11 @@ wrap_keyboard_handler! {
 // chrome/app/chrome_command_ids.h
 const IDC_CLOSE_WINDOW: ::std::os::raw::c_int = 34012;
 
+thread_local! {
+    // ctrl+shift+w is IDC_CLOSE_WINDOW too and closed kute mid match
+    static ALT_F4: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
 wrap_command_handler! {
     struct KuteCommandHandler;
 
@@ -280,6 +286,7 @@ wrap_command_handler! {
         ) -> ::std::os::raw::c_int {
             // alt+f4 is a chrome accelerator in a chrome style browser, it never reaches our window as WM_SYSCOMMAND
             if command_id == IDC_CLOSE_WINDOW
+                && ALT_F4.get()
                 && let Some(browser) = browser
             {
                 window::close_window(browser);
