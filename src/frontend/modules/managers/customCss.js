@@ -197,9 +197,6 @@ class CssManager {
                 const author = document.createElement("p");
                 author.textContent = `By ${item.author}`;
 
-                const description = document.createElement("p");
-                description.textContent = item.description ?? "";
-
                 const button = document.createElement("button");
                 button.className = "storeDownloadBtn";
 
@@ -262,7 +259,7 @@ class CssManager {
                     }
                 };
 
-                card.append(title, author, description, button);
+                card.append(title, author, button);
                 list.append(card);
             }
 
