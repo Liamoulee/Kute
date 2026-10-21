@@ -1,6 +1,6 @@
 import { html } from "../element.js";
 import { formatPercent } from "../types.js";
-import { esc, money, change, evidenceLabel, identity, empty } from "../presentation.js";
+import { esc, money, change, evidenceLabel, identity, empty, fairValue } from "../presentation.js";
 /** @param {import("../terminal.js").Terminal} desk  @param {import("../types.js").SkinSummary[]} items */
 export function tableView(desk, items){
     if (!items.length) return empty("No matching items", "Try a wider budget or fewer filters.");
@@ -24,8 +24,7 @@ export function tableView(desk, items){
                                 <tr class="clickable" data-skin="${esc(s.skin)}" tabindex="0">
                                     <td>${identity(s)}</td>
                                     <td class="num">
-                                        ${money(s.fair)}
-                                        <small>KR</small>
+                                        ${fairValue(s, " <small>KR</small>")}
                                     </td>
                                     <td class="num">
                                         ${s.lowest === null ? "No listings" : money(s.lowest)}
