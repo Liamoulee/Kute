@@ -30,8 +30,42 @@ export const change = (value) => {
     return `<span class="${color}">${esc(formatPercent(value))}</span>`;
 };
 
-/** @param {{method?:string, sales7d?:number, confidence?:number}} item */
+/**
+ * @param {{method?:string}} item
+ * @return {boolean} the quick-sell floor or krunker's estimate, which say nothing about what it trades for
+ */
+export const noEvidence = (item) => item.method === "floor" || item.method === "krunker";
+
+/** @param {{method?:string,onS?:number}} item */
+export const singleListing = (item) => item.method === "ask" && item.onS === 1;
+
+/**
+ * @param {{fair?:number,method?:string,onS?:number}|null|undefined} item
+ * @param {string} [unit] markup after the number
+ * @return {string} the value, greyed out and labeled when it is no evidence
+ */
+export const fairValue = (item, unit = "") => {
+    if (!item) return money(undefined);
+    if (noEvidence(item)){
+        const what = item.method === "floor" ? "Quick-sell floor" : "Krunker's estimate";
+        return `<span class="noEvidence" title="${what}. There is no sale, trade or listing to price this item from.">${money(item.fair)}${unit}<small class="valueNote">${item.method === "floor" ? "floor" : "krunker"}</small></span>`;
+    }
+    if (singleListing(item)) return `${money(item.fair)}${unit}<small class="valueNote" title="Derived from one seller's asking price">1 listing</small>`;
+    return `${money(item.fair)}${unit}`;
+};
+
+/** @param {import("./types.js").TradeLine} line */
+export const lineNote = (line) => {
+    if (!line.unknown) return `${money(line.fair)} KR each`;
+    if (noEvidence(line)) return `No price evidence &middot; ${line.method === "floor" ? "floor" : "Krunker"} ${money(line.fair)}`;
+    return "Needs more evidence";
+};
+
+/** @param {{method?:string, sales7d?:number, confidence?:number, onS?:number}} item */
 export const evidenceLabel = (item) => {
+    if (item.method === "floor") return "No price evidence, quick-sell floor";
+    if (item.method === "krunker") return "No price evidence, Krunker's estimate";
+    if (singleListing(item)) return "One listing only";
     if (item.method?.includes("trades")) return item.method.startsWith("sales") ? "Sales + private trades" : "Private-trade estimate";
     if (!item.method?.startsWith("sales")) return "Limited evidence";
     return (item.sales7d ?? 0) >= 5 ? "Recent sales" : "Sparse sales";

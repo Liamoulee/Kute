@@ -1,6 +1,6 @@
 import { html } from "../element.js";
 import marketApi from "../api.js";
-import { esc, money, identity, empty } from "../presentation.js";
+import { esc, money, identity, empty, fairValue } from "../presentation.js";
 import { readWatchlist, saveWatchlist } from "../watchlist.js";
 import alerts from "../alerts.js";
 /** @param {import("../terminal.js").Terminal} desk  @return {Promise<import("../terminal.js").View>} */
@@ -81,7 +81,7 @@ export async function watchlistView(desk){
                                             <td>
                                                 <button data-skin="${esc(w.skin)}">${identity(w)}</button>
                                             </td>
-                                            <td class="num">${money(v?.fair)}</td>
+                                            <td class="num">${fairValue(v)}</td>
                                             <td class="num">${money(v?.lowest)}</td>
                                             <td>
                                                 <input

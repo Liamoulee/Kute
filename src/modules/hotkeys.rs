@@ -26,7 +26,7 @@ const ACTIONS: [(Action, &str, u16); 5] = [
 // cef_event_flags_t
 const SHIFT: u32 = 2;
 const CONTROL: u32 = 4;
-const ALT: u32 = 8;
+pub const ALT: u32 = 8;
 
 #[derive(Deserialize, Clone, Copy, PartialEq, Eq)]
 struct Binding {

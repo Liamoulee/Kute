@@ -113,8 +113,12 @@ export type ItemPage = {
     evidence?: { days: number; sales: number; lastSaleDay: string | null; dailyRange: { low: number; high: number } | null; bookAt: number | null; updatedAt: number | null; reasons: string[] };
     analytics?: ItemAnalytics;
     intelligence?: ItemIntelligence;
+    rarityContext?: RarityContext;
     asOf: number;
 };
+
+/** what sales-backed items of one rarity trade at, and how far krunker's estimate sits from them */
+export type RarityContext = { rarity: number; pricedItems: number; median: number | null; low: number | null; high: number | null; krunkerItems: number; krunkerRatio: number | null };
 
 export type HistoryRange = "1D" | "7D" | "1M" | "3M" | "1Y" | "ALL";
 export type HistoryPoint = {
@@ -184,7 +188,8 @@ export type OverviewReply = {
 };
 
 export type TradeItem = { skin: number; count: number; serial?: number; wear?: number; style?: number };
-export type TradeLine = TradeItem & { name: string; fair: number; confidence: number; grade: Grade; unknown: boolean; lineValue: number; liquidValue: number; premium: number | null; privateTrading?: PrivateTrading; exchange?: ExchangeEvidence };
+/** `unknown` lines with a `method` of floor or krunker keep that reference number in `fair`, outside every total */
+export type TradeLine = TradeItem & { name: string; fair: number; confidence: number; grade: Grade; unknown: boolean; lineValue: number; liquidValue: number; premium: number | null; privateTrading?: PrivateTrading; exchange?: ExchangeEvidence; method?: string };
 export type TradeSide = { items: TradeLine[]; kr: number; value: number; liquidValue: number; confidence: number };
 export type TradeInput = { give: TradeItem[]; get: TradeItem[]; giveKr: number; getKr: number };
 export type TradeVerdict = {
@@ -207,7 +212,8 @@ export type ContributionEvidence = {
     sales: ContributionSample | null; asOf: number;
 };
 
-export type PortfolioItem = { skin: number; name: string; rarity: number; type: number; thumbnail: string | null; count: number; fair: number; value: number; grade: Grade; confidence: number; trend7d: number | null; trend30d: number | null };
+/** `noEvidence` items (quick-sell floor or krunker's estimate) keep that number in `fair` and `value` but stay out of the totals */
+export type PortfolioItem = { skin: number; name: string; rarity: number; type: number; thumbnail: string | null; count: number; fair: number; value: number; grade: Grade; confidence: number; trend7d: number | null; trend30d: number | null; method?: string; noEvidence?: boolean };
 export type PortfolioReply = {
     name: string;
     totalValue: number;
@@ -229,6 +235,9 @@ export type PortfolioReply = {
     historyBasket?: { items: number; total: number; valueShare: number; series: { day: string; value: number }[] };
     limitedEvidenceItems?: number;
     limitedEvidenceValue?: number;
+    noEvidenceItems?: number;
+    /** what those items would add at the floor or krunker's estimate */
+    noEvidenceReference?: number;
 };
 
 export type ObservedListing = { uid: number; marketid: number; skinindex: number; skinid: number; funds: number; seller_id: number; seller_name: string; listed_time: number; m?: string };
