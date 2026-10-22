@@ -7,7 +7,7 @@ const POLL_MS = 1200;
 
 /**
  * @typedef {import("./types.js").TradeItem & {path?:string}} Entry
- * @typedef {{give:Entry[],get:Entry[],giveKr:number,getKr:number,anchor:Element,key:string}} Snapshot
+ * @typedef {{give:Entry[],get:Entry[],giveKr:number,getKr:number,anchor:Element,slot?:HTMLElement|null,key:string}} Snapshot
  */
 
 class TradeWindows {
@@ -35,6 +35,13 @@ class TradeWindows {
         };
         /** @type {HTMLDivElement|null} */
         this.box = null;
+        /** @type {HTMLElement|null} */
+        this.chatList = null;
+    }
+
+    /** @param {Snapshot} snapshot */
+    placed(snapshot){
+        return snapshot.slot ? snapshot.slot.firstElementChild === this.box : this.box?.nextElementSibling === snapshot.anchor;
     }
 
     start(){
@@ -56,6 +63,8 @@ class TradeWindows {
     clear(){
         this.box?.remove();
         this.box = null;
+        if (this.chatList) this.chatList.style.maxHeight = "";
+        this.chatList = null;
         this.lastKey = "";
         this.expanded = false;
     }
@@ -115,7 +124,10 @@ class TradeWindows {
         const get = items(lists[1]);
         const giveKr = kr(0);
         const getKr = kr(1);
-        return { give, get, giveKr, getKr, anchor, key: JSON.stringify([give, get, giveKr, getKr]) };
+        // #menuWindow caps its height, a panel above the lists pushed accept/decline out of view
+        const chat = document.getElementById("tradeChatHolder");
+        const slot = chat?.getClientRects().length ? chat : null;
+        return { give, get, giveKr, getKr, anchor, slot, key: JSON.stringify([give, get, giveKr, getKr]) };
     }
 
     /** @param {Snapshot} snapshot @param {number} generation */
@@ -133,7 +145,7 @@ class TradeWindows {
             const snapshot = this.snapshot();
             if (!snapshot){ this.clear(); return; }
             if (Date.now() < this.retryAt) return;
-            if (snapshot.key === this.lastKey && this.box?.isConnected && this.box.nextElementSibling === snapshot.anchor) return;
+            if (snapshot.key === this.lastKey && this.box?.isConnected && this.placed(snapshot)) return;
             this.lastKey = snapshot.key;
             const empty = !snapshot.give.length && !snapshot.get.length && !snapshot.giveKr && !snapshot.getKr;
             this.render(snapshot, null, empty ? "Add items on both sides to compare estimated values." : "Updating estimates...");
@@ -176,7 +188,7 @@ class TradeWindows {
         if (!this.box){
             this.box = document.createElement("div");
             this.box.className = "kuteTradeBox";
-            this.box.style.cssText = "all:initial;display:block;box-sizing:border-box;width:100%;min-width:0;margin:0 0 10px;";
+            this.box.style.cssText = "all:initial;display:block;box-sizing:border-box;width:100%;min-width:0;margin:0 0 10px;container-type:inline-size;";
             this.box.attachShadow({ mode: "open" }).innerHTML = template;
         }
         const panel = this.box.shadowRoot?.querySelector(".panel");
@@ -207,8 +219,15 @@ class TradeWindows {
             html += `<details${this.expanded ? " open" : ""}><summary><span class="show">Item breakdown &amp; evidence</span><span class="hide">Hide item breakdown &amp; evidence</span></summary><div class="detailBody"><div class="breakdown">${breakdown(verdict.give, "You give")}${breakdown(verdict.get, "You receive")}</div><ul class="notes"><li>Estimates describe market data, not guaranteed sale prices. Activity grades do not guarantee a selling time.</li>${verdict.drivers.filter((driver) => !driver.startsWith("Liquidity adjustments")).map((driver) => `<li>${esc(driver)}</li>`).join("")}</ul></div></details>`;
         }
         panel.innerHTML = html;
+        if (snapshot.slot){
+            if (!this.placed(snapshot)) snapshot.slot.prepend(this.box);
+            // the chat is pinned to the column's bottom and would grow over the panel
+            this.chatList = document.getElementById("tradeChatList");
+            const input = document.getElementById("tradeChatInput");
+            if (this.chatList) this.chatList.style.maxHeight = `${Math.max(80, snapshot.slot.clientHeight - this.box.offsetHeight - (input?.offsetHeight ?? 0) - 20)}px`;
+        }
         // the game lays out the inventories as a flex row; our panel must be its sibling
-        if (this.box.nextElementSibling !== snapshot.anchor) snapshot.anchor.before(this.box);
+        else if (!this.placed(snapshot)) snapshot.anchor.before(this.box);
     }
 }
 
