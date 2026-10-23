@@ -208,6 +208,8 @@ class CssManager {
 
     /**
      * @param {StoreItem} item
+     * @param {string} src
+     * @param {string} name
      * @return {HTMLElement}
      */
     
@@ -270,7 +272,8 @@ class CssManager {
         overlay.remove();
         document.removeEventListener("keydown", onKeyDown);
     };
-
+    
+    /** @param {KeyboardEvent} event */
     const onKeyDown = (event) => {
         if (event.key === "Escape") closePreview();
     };
@@ -281,7 +284,7 @@ class CssManager {
         if (event.target === overlay) closePreview();
     });
 
-    image.addEventListener("click", (event) => {
+    image.addEventListener("click", /** @param {MouseEvent} event */ (event) => {
         event.stopPropagation();
     });
 
