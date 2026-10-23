@@ -63,6 +63,10 @@ jobs:
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
 
+      # rust-cache deletes loose files in target/ on a partial key match, the committed bundle included
+      - name: Restore committed bundle
+        run: git checkout -- target/bundle.js target/bundle_version
+
       # cef-dll-sys builds its wrapper with Ninja
       - name: Install Ninja
         run: choco install ninja --no-progress -y
@@ -88,6 +92,9 @@ jobs:
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@v2
+
+      - name: Restore committed bundle
+        run: git checkout -- target/bundle.js target/bundle_version
 
       # cef-dll-sys builds its wrapper with CMake and Ninja
       - name: Install build tools
