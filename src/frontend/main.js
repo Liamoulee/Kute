@@ -74,6 +74,13 @@ document.addEventListener(
             event.preventDefault();
         }, { capture: true, passive: false });
 
+        // krunker saves its number fields from onkeypress only, a paste, cut, drop or backspace never saved
+        document.addEventListener("input", (event) => {
+            const { target } = event;
+            if ((event instanceof InputEvent && event.inputType === "insertText") || !(target instanceof HTMLInputElement)) return;
+            if (target.getAttribute("onkeypress")?.includes("delayExecute")) target.dispatchEvent(new KeyboardEvent("keypress"));
+        }, true);
+
         hook(HTMLCanvasElement, "requestPointerLock", function(args, original){
             syncLeftClick();
             syncScrollBinds();

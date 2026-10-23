@@ -746,7 +746,7 @@ ${l}`));for(let l of n)this.seen.delete(l);for(;this.sent.size>sf;)this.sent.del
                               />
                           </div>
                       `:""}
-            `+(x.length?P`
+            `+(y.length?P`
                       <div class="tableWrap">
                           <table>
                               <thead>
@@ -758,7 +758,7 @@ ${l}`));for(let l of n)this.seen.delete(l);for(;this.sent.size>sf;)this.sent.del
                                   </tr>
                               </thead>
                               <tbody id="kmListingRows">
-                                  ${x.map(B=>P`
+                                  ${y.map(B=>P`
                                               <tr
                                                   data-price="${B.price}"
                                                   data-serial="${B.serial??""}"
@@ -785,7 +785,7 @@ ${l}`));for(let l of n)this.seen.delete(l);for(;this.sent.size>sf;)this.sent.del
                       </div>
                       <p class="chartNote">
                           <span id="kmListingCount">
-                              Showing ${x.length} sampled listings of ${i?.total??"unknown"} reported.
+                              Showing ${y.length} sampled listings of ${i?.total??"unknown"} reported.
                           </span>
                           Seller supply counts all sampled listings from that seller.
                           ${i&&i.total>(i.observedTotal??i.listings.length)?"The upstream listing sample does not cover the full market.":""}
