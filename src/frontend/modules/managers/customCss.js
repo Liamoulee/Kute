@@ -68,15 +68,12 @@ class CssManager {
             kute.showNotification("The CSS Manager needs a newer Kute. Update Kute to use it.", false, 6);
             return;
         }
-
         this.legacy = !hostSupportsManager();
         this.popup = openManagerPopup(html, {
             onMessage: (data) => this.receive(data),
             canClose: () => this.canClose(),
         });
-
         const { shadow, signal } = this.popup;
-
         signal.addEventListener("abort", () => {
             clearTimeout(this.previewTimer);
             // closing without saving drops the preview
@@ -92,7 +89,6 @@ class CssManager {
             this.activating = false;
             this.forceClose = false;
         });
-
         this.$("#ccFolder").onclick = () => post("reveal", { name: this.editing ?? "" });
         this.$("#ccOff").hidden = kute.settings.data.customCss !== false;
 
@@ -123,7 +119,7 @@ class CssManager {
         if (this.legacy){
             this.$(".managerPopup").classList.add("legacy");
             this.$("#ccHint").textContent = "Loaded after all of Krunker's styles, so a rule with the same selector wins. " +
-            "Saved as Documents\\kute\\custom.css. Update Kute to keep several CSS files and switch between them.";
+                "Saved as Documents\\kute\\custom.css. Update Kute to keep several CSS files and switch between them.";
             this.$("#ccEditor").textContent = "Loading...";
             post("read");
             return;
@@ -131,19 +127,13 @@ class CssManager {
 
         this.$("#ccNew").onclick = () => this.create();
         this.$("#ccPaste").onclick = () => this.paste();
-
         const input = /** @type {HTMLInputElement} */ (this.$("#ccImportInput"));
         this.$("#ccImport").onclick = () => input.click();
         input.onchange = () => {
             this.importFiles([...input.files ?? []]);
             input.value = "";
         };
-
-        makeDropTarget(
-            this.$("#ccFiles"),
-            (dropped) => this.importFiles(dropped.map((entry) => entry.file)),
-        );
-
+        makeDropTarget(this.$("#ccFiles"), (dropped) => this.importFiles(dropped.map((entry) => entry.file)));
         this.$("#ccEditor").textContent = "Loading...";
         post("list");
     }
