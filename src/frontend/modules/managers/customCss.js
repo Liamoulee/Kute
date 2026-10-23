@@ -21,6 +21,40 @@ const hostSupportsManager = () => kute.hostFeatures?.includes("css-manager") ?? 
  */
 const cssName = (name) => (/\.css$/i.test(name) ? name : `${name}.css`);
 
+const STORE_BASE = "https://raw.githubusercontent.com/kute-client/kute-css-store/main/";
+const STORE_TIMEOUT = 8000;
+
+/** @typedef {{name: string, author: string, file: string, preview: string}} StoreItem */
+
+// a ".." segment would leave the repo on raw.githubusercontent
+/**
+ * @param {unknown} path
+ * @return {path is string}
+ */
+const storePath = (path) => typeof path === "string" && path.split("/").every((part) => part !== "" && part !== "." && part !== "..");
+
+/**
+ * @param {string} path
+ * @return {string}
+ */
+const storeUrl = (path) => STORE_BASE + path.split("/").map(encodeURIComponent).join("/");
+
+/**
+ * @param {any} entry
+ * @return {StoreItem|null}
+ */
+const storeItem = (entry) => {
+    // the host refuses these in file names
+    const name = typeof entry?.name === "string" ? entry.name.replace(/[\\/:*?"<>|]/g, "").trim() : "";
+    if (!name || !storePath(entry.file) || !/\.css$/i.test(entry.file)) return null;
+    return {
+        name: cssName(name),
+        author: typeof entry.author === "string" ? entry.author : "",
+        file: entry.file,
+        preview: storePath(entry.preview) ? entry.preview : "",
+    };
+};
+
 /**
  * @param {string} command
  * @param {object} [payload]
@@ -60,6 +94,12 @@ class CssManager {
         this.live = true;
         /** @type {number} */
         this.previewTimer = 0;
+        /** @type {Map<string, HTMLElement>} store file name to its download button */
+        this.storeButtons = new Map();
+        /** @type {Set<string>} store downloads the host has not written yet */
+        this.downloading = new Set();
+        this.storeLoaded = false;
+        this.storeRun = 0;
     }
 
     open(){
@@ -88,17 +128,16 @@ class CssManager {
             this.openAfterImport = null;
             this.activating = false;
             this.forceClose = false;
+            this.storeButtons.clear();
+            this.downloading.clear();
+            this.storeLoaded = false;
+            this.storeRun++;
         });
         this.$("#ccFolder").onclick = () => post("reveal", { name: this.editing ?? "" });
         this.$("#ccOff").hidden = kute.settings.data.customCss !== false;
 
-        // CSS Store
         this.$("#ccStore").onclick = () => this.openStore();
-
-        this.$("#ccStoreBack").onclick = () => {
-            this.$("#ccStorePanel").hidden = true;
-            this.$(".managerBody").classList.remove("storeOpen");
-        };
+        this.$("#ccStoreBack").onclick = () => this.$(".managerBody").classList.remove("storeOpen");
 
         const live = /** @type {HTMLInputElement} */ (this.$("#ccLive"));
         live.checked = this.live;
@@ -138,137 +177,108 @@ class CssManager {
         post("list");
     }
 
-
     async openStore(){
-        const panel = this.$("#ccStorePanel");
-        const list = this.$("#ccStoreList");
-
+        if (!this.popup) return;
         this.$(".managerBody").classList.add("storeOpen");
-        panel.hidden = false;
-        list.replaceChildren();
-
-        const status = document.createElement("p");
-        status.textContent = "Loading the CSS Store...";
-        list.append(status);
-
+        if (this.storeLoaded) return;
+        const run = ++this.storeRun;
+        const list = this.$("#ccStoreList");
+        list.innerHTML = "<div class=\"empty\">Loading the CSS Store...</div>";
+        /** @type {StoreItem[]} */
+        let items;
         try {
-            const response = await fetch(
-                "https://raw.githubusercontent.com/Liamoulee/KSS/main/index.json",
-            );
-
-            if (!response.ok){
-                throw new Error(`HTTP ${response.status}`);
-            }
-
+            const response = await fetch(storeUrl("index.json"), { signal: AbortSignal.any([this.popup.signal, AbortSignal.timeout(STORE_TIMEOUT)]) });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const catalog = await response.json();
-            list.replaceChildren();
+            if (!Array.isArray(catalog)) throw new Error("index.json is no list");
+            items = /** @type {StoreItem[]} */ (catalog.map(storeItem).filter(Boolean));
+        }
+        catch {
+            if (run === this.storeRun) list.innerHTML = "<div class=\"empty\">Could not load the CSS Store. Go back and open it again to retry.</div>";
+            return;
+        }
+        if (run !== this.storeRun) return;
+        this.storeLoaded = true;
+        this.storeButtons.clear();
+        list.textContent = "";
+        if (!items.length) list.innerHTML = "<div class=\"empty\">Nothing in the CSS Store yet.</div>";
+        for (const item of items) list.append(this.storeCard(item));
+        this.refreshStore();
+    }
 
-            for (const item of catalog){
-                const card = document.createElement("div");
-                card.className = "storeCard";
+    /**
+     * @param {StoreItem} item
+     * @return {HTMLElement}
+     */
+    storeCard(item){
+        const card = document.createElement("div");
+        card.className = "storeCard";
+        const image = document.createElement("img");
+        image.alt = "";
+        image.loading = "lazy";
+        image.decoding = "async";
+        if (item.preview){
+            image.src = storeUrl(item.preview);
+            image.onerror = () => image.classList.add("missing");
+        }
+        else image.classList.add("missing");
+        const title = document.createElement("div");
+        title.className = "storeName";
+        title.textContent = item.name.replace(/\.css$/i, "");
+        const author = document.createElement("div");
+        author.className = "storeAuthor";
+        author.textContent = item.author ? `by ${item.author}` : "";
+        const button = document.createElement("div");
+        button.className = "btn small";
+        button.onclick = () => this.download(item);
+        this.storeButtons.set(item.name, button);
+        card.append(image, title, author, button);
+        return card;
+    }
 
-                if (item.preview){
-                    const image = document.createElement("img");
-
-                    image.src = item.preview.startsWith("https://")
-                        ? item.preview
-                        : "https://raw.githubusercontent.com/Liamoulee/KSS/main/" +
-                      item.preview.split("/").map(encodeURIComponent).join("/");
-
-                    image.alt = `${item.name} preview`;
-                    image.onerror = () => image.remove();
-
-                    card.append(image);
-                }
-
-                const title = document.createElement("h3");
-                title.textContent = item.name;
-
-                const author = document.createElement("p");
-                author.textContent = `By ${item.author}`;
-
-                const button = document.createElement("button");
-                button.className = "storeDownloadBtn";
-
-                let installed = this.files.some(
-                    file => file.name.toLowerCase() === cssName(item.name).toLowerCase(),
-                );
-
-                /** @param {string} text */
-                const setButtonText = (text) => {
-                    button.textContent = text;
-                };
-
-                setButtonText(installed ? "Already downloaded" : "Download the CSS");
-                if (installed){
-                    button.classList.add("installed");
-                    button.disabled = true;
-                }
-
-                button.onclick = async() => {
-                    installed = this.files.some(
-                        file => file.name.toLowerCase() === cssName(item.name).toLowerCase(),
-                    );
-
-                    if (installed){
-                        setButtonText("Already downloaded");
-                        button.classList.add("installed");
-                        button.disabled = true;
-                        return;
-                    }
-
-                    button.disabled = true;
-                    setButtonText("Downloading...");
-
-                    try {
-                        const cssResponse = await fetch(
-                            "https://raw.githubusercontent.com/Liamoulee/KSS/main/" +
-                        item.file.split("/").map(encodeURIComponent).join("/"),
-                        );
-
-                        if (!cssResponse.ok){
-                            throw new Error(`HTTP ${cssResponse.status}`);
-                        }
-
-                        const content = await cssResponse.text();
-
-                        post("import", {
-                            name: cssName(item.name),
-                            content,
-                        });
-
-                        installed = true;
-                        setButtonText("Already downloaded");
-                        button.classList.add("installed");
-                        button.disabled = true;
-                    }
-                    catch (error){
-                        console.error("CSS Store import failed:", error);
-                        button.disabled = false;
-                        setButtonText("Try again");
-                    }
-                };
-
-                card.append(title, author, button);
-                list.append(card);
-            }
-
-            if (catalog.length === 0){
-                list.textContent = "No CSS available.";
-            }
+    /**
+     * @param {StoreItem} item
+     */
+    async download(item){
+        if (!this.popup || this.downloading.has(item.name) || this.hasFile(item.name)) return;
+        this.downloading.add(item.name);
+        this.refreshStore();
+        try {
+            const response = await fetch(storeUrl(item.file), { signal: AbortSignal.any([this.popup.signal, AbortSignal.timeout(STORE_TIMEOUT)]) });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const content = await response.text();
+            if (content.length > MAX_SIZE) throw new Error("larger than 4 MB");
+            // the button stays busy until the host's import reply
+            post("import", { name: item.name, content });
         }
         catch (error){
-            console.error("CSS Store failed to load:", error);
-            list.replaceChildren();
-
-            const errorMessage = document.createElement("p");
-            errorMessage.textContent =
-            "Unable to load the CSS Store. Please try again later.";
-
-            list.append(errorMessage);
+            if (!this.popup) return;
+            this.downloading.delete(item.name);
+            this.popup.showError(`Could not download ${item.name}: ${error instanceof Error ? error.message : error}`);
+            this.refreshStore();
         }
     }
 
+    /**
+     * @param {string} name
+     * @return {boolean}
+     */
+    hasFile(name){
+        const lower = name.toLowerCase();
+        return this.files.some((file) => file.name.toLowerCase() === lower);
+    }
+
+    refreshStore(){
+        for (const [name, button] of this.storeButtons){
+            const busy = this.downloading.has(name);
+            const have = !busy && this.hasFile(name);
+            button.classList.toggle("primary", !busy && !have);
+            button.classList.toggle("done", busy || have);
+            if (busy) button.textContent = "Downloading...";
+            else if (have) button.innerHTML = "<span class=\"mi\">check</span>Downloaded";
+            else button.innerHTML = "<span class=\"mi\">download</span>Download";
+        }
+    }
 
     /**
      * @param {string} selector
@@ -334,6 +344,7 @@ class CssManager {
             else this.closeEditor();
         }
         this.renderList();
+        this.refreshStore();
     }
 
     renderList(){
@@ -545,6 +556,7 @@ class CssManager {
      * @param {{requested: string, name: string, error?: string|null}} result
      */
     imported(result){
+        if (this.downloading.delete(result.requested)) this.refreshStore();
         if (result.error){
             this.popup?.showError(`Could not add ${result.requested}: ${result.error}`);
             return;
