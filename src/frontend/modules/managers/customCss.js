@@ -213,15 +213,18 @@ class CssManager {
     storeCard(item){
         const card = document.createElement("div");
         card.className = "storeCard";
-        const image = document.createElement("img");
-        image.alt = "";
-        image.loading = "lazy";
-        image.decoding = "async";
+        const shot = document.createElement("div");
+        shot.className = "storeShot";
+        shot.innerHTML = "<span class=\"mi\">image</span>";
         if (item.preview){
+            const image = document.createElement("img");
+            image.alt = "";
+            image.loading = "lazy";
+            image.decoding = "async";
             image.src = storeUrl(item.preview);
-            image.onerror = () => image.classList.add("missing");
+            image.onerror = () => image.remove();
+            shot.append(image);
         }
-        else image.classList.add("missing");
         const title = document.createElement("div");
         title.className = "storeName";
         title.textContent = item.name.replace(/\.css$/i, "");
@@ -232,7 +235,7 @@ class CssManager {
         button.className = "btn small";
         button.onclick = () => this.download(item);
         this.storeButtons.set(item.name, button);
-        card.append(image, title, author, button);
+        card.append(shot, title, author, button);
         return card;
     }
 
