@@ -104,124 +104,81 @@
 }
 
 #ccStorePanel {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
+	flex: 1 1 auto;
+	min-height: 0;
+	margin-bottom: 0;
+	overflow-y: auto;
 }
 
-#ccStoreList {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 16px;
-    padding: 12px 0;
-}
-
-.storeCard {
-    padding: 12px;
-    border: 1px solid #333;
-    border-radius: 8px;
-    background: #202020;
-}
-
-.storeCard img {
-    width: 100%;
-    max-height: 165px;
-    object-fit: cover;
-    border-radius: 5px;
-}
-
-.storeCard h3 {
-    margin: 10px 0 5px;
-}
-
-.storeCard p {
-    color: var(--muted);
-    font-size: 0.9em;
-}
-
-.storeCard button {
-    margin-top: 8px;
-}
-
+.managerBody:not(.storeOpen) > #ccStorePanel,
 .managerBody.storeOpen > #ccEditor,
-.managerBody.storeOpen > #ccFiles {
-    display: none;
-}
-
-.managerBody.storeOpen > #ccStorePanel {
-    display: block;
+.managerBody.storeOpen > #ccFiles,
+.managerPopup.legacy #ccStore {
+	display: none;
 }
 
 #ccStoreBack {
-    margin-left: auto;
+	margin-left: auto;
 }
 
-.storeDownloadBtn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-
-    width: 100%;
-    padding: 11px 16px;
-
-    border: 1px solid var(--accent);
-    border-radius: 8px;
-
-    background: var(--accent);
-    color: #fff;
-
-    font: inherit;
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 0.2px;
-
-    cursor: pointer;
-    transition:
-	background 0.2s ease,
-    border-color 0.2s ease,
-    transform 0.2s ease,
-    box-shadow 0.2s ease;
+#ccStoreList {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+	gap: 0.9em;
+	padding: 0.9em;
 }
 
-.storeDownloadBtn:disabled {
-    opacity: 0.65;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
+#ccStoreList > .empty {
+	grid-column: 1 / -1;
 }
 
-.storeDownloadBtn.installed {
-    background: #292929;
-    border-color: #444;
-    color: var(--muted);
+.storeCard {
+	display: flex;
+	flex-direction: column;
+	gap: 0.3em;
+	padding: 0.6em;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: #202020;
 }
 
-.storeDownloadBtn i {
-    font-size: 14px;
+.storeCard img {
+	width: 100%;
+	aspect-ratio: 16 / 9;
+	border-radius: 5px;
+	background: #2b2b2b;
+	object-fit: cover;
 }
 
-.storeDownloadBtn:hover {
-    filter: brightness(1.12);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+.storeCard img.missing {
+	visibility: hidden;
 }
 
-.storeDownloadBtn:active {
-    transform: translateY(0);
-    box-shadow: none;
+.storeName {
+	overflow: hidden;
+	color: #fff;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
-.storeDownloadBtn:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 3px;
+.storeAuthor {
+	min-height: 1.2em;
+	overflow: hidden;
+	color: var(--muted);
+	font-size: 0.85em;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
-.storeDownloadBtn:disabled {
-    opacity: 0.55;
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
+.storeCard .btn {
+	justify-content: center;
+	margin-top: 0.3em;
+}
+
+.storeCard .btn.done {
+	color: var(--muted);
+	cursor: default;
+	pointer-events: none;
 }
 </style>
 <div class="managerPopup">
@@ -230,7 +187,7 @@
 		<label class="previewToggle" title="Show the file you edit right away, closing puts the active one back"><input type="checkbox" id="ccLive" checked>Live preview</label>
 		<div class="btn" id="ccPeek" title="Hold to look at the game behind this window"><span class="mi">visibility</span>Hold to peek</div>
 		<div class="btn" id="ccFolder"><span class="mi">folder_open</span>Show folder</div>
-		<div class="btn" id="ccStore"><span class="mi">store</span>CSS Store</div>
+		<div class="btn" id="ccStore" title="Download CSS made by the community"><span class="mi">storefront</span>CSS Store</div>
 		<div class="managerClose" data-close>&times;</div>
 	</div>
 	<div class="managerHint" id="ccHint">One file is active at a time and loads after all of Krunker's styles, so a rule with the same selector wins.
@@ -238,12 +195,12 @@
 	<div class="managerError" data-error hidden></div>
 	<div class="managerNotice" id="ccOff" hidden><span>CSS Manager is switched off (Settings, Customization), nothing of this is applied.</span></div>
 	<div class="managerBody">
-		<div id="ccStorePanel" hidden>
-    		<div class="groupHead">
-        		<div class="groupTitle">CSS Store</div>
-       			<div class="btn small" id="ccStoreBack">Back</div>
-    		</div>
-    		<div id="ccStoreList"></div>
+		<div class="group" id="ccStorePanel">
+			<div class="groupHead">
+				<div class="groupTitle">CSS Store</div>
+				<div class="btn small" id="ccStoreBack"><span class="mi">arrow_back</span>Back</div>
+			</div>
+			<div id="ccStoreList"></div>
 		</div>
 		<div id="ccEditor"></div>
 		<div class="group" id="ccFiles">
