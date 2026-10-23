@@ -28,6 +28,16 @@
     .name{overflow-wrap:anywhere}.amount{white-space:nowrap;font-variant-numeric:tabular-nums}
     .grade{display:inline-block;min-width:17px;padding:0 3px;margin-left:4px;border-radius:3px;color:#101820;text-align:center;font-size:10px;font-weight:700}
     .notes{margin:10px 0 0;padding-left:16px;color:#9eb1bc;font-size:11px}.notes li{margin:4px 0}
+    @container (max-width:420px){
+        .panel{padding:10px 12px}.panel.filled{min-height:0}
+        header{flex-direction:column;align-items:flex-start;gap:2px;margin-bottom:6px}.status{text-align:left}
+        .comparison{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"give get" "diff diff";gap:6px 10px}
+        .side:first-child{grid-area:give}.side:last-child{grid-area:get}
+        .difference{grid-area:diff;border:0;border-top:1px solid #2a3a42;padding-top:6px}
+        strong{font-size:18px}.difference strong{font-size:16px}.verdict{font-size:15px;line-height:20px}
+        details{margin-top:6px;padding-top:5px}.detailBody{max-height:340px;padding:4px 12px 12px}
+        .breakdown{grid-template-columns:minmax(0,1fr);gap:12px}
+    }
     @media(max-width:700px){.panel{padding:10px 12px}header{align-items:flex-start}.status{max-width:65%}strong{font-size:18px}.comparison{gap:6px}.breakdown{gap:12px}}
 </style>
 <section class="panel" aria-label="Kute trade analysis"></section>
