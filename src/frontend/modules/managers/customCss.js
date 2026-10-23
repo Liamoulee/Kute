@@ -210,19 +210,109 @@ class CssManager {
      * @param {StoreItem} item
      * @return {HTMLElement}
      */
+    
+    openImagePreview(src, name) {
+    if (!this.popup) return;
+
+    this.$("#cssImagePreview")?.remove();
+
+    const overlay = document.createElement("div");
+    overlay.id = "cssImagePreview";
+
+    Object.assign(overlay.style, {
+        position: "fixed",
+        inset: "0",
+        zIndex: "999999",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "40px",
+        boxSizing: "border-box",
+        background: "rgba(0, 0, 0, 0.88)",
+        backdropFilter: "blur(8px)",
+        cursor: "zoom-out"
+    });
+
+    const image = document.createElement("img");
+    image.src = src;
+    image.alt = name;
+
+    Object.assign(image.style, {
+        display: "block",
+        maxWidth: "100%",
+        maxHeight: "100%",
+        width: "auto",
+        height: "auto",
+        objectFit: "contain",
+        borderRadius: "8px",
+        boxShadow: "0 10px 50px rgba(0, 0, 0, 0.5)",
+        cursor: "default"
+    });
+
+    const close = document.createElement("button");
+    close.type = "button";
+    close.textContent = "×";
+    close.setAttribute("aria-label", "Close preview");
+
+    Object.assign(close.style, {
+        position: "absolute",
+        top: "16px",
+        right: "24px",
+        border: "none",
+        background: "transparent",
+        color: "#fff",
+        fontSize: "36px",
+        cursor: "pointer",
+        lineHeight: "1"
+    });
+
+    const closePreview = () => {
+        overlay.remove();
+        document.removeEventListener("keydown", onKeyDown);
+    };
+
+    const onKeyDown = (event) => {
+        if (event.key === "Escape") closePreview();
+    };
+
+    close.onclick = closePreview;
+
+    overlay.addEventListener("click", (event) => {
+        if (event.target === overlay) closePreview();
+    });
+
+    image.addEventListener("click", (event) => {
+        event.stopPropagation();
+    });
+
+    overlay.append(image, close);
+    this.popup.shadow.append(overlay);
+
+    document.addEventListener("keydown", onKeyDown);
+}
+
     storeCard(item){
         const card = document.createElement("div");
         card.className = "storeCard";
         const shot = document.createElement("div");
         shot.className = "storeShot";
         shot.innerHTML = "<span class=\"mi\">image</span>";
-        if (item.preview){
+        if (item.preview) {
             const image = document.createElement("img");
-            image.alt = "";
+            image.alt = `Preview of ${item.name}`;
             image.loading = "lazy";
             image.decoding = "async";
             image.src = storeUrl(item.preview);
             image.onerror = () => image.remove();
+
+            image.style.cursor = "zoom-in";
+            image.title = "Click to preview";
+
+            image.addEventListener("click", (event) => {
+                event.stopPropagation();
+                this.openImagePreview(image.src, item.name);
+            });
+
             shot.append(image);
         }
         const title = document.createElement("div");
