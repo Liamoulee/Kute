@@ -100,15 +100,6 @@ If you want to support this Project, you can help with Code contributions :octoc
 
 <hr>
 
-## 🗒️ API Client
-
-Kute has it's own fully documented API Client: 
-- https://github.com/NullDev/krapio
-- https://nulldev.github.io/krapio/docs/
-- https://www.npmjs.com/package/krapio
-
-<hr>
-
 ## :question: FAQ
 
 <details>
@@ -146,6 +137,22 @@ Yes, as an [AppImage](https://github.com/NullDev/Kute/releases/latest/download/k
 Uncapped, other clients count every frame the game computes, including frames that never reach your screen: they pile up behind the GPU and get replaced before they are shown. That makes a big number, but those extra frames are only extra load and extra input lag. Kute's swap chain hook and patched Chromium let the game run just one frame ahead, so it only computes frames that actually get shown, and the **Present FPS Counter** (Interface settings) shows the frames that reach your screen. A lower number that is real, instead of a higher one that is not.
 
 </details>
+
+<hr>
+
+## 🗒️ API Client
+
+Kute has it's own fully documented API Client: 
+- https://github.com/NullDev/krapio
+- https://nulldev.github.io/krapio/docs/
+- https://www.npmjs.com/package/krapio
+
+<hr>
+
+## 🛒 CSS Store
+
+You can submit your themes as PR to: <br>
+https://github.com/NullDev/kute-css-store
 
 <hr>
 
