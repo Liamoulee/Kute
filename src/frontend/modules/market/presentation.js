@@ -1,4 +1,4 @@
-import { formatKr, formatPercent, RARITIES } from "./types.js";
+import { formatKr, formatPercent, GRADE_COLORS, RARITIES } from "./types.js";
 
 export const TYPE_NAMES = ["Weapons", "Hats", "Bodies", "Melee", "Sprays", "Dyes", "Waists", "Faces", "Charms", "Emotes", "Stickers", "Skydomes", "Poses", "Spin tickets", "Capes", "Heads", "Paints", "Backs", "Consumables"];
 
@@ -17,6 +17,12 @@ export const verdictOf = (verdict) => Object.hasOwn(TRADE_VERDICTS, verdict) ? /
 
 /** @param {unknown} text */
 export const esc = (text) => String(text ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
+
+/** @param {import("./types.js").TradeSide} side @param {string} label */
+export const tradeBreakdown = (side, label) => `<div><h3>${label}</h3>${side.items.map((item) => `<div class="line"><span class="name">${item.count > 1 ? `${item.count} &times; ` : ""}${esc(item.name)}${item.serial !== undefined ? ` #${esc(item.serial)}` : ""}${item.wear !== undefined ? ` &middot; wear ${item.wear.toFixed(4)}` : ""}${item.unknown ? "" : `<span class="grade" title="Activity grade ${esc(item.grade)}" style="background:${GRADE_COLORS[item.grade]}">${esc(item.grade)}</span>`}</span><span class="amount">${item.unknown ? "Unvalued" : `${formatKr(item.lineValue)} KR`}</span></div>`).join("")}${side.kr ? `<div class="line"><span>Added KR</span><span>${formatKr(side.kr)} KR</span></div>` : ""}${!side.items.length && !side.kr ? '<span class="meta">No items added</span>' : ""}</div>`;
+
+/** @param {import("./types.js").TradeVerdict} verdict @param {string[]} [extra] */
+export const tradeNotes = (verdict, extra = []) => `<ul class="notes"><li>Estimates describe market data, not guaranteed sale prices. Activity grades do not guarantee a selling time.</li>${[...extra, ...verdict.drivers.filter((driver) => !driver.startsWith("Liquidity adjustments"))].map((driver) => `<li>${esc(driver)}</li>`).join("")}</ul>`;
 
 /** @param {number|null|undefined} value */
 export const money = (value) => value === null || value === undefined ? "Unavailable" : formatKr(value);
