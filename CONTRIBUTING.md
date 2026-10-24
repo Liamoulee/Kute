@@ -37,5 +37,6 @@ Code must **never** impact performance in a negative way. This is a performance-
 - The same checks run automatically on every pull request, and a PR has to pass them.
 - Keep the PR focused on one thing. Unrelated changes make it harder to review.
 - Describe what you changed, why, and how you tested it.
+- Please open the PR against **dev** and _not_ **master**.
 
 See [BUILDING.md](BUILDING.md) for how to set up and build the project.
