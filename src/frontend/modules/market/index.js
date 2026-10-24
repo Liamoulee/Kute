@@ -3,6 +3,7 @@ import api from "../api.js";
 import marketApi from "./api.js";
 import cards from "./cards.js";
 import trade from "./trade.js";
+import offers from "./offers.js";
 import alerts, { UNREAD_EVENT } from "./alerts.js";
 import contrib from "./contrib.js";
 
@@ -51,6 +52,7 @@ class Market {
             window.addEventListener(UNREAD_EVENT, this.onUnread);
             cards.start();
             trade.start();
+            offers.start();
             alerts.start();
             contrib.start();
         }
@@ -61,6 +63,7 @@ class Market {
             this.headerSeparator.remove();
             cards.stop();
             trade.stop();
+            offers.stop();
             alerts.stop();
             contrib.stop();
             this.terminal?.close();
