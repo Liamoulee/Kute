@@ -221,9 +221,22 @@ class CssManager {
         image.src = src;
         image.alt = name;
         view.append(image);
-        view.onclick = (event) => {
-            if (event.target !== image) view.remove();
+        const closePreview = () => {
+            this.unzoom();
+            document.removeEventListener("keydown", onKeyDown);
         };
+
+        /** @param {KeyboardEvent} event */
+        const onKeyDown = (event) => {
+            if (event.key === "Escape") closePreview();
+        };
+
+        /** @param {MouseEvent} event */
+        view.onclick = (event) => {
+            if (event.target !== image) closePreview();
+        };
+
+        document.addEventListener("keydown", onKeyDown);
         this.$(".managerPopup").append(view);
     }
 
