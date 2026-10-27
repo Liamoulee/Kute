@@ -214,29 +214,21 @@ class CssManager {
     zoom(src, name){
         if (!this.popup) return;
         this.unzoom();
+
         const view = document.createElement("div");
         view.id = "ccZoom";
         view.innerHTML = "<div class=\"managerClose\">&times;</div>";
+
         const image = document.createElement("img");
         image.src = src;
         image.alt = name;
         view.append(image);
-        const closePreview = () => {
-            this.unzoom();
-            document.removeEventListener("keydown", onKeyDown);
-        };
 
-        /** @param {KeyboardEvent} event */
-        const onKeyDown = (event) => {
-            if (event.key === "Escape") closePreview();
-        };
-
-        /** @param {MouseEvent} event */
         view.onclick = (event) => {
-            if (event.target !== image) closePreview();
+            if (event.target === image) return;
+            this.unzoom();
         };
 
-        document.addEventListener("keydown", onKeyDown);
         this.$(".managerPopup").append(view);
     }
 
